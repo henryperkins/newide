@@ -7,10 +7,10 @@
     <link rel="stylesheet" href="/static/index.css">
     <link rel="stylesheet" href="/static/all.min.css">
     <link rel="stylesheet" href="/static/default.min.css">
-    <!-- Load highlight.js locally -->
+    <!-- Load highlight.js and marked locally -->
     <script src="/static/highlight.min.js"></script>
-    <!-- Load chat.js as a module -->
-    <script type="module" src="/static/chat.js"></script>
+    <script src="/static/marked.min.js"></script>
+    <script src="/static/chat.js"></script>
 </head>
 <body>
     <div class="container">
@@ -43,7 +43,7 @@
             
             <div class="input-container">
                 <textarea id="user-input" placeholder="Type your message..."></textarea>
-                <button id="send-button" onclick="sendMessage()">Send</button>
+                <button id="send-button">Send</button>
                 <button onclick="regenerateResponse()" class="secondary">Regenerate</button>
                 <div class="effort-tooltip">Reasoning effort only applies to o1 and o3-mini models.
                 Higher effort may produce better results but takes longer.</div>
