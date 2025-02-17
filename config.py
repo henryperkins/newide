@@ -13,10 +13,9 @@ AZURE_OPENAI_API_VERSION = os.getenv(
 )
 
 # PostgreSQL Configuration
-POSTGRES_URL = os.getenv(
-    "POSTGRES_URL", 
-    "postgresql+asyncpg://user:pass@localhost:5432/chatdb"
-)
+POSTGRES_URL = os.getenv("POSTGRES_URL")
+if not POSTGRES_URL:
+    raise ValueError("POSTGRES_URL environment variable is required")
 ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")  # 32-url-safe-base64 bytes
 SESSION_TIMEOUT_MINUTES = int(
     os.getenv("SESSION_TIMEOUT_MINUTES", "30")
