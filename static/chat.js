@@ -33,9 +33,13 @@ async function initializeSession() {
 
 // Send Message
 async function sendMessage() {
+    console.log("sendMessage function called");
     const userInput = document.getElementById('user-input');
     const message = userInput.value.trim();
-    if (!message) return;
+    if (!message) {
+        console.log("No message to send");
+        return;
+    }
 
     // Ensure session is initialized
     if (!sessionId) {
@@ -442,37 +446,44 @@ function setupDragAndDrop() {
     });
 }
 
-// Initialize everything when the DOM is loaded
+// Replace the DOMContentLoaded event listener as specified
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("Initializing chat application...");
     try {
+        // Initialize session first
         const initialized = await initializeSession();
         if (!initialized) {
             showNotification("Failed to initialize application. Please refresh the page.", "error");
             return;
         }
         
-        setupDragAndDrop();
-        await loadFilesList();
+        // Set up the send button handler
+        const sendButton = document.getElementById('send-button');
+        if (sendButton) {
+            sendButton.onclick = async (e) => {
+                e.preventDefault();
+                await sendMessage();
+            };
+            console.log("Send button handler attached");
+        } else {
+            console.error("Send button not found in DOM");
+        }
         
-        // Add enter key support for sending messages
+        // Set up enter key handler
         const userInput = document.getElementById('user-input');
         if (userInput) {
-            userInput.addEventListener('keypress', (e) => {
+            userInput.addEventListener('keypress', async (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    sendMessage();
+                    await sendMessage();
                 }
             });
+            console.log("Enter key handler attached");
         }
-
-        // Add event handler for send button
-        const sendButton = document.querySelector('button[onclick="sendMessage()"]');
-        if (sendButton) {
-            // Remove the inline onclick handler and add proper event listener
-            sendButton.removeAttribute('onclick');
-            sendButton.addEventListener('click', sendMessage);
-        }
+        
+        // Initialize other components
+        setupDragAndDrop();
+        await loadFilesList();
         
         console.log("Initialization complete. Session ID:", sessionId);
     } catch (error) {
