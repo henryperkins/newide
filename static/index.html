@@ -8,6 +8,14 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Include local marked.js for Markdown rendering -->
     <script src="/static/marked.min.js"></script>
+    <script>
+        // Initialize marked with safe defaults
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+            sanitize: true  // Default sanitization
+        });
+    </script>
 </head>
 <body>
     <div class="container">
