@@ -556,3 +556,10 @@ async def new_session():
         await session.commit()
     
     return {"session_id": str(session_id)}
+
+@app.get("/new_session") 
+async def reject_new_session_get():
+    raise HTTPException(
+        status_code=405,
+        detail="Use POST method to create new session"
+    )

@@ -6,7 +6,10 @@ let lastUserMessage = null;
 async function initializeSession() {
     try {
         const response = await fetch('/new_session', {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
         
         if (!response.ok) {
