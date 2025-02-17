@@ -139,8 +139,8 @@ function displayMessage(message, role) {
 
     // Render content based on role
     if (role === 'assistant') {
-        // For assistant messages, allow full markdown with HTML
-        marked.setOptions({ sanitize: false });
+        // For assistant messages, use safe markdown parsing
+        marked.setOptions({ sanitize: true });
         contentDiv.innerHTML = safeMarkdownParse(message);
     } else {
         // For user messages, sanitize HTML but still render markdown
