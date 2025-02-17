@@ -6,15 +6,13 @@ from fastapi.responses import FileResponse
 import time
 from pydantic import BaseModel
 from typing import Optional, List, Dict
-, Any
-from pydantic import constr
+from enum import Enum
+import os
 import uuid
 import datetime
 
-
 import config
 from openai import AzureOpenAI
-
 
 
 app = FastAPI()
@@ -28,19 +26,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 # Initialize Azure OpenAI client
 client = AzureOpenAI(
     api_key=str(config.AZURE_OPENAI_API_KEY),
     api_version="2025-01-01-preview",
     azure_endpoint=str(config.AZURE_OPENAI_ENDPOINT)
 )
-
-
-@app.get("/")
-async def serve_root():
-    return FileResponse("static/index.html")
-
 
 # In-memory storage for conversations and file contents
 conversations: Dict[str, List[Dict]] = {}
@@ -59,61 +50,73 @@ class FileMetadata(BaseModel):
 file_store: Dict[str, Dict[str, FileMetadata]] = {}
 
 
-ReasoningEffort = constr(regex='^(low|medium|high)$')
+class ReasoningEffort(str, Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
 
-def validate_reasoning_effort(value: str) -> ReasoningEffort:
-    return value if value in ('low', 'medium', 'high') else 'medium'
+
+def validate_reasoning_effort(value: Optional[ReasoningEffort]) -> str:
+    # Return enum value if provided, else default to "medium"
+    return value.value if value else "medium"
 
 
 class ChatMessage(BaseModel):
     message: str
     session_id: str
     developer_config: Optional[str] = None
-
     reasoning_effort: Optional[ReasoningEffort] = None
 
+
+@app.get("/")
+async def serve_root():
+    # Construct the absolute path to index.html
+    base_path = os.path.dirname(__file__)
+    index_file = os.path.join(base_path, "static", "index.html")
+    if not os.path.exists(index_file):
+        raise HTTPException(status_code=404, detail="index.html not found")
+    return FileResponse(index_file)
 
 
 @app.post("/chat")
 async def chat(chat_message: ChatMessage):
     session_id = chat_message.session_id
-    
+
     # Initialize conversation history if needed
     if session_id not in conversations:
         conversations[session_id] = []
-    
+
     # Prepare messages for the API call
     messages = []
-    
-    # Add developer message if provided (equivalent to system message)
+
+    # Add developer message if provided
     if chat_message.developer_config:
-        # Prefix with Formatting re-enabled for markdown support
+        # Prefix with "Formatting re-enabled" for markdown
         formatted_content = chat_message.developer_config
-        has_code = (
-            "```" in chat_message.message or 
-            "code" in chat_message.message.lower()
-        )
+        has_code = ("```" in chat_message.message
+                    or "code" in chat_message.message.lower())
         if has_code:
             formatted_content = (
                 "Formatting re-enabled - code output should be wrapped in "
                 "markdown.\n" + formatted_content
             )
         else:
-            formatted_content = "Formatting re-enabled\n" + formatted_content
-            
+            formatted_content = (
+                "Formatting re-enabled\n" + formatted_content
+            )
+
         messages.append({
             "role": "developer",
             "content": formatted_content
         })
-    
+
     # Add conversation history
     messages.extend(conversations[session_id])
-    
-    # Add the new user message
+
+    # Add user message
     messages.append({"role": "user", "content": chat_message.message})
-    
+
     using_file_context = False
-    # Add file context from file_store if available
     if session_id in file_store:
         for file_id, metadata in file_store[session_id].items():
             messages[-1]["content"] += (
@@ -121,69 +124,64 @@ async def chat(chat_message: ChatMessage):
                 f"{metadata.content}"
             )
             using_file_context = True
-    
+
     try:
-        # Call Azure OpenAI API
         try:
             # o1 requirements:
             # - max_completion_tokens required
-            # - Excluded params: streaming, top_p, etc.
+            # - no streaming, top_p, etc.
             # - reasoning_effort optional
             params = {
                 "model": str(config.AZURE_OPENAI_DEPLOYMENT_NAME),
                 "messages": messages,
-                "max_completion_tokens": 100000,  # Maximum output tokens
+                "max_completion_tokens": 100000
             }
-            
-            # Only add reasoning_effort for o1 and o3-mini models
+
+            # Only add reason. effort for o1 / o3-mini models
             model_name = str(config.AZURE_OPENAI_DEPLOYMENT_NAME).lower()
-            is_reasoning_model = (
-                any(model in model_name for model in ["o1-", "o3-"]) and 
-                "preview" not in model_name
-            )
-            if is_reasoning_model:
-                params["reasoning_effort"] = validate_reasoning_effort(chat_message.reasoning_effort or "medium"
-)
-            
+            is_reasoning = (any(m in model_name for m in ["o1-", "o3-"])
+                            and "preview" not in model_name)
+            if is_reasoning:
+                params["reasoning_effort"] = validate_reasoning_effort(
+                    chat_message.reasoning_effort
+                )
+
             response = client.chat.completions.create(**params)
         except Exception as e:
-            # Log the error and provide a clear message
             print(f"Azure OpenAI API Error: {str(e)}")
             raise HTTPException(
                 status_code=500,
                 detail="Error communicating with Azure OpenAI service"
             )
-        
-        # Extract the response
-        assistant_message = response.choices[0].message.content
-        
-        # Update conversation history
+
+        assistant_msg = response.choices[0].message.content
+
+        # Update conversation
         conversations[session_id].append({
             "role": "user",
             "content": chat_message.message
         })
         conversations[session_id].append({
             "role": "assistant",
-            "content": assistant_message
+            "content": assistant_msg
         })
-        
-        # Return response with token usage and file context status
+
         return {
-            "response": assistant_message,
+            "response": assistant_msg,
             "using_file_context": using_file_context,
             "usage": {
                 "prompt_tokens": (
                     response.usage.prompt_tokens if response.usage else 0
                 ),
                 "completion_tokens": (
-                    response.usage.completion_tokens if response.usage else 0
+                    response.usage.completion_tokens
+                    if response.usage else 0
                 ),
                 "total_tokens": (
                     response.usage.total_tokens if response.usage else 0
                 )
             }
         }
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -191,67 +189,57 @@ async def chat(chat_message: ChatMessage):
 @app.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
-    # File to upload
-    session_id: str = Form(...),  # Get session_id from form data
+    session_id: str = Form(...),
 ):
     if not session_id:
         raise HTTPException(status_code=400, detail="Session ID is required")
-    
-    # Validate session exists
-    if (
-        session_id not in file_store and 
-        session_id not in conversations
-    ):
+
+    if (session_id not in file_store and
+       session_id not in conversations):
         raise HTTPException(
             status_code=400,
-            detail="Invalid session ID. Please refresh the page.")
-    
+            detail="Invalid session ID. Please refresh."
+        )
+
     try:
         contents = await file.read()
         try:
             file_text = contents.decode('utf-8')
-            # Basic content validation and truncation if needed
+            # Truncate if needed
             if len(file_text) > 100000:
                 file_text = (
-                    file_text[0:100000] +
+                    file_text[:100000] +
                     "\n[Content truncated due to length]"
                 )
-            
-            # Generate unique file ID
+
             file_id = str(uuid.uuid4())
-            
-            # Create file metadata
-            file_metadata = FileMetadata(
+            file_meta = FileMetadata(
                 filename=file.filename or "unnamed_file.txt",
                 content=file_text,
                 size=len(contents),
                 upload_time=datetime.datetime.now().isoformat(),
                 char_count=len(file_text),
-                estimated_tokens=len(file_text) // 4  # rough estimate
+                estimated_tokens=len(file_text) // 4
             )
-            
-            # Initialize session's file store if needed
             if session_id not in file_store:
                 file_store[session_id] = {}
-            
-            # Store file metadata
-            file_store[session_id][file_id] = file_metadata
-            
+            file_store[session_id][file_id] = file_meta
+
             return {
                 "message": "File uploaded successfully",
                 "file_id": file_id,
                 "metadata": {
                     "filename": file.filename,
                     "size": len(contents),
-                    "upload_time": file_metadata.upload_time,
+                    "upload_time": file_meta.upload_time,
                     "char_count": len(file_text),
-                    "estimated_tokens": file_metadata.estimated_tokens
+                    "estimated_tokens": file_meta.estimated_tokens
                 }
             }
         except UnicodeDecodeError:
             raise HTTPException(
                 status_code=400,
-                detail="File must be a valid UTF-8 text file"
+                detail="File must be valid UTF-8 text"
             )
     except Exception as e:
         raise HTTPException(
@@ -265,18 +253,18 @@ async def get_session_files(session_id: str):
     """Get metadata for all files in a session"""
     if session_id not in file_store:
         return {"files": []}
-    
+
     files = []
-    for file_id, metadata in file_store[session_id].items():
+    for file_id, meta in file_store[session_id].items():
         files.append({
             "file_id": file_id,
-            "filename": metadata.filename,
-            "size": metadata.size,
-            "upload_time": metadata.upload_time,
-            "char_count": metadata.char_count,
-            "estimated_tokens": metadata.estimated_tokens
+            "filename": meta.filename,
+            "size": meta.size,
+            "upload_time": meta.upload_time,
+            "char_count": meta.char_count,
+            "estimated_tokens": meta.estimated_tokens
         })
-    
+
     return {"files": files}
 
 
@@ -285,12 +273,11 @@ async def delete_file(session_id: str, file_id: str):
     """Delete a file from the session"""
     if session_id not in file_store or file_id not in file_store[session_id]:
         raise HTTPException(status_code=404, detail="File not found")
-    
+
     del file_store[session_id][file_id]
     return {"message": "File deleted successfully"}
 
 
-# Track typing status {session_id: {user_id: last_typing_time}}
 typing_status: Dict[str, Dict[str, float]] = {}
 
 
@@ -298,21 +285,18 @@ typing_status: Dict[str, Dict[str, float]] = {}
 async def websocket_typing(websocket: WebSocket, session_id: str):
     await websocket.accept()
     user_id = str(uuid.uuid4())
-    
+
     try:
         while True:
-            # Receive and broadcast typing status
             await websocket.receive_text()
             typing_status.setdefault(session_id, {})[user_id] = time.time()
-            
-            # Broadcast to all clients
-            # Only show typers who were active in the last 2 seconds
+
             active_typers = [
                 uid for uid, t in typing_status.get(session_id, {}).items()
-                if time.time() - t < 2  # Only show recent typers
+                if time.time() - t < 2
             ]
             await websocket.send_json({"typing_users": active_typers})
-            
+
     except WebSocketDisconnect:
         del typing_status[session_id][user_id]
 
@@ -322,4 +306,3 @@ async def new_session():
     session_id = str(uuid.uuid4())
     conversations[session_id] = []
     return {"session_id": session_id}
-
