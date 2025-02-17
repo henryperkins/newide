@@ -54,8 +54,10 @@ async def security_headers(request: Request, call_next):
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
             "style-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; "
+            "style-src-elem 'self' 'unsafe-inline' cdnjs.cloudflare.com; "
             "img-src 'self' data:; "
-            "font-src 'self' cdnjs.cloudflare.com"
+            "font-src 'self' cdnjs.cloudflare.com; "
+            "connect-src 'self'"
         ),
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "DENY",
