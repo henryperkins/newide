@@ -1,4 +1,23 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, WebSocket
+from sqlalchemy.ext.asyncio import (
+    create_async_engine, 
+    AsyncSession
+)
+from sqlalchemy.orm import (
+    sessionmaker, 
+    declarative_base
+)
+from sqlalchemy import (
+    text,
+    Column,
+    UUID,
+    String,
+    DateTime,
+    Text,
+    ForeignKey,
+    Integer,
+    BigInteger
+)
 from fastapi.websockets import WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +36,37 @@ from openai import AzureOpenAI
 
 app = FastAPI()
 
+
+@app.on_event("startup")
+async def init_db():
+    async with engine.begin() as conn:
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                id UUID PRIMARY KEY,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                last_activity TIMESTAMPTZ DEFAULT NOW(),
+                expires_at TIMESTAMPTZ NOT NULL
+            );
+            
+            CREATE TABLE IF NOT EXISTS conversations (
+                id SERIAL PRIMARY KEY,
+                session_id UUID REFERENCES sessions(id),
+                role VARCHAR(20) NOT NULL,
+                content TEXT NOT NULL,
+                timestamp TIMESTAMPTZ DEFAULT NOW()
+            );
+            
+            CREATE TABLE IF NOT EXISTS uploaded_files (
+                id UUID PRIMARY KEY,
+                session_id UUID REFERENCES sessions(id),
+                filename TEXT NOT NULL,
+                content TEXT NOT NULL,
+                size BIGINT NOT NULL,
+                upload_time TIMESTAMPTZ DEFAULT NOW()
+            );
+        """))
+
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.add_middleware(
     CORSMiddleware,
@@ -26,11 +76,70 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+Base = declarative_base()
+
+# SQLAlchemy ORM Models
+class Session(Base):
+    __tablename__ = "sessions"
+    id = Column(UUID, primary_key=True)
+    created_at = Column(
+        DateTime(timezone=True), 
+        server_default=text("NOW()")
+    )
+    last_activity = Column(
+        DateTime(timezone=True), 
+        server_default=text("NOW()")
+    )
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(
+        UUID, 
+        ForeignKey("sessions.id"), 
+        nullable=False
+    )
+    role = Column(String(20), nullable=False)
+    content = Column(Text, nullable=False)
+    timestamp = Column(
+        DateTime(timezone=True), 
+        server_default=text("NOW()")
+    )
+
+
+class UploadedFile(Base):
+    __tablename__ = "uploaded_files"
+    id = Column(UUID, primary_key=True)
+    session_id = Column(UUID, ForeignKey("sessions.id"), nullable=False)
+    filename = Column(Text, nullable=False)
+    content = Column(Text, nullable=False)
+    size = Column(BigInteger, nullable=False)
+    upload_time = Column(
+        DateTime(timezone=True), 
+        server_default=text("NOW()")
+    )
+
 # Initialize Azure OpenAI client
 client = AzureOpenAI(
     api_key=str(config.AZURE_OPENAI_API_KEY),
     api_version="2025-01-01-preview",
     azure_endpoint=str(config.AZURE_OPENAI_ENDPOINT)
+)
+
+# Configure PostgreSQL
+engine = create_async_engine(
+    config.POSTGRES_URL,
+    pool_size=20,
+    max_overflow=10,
+    pool_recycle=3600
+)
+AsyncSessionLocal = sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False
 )
 
 # In-memory storage for conversations and file contents
