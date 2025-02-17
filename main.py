@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, WebSocket, Request
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from fastapi.middleware import Middleware
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import (
@@ -36,7 +37,17 @@ import config
 from openai import AzureOpenAI
 
 
-app = FastAPI()
+middleware = [
+    Middleware(
+        "csp",
+        default_src=["'self'"],
+        script_src=["'self'", "'unsafe-inline'", "cdn.jsdelivr.net"],
+        style_src=["'self'", "'unsafe-inline'"],
+        img_src=["'self'", "data:"],
+    )
+]
+
+app = FastAPI(middleware=middleware)
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
