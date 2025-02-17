@@ -1,8 +1,17 @@
+import logging
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, WebSocket, Request
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware 
 from fastapi.middleware import Middleware
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from time import perf_counter
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import (
     create_async_engine, 
     AsyncSession
@@ -222,9 +231,11 @@ async def serve_root():
     return FileResponse(index_file)
 
 
-@app.post("/chat")
+@app.post("/chat") 
 @limiter.limit("10/minute")
 async def chat(request: Request, chat_message: ChatMessage):
+    start_time = perf_counter()
+    logger.info(f"Chat request received from session {chat_message.session_id}")
     session_id = chat_message.session_id
 
     messages = []
@@ -328,24 +339,30 @@ async def chat(request: Request, chat_message: ChatMessage):
             
             await db_session.commit()
 
+        elapsed = perf_counter() - start_time
+        tokens = {
+            "prompt": response.usage.prompt_tokens if response.usage else 0,
+            "completion": response.usage.completion_tokens if response.usage else 0,
+            "total": response.usage.total_tokens if response.usage else 0
+        }
+            
+        logger.info(
+            f"Chat request completed in {elapsed:.2f}s - "
+            f"Tokens used: {tokens['total']} "
+            f"(prompt: {tokens['prompt']}, completion: {tokens['completion']})"
+        )
+            
         return {
             "response": assistant_msg,
             "using_file_context": using_file_context,
             "usage": {
-                "prompt_tokens": (
-                    response.usage.prompt_tokens if response.usage else 0
-                ),
-                "completion_tokens": (
-                    response.usage.completion_tokens 
-                    if response.usage else 0
-                ),
-                "total_tokens": (
-                    response.usage.total_tokens 
-                    if response.usage else 0
-                )
+                "prompt_tokens": tokens["prompt"],
+                "completion_tokens": tokens["completion"], 
+                "total_tokens": tokens["total"]
             }
         }
     except Exception as e:
+        logger.error(f"Error in chat endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -354,6 +371,7 @@ async def upload_file(
     file: UploadFile = File(...),
     session_id: str = Form(...)
 ):
+    logger.info(f"File upload request received: {file.filename} for session {session_id}")
     if not session_id:
         raise HTTPException(status_code=400, detail="Session ID is required")
 
@@ -386,16 +404,23 @@ async def upload_file(
                 await db_session.commit()
 
                 char_count = len(file_text)
+                metadata = {
+                    "filename": file.filename,
+                    "size": len(contents),
+                    "upload_time": uploaded_file.upload_time.isoformat(),
+                    "char_count": char_count,
+                    "estimated_tokens": char_count // 4
+                }
+                
+                logger.info(
+                    f"File uploaded successfully: {file.filename} "
+                    f"({metadata['size']} bytes, ~{metadata['estimated_tokens']} tokens)"
+                )
+                
                 return {
                     "message": "File uploaded successfully",
                     "file_id": str(file_id),
-                    "metadata": {
-                        "filename": file.filename,
-                        "size": len(contents),
-                        "upload_time": uploaded_file.upload_time.isoformat(),
-                        "char_count": char_count,
-                        "estimated_tokens": char_count // 4
-                    }
+                    "metadata": metadata
                 }
             except UnicodeDecodeError:
                 raise HTTPException(
