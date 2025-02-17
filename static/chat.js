@@ -6,7 +6,7 @@ let lastUserMessage = null;
 // Initialize session when the page loads
 async function initializeSession() {
     try {
-        const response = await fetch('http://localhost:8000/new_session', {
+        const response = await fetch('/new_session', {
             method: 'POST'
         });
         const data = await response.json();
@@ -38,7 +38,7 @@ async function sendMessage() {
     
 
     try {
-        const response = await fetch('http://localhost:8000/chat', {
+        const response = await fetch('/chat', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -222,7 +222,7 @@ async function handleFileUpload(file) {
         };
 
         // Handle completion
-        xhr.open('POST', 'http://localhost:8000/upload', true);
+        xhr.open('POST', '/upload', true);
         
         xhr.onload = async () => {
             if (xhr.status === 200) {
@@ -293,7 +293,7 @@ function switchTab(tabId) {
 // Load files list from the backend
 async function loadFilesList() {
     try {
-        const response = await fetch(`http://localhost:8000/files/${sessionId}`);
+        const response = await fetch(`/files/${sessionId}`);
         const data = await response.json();
 
         const fileList = document.getElementById('file-list');
