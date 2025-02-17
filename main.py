@@ -50,7 +50,13 @@ app.add_middleware(HTTPSRedirectMiddleware)
 async def security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers.update({
-        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:",
+        "Content-Security-Policy": (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; "
+            "img-src 'self' data:; "
+            "font-src 'self' cdnjs.cloudflare.com"
+        ),
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "DENY",
         "X-XSS-Protection": "1; mode=block"

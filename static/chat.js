@@ -82,6 +82,16 @@ async function regenerateResponse() {
     }
 }
 
+// Helper function for safe markdown parsing
+function safeMarkdownParse(text) {
+    try {
+        return marked.parse(text);
+    } catch (e) {
+        console.error('Markdown parsing error:', e);
+        return text; // Fallback to raw text
+    }
+}
+
 // Configure marked.js with highlight.js
 marked.setOptions({
     highlight: function(code, lang) {
@@ -131,7 +141,7 @@ function displayMessage(message, role) {
     if (role === 'assistant') {
         // For assistant messages, allow full markdown with HTML
         marked.setOptions({ sanitize: false });
-        contentDiv.innerHTML = marked.parse(message);
+        contentDiv.innerHTML = safeMarkdownParse(message);
     } else {
         // For user messages, sanitize HTML but still render markdown
         marked.setOptions({ sanitize: true });
