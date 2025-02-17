@@ -7,17 +7,10 @@
     <link rel="stylesheet" href="/static/index.css">
     <link rel="stylesheet" href="/static/all.min.css">
     <link rel="stylesheet" href="/static/default.min.css">
+    <!-- Load highlight.js locally -->
     <script src="/static/highlight.min.js"></script>
+    <!-- Load marked.js locally -->
     <script src="/static/marked.min.js"></script>
-    <script>
-        // Initialize syntax highlighting on page load
-        document.addEventListener('DOMContentLoaded', () => hljs.highlightAll());
-        marked.setOptions({
-            breaks: true,
-            gfm: true,
-            sanitize: true
-        });
-    </script>
 </head>
 <body>
     <div class="container">
@@ -41,7 +34,6 @@
             </div>
         </div>
 
-        
         <div class="model-info">
             <p><strong>Model Info:</strong> Using Azure OpenAI o1 model (no streaming, uses max_completion_tokens)</p>
         </div>
@@ -94,6 +86,7 @@
             </div>
         </div>
     </div>
+    <!-- Ensure chat.js loads after highlight and marked are defined -->
     <script src="/static/chat.js"></script>
 </body>
 </html>
