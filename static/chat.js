@@ -1,5 +1,4 @@
-// chat.js
-
+// Global state
 let sessionId = null;
 let lastUserMessage = null;
 
@@ -21,11 +20,11 @@ async function initializeSession() {
         
         sessionId = data.session_id;
         console.log("Session initialized with ID:", sessionId);
-        
+        return true;
     } catch (error) {
         console.error('Error initializing session:', error);
-        showNotification(`Session initialization failed: ${error.message}`, 'error');
-        throw error;  // Re-throw to allow handling in callers
+        showNotification('Failed to initialize session: ' + error.message, 'error');
+        return false;
     }
 }
 
@@ -38,24 +37,24 @@ async function sendMessage() {
     // Ensure session is initialized
     if (!sessionId) {
         showNotification("Session not initialized. Initializing...", "warning");
-        await initializeSession();
-        if (!sessionId) {
-            showNotification("Failed to initialize session. Please refresh.", "error");
+        const initialized = await initializeSession();
+        if (!initialized) {
+            showNotification("Failed to initialize session. Please refresh the page.", "error");
             return;
         }
     }
 
-    lastUserMessage = message;
-    displayMessage(message, 'user');
-    userInput.value = '';
-    userInput.disabled = true;  // Disable input while processing
-
-    showTypingIndicator();
-    const developerConfig = document.getElementById('developer-config').value.trim();
-    const effortMap = ['low', 'medium', 'high'];
-    const reasoningEffort = effortMap[document.getElementById('reasoning-effort-slider').value];
-
     try {
+        userInput.disabled = true;  // Disable input while processing
+        lastUserMessage = message;
+        displayMessage(message, 'user');
+        userInput.value = '';
+        showTypingIndicator();
+
+        const developerConfig = document.getElementById('developer-config').value.trim();
+        const effortMap = ['low', 'medium', 'high'];
+        const reasoningEffort = effortMap[document.getElementById('reasoning-effort-slider').value];
+
         const response = await fetch('/chat', {
             method: 'POST',
             headers: {
@@ -69,7 +68,6 @@ async function sendMessage() {
             })
         });
 
-        // Add response status handling
         if (response.status === 400) {
             const errorData = await response.json();
             throw new Error(errorData.detail || 'Invalid request');
@@ -80,10 +78,15 @@ async function sendMessage() {
         }
 
         const data = await response.json();
-        displayMessage(data.response, 'assistant');
-        updateTokenUsage(data.usage);
+        if (!data.response) {
+            throw new Error('No response received from server');
+        }
 
-        // Show notification if the backend indicates file context usage
+        displayMessage(data.response, 'assistant');
+        if (data.usage) {
+            updateTokenUsage(data.usage);
+        }
+
         if (data.using_file_context) {
             showNotification('Response includes context from uploaded files', 'info');
         }
@@ -142,7 +145,10 @@ function showTypingIndicator() {
 
 // Remove typing indicator
 function removeTypingIndicator() {
-    document.querySelector('.typing-indicator')?.remove();
+    const indicator = document.querySelector('.typing-indicator');
+    if (indicator) {
+        indicator.remove();
+    }
 }
 
 // Display messages in the chat history
@@ -186,19 +192,19 @@ function displayMessage(message, role) {
 // Copy text to clipboard
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
-        // Could add a notification here
+        showNotification('Text copied to clipboard', 'success');
     }).catch(err => {
         console.error('Failed to copy text:', err);
+        showNotification('Failed to copy text to clipboard', 'error');
     });
 }
 
-// More advanced file upload handler using XHR and progress tracking
+// File upload handler
 async function handleFileUpload(file) {
-    // Ensure sessionId is available
     if (!sessionId) {
-        showNotification("Session not initialized. Attempting to reinitialize...", "warning");
-        await initializeSession();
-        if (!sessionId) {
+        showNotification("Session not initialized. Initializing...", "warning");
+        const initialized = await initializeSession();
+        if (!initialized) {
             showNotification("Failed to initialize session. Please refresh.", "error");
             return;
         }
@@ -224,11 +230,11 @@ async function handleFileUpload(file) {
     progressDiv.className = 'upload-progress';
     progressDiv.innerHTML = `
         <div class="upload-progress-header">
-            <span>${file.name}</span>
+            <span>${file.filename || 'Uploading...'}</span>
             <span class="upload-progress-percent">0%</span>
         </div>
-        <div class="upload-progress">
-            <div class="upload-progress-bar" style="width: 0%"></div>
+        <div class="upload-progress-bar">
+            <div class="progress" style="width: 0%"></div>
         </div>
     `;
     document.getElementById('file-list').prepend(progressDiv);
@@ -240,8 +246,9 @@ async function handleFileUpload(file) {
         xhr.upload.onprogress = (event) => {
             if (event.lengthComputable) {
                 const percentComplete = (event.loaded / event.total) * 100;
-                progressDiv.querySelector('.upload-progress-bar').style.width = percentComplete + '%';
-                progressDiv.querySelector('.upload-progress-percent').textContent = Math.round(percentComplete) + '%';
+                progressDiv.querySelector('.progress').style.width = percentComplete + '%';
+                progressDiv.querySelector('.upload-progress-percent').textContent = 
+                    Math.round(percentComplete) + '%';
             }
         };
 
@@ -254,13 +261,10 @@ async function handleFileUpload(file) {
                 showNotification(`${file.name} uploaded successfully`, 'success');
                 await loadFilesList(); // Refresh file list
             } else {
-                // Attempt to parse server's error message for more detail
                 try {
                     const errorData = JSON.parse(xhr.responseText);
-                    showNotification(errorData.detail, 'error');
-                    throw new Error(`Upload failed: ${xhr.statusText} - ${errorData.detail}`);
+                    throw new Error(`Upload failed: ${errorData.detail || xhr.statusText}`);
                 } catch (parseError) {
-                    console.error('Error parsing server error response:', parseError);
                     throw new Error(`Upload failed: ${xhr.statusText}`);
                 }
             }
@@ -273,8 +277,6 @@ async function handleFileUpload(file) {
             showNotification(`Failed to upload ${file.name}`, 'error');
         };
 
-
-        // Send the request with FormData
         xhr.send(formData);
 
     } catch (error) {
@@ -286,9 +288,11 @@ async function handleFileUpload(file) {
 
 // Update token usage
 function updateTokenUsage(usage) {
-    document.getElementById('prompt-tokens').textContent = usage.prompt_tokens;
-    document.getElementById('completion-tokens').textContent = usage.completion_tokens;
-    document.getElementById('total-tokens').textContent = usage.total_tokens;
+    if (usage) {
+        document.getElementById('prompt-tokens').textContent = usage.prompt_tokens || 0;
+        document.getElementById('completion-tokens').textContent = usage.completion_tokens || 0;
+        document.getElementById('total-tokens').textContent = usage.total_tokens || 0;
+    }
 }
 
 // Helper function to create a dismissible notification
@@ -305,21 +309,27 @@ function showNotification(message, type = 'info') {
 
 // Switch tab (token-stats, file-stats)
 function switchTab(tabId) {
-    // Remove active class from all tabs and contents
-    document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    document.querySelectorAll('.tab-button').forEach(button => 
+        button.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => 
+        content.classList.remove('active'));
     
-    // Add active class to selected tab and content
-    document.querySelector(`button[onclick="switchTab('${tabId}')"]`).classList.add('active');
+    document.querySelector(`button[onclick="switchTab('${tabId}')"]`)
+        .classList.add('active');
     document.getElementById(tabId).classList.add('active');
 }
 
 // Load files list from the backend
 async function loadFilesList() {
+    if (!sessionId) return;
+
     try {
         const response = await fetch(`/files/${sessionId}`);
-        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
+        const data = await response.json();
         const fileList = document.getElementById('file-list');
         fileList.innerHTML = '';
 
@@ -333,7 +343,8 @@ async function loadFilesList() {
                 <div class="file-info">
                     <div>${file.filename}</div>
                     <div class="file-meta">
-                        ${formatFileSize(file.size)} | ${file.char_count} chars | ~${file.estimated_tokens} tokens
+                        ${formatFileSize(file.size)} | ${file.char_count} chars | 
+                        ~${file.estimated_tokens} tokens
                     </div>
                 </div>
                 <div class="file-actions">
@@ -353,23 +364,28 @@ async function loadFilesList() {
 
     } catch (error) {
         console.error('Error loading files list:', error);
+        showNotification('Error loading files list', 'error');
     }
 }
 
 // Delete a file from the backend
 async function deleteFile(fileId) {
+    if (!sessionId || !fileId) return;
+
     try {
-        const response = await fetch(`http://localhost:8000/files/${sessionId}/${fileId}`, {
+        const response = await fetch(`/files/${sessionId}/${fileId}`, {
             method: 'DELETE'
         });
 
-        if (response.ok) {
-            await loadFilesList();
-        } else {
-            console.error('Error deleting file');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
+
+        await loadFilesList();
+        showNotification('File deleted successfully', 'success');
     } catch (error) {
         console.error('Error deleting file:', error);
+        showNotification('Error deleting file', 'error');
     }
 }
 
@@ -384,6 +400,8 @@ function formatFileSize(bytes) {
 function setupDragAndDrop() {
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
+
+    if (!dropZone || !fileInput) return;
 
     // Open file dialog when clicking the drop zone
     dropZone.addEventListener('click', () => fileInput.click());
@@ -413,7 +431,9 @@ function setupDragAndDrop() {
     // Handle regular file input
     fileInput.addEventListener('change', async () => {
         for (const file of fileInput.files) {
-            await handleFileUpload(file);
+            if (file.type === 'text/plain') {
+                await handleFileUpload(file);
+            }
         }
         fileInput.value = ''; // Reset input
     });
@@ -421,13 +441,39 @@ function setupDragAndDrop() {
 
 // Initialize everything when the DOM is loaded
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("Initializing session, loading files list...");
+    console.log("Initializing chat application...");
     try {
-        await initializeSession();
+        const initialized = await initializeSession();
+        if (!initialized) {
+            showNotification("Failed to initialize application. Please refresh the page.", "error");
+            return;
+        }
+        
         setupDragAndDrop();
         await loadFilesList();
+        
+        // Add enter key support for sending messages
+        const userInput = document.getElementById('user-input');
+        if (userInput) {
+            userInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+        }
+
+        // Add event handler for send button
+        const sendButton = document.querySelector('button[onclick="sendMessage()"]');
+        if (sendButton) {
+            // Remove the inline onclick handler and add proper event listener
+            sendButton.removeAttribute('onclick');
+            sendButton.addEventListener('click', sendMessage);
+        }
+        
         console.log("Initialization complete. Session ID:", sessionId);
     } catch (error) {
+        console.error('Error during initialization:', error);
         showNotification("Critical error: Failed to initialize application", "error");
     }
 });
