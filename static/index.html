@@ -19,11 +19,6 @@
                    title="These instructions will be sent as a developer message (similar to system message) with each request">
         </div>
 
-        <div class="file-upload">
-            <input type="file" id="file-input" accept=".txt">
-            <button onclick="uploadFile()">Upload File</button>
-            <span id="file-status"></span>
-        </div>
         
         <div class="model-info">
             <p><strong>Model Info:</strong> Using Azure OpenAI o1 model (no streaming, uses max_completion_tokens)</p>
@@ -35,7 +30,14 @@
             <div class="input-container">
                 <textarea id="user-input" placeholder="Type your message..."></textarea>
                 <button onclick="sendMessage()">Send</button>
-                <button onclick="regenerateResponse()" class="secondary">Regenerate</button>
+                <select id="reasoning-effort" class="secondary" title="Set reasoning effort level">
+                    <option value="">Auto</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                </select>
+                <div class="effort-tooltip">Reasoning effort only applies to o1 and o3-mini models.
+                Higher effort may produce better results but takes longer.</div>
             </div>
         </div>
 

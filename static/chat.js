@@ -11,6 +11,10 @@ async function initializeSession() {
         });
         const data = await response.json();
         sessionId = data.session_id;
+        console.log("Session initialized with ID:", sessionId);
+        if (!sessionId) {
+            throw new Error("Failed to get session ID from server");
+        }
     } catch (error) {
         console.error('Error initializing session:', error);
     }
@@ -27,7 +31,10 @@ async function sendMessage() {
     userInput.value = '';
     userInput.disabled = true;  // Disable input while processing
 
+    showTypingIndicator();
     const developerConfig = document.getElementById('developer-config').value.trim();
+    const reasoningEffort = document.getElementById('reasoning-effort').value;
+    
 
     try {
         const response = await fetch('http://localhost:8000/chat', {
@@ -38,7 +45,8 @@ async function sendMessage() {
             body: JSON.stringify({
                 message: message,
                 session_id: sessionId,
-                developer_config: developerConfig || undefined
+                developer_config: developerConfig || undefined,
+                reasoning_effort: reasoningEffort || undefined
             })
         });
 
@@ -59,6 +67,7 @@ async function sendMessage() {
         displayMessage('Error: Could not send message. Please try again.', 'error');
         showNotification(error.message, 'error');
     } finally {
+        removeTypingIndicator();
         userInput.disabled = false; // Re-enable input
     }
 }
@@ -70,6 +79,35 @@ async function regenerateResponse() {
         userInput.value = lastUserMessage;
         await sendMessage();
     }
+}
+
+// Configure marked.js with highlight.js
+marked.setOptions({
+    highlight: function(code, lang) {
+        if (lang && hljs.getLanguage(lang)) {
+            try {
+                return hljs.highlight(code, { language: lang }).value;
+            } catch (err) {
+                console.error('Error highlighting code:', err);
+            }
+        }
+        return hljs.highlightAuto(code).value;
+    },
+    breaks: true,
+    gfm: true
+});
+
+// Show typing indicator
+function showTypingIndicator() {
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'message assistant-message typing-indicator';
+    typingDiv.innerHTML = '<span></span><span></span><span></span>';
+    document.getElementById('chat-history').appendChild(typingDiv);
+}
+
+// Remove typing indicator
+function removeTypingIndicator() {
+    document.querySelector('.typing-indicator')?.remove();
 }
 
 // Display messages in the chat history
@@ -84,14 +122,27 @@ function displayMessage(message, role) {
     copyButton.textContent = 'Copy';
     copyButton.onclick = () => copyToClipboard(message);
 
-    // For assistant messages, render markdown
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+
+    // Render content based on role
     if (role === 'assistant') {
-        messageDiv.innerHTML = marked.parse(message);
+        // For assistant messages, allow full markdown with HTML
+        marked.setOptions({ sanitize: false });
+        contentDiv.innerHTML = marked.parse(message);
     } else {
-        messageDiv.textContent = message;
+        // For user messages, sanitize HTML but still render markdown
+        marked.setOptions({ sanitize: true });
+        contentDiv.innerHTML = marked.parse(message);
     }
+    
+    // Apply syntax highlighting to any code blocks
+    contentDiv.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightElement(block);
+    });
 
     messageDiv.appendChild(copyButton);
+    messageDiv.appendChild(contentDiv);
     chatHistory.appendChild(messageDiv);
     chatHistory.scrollTop = chatHistory.scrollHeight;
 }
@@ -105,52 +156,18 @@ function copyToClipboard(text) {
     });
 }
 
-// Upload file using fetch (for the "Upload File" button in index.html)
-async function uploadFile() {
-    const fileInput = document.getElementById('file-input');
-    const fileStatus = document.getElementById('file-status');
-    const file = fileInput.files[0];
-
-    if (!file) {
-        fileStatus.textContent = 'Please select a file first';
-        fileStatus.style.color = 'red';
-        return;
-    }
-
-    // Clear previous status
-    fileStatus.textContent = 'Uploading...';
-    fileStatus.style.color = 'blue';
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('session_id', sessionId);
-
-    try {
-        const response = await fetch('http://localhost:8000/upload', {
-            method: 'POST',
-            body: formData
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        fileStatus.textContent = `✓ File uploaded: ${file.name} (${data.metadata.size} bytes)`;
-        fileStatus.style.color = 'green';
-
-        // Display system message about file context
-        displayMessage(`File "${file.name}" has been uploaded and will be used as context for future messages.`, 'system');
-    } catch (error) {
-        console.error('Error uploading file:', error);
-        fileStatus.textContent = `Error: ${error.message}`;
-        fileStatus.style.color = 'red';
-        displayMessage('Error: Could not upload file', 'error');
-    }
-}
-
 // More advanced file upload handler using XHR and progress tracking
 async function handleFileUpload(file) {
+    // Ensure sessionId is available
+    if (!sessionId) {
+        showNotification("Session not initialized. Attempting to reinitialize...", "warning");
+        await initializeSession();
+        if (!sessionId) {
+            showNotification("Failed to initialize session. Please refresh.", "error");
+            return;
+        }
+    }
+
     // Validate file type and size
     if (file.type !== 'text/plain') {
         showNotification('Only .txt files are supported', 'error');
@@ -163,7 +180,7 @@ async function handleFileUpload(file) {
     }
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
     formData.append('session_id', sessionId);
 
     // Create upload progress element
@@ -193,13 +210,23 @@ async function handleFileUpload(file) {
         };
 
         // Handle completion
+        xhr.open('POST', 'http://localhost:8000/upload', true);
+        
         xhr.onload = async () => {
             if (xhr.status === 200) {
                 const data = JSON.parse(xhr.responseText);
                 showNotification(`${file.name} uploaded successfully`, 'success');
                 await loadFilesList(); // Refresh file list
             } else {
-                throw new Error(`Upload failed: ${xhr.statusText}`);
+                // Attempt to parse server's error message for more detail
+                try {
+                    const errorData = JSON.parse(xhr.responseText);
+                    showNotification(errorData.detail, 'error');
+                    throw new Error(`Upload failed: ${xhr.statusText} - ${errorData.detail}`);
+                } catch (parseError) {
+                    console.error('Error parsing server error response:', parseError);
+                    throw new Error(`Upload failed: ${xhr.statusText}`);
+                }
             }
             progressDiv.remove();
         };
@@ -210,8 +237,8 @@ async function handleFileUpload(file) {
             showNotification(`Failed to upload ${file.name}`, 'error');
         };
 
-        // Send the request
-        xhr.open('POST', 'http://localhost:8000/upload', true);
+
+        // Send the request with FormData
         xhr.send(formData);
 
     } catch (error) {
