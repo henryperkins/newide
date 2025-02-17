@@ -11,6 +11,8 @@
     <script src="/static/highlight.min.js"></script>
     <!-- Load marked.js locally -->
     <script src="/static/marked.min.js"></script>
+    <!-- Must load chat.js last so 'marked' is defined -->
+    <script src="/static/chat.js"></script>
 </head>
 <body>
     <div class="container">
@@ -86,7 +88,5 @@
             </div>
         </div>
     </div>
-    <!-- Ensure chat.js loads after highlight and marked are defined -->
-    <script src="/static/chat.js"></script>
 </body>
 </html>
