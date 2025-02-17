@@ -1,3 +1,5 @@
+import { marked } from 'marked';
+
 // Global state
 let sessionId = null;
 let lastUserMessage = null;
