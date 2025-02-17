@@ -1,13 +1,18 @@
 import asyncio
+import config
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 
 
 async def test_connection():
     engine = create_async_engine(
+<<<<<<< HEAD
         'postgresql+asyncpg://hperkins:Twiohmld1234!@'
         'chatterpostgres.postgres.database.azure.com:5432/'
         'chatterdb?ssl=require'
+=======
+        config.POSTGRES_URL  # Use the same config as main app
+>>>>>>> 8b6e66d9b809a044140362404d673e569a575925
     )
     try:
         async with engine.connect() as conn:

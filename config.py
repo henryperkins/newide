@@ -13,12 +13,17 @@ AZURE_OPENAI_API_VERSION = os.getenv(
 )
 
 # PostgreSQL Configuration
-POSTGRES_URL = os.getenv(
-    "POSTGRES_URL",
-    "postgresql+asyncpg://hperkins:Twiohmld1234!@"
-    "chatterpostgres.postgres.database.azure.com:5432/"
-    "chatterdb?ssl=require"
-)
+POSTGRES_HOST = os.getenv("PGHOST")
+POSTGRES_USER = os.getenv("PGUSER")
+POSTGRES_PASSWORD = os.getenv("PGPASSWORD")
+POSTGRES_DB = os.getenv("PGDATABASE")
+POSTGRES_PORT = os.getenv("PGPORT", "5432")
+
+POSTGRES_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}?ssl=require"
+
+if not all([POSTGRES_HOST, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB]):
+    raise ValueError("Missing required PostgreSQL environment variables")
+
 ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")  # 32-url-safe-base64 bytes
 SESSION_TIMEOUT_MINUTES = int(
     os.getenv("SESSION_TIMEOUT_MINUTES", "30")
