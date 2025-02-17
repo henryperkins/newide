@@ -1,0 +1,268 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f5f5f5;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.chat-container {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin: 20px 0;
+    padding: 20px;
+}
+
+#chat-history {
+    height: 400px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.message {
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.user-message {
+    background-color: #e3f2fd;
+}
+
+.assistant-message {
+    background-color: #f5f5f5;
+}
+
+.input-container {
+    display: flex;
+    gap: 10px;
+}
+
+textarea {
+    flex-grow: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    resize: vertical;
+    min-height: 40px;
+}
+
+button {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+button.secondary {
+    background-color: #6c757d;
+}
+
+.developer-config, .file-upload {
+    margin: 20px 0;
+}
+
+.stats-panel {
+    background-color: white;
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.tab-button {
+    padding: 8px 16px;
+    border: none;
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.tab-button.active {
+    background-color: #007bff;
+    color: white;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.file-upload-area {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 20px;
+    transition: border-color 0.3s;
+    cursor: pointer;
+}
+
+.file-upload-area:hover,
+.file-upload-area.drag-over {
+    border-color: #007bff;
+    background-color: #f8f9fa;
+}
+
+.upload-icon {
+    font-size: 2em;
+    margin-bottom: 10px;
+}
+
+.file-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+}
+
+.file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    border: 1px solid #eee;
+    margin-bottom: 5px;
+    border-radius: 4px;
+}
+
+.file-item:hover {
+    background-color: #f8f9fa;
+}
+
+.file-meta {
+    font-size: 0.9em;
+    color: #666;
+}
+
+.file-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.delete-file {
+    color: #dc3545;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #dc3545;
+    background: none;
+}
+
+.delete-file:hover {
+    background-color: #dc3545;
+    color: white;
+}
+
+.copy-button {
+    float: right;
+    padding: 5px 10px;
+    font-size: 12px;
+    margin-left: 10px;
+}
+
+/* Notification styles */
+.notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 24px;
+    border-radius: 4px;
+    background-color: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 1000;
+    animation: slideIn 0.3s ease-out;
+}
+
+.notification.info {
+    border-left: 4px solid #007bff;
+}
+
+.notification.error {
+    border-left: 4px solid #dc3545;
+}
+
+.notification.success {
+    border-left: 4px solid #28a745;
+}
+
+.notification button {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+/* Additional styles for file upload progress */
+.upload-progress {
+    width: 100%;
+    height: 4px;
+    background-color: #f0f0f0;
+    border-radius: 2px;
+    margin-top: 8px;
+}
+
+.upload-progress-bar {
+    height: 100%;
+    background-color: #007bff;
+    border-radius: 2px;
+    transition: width 0.3s ease-out;
+}
+
+/* Enhance the file list appearance */
+.file-item {
+    background-color: #f8f9fa;
+    transition: transform 0.2s ease-out;
+}
+
+.file-item:hover {
+    transform: translateX(4px);
+}
+
+.file-info {
+    flex: 1;
+}
+
+.file-meta {
+    font-size: 0.8em;
+    color: #666;
+    margin-top: 4px;
+}
+
+/* Improve drag-and-drop visual feedback */
+.file-upload-area.drag-over {
+    transform: scale(1.02);
+    border-color: #007bff;
+    background-color: rgba(0,123,255,0.05);
+}

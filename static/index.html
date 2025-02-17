@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure OpenAI o1 Chat</title>
+    <link rel="stylesheet" href="/static/index.css">
+    <!-- Include marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Azure OpenAI o1 Chat</h1>
+        
+        <div class="developer-config">
+            <label for="developer-config">Developer Config (Optional):</label>
+            <input type="text" id="developer-config" 
+                   placeholder="Enter developer instructions..."
+                   title="These instructions will be sent as a developer message (similar to system message) with each request">
+        </div>
+
+        <div class="file-upload">
+            <input type="file" id="file-input" accept=".txt">
+            <button onclick="uploadFile()">Upload File</button>
+            <span id="file-status"></span>
+        </div>
+        
+        <div class="model-info">
+            <p><strong>Model Info:</strong> Using Azure OpenAI o1 model (no streaming, uses max_completion_tokens)</p>
+        </div>
+
+        <div class="chat-container">
+            <div id="chat-history"></div>
+            
+            <div class="input-container">
+                <textarea id="user-input" placeholder="Type your message..."></textarea>
+                <button onclick="sendMessage()">Send</button>
+                <button onclick="regenerateResponse()" class="secondary">Regenerate</button>
+            </div>
+        </div>
+
+        <div class="stats-panel">
+            <div class="tabs">
+                <button class="tab-button active" onclick="switchTab('token-stats')">Token Usage</button>
+                <button class="tab-button" onclick="switchTab('file-stats')">Files & Context</button>
+            </div>
+            
+            <div id="token-stats" class="tab-content active">
+                <h3>Token Usage</h3>
+                <p>Prompt Tokens: <span id="prompt-tokens">0</span></p>
+                <p>Completion Tokens: <span id="completion-tokens">0</span></p>
+                <p>Total Tokens: <span id="total-tokens">0</span></p>
+            </div>
+            
+            <div id="file-stats" class="tab-content">
+                <h3>Uploaded Files</h3>
+                <div class="file-upload-area" id="drop-zone">
+                    <div class="upload-prompt">
+                        <i class="upload-icon">📁</i>
+                        <p>Drag & drop files here or click to upload</p>
+                        <input type="file" id="file-input" accept=".txt" multiple hidden>
+                    </div>
+                </div>
+                
+                <div class="file-list" id="file-list">
+                    <!-- Files will be listed here -->
+                </div>
+                
+                <div class="file-stats">
+                    <h4>Context Statistics</h4>
+                    <p>Total Files: <span id="total-files">0</span></p>
+                    <p>Total Characters: <span id="total-chars">0</span></p>
+                    <p>Estimated Tokens: <span id="estimated-tokens">0</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="/static/chat.js"></script>
+</body>
+</html>
