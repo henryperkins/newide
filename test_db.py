@@ -5,7 +5,9 @@ from sqlalchemy import text
 
 async def test_connection():
     engine = create_async_engine(
-        'postgresql+asyncpg://postgres:mysecretpassword@localhost:5432/chatdb'
+        'postgresql+asyncpg://hperkins:Twiohmld1234!@'
+        'chatterpostgres.postgres.database.azure.com:5432/'
+        'chatterdb?ssl=require'
     )
     try:
         async with engine.connect() as conn:
