@@ -119,7 +119,8 @@ function displayMessage(message, role) {
     // Create copy button
     const copyButton = document.createElement('button');
     copyButton.className = 'copy-button';
-    copyButton.textContent = 'Copy';
+    copyButton.innerHTML = '<i class="far fa-copy"></i>';
+    copyButton.title = "Copy to clipboard";
     copyButton.onclick = () => copyToClipboard(message);
 
     const contentDiv = document.createElement('div');

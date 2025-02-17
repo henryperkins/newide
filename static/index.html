@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Azure OpenAI o1 Chat</title>
     <link rel="stylesheet" href="/static/index.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Include local marked.js for Markdown rendering -->
     <script src="/static/marked.min.js"></script>
 </head>
@@ -13,10 +14,21 @@
         <h1>Azure OpenAI o1 Chat</h1>
         
         <div class="developer-config">
-            <label for="developer-config">Developer Config (Optional):</label>
+            <label for="developer-config">Developer Config:</label>
             <input type="text" id="developer-config" 
-                   placeholder="Enter developer instructions..."
-                   title="These instructions will be sent as a developer message (similar to system message) with each request">
+                   placeholder="Example: 'Formatting re-enabled - code in markdown'">
+            
+            <div class="effort-slider">
+                <label>Reasoning Effort:</label>
+                <input type="range" id="reasoning-effort" 
+                       min="0" max="2" value="1"
+                       list="effort-ticks">
+                <datalist id="effort-ticks">
+                    <option value="0" label="Low"></option>
+                    <option value="1" label="Medium"></option>
+                    <option value="2" label="High"></option>
+                </datalist>
+            </div>
         </div>
 
         

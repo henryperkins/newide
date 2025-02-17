@@ -283,7 +283,7 @@ async def chat(request: Request, chat_message: ChatMessage):
             params = {
                 "model": str(config.AZURE_OPENAI_DEPLOYMENT_NAME),
                 "messages": messages,
-                "max_completion_tokens": 100000
+                "max_completion_tokens": 4000  # Safer default for o-series models
             }
 
             # Only add reason. effort for o1 / o3-mini models
