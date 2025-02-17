@@ -1,4 +1,7 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, WebSocket
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, WebSocket, Request
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import (
     create_async_engine, 
     AsyncSession
@@ -35,6 +38,20 @@ from openai import AzureOpenAI
 
 app = FastAPI()
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+
+# Add security middleware
+app.add_middleware(HTTPSRedirectMiddleware)
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
 
 @app.on_event("startup")
 async def init_db():
@@ -76,7 +93,11 @@ async def init_db():
             )"""))
 
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory="static", html=True), name="static")
+
+@app.get('/favicon.ico', include_in_schema=False)
+async def favicon():
+    return FileResponse("static/favicon.ico")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -138,7 +159,9 @@ class UploadedFile(Base):
 client = AzureOpenAI(
     api_key=str(config.AZURE_OPENAI_API_KEY),
     api_version="2025-01-01-preview",
-    azure_endpoint=str(config.AZURE_OPENAI_ENDPOINT)
+    azure_endpoint=str(config.AZURE_OPENAI_ENDPOINT),
+    max_retries=3,
+    timeout=30.0
 )
 
 # Configure PostgreSQL
@@ -188,7 +211,8 @@ async def serve_root():
 
 
 @app.post("/chat")
-async def chat(chat_message: ChatMessage):
+@limiter.limit("10/minute")
+async def chat(request: Request, chat_message: ChatMessage):
     session_id = chat_message.session_id
 
     messages = []
@@ -467,6 +491,10 @@ async def websocket_typing(websocket: WebSocket, session_id: str):
             )
             await db_session.commit()
 
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "timestamp": datetime.datetime.utcnow()}
 
 @app.post("/new_session")
 async def new_session():

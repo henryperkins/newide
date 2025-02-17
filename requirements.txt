@@ -1,7 +1,9 @@
 fastapi
-uvicorn
+uvicorn[standard]
 python-multipart
 python-dotenv
-openai
-sqlalchemy
+openai>=1.12.0
+sqlalchemy>=2.0.0
 asyncpg
+slowapi>=0.1.8
+python-jose[cryptography]
