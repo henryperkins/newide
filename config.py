@@ -30,10 +30,17 @@ SESSION_TIMEOUT_MINUTES = int(
 )
 
 # Validate required environment variables
-required_vars = [
-    AZURE_OPENAI_ENDPOINT,
-    AZURE_OPENAI_API_KEY,
-    AZURE_OPENAI_DEPLOYMENT_NAME
-]
-if not all(required_vars):
-    raise ValueError("Missing required Azure OpenAI environment variables")
+missing_vars = []
+if not AZURE_OPENAI_ENDPOINT:
+    missing_vars.append("AZURE_OPENAI_ENDPOINT")
+if not AZURE_OPENAI_API_KEY:
+    missing_vars.append("AZURE_OPENAI_API_KEY")
+if not AZURE_OPENAI_DEPLOYMENT_NAME:
+    missing_vars.append("AZURE_OPENAI_DEPLOYMENT_NAME")
+
+if missing_vars:
+    raise ValueError(
+        "Missing required Azure OpenAI environment variables: " + 
+        ", ".join(missing_vars) +
+        "\nPlease check your .env file and Azure portal for these values."
+    )
