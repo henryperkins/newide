@@ -130,10 +130,11 @@ client = AzureOpenAI(
 
 # Configure PostgreSQL
 engine = create_async_engine(
-    config.POSTGRES_URL,
+    config.POSTGRES_URL,  # From .env via config.py
     pool_size=20,
     max_overflow=10,
-    pool_recycle=3600
+    pool_recycle=3600,
+    connect_args={"ssl": "prefer"}  # Add SSL preference
 )
 AsyncSessionLocal = sessionmaker(
     bind=engine,
