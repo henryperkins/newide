@@ -9,14 +9,23 @@ async function initializeSession() {
         const response = await fetch('/new_session', {
             method: 'POST'
         });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
+        if (!data.session_id) {
+            throw new Error("Invalid session ID received");
+        }
+        
         sessionId = data.session_id;
         console.log("Session initialized with ID:", sessionId);
-        if (!sessionId) {
-            throw new Error("Failed to get session ID from server");
-        }
+        
     } catch (error) {
         console.error('Error initializing session:', error);
+        showNotification(`Session initialization failed: ${error.message}`, 'error');
+        throw error;  // Re-throw to allow handling in callers
     }
 }
 
@@ -25,6 +34,16 @@ async function sendMessage() {
     const userInput = document.getElementById('user-input');
     const message = userInput.value.trim();
     if (!message) return;
+
+    // Ensure session is initialized
+    if (!sessionId) {
+        showNotification("Session not initialized. Initializing...", "warning");
+        await initializeSession();
+        if (!sessionId) {
+            showNotification("Failed to initialize session. Please refresh.", "error");
+            return;
+        }
+    }
 
     lastUserMessage = message;
     displayMessage(message, 'user');
@@ -35,7 +54,6 @@ async function sendMessage() {
     const developerConfig = document.getElementById('developer-config').value.trim();
     const effortMap = ['low', 'medium', 'high'];
     const reasoningEffort = effortMap[document.getElementById('reasoning-effort-slider').value];
-    
 
     try {
         const response = await fetch('/chat', {
@@ -50,6 +68,12 @@ async function sendMessage() {
                 reasoning_effort: reasoningEffort || undefined
             })
         });
+
+        // Add response status handling
+        if (response.status === 400) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Invalid request');
+        }
 
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -398,8 +422,12 @@ function setupDragAndDrop() {
 // Initialize everything when the DOM is loaded
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("Initializing session, loading files list...");
-    await initializeSession();
-    setupDragAndDrop();
-    await loadFilesList();
-    console.log("Initialization complete. Session ID:", sessionId);
+    try {
+        await initializeSession();
+        setupDragAndDrop();
+        await loadFilesList();
+        console.log("Initialization complete. Session ID:", sessionId);
+    } catch (error) {
+        showNotification("Critical error: Failed to initialize application", "error");
+    }
 });

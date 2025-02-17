@@ -216,9 +216,16 @@ def validate_reasoning_effort(
 
 class ChatMessage(BaseModel):
     message: str
-    session_id: str
+    session_id: str  # Keep as str since UUID validation happens in validator
     developer_config: Optional[str] = None
     reasoning_effort: Optional[ReasoningEffort] = None
+
+    @validator('session_id')
+    def validate_session_id(cls, value):
+        try:
+            return str(UUID(value))
+        except ValueError:
+            raise ValueError("Invalid session ID format")
 
 
 @app.get("/")
