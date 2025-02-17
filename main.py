@@ -37,17 +37,7 @@ import config
 from openai import AzureOpenAI
 
 
-middleware = [
-    Middleware(
-        "csp",
-        default_src=["'self'"],
-        script_src=["'self'", "'unsafe-inline'", "cdn.jsdelivr.net"],
-        style_src=["'self'", "'unsafe-inline'"],
-        img_src=["'self'", "data:"],
-    )
-]
-
-app = FastAPI(middleware=middleware)
+app = FastAPI()
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -59,9 +49,12 @@ app.add_middleware(HTTPSRedirectMiddleware)
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
     response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers.update({
+        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "X-XSS-Protection": "1; mode=block"
+    })
     return response
 
 @app.on_event("startup")
