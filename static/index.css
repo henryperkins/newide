@@ -339,3 +339,9 @@ button.secondary {
     border-color: #007bff;
     background-color: rgba(0,123,255,0.05);
 }
+.file-limit {
+    font-size: 0.9em;
+    color: #666;
+    display: block;
+    margin-top: 4px;
+}
