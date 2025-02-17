@@ -169,7 +169,7 @@ class UploadedFile(Base):
 # Initialize Azure OpenAI client
 client = AzureOpenAI(
     api_key=str(config.AZURE_OPENAI_API_KEY),
-    api_version="2025-01-01-preview",
+    api_version="2024-12-01-preview",
     azure_endpoint=str(config.AZURE_OPENAI_ENDPOINT),
     max_retries=3,
     timeout=30.0

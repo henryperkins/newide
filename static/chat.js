@@ -33,7 +33,8 @@ async function sendMessage() {
 
     showTypingIndicator();
     const developerConfig = document.getElementById('developer-config').value.trim();
-    const reasoningEffort = document.getElementById('reasoning-effort').value;
+    const effortMap = ['low', 'medium', 'high'];
+    const reasoningEffort = effortMap[document.getElementById('reasoning-effort-slider').value];
     
 
     try {
