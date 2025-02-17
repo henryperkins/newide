@@ -56,7 +56,7 @@
         <div class="stats-panel">
             <div class="tabs">
                 <button class="tab-button active" onclick="switchTab('token-stats')" role="tab" aria-selected="true" aria-controls="token-stats">Token Usage</button>
-                <button class="tab-button" onclick="switchTab('file-stats')" role="tab" aria-selected="false" aria-controls="file-stats" id="file-stats-tab" tabindex="0">Files & Context</button>
+                <button class="tab-button" onclick="switchTab('file-stats')" role="tab" aria-selected="false" aria-controls="file-stats" id="file-stats-tab">Files & Context</button>
             </div>
             
             <div id="token-stats" class="tab-content active">
@@ -71,7 +71,7 @@
                 <div class="file-upload-area" id="drop-zone">
                     <div class="upload-prompt">
                         <i class="upload-icon">📁</i>
-                        <p>Drag & drop text files here or click to select files<br><span class="file-limit" role="note">(Maximum 512MB per file, .txt files only)</span></p>
+                        <p>Drag & drop files here or click to select files<br><span class="file-limit" role="note">(Maximum 512MB per file, supported text formats)</span></p>
                         <input type="file" id="file-input" accept=".txt" multiple hidden>
                     </div>
                 </div>
