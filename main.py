@@ -1,7 +1,6 @@
 import logging
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, WebSocket, Request
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware 
-from fastapi.middleware import Middleware
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from time import perf_counter
@@ -12,6 +11,30 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+import os
+
+# Ensure the logs directory exists
+if not os.path.exists("logs"):
+    os.makedirs("logs")
+
+# Configure a dedicated logger for user input
+input_logger = logging.getLogger("input_logger")
+input_logger.setLevel(logging.INFO)
+input_handler = logging.FileHandler("logs/input.log")
+input_handler.setLevel(logging.INFO)
+input_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
+input_logger.addHandler(input_handler)
+
+# Configure a dedicated logger for model responses
+response_logger = logging.getLogger("response_logger")
+response_logger.setLevel(logging.INFO)
+response_handler = logging.FileHandler("logs/response.log")
+response_handler.setLevel(logging.INFO)
+response_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
+response_logger.addHandler(response_handler)
+
+
 from sqlalchemy.ext.asyncio import (
     create_async_engine, 
     AsyncSession
@@ -37,7 +60,6 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, validator
 from typing import Optional
 from enum import Enum
-import os
 import uuid
 import datetime
 
@@ -60,14 +82,23 @@ async def security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers.update({
         "Content-Security-Policy": (
-            "default-src 'self'; "
-            "font-src 'self' data:; "
+            # default-src controls the global fallback
+            "default-src 'self' https://liveonshuffle.com; "
+            
+            # scripts
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
-            "script-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            
+            # styles – single directive for inline styles
             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
-            "style-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+            
+            # images
             "img-src 'self' data:; "
-            "connect-src 'self'"
+            
+            # fonts
+            "font-src 'self' data:; "
+            
+            # XHR, fetch
+            "connect-src 'self';"
         ),
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "DENY",
@@ -114,12 +145,12 @@ async def init_db():
                 PRIMARY KEY (session_id, user_id)
             )"""))
 
-
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 
 @app.get('/favicon.ico', include_in_schema=False)
 async def favicon():
     return FileResponse("static/favicon.ico")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -147,7 +178,6 @@ class Session(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
 
 
-# Two blank lines after class definition
 class Conversation(Base):
     __tablename__ = "conversations"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -183,7 +213,7 @@ client = AzureOpenAI(
     api_version="2024-12-01-preview",
     azure_endpoint=str(config.AZURE_OPENAI_ENDPOINT),
     max_retries=3,
-    timeout=30.0
+    timeout=60.0
 )
 
 # Configure PostgreSQL
@@ -208,9 +238,7 @@ class ReasoningEffort(str, Enum):
     high = "high"
 
 
-def validate_reasoning_effort(
-    value: Optional[ReasoningEffort]
-) -> str:
+def validate_reasoning_effort(value: Optional[ReasoningEffort]) -> str:
     # Return enum value if provided, else default to "medium"
     return value.value if value else "medium"
 
@@ -233,7 +261,6 @@ class ChatMessage(BaseModel):
 
 @app.get("/")
 async def serve_root():
-    # Construct the absolute path to index.html
     base_path = os.path.dirname(__file__)
     index_file = os.path.join(base_path, "static", "index.html")
     if not os.path.exists(index_file):
@@ -248,35 +275,46 @@ async def chat(request: Request, chat_message: ChatMessage):
     logger.info(f"Chat request received from session {chat_message.session_id}")
     session_id = chat_message.session_id
 
+    # Log the user input
+    input_logger.info(chat_message.message)
+
     messages = []
 
-    # Add developer message if provided
-    if chat_message.developer_config:
-        # Prefix with "Formatting re-enabled" for markdown
-        formatted_content = chat_message.developer_config
-        has_code = (
-            "```" in chat_message.message
-            or "code" in chat_message.message.lower()
+    # Retrieve previous conversation history for this session
+    async with AsyncSessionLocal() as db_session:
+        result = await db_session.execute(
+            text("""
+                SELECT role, content 
+                FROM conversations
+                WHERE session_id = :session_id
+                ORDER BY timestamp ASC
+            """),
+            {"session_id": session_id}
         )
-        if has_code:
-            formatted_content = (
-                "Formatting re-enabled - code output should be wrapped in"
-                " markdown.\n" + formatted_content
-            )
-        else:
-            formatted_content = (
-                "Formatting re-enabled\n" + formatted_content
-            )
+        history = result.mappings().all()
+    for entry in history:
+        messages.append({"role": entry["role"], "content": entry["content"]})
 
+    # Append developer configuration if provided
+    if chat_message.developer_config:
+        formatted_content = chat_message.developer_config
+        has_code = ("```" in chat_message.message or "code" in chat_message.message.lower())
+        if has_code:
+            formatted_content = ("Formatting re-enabled - code output should be wrapped in markdown.\n" +
+                                 formatted_content)
+        else:
+            formatted_content = "Formatting re-enabled\n" + formatted_content
         messages.append({
             "role": "developer",
             "content": formatted_content
         })
 
-    # Add user message
-    messages.append({"role": "user", "content": chat_message.message})
+    # Append the current user message
+    # (File context will be appended to this message below)
+    user_message = {"role": "user", "content": chat_message.message}
+    messages.append(user_message)
 
-    # Get uploaded files for context
+    # Get uploaded files for context and append to current user message
     async with AsyncSessionLocal() as db_session:
         result = await db_session.execute(
             text("""
@@ -287,39 +325,46 @@ async def chat(request: Request, chat_message: ChatMessage):
             {"session_id": session_id}
         )
         files = result.mappings().all()
-        
     using_file_context = False
     for file in files:
-        messages[-1]["content"] += (
+        user_message["content"] += (
             f"\n\nContext from file ({file['filename']}):\n"
             f"{file['content']}"
         )
         using_file_context = True
 
     try:
+        params = {
+            "model": str(config.AZURE_OPENAI_DEPLOYMENT_NAME),
+            "messages": messages,
+            "max_completion_tokens": 100000
+        }
+
+        # Only add reasoning effort for models that support it (e.g., o1-/o3-)
+        model_name = str(config.AZURE_OPENAI_DEPLOYMENT_NAME).lower()
+        is_reasoning = any(m in model_name for m in ["o1-", "o3-"]) and "preview" not in model_name
+        if is_reasoning:
+            params["reasoning_effort"] = validate_reasoning_effort(chat_message.reasoning_effort)
+            logger.info(f"Using reasoning effort: {params['reasoning_effort']}")
+        else:
+            logger.info("No reasoning effort applied (model does not support it).")
+
         try:
-            # o1 requirements:
-            # - max_completion_tokens required
-            # - no streaming, top_p, etc.
-            # - reasoning_effort optional
-            params = {
-                "model": str(config.AZURE_OPENAI_DEPLOYMENT_NAME),
-                "messages": messages,
-                "max_completion_tokens": 4000  # Safer default for o-series models
-            }
-
-            # Only add reason. effort for o1 / o3-mini models
-            model_name = str(config.AZURE_OPENAI_DEPLOYMENT_NAME).lower()
-            is_reasoning = (
-                any(m in model_name for m in ["o1-", "o3-"])
-                and "preview" not in model_name
-            )
-            if is_reasoning:
-                params["reasoning_effort"] = validate_reasoning_effort(
-                    chat_message.reasoning_effort
-                )
-
             response = client.chat.completions.create(**params)
+
+            # Attempt to log the raw JSON response
+            import json
+            try:
+                # If your response has a to_dict() method, use that:
+                if hasattr(response, "to_dict"):
+                    raw_json = json.dumps(response.to_dict(), default=str, indent=2)
+                else:
+                    raw_json = json.dumps(response, default=str, indent=2)
+                response_logger.info("Raw JSON response: %s", raw_json)
+            except Exception as log_ex:
+                response_logger.info("Failed to serialize raw response: %s", str(log_ex))
+            
+            assistant_msg = response.choices[0].message.content
         except Exception as e:
             print(f"Azure OpenAI API Error: {str(e)}")
             raise HTTPException(
@@ -329,9 +374,12 @@ async def chat(request: Request, chat_message: ChatMessage):
 
         assistant_msg = response.choices[0].message.content
 
+        # Log the model's response
+        response_logger.info(assistant_msg)
+
         # Save messages to database
         async with AsyncSessionLocal() as db_session:
-            # Save user message
+            # Save current user message
             user_msg = Conversation(
                 session_id=session_id,
                 role="user",
@@ -346,7 +394,6 @@ async def chat(request: Request, chat_message: ChatMessage):
                 content=assistant_msg
             )
             db_session.add(assistant_msg_obj)
-            
             await db_session.commit()
 
         elapsed = perf_counter() - start_time
@@ -386,7 +433,6 @@ async def upload_file(
         raise HTTPException(status_code=400, detail="Session ID is required")
 
     async with AsyncSessionLocal() as db_session:
-        # Validate session exists
         session = await db_session.get(Session, session_id)
         if not session:
             raise HTTPException(status_code=400, detail="Invalid session ID")
@@ -395,7 +441,6 @@ async def upload_file(
             contents = await file.read()
             try:
                 file_text = contents.decode('utf-8')
-                # Truncate if needed
                 if len(file_text) > 100000:
                     file_text = (
                         file_text[:100000] +
@@ -446,7 +491,6 @@ async def upload_file(
 
 @app.get("/files/{session_id}")
 async def get_session_files(session_id: str):
-    """Get metadata for all files in a session"""
     async with AsyncSessionLocal() as db_session:
         result = await db_session.execute(
             text("""
@@ -473,7 +517,6 @@ async def get_session_files(session_id: str):
 
 @app.delete("/files/{session_id}/{file_id}")
 async def delete_file(session_id: str, file_id: str):
-    """Delete a file from the session"""
     async with AsyncSessionLocal() as db_session:
         result = await db_session.execute(
             text("""
@@ -497,8 +540,6 @@ async def websocket_typing(websocket: WebSocket, session_id: str):
     try:
         while True:
             await websocket.receive_text()
-            
-            # Update typing activity in database
             async with AsyncSessionLocal() as db_session:
                 await db_session.execute(
                     text("""
@@ -512,7 +553,6 @@ async def websocket_typing(websocket: WebSocket, session_id: str):
                 )
                 await db_session.commit()
                 
-                # Get active typers from last 2 seconds
                 result = await db_session.execute(
                     text("""
                         SELECT user_id 

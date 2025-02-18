@@ -1,4 +1,3 @@
-
 // Global state
 let sessionId = null;
 let lastUserMessage = null;
@@ -239,14 +238,18 @@ async function handleFileUpload(file) {
         }
     }
 
-    // Validate file type and size
-    if (file.type !== 'text/plain') {
-        showNotification('Only .txt files are supported', 'error');
+    // More robust file type checking
+    const isTextFile = file.type === 'text/plain' || 
+                      file.name.toLowerCase().endsWith('.txt') ||
+                      file.type.startsWith('text/');
+
+    if (!isTextFile) {
+        showNotification('Only text files are supported', 'error');
         return;
     }
 
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        showNotification('File size must be under 10MB', 'error');
+    if (file.size > 512 * 1024 * 1024) { // 512MB limit
+        showNotification('File size must be under 512MB', 'error');
         return;
     }
 
@@ -264,7 +267,7 @@ async function handleFileUpload(file) {
                 <span class="upload-progress-percent">0%</span>
             </div>
             <div class="upload-progress-bar">
-                <div class="progress" style="width: 0%"></div>
+                <div class="progress progress-0"></div>
             </div>
         </div>
     `;
@@ -434,41 +437,34 @@ function setupDragAndDrop() {
 
     if (!dropZone || !fileInput) return;
 
-    // Open file dialog when clicking the drop zone
     dropZone.addEventListener('click', () => fileInput.click());
 
-    // Handle drag events
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('drag-over');
-    });
-
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('drag-over');
+    ['dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            if (eventName === 'dragover') {
+                dropZone.classList.add('drag-over');
+            } else {
+                dropZone.classList.remove('drag-over');
+            }
+        });
     });
 
     dropZone.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('drag-over');
-
         const files = e.dataTransfer.files;
         for (const file of files) {
-            if (file.type === 'text/plain') {
-                await handleFileUpload(file);
-            }
+            await handleFileUpload(file);
         }
     });
 
-    // Handle regular file input
     fileInput.addEventListener('change', async () => {
         for (const file of fileInput.files) {
-            if (file.type === 'text/plain') {
-                await handleFileUpload(file);
-            }
+            await handleFileUpload(file);
         }
         fileInput.value = ''; // Reset input
     });
 }
+
 // Replace the DOMContentLoaded event listener as specified
 
 document.addEventListener('DOMContentLoaded', async () => {

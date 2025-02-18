@@ -458,6 +458,10 @@ datalist option {
     transition: width 0.3s ease-out;
 }
 
+.progress.progress-0 {
+    width: 0%;
+  }
+  
 /* Enhance the file list appearance */
 .file-item {
     background-color: #f8f9fa;
