@@ -402,6 +402,10 @@ async def chat(request: Request, chat_message: ChatMessage):
                 content=assistant_msg
             )
             db_session.add(assistant_msg_obj)
+            await db_session.execute(
+                text("UPDATE sessions SET last_activity = NOW() WHERE id = :session_id"),
+                {"session_id": session_id}
+            )
             await db_session.commit()
 
         elapsed = perf_counter() - start_time
@@ -610,8 +614,40 @@ async def new_session():
     
     return {"session_id": str(session_id)}
 
-@app.get("/new_session") 
+@app.get("/new_session")
 async def reject_new_session_get():
+    raise HTTPException(
+        status_code=405,
+        detail="Use POST method to create new session"
+    )
+
+@app.get("/conversation/{session_id}")
+async def get_conversation(session_id: str):
+    async with AsyncSessionLocal() as db_session:
+        result = await db_session.execute(
+            text("""SELECT role, content, timestamp FROM conversations WHERE session_id = :session_id ORDER BY timestamp ASC"""),
+            {"session_id": session_id}
+        )
+        history = result.mappings().all()
+    return {
+        "conversation": [
+            {
+                "role": row["role"],
+                "content": row["content"],
+                "timestamp": row["timestamp"].isoformat()
+            } for row in history
+        ]
+    }
+
+@app.delete("/conversation/{session_id}")
+async def clear_conversation(session_id: str):
+    async with AsyncSessionLocal() as db_session:
+        await db_session.execute(
+            text("DELETE FROM conversations WHERE session_id = :session_id"),
+            {"session_id": session_id}
+        )
+        await db_session.commit()
+    return {"message": "Conversation history cleared"}
     raise HTTPException(
         status_code=405,
         detail="Use POST method to create new session"
