@@ -1,3 +1,4 @@
+
 // Global state
 let sessionId = null;
 let lastUserMessage = null;
@@ -116,32 +117,56 @@ async function regenerateResponse() {
     }
 }
 
+// Initialize markdown parser
+let mdParser = null;
+if (typeof markdownit !== 'undefined') {
+  mdParser = markdownit({
+    highlight: function (str, lang) {
+      // Switch to using highlight.js instead of Prism for consistency
+      if (typeof hljs !== "undefined" && lang && hljs.getLanguage(lang)) {
+        return hljs.highlight(str, { language: lang }).value;
+      } else if (typeof hljs !== "undefined") {
+        return hljs.highlightAuto(str).value;
+      }
+      return str;
+    }
+  });
+}
+
 // Helper function for safe markdown parsing
 function safeMarkdownParse(text) {
+    if (!mdParser) {
+        // Fallback if markdownit is not defined
+        return text;
+    }
     try {
-        return marked.parse(text);
+        return mdParser.render(text);
     } catch (e) {
         console.error('Markdown parsing error:', e);
         return text; // Fallback to raw text
-    }
+}
 }
 
-// Configure marked.js with highlight.js
-marked.setOptions({
-    highlight: function(code, lang) {
-        if (lang && hljs.getLanguage(lang)) {
-            try {
-                return hljs.highlight(code, { language: lang }).value;
-            } catch (err) {
-                console.error('Error highlighting code:', err);
-            }
-        }
-        return hljs.highlightAuto(code).value;
-    },
-    breaks: true,
-    gfm: true
-});
 
+function configureMarkedWithHighlight() {
+    if (typeof marked === 'undefined') {
+        console.error('marked is not available. Please ensure marked.min.js is loaded.');
+        return false;
+    }
+    if (typeof hljs === 'undefined') {
+        console.error('highlight.js is not available. Please ensure highlight.min.js is loaded.');
+        return false;
+    }
+    marked.setOptions({
+        highlight: (code, lang) => {
+            if (hljs.getLanguage(lang)) {
+                return hljs.highlight(code, {language: lang}).value;
+            }
+            return hljs.highlightAuto(code).value;
+        }
+    });
+    return true;
+}
 // Show typing indicator
 function showTypingIndicator() {
     const typingDiv = document.createElement('div');
@@ -175,19 +200,16 @@ function displayMessage(message, role) {
     contentDiv.className = 'message-content';
 
     // Render content based on role
-    if (role === 'assistant') {
-        // For assistant messages, use safe markdown parsing
-        marked.setOptions({ sanitize: true });
-        contentDiv.innerHTML = safeMarkdownParse(message);
-    } else {
-        // For user messages, sanitize HTML but still render markdown
-        marked.setOptions({ sanitize: true });
-        contentDiv.innerHTML = marked.parse(message);
+if (role === 'assistant') {
+    contentDiv.innerHTML = safeMarkdownParse(message);
+} else {
+    // For user messages, use safeMarkdownParse
+    contentDiv.innerHTML = safeMarkdownParse(message);
     }
     
     // Apply syntax highlighting to any code blocks
     contentDiv.querySelectorAll('pre code').forEach((block) => {
-        hljs.highlightElement(block);
+        Prism.highlightAllUnder(block.parentElement);
     });
 
     messageDiv.appendChild(copyButton);
@@ -236,12 +258,14 @@ async function handleFileUpload(file) {
     const progressDiv = document.createElement('div');
     progressDiv.className = 'upload-progress';
     progressDiv.innerHTML = `
-        <div class="upload-progress-header">
-            <span>${file.filename || 'Uploading...'}</span>
-            <span class="upload-progress-percent">0%</span>
-        </div>
-        <div class="upload-progress-bar">
-            <div class="progress" style="width: 0%"></div>
+        <div class="file-info">
+            <div class="filename">${file.name}</div>
+            <div class="upload-progress-header">
+                <span class="upload-progress-percent">0%</span>
+            </div>
+            <div class="upload-progress-bar">
+                <div class="progress" style="width: 0%"></div>
+            </div>
         </div>
     `;
     document.getElementById('file-list').prepend(progressDiv);
@@ -445,11 +469,16 @@ function setupDragAndDrop() {
         fileInput.value = ''; // Reset input
     });
 }
-
 // Replace the DOMContentLoaded event listener as specified
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("Initializing chat application...");
     try {
+        // Configure markdown and syntax highlighting
+        if (!configureMarkedWithHighlight()) {
+            showNotification("Warning: Some formatting features may not work properly", "warning");
+        }
+
         // Initialize session first
         const initialized = await initializeSession();
         if (!initialized) {
@@ -479,6 +508,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
             console.log("Enter key handler attached");
+        } else {
+            console.error("User input field not found in DOM");
         }
         
         // Initialize other components

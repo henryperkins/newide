@@ -23,7 +23,6 @@ from sqlalchemy.orm import (
 from sqlalchemy import (
     text,
     Column,
-    UUID,
     String,
     DateTime,
     Text,
@@ -42,6 +41,7 @@ import os
 import uuid
 import datetime
 
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 import config
 from openai import AzureOpenAI
 
@@ -61,11 +61,12 @@ async def security_headers(request: Request, call_next):
     response.headers.update({
         "Content-Security-Policy": (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
-            "style-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; "
-            "style-src-elem 'self' 'unsafe-inline' cdnjs.cloudflare.com; "
+            "font-src 'self' data:; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
+            "script-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+            "style-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
             "img-src 'self' data:; "
-            "font-src 'self' cdnjs.cloudflare.com; "
             "connect-src 'self'"
         ),
         "X-Content-Type-Options": "nosniff",
@@ -134,7 +135,7 @@ Base = declarative_base()
 
 class Session(Base):
     __tablename__ = "sessions"
-    id = Column(UUID, primary_key=True)
+    id = Column(PGUUID, primary_key=True)
     created_at = Column(
         DateTime(timezone=True), 
         server_default=text("NOW()")
@@ -151,7 +152,7 @@ class Conversation(Base):
     __tablename__ = "conversations"
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(
-        UUID, 
+        PGUUID, 
         ForeignKey("sessions.id"), 
         nullable=False
     )
@@ -165,8 +166,8 @@ class Conversation(Base):
 
 class UploadedFile(Base):
     __tablename__ = "uploaded_files"
-    id = Column(UUID, primary_key=True)
-    session_id = Column(UUID, ForeignKey("sessions.id"), nullable=False)
+    id = Column(PGUUID, primary_key=True)
+    session_id = Column(PGUUID, ForeignKey("sessions.id"), nullable=False)
     filename = Column(Text, nullable=False)
     content = Column(Text, nullable=False)
     size = Column(BigInteger, nullable=False)
@@ -216,16 +217,18 @@ def validate_reasoning_effort(
 
 class ChatMessage(BaseModel):
     message: str
-    session_id: str  # Keep as str since UUID validation happens in validator
+    session_id: str
     developer_config: Optional[str] = None
     reasoning_effort: Optional[ReasoningEffort] = None
 
     @validator('session_id')
     def validate_session_id(cls, value):
         try:
-            return str(UUID(value))
+            from uuid import UUID as PyUUID
+            PyUUID(value)
+            return value
         except ValueError:
-            raise ValueError("Invalid session ID format")
+            raise ValueError("Invalid session ID format (must be a valid UUID)")
 
 
 @app.get("/")
