@@ -7,3 +7,4 @@ sqlalchemy>=2.0.0
 asyncpg
 slowapi>=0.1.8
 python-jose[cryptography]
+tiktoken

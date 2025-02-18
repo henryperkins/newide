@@ -90,12 +90,35 @@ async function sendMessage() {
         }
 
         displayMessage(data.response, 'assistant');
+        
+        // Display enhanced token metrics
+        const usageHtml = `
+            <div class="metric-display bg-blue-50 p-3 rounded-lg mt-4">
+                <h4 class="font-semibold text-blue-800 mb-2">Azure OpenAI Token Usage</h4>
+                <div class="grid grid-cols-3 gap-4 text-sm">
+                    <div class="metric-item">
+                        <span class="font-medium">Total:</span>
+                        <span class="text-blue-600">${data.usage.total_tokens}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="font-medium">Prompt:</span>
+                        <span class="text-blue-600">${data.usage.prompt_tokens}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="font-medium">Completion:</span>
+                        <span class="text-blue-600">${data.usage.completion_tokens}</span>
+                    </div>
+                </div>
+                ${data.using_file_context ?
+                    `<div class="mt-3 text-xs text-blue-700">
+                        Includes token context from uploaded files
+                    </div>` : ''}
+            </div>
+        `;
+        document.querySelector('.message.assistant-message:last-child .message-content').insertAdjacentHTML('beforeend', usageHtml);
+
         if (data.usage) {
             updateTokenUsage(data.usage);
-        }
-
-        if (data.using_file_context) {
-            showNotification('Response includes context from uploaded files', 'info');
         }
     } catch (error) {
         console.error('Error sending message:', error);

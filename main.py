@@ -66,7 +66,15 @@ import datetime
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 import config
 from openai import AzureOpenAI
+import tiktoken
 
+def count_tokens(text: str, model: str = "gpt-4") -> int:
+    try:
+        encoding = tiktoken.encoding_for_model(model)
+        return len(encoding.encode(text))
+    except KeyError:
+        # Fallback to approximate calculation if model not found
+        return len(text) // 4
 
 app = FastAPI()
 
@@ -464,7 +472,8 @@ async def upload_file(
                     "size": len(contents),
                     "upload_time": uploaded_file.upload_time.isoformat(),
                     "char_count": char_count,
-                    "estimated_tokens": char_count // 4
+                    "token_count": count_tokens(file_text),
+                    "encoding_model": config.AZURE_OPENAI_DEPLOYMENT_NAME
                 }
                 
                 logger.info(
@@ -510,7 +519,8 @@ async def get_session_files(session_id: str):
                 "size": file["size"],
                 "upload_time": file["upload_time"].isoformat(),
                 "char_count": file["char_count"],
-                "estimated_tokens": file["char_count"] // 4
+                "token_count": count_tokens(file["content"]),
+                "encoding_model": config.AZURE_OPENAI_DEPLOYMENT_NAME
             } for file in files]
         }
 
