@@ -648,6 +648,18 @@ async def chat(request: Request, chat_message: ChatMessage):
             # Log successful response with detailed performance info
             elapsed_total = perf_counter() - start_time
 
+            # Calculate tokens usage
+            elapsed = perf_counter() - start_time
+            tokens = {
+                "prompt": response.usage.prompt_tokens if response.usage else 0,
+                "completion": response.usage.completion_tokens if response.usage else 0,
+                "total": response.usage.total_tokens if response.usage else 0,
+            }
+            logger.info(
+                f"Chat request completed in {elapsed:.2f}s - Tokens used: {tokens['total']} "
+                f"(prompt: {tokens['prompt']}, completion: {tokens['completion']})"
+            )
+
             # Log the raw JSON response with performance data
             import json
 
