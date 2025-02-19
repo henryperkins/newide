@@ -141,6 +141,10 @@ async function sendMessage() {
             throw new Error('No response received from server');
         }
 
+        // Cache the server’s latest calculated_timeout (in seconds) for subsequent requests
+        if (data.calculated_timeout) {
+            window.serverCalculatedTimeout = data.calculated_timeout;
+        }
         // Display assistant’s response
         displayMessage(data.response, 'assistant');
 

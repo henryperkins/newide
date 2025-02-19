@@ -699,6 +699,8 @@ async def chat(request: Request, chat_message: ChatMessage):
                 f"Length: {len(assistant_msg)} chars. "
                 f"Preview: {assistant_msg[:100]}{'...' if len(assistant_msg) > 100 else ''}"
             )
+            final_timeout = client.timeout
+            response_data["calculated_timeout"] = final_timeout
 
         except Exception as outer_e:
             logger.exception(f"[session {session_id}] Outer error layer")
