@@ -412,7 +412,7 @@ async function handleFileUpload(file) {
     ];
 
     const isAcceptedType = acceptedTypes.includes(file.type) ||
-                          /\.(txt|md|csv|json|js|html|css)$/i.test(file.name);
+                          /\.(txt|text|md|csv|json|js|html|css)$/i.test(file.name);
 
     if (!isAcceptedType) {
         showNotification('Unsupported file type. Please upload a text-based file.', 'error');
