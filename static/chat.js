@@ -350,7 +350,7 @@ function displayMessage(message, role) {
     // Create copy button with improved UI
     const copyButton = document.createElement('button');
     copyButton.className = 'copy-button';
-    copyButton.innerHTML = '<i class="far fa-copy"></i>';
+    copyButton.innerHTML = '📋';
     copyButton.title = "Copy to clipboard";
     copyButton.onclick = () => copyToClipboard(message);
 
