@@ -5,30 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Azure OpenAI o1 Chat</title>
     
-    <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    
-    <!-- Styles -->
+    <!-- Fonts and Styles -->
+    <link rel="stylesheet" href="/static/fonts.css">
     <link rel="stylesheet" href="/static/index.css">
     <link rel="stylesheet" href="/static/all.min.css">
-    <link rel="stylesheet" href="/static/default.min.css">
-    <link rel="stylesheet" href="/static/prism.min.css">
+    <link rel="stylesheet" href="/static/lib/prism.min.css">
 
     <!-- Scripts -->
-    <script src="/static/markdown-it.min.js"></script>
-    <script src="/static/prism.min.js"></script>
-    <script src="/static/highlight.min.js"></script>
-    <script src="/static/marked.min.js"></script>
+    <script src="/static/lib/markdown-it.min.js"></script>
+    <script src="/static/lib/prism.min.js"></script>
+    <script src="/static/lib/marked.min.js"></script>
 </head>
 <body>
     <div class="container">
         <h1>Azure OpenAI o1 Chat</h1>
         
         <div class="developer-config">
-            <label for="developer-config">Developer Config:</label>
-            <input type="text" id="developer-config" 
-                   placeholder="Example: 'Formatting re-enabled - code in markdown'">
+            <label for="developer-config">Assistant Configuration:</label>
+            <input type="text" id="developer-config"
+                   value="Formatting re-enabled - please enclose code blocks with appropriate markdown tags"
+                   placeholder="Custom configuration for the assistant">
             
             <div class="effort-slider">
                 <label>Reasoning Effort:</label>
@@ -65,21 +61,34 @@
                         onclick="switchTab('token-stats')" 
                         role="tab" 
                         aria-selected="true" 
-                        aria-controls="token-stats">Token Usage</button>
+                        aria-controls="token-stats"
+                        data-target-tab="token-stats">Token Usage</button>
                 <button class="tab-button" 
                         onclick="switchTab('file-stats')" 
                         role="tab" 
                         aria-selected="false" 
                         aria-controls="file-stats" 
                         id="file-stats-tab" 
+                        data-target-tab="file-stats"
                         aria-label="Files and Context">Files &amp; Context</button>
             </div>
             
             <div id="token-stats" class="tab-content active">
-                <h3>Token Usage</h3>
-                <p>Prompt Tokens: <span id="prompt-tokens">0</span></p>
-                <p>Completion Tokens: <span id="completion-tokens">0</span></p>
-                <p>Total Tokens: <span id="total-tokens">0</span></p>
+                <h3><i class="far fa-chart-bar"></i> Token Usage Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Prompt Tokens</div>
+                        <div class="stat-value" id="prompt-tokens">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Completion Tokens</div>
+                        <div class="stat-value" id="completion-tokens">0</div>
+                    </div>
+                    <div class="stat-item highlight">
+                        <div class="stat-label">Total Tokens</div>
+                        <div class="stat-value" id="total-tokens">0</div>
+                    </div>
+                </div>
             </div>
             
             <div id="file-stats" class="tab-content">

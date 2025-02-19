@@ -171,21 +171,22 @@ function safeMarkdownParse(text) {
     }
 }
 
-function configureMarkedWithHighlight() {
+// Configures the marked library to use Prism for syntax highlighting
+// Requires both marked and Prism libraries to be loaded
+function configureMarkdownWithPrism() {
     if (typeof marked === 'undefined') {
         console.error('marked is not available. Please ensure marked.min.js is loaded.');
         return false;
     }
-    if (typeof hljs === 'undefined') {
-        console.error('highlight.js is not available. Please ensure highlight.min.js is loaded.');
+    if (typeof Prism === 'undefined') {
+        console.error('Prism is not available. Please ensure prism.js is loaded.');
         return false;
     }
+
     marked.setOptions({
         highlight: (code, lang) => {
-            if (hljs.getLanguage(lang)) {
-                return hljs.highlight(code, { language: lang }).value;
-            }
-            return hljs.highlightAuto(code).value;
+            // Attempt to use specified language, fall back to auto-detection if not available
+            return Prism.highlight(code, Prism.languages[lang] || Prism.languages.auto, lang);
         }
     });
     return true;
@@ -515,7 +516,7 @@ async function loadFilesList() {
                     <div>${file.filename}</div>
                     <div class="file-meta">
                         ${formatFileSize(file.size)} | ${file.char_count} chars | 
-                        ~${file.estimated_tokens} tokens
+                        ~${file.token_count} tokens
                     </div>
                 </div>
                 <div class="file-actions">
@@ -525,7 +526,7 @@ async function loadFilesList() {
             fileList.appendChild(fileItem);
 
             totalChars += file.char_count;
-            estimatedTokens += file.estimated_tokens;
+            estimatedTokens += file.token_count;
         });
 
         // Update statistics
@@ -601,14 +602,18 @@ function setupDragAndDrop() {
         fileInput.value = ''; // Reset input
     });
 }
-
 // Replace the DOMContentLoaded event listener as specified
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("Initializing chat application...");
+    
     try {
         // Configure markdown and syntax highlighting
-        if (!configureMarkedWithHighlight()) {
-            showNotification("Warning: Some formatting features may not work properly", "warning");
+        if (!configureMarkdownWithPrism()) {
+            showNotification(
+                "Warning: Markdown formatting and syntax highlighting may be limited due to missing dependencies",
+                "warning"
+            );
         }
 
         // Initialize session first

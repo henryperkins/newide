@@ -9,7 +9,7 @@ AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
 AZURE_OPENAI_API_VERSION = os.getenv(
     "AZURE_OPENAI_API_VERSION",
-    "2024-12-01-preview"
+    "2025-01-01-preview"
 )
 
 # PostgreSQL Configuration
