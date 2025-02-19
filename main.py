@@ -1001,7 +1001,7 @@ async def delete_file(session_id: str, file_id: str):
                 )
 
             await db_session.commit()
-            return DeleteFileResponseModel(
+            return DeleteFileResponse(
                 id=str(deleted[0]),
                 message="File deleted successfully",
                 deleted_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
