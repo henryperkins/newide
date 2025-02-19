@@ -152,7 +152,6 @@ async function sendMessage() {
         // Display assistant’s response
         displayMessage(data.response, 'assistant');
 
-        // Insert token usage info if available
         if (data.usage) {
             let usageHtml = `
     < div class="metric-display bg-blue-50 p-3 rounded-lg mt-4" >
@@ -191,7 +190,51 @@ async function sendMessage() {
                 .querySelector('.message.assistant-message:last-child .message-content')
                 .insertAdjacentHTML('beforeend', usageHtml);
 
-            updateTokenUsage(data.usage);
+    const usageDiv = document.createElement('div');
+    usageDiv.className = 'metric-display bg-blue-50 p-3 rounded-lg mt-4';
+
+    const usageHeader = document.createElement('h4');
+    usageHeader.className = 'font-semibold text-blue-800 mb-2';
+    usageHeader.textContent = 'Azure OpenAI Token Usage';
+    usageDiv.appendChild(usageHeader);
+
+    const usageGrid = document.createElement('div');
+    usageGrid.className = 'grid grid-cols-3 gap-4 text-sm';
+    usageDiv.appendChild(usageGrid);
+
+    const totalItem = document.createElement('div');
+    totalItem.className = 'metric-item';
+    totalItem.innerHTML = `<span class="font-medium">Total:</span><span class="text-blue-600">${data.usage.total_tokens}</span>`;
+    usageGrid.appendChild(totalItem);
+
+    const promptItem = document.createElement('div');
+    promptItem.className = 'metric-item';
+    promptItem.innerHTML = `<span class="font-medium">Prompt:</span><span class="text-blue-600">${data.usage.prompt_tokens}</span>`;
+    usageGrid.appendChild(promptItem);
+
+    const completionItem = document.createElement('div');
+    completionItem.className = 'metric-item';
+    completionItem.innerHTML = `<span class="font-medium">Completion:</span><span class="text-blue-600">${data.usage.completion_tokens}</span>`;
+    usageGrid.appendChild(completionItem);
+
+    if (data.usage.completion_details && data.usage.completion_details.reasoning_tokens) {
+        const reasoningDiv = document.createElement('div');
+        reasoningDiv.className = 'mt-3 flex justify-between text-sm';
+
+        const reasoningTokensItem = document.createElement('div');
+        reasoningTokensItem.className = 'metric-item';
+        reasoningTokensItem.innerHTML = `<span class="font-medium text-indigo-700">Reasoning Tokens:</span><span class="text-indigo-600">${data.usage.completion_details.reasoning_tokens}</span>`;
+        reasoningDiv.appendChild(reasoningTokensItem);
+
+        const reasoningEffortItem = document.createElement('div');
+        reasoningEffortItem.className = 'metric-item';
+        reasoningEffortItem.innerHTML = `<span class="font-medium text-indigo-700">Reasoning Effort:</span><span class="text-indigo-600">${reasoningEffort}</span>`;
+        reasoningDiv.appendChild(reasoningEffortItem);
+
+        usageDiv.appendChild(reasoningDiv);
+    }
+
+    document.querySelector('.message.assistant-message:last-child .message-content').appendChild(usageDiv);
         }
     } catch (error) {
         console.error('Error sending message:', error);
