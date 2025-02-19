@@ -145,34 +145,34 @@ limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 
 # Add security middleware
-app.add_middleware(HTTPSRedirectMiddleware)
+# app.add_middleware(HTTPSRedirectMiddleware)
 
 
-@app.middleware("http")
-async def security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers.update(
-        {
-            "Content-Security-Policy": (
-                # default-src controls the global fallback
-                "default-src 'self' https://liveonshuffle.com; "
-                # scripts
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
-                # styles – single directive for inline styles
-                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
-                # images
-                "img-src 'self' data:; "
-                # fonts
-                "font-src 'self' data:; "
-                # XHR, fetch
-                "connect-src 'self';"
-            ),
-            "X-Content-Type-Options": "nosniff",
-            "X-Frame-Options": "DENY",
-            "X-XSS-Protection": "1; mode=block",
-        }
-    )
-    return response
+# @app.middleware("http")
+# async def security_headers(request: Request, call_next):
+#     response = await call_next(request)
+#     response.headers.update(
+#         {
+#             "Content-Security-Policy": (
+#                 # default-src controls the global fallback
+#                 "default-src 'self' https://liveonshuffle.com; "
+#                 # scripts
+#                 "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
+#                 # styles – single directive for inline styles
+#                 "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+#                 # images
+#                 "img-src 'self' data:; "
+#                 # fonts
+#                 "font-src 'self' data:; "
+#                 # XHR, fetch
+#                 "connect-src 'self';"
+#             ),
+#             "X-Content-Type-Options": "nosniff",
+#             "X-Frame-Options": "DENY",
+#             "X-XSS-Protection": "1; mode=block",
+#         }
+#     )
+#     return response
 
 
 @app.on_event("startup")
