@@ -153,52 +153,8 @@ async function sendMessage() {
         displayMessage(data.response, 'assistant');
 
         if (data.usage) {
-
-    const usageDiv = document.createElement('div');
-    usageDiv.className = 'metric-display bg-blue-50 p-3 rounded-lg mt-4';
-
-    const usageHeader = document.createElement('h4');
-    usageHeader.className = 'font-semibold text-blue-800 mb-2';
-    usageHeader.textContent = 'Azure OpenAI Token Usage';
-    usageDiv.appendChild(usageHeader);
-
-    const usageGrid = document.createElement('div');
-    usageGrid.className = 'grid grid-cols-3 gap-4 text-sm';
-    usageDiv.appendChild(usageGrid);
-
-    const totalItem = document.createElement('div');
-    totalItem.className = 'metric-item';
-    totalItem.innerHTML = `<span class="font-medium">Total:</span><span class="text-blue-600">${data.usage.total_tokens}</span>`;
-    usageGrid.appendChild(totalItem);
-
-    const promptItem = document.createElement('div');
-    promptItem.className = 'metric-item';
-    promptItem.innerHTML = `<span class="font-medium">Prompt:</span><span class="text-blue-600">${data.usage.prompt_tokens}</span>`;
-    usageGrid.appendChild(promptItem);
-
-    const completionItem = document.createElement('div');
-    completionItem.className = 'metric-item';
-    completionItem.innerHTML = `<span class="font-medium">Completion:</span><span class="text-blue-600">${data.usage.completion_tokens}</span>`;
-    usageGrid.appendChild(completionItem);
-
-    if (data.usage.completion_details && data.usage.completion_details.reasoning_tokens) {
-        const reasoningDiv = document.createElement('div');
-        reasoningDiv.className = 'mt-3 flex justify-between text-sm';
-
-        const reasoningTokensItem = document.createElement('div');
-        reasoningTokensItem.className = 'metric-item';
-        reasoningTokensItem.innerHTML = `<span class="font-medium text-indigo-700">Reasoning Tokens:</span><span class="text-indigo-600">${data.usage.completion_details.reasoning_tokens}</span>`;
-        reasoningDiv.appendChild(reasoningTokensItem);
-
-        const reasoningEffortItem = document.createElement('div');
-        reasoningEffortItem.className = 'metric-item';
-        reasoningEffortItem.innerHTML = `<span class="font-medium text-indigo-700">Reasoning Effort:</span><span class="text-indigo-600">${reasoningEffort}</span>`;
-        reasoningDiv.appendChild(reasoningEffortItem);
-
-        usageDiv.appendChild(reasoningDiv);
-    }
-
-    document.querySelector('.message.assistant-message:last-child .message-content').appendChild(usageDiv);
+            // Update token stats without displaying in message
+            updateTokenUsage(data.usage);
         }
     } catch (error) {
         console.error('Error sending message:', error);
@@ -740,6 +696,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Set up reasoning effort slider
         const slider = document.getElementById('reasoning-effort-slider');
         if (slider) {
+            // Set initial value to low (0)
+            slider.value = 0;
             // Set initial description
             updateReasoningEffortDescription();
             

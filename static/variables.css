@@ -1,0 +1,116 @@
+/* variables.css */
+:root {
+  /* Base colors */
+  --color-primary: #2563eb;
+  --color-primary-dark: #1e40af;
+  --color-primary-light: #3b82f6;
+  
+  /* Text colors */
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --text-inverted: #f8fafc;
+  
+  /* Surface colors */
+  --surface-main: #ffffff;
+  --surface-secondary: #f8fafc;
+  --surface-tertiary: #f1f5f9;
+  --surface-elevated: #ffffff;
+  
+  /* Border and separation */
+  --border-subtle: #e2e8f0;
+  --border-medium: #cbd5e1;
+  --border-emphasis: #94a3b8;
+  
+  /* Feedback colors */
+  --feedback-success: #10b981;
+  --feedback-warning: #f59e0b;
+  --feedback-error: #ef4444;
+  --feedback-info: #0ea5e9;
+  
+  /* Spacing system */
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  
+  /* UI elements */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  
+  /* Animations */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow: 350ms ease;
+  
+  /* Fonts */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', Consolas, Monaco, 'Courier New', monospace;
+  
+  /* Font sizes */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  
+  /* Line heights */
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+  
+  /* Focus ring */
+  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.4);
+}
+
+/* Dark mode variables */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark mode colors */
+    --color-primary: #3b82f6;
+    --color-primary-dark: #2563eb;
+    --color-primary-light: #60a5fa;
+    
+    /* Text colors */
+    --text-primary: #f8fafc;
+    --text-secondary: #e2e8f0;
+    --text-muted: #94a3b8;
+    --text-inverted: #1e293b;
+    
+    /* Surface colors - use navy tones from screenshot */
+    --surface-main: #1e293b;
+    --surface-secondary: #111827;
+    --surface-tertiary: #1f2937;
+    --surface-elevated: #334155;
+    
+    /* Border and separation */
+    --border-subtle: #334155;
+    --border-medium: #475569;
+    --border-emphasis: #64748b;
+    
+    /* Shadows need to be more intense in dark mode */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+    
+    /* Focus ring for dark mode */
+    --focus-ring: 0 0 0 3px rgba(59, 130, 246, 0.6);
+
+    /* Button colors */
+    --button-primary: #3b82f6;
+    --button-primary-hover: #2563eb;
+    --button-secondary: rgba(255, 255, 255, 0.1);
+    --button-secondary-hover: rgba(255, 255, 255, 0.2);
+  }
+}
