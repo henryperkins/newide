@@ -1,4 +1,5 @@
 import logging
+from logging.handlers import RotatingFileHandler
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, WebSocket, Request
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware 
 import asyncio
@@ -436,7 +437,8 @@ async def chat(request: Request, chat_message: ChatMessage):
     start_time = perf_counter()
     session_id = chat_message.session_id
     logger.info(f"[session {session_id}] Chat request received")
-    input_logger.info(f"[session {session_id}] {chat_message.message}")
+    # Log message length rather than content
+    input_logger.info(f"[session {session_id}] Message received. Length: {len(chat_message.message)} chars")
 
     # Prepare messages list with developer config and user input
     messages = []
@@ -599,9 +601,9 @@ async def chat(request: Request, chat_message: ChatMessage):
 
                     # Check if we've exhausted our retries
                     if retry_attempts >= max_retries:
-                        logger.error(
-                            f"All {retry_attempts+1} attempts failed. Final error after "
-                            f"{elapsed:.2f}s: {error_msg}"
+                        logger.exception(
+                            f"[session {session_id}] All {retry_attempts+1} attempts failed. Final error after "
+                            f"{elapsed:.2f}s"
                         )
                         raise create_error_response(
                             status_code=503,
@@ -660,19 +662,34 @@ async def chat(request: Request, chat_message: ChatMessage):
                     "original_reasoning_effort": original_reasoning_effort,
                     "timeouts_used": timeouts_used,
                 }
-                raw_json = json.dumps(response_data, default=str, indent=2)
-                response_logger.info("[session %s] Raw JSON response: %s", session_id, raw_json)
+                # Log sanitized response summary
+                response_summary = {
+                    "tokens": {
+                        "prompt": tokens['prompt'],
+                        "completion": tokens['completion'],
+                        "total": tokens['total']
+                    },
+                    "performance": {
+                        "elapsed": elapsed_total,
+                        "attempts": retry_attempts + 1
+                    }
+                }
+                response_logger.info("[session %s] Response summary: %s", session_id, response_summary)
             except Exception as log_ex:
                 response_logger.warning(
                     f"Failed to serialize raw response: {str(log_ex)}"
                 )
 
             assistant_msg = response.choices[0].message.content
-            response_logger.info(f"[session {session_id}] {assistant_msg}")
+            # Log first 100 chars of response for validation
+            response_logger.info(
+                f"[session {session_id}] Response generated. "
+                f"Length: {len(assistant_msg)} chars. "
+                f"Preview: {assistant_msg[:100]}{'...' if len(assistant_msg) > 100 else ''}"
+            )
 
         except Exception as outer_e:
-            error_msg = str(outer_e)
-            logger.error(f"Outer error layer: {error_msg}")
+            logger.exception(f"[session {session_id}] Outer error layer")
 
             # Check if it's already a structured error response
             if isinstance(outer_e, HTTPException) and isinstance(outer_e.detail, dict):
