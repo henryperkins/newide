@@ -1,18 +1,23 @@
 import logging
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, WebSocket, Request
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware 
+import asyncio
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from time import perf_counter
 from fastapi.responses import RedirectResponse
 
 # Configure logging
+
+
+
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-import os
+    import os
 
 # Ensure the logs directory exists
 if not os.path.exists("logs"):
@@ -86,6 +91,51 @@ def count_tokens(text: str, model: str = None) -> int:
         logger.warning(f"Token counting error for model {model}: {str(e)}")
         # More conservative approximation (3.5 chars per token average)
         return len(text) // 3
+
+
+def calculate_model_timeout(messages, model_name, reasoning_effort="medium"):
+    """
+    Calculate appropriate timeout based on model type, message complexity,
+    and reasoning effort level.
+
+    Args:
+        messages: The formatted messages to be sent to the model
+        model_name: The name of the model deployment
+        reasoning_effort: One of "low", "medium", "high"
+
+    Returns:
+        float: Calculated timeout in seconds
+    """
+    # Determine if using o-series model
+    is_o_series = (
+        any(m in model_name.lower() for m in ["o1-", "o3-"])
+        and "preview" not in model_name.lower()
+    )
+
+    # Calculate approximate token count - safer to overestimate
+    approx_token_count = len(str(messages))
+
+    if is_o_series:
+        # Get reasoning effort multiplier with fallback
+        effort_multiplier = config.REASONING_EFFORT_MULTIPLIERS.get(
+            reasoning_effort, config.REASONING_EFFORT_MULTIPLIERS["medium"]
+        )
+
+        # Calculate timeout with o-series specific factors
+        calculated_timeout = max(
+            config.O_SERIES_BASE_TIMEOUT,
+            approx_token_count * config.O_SERIES_TOKEN_FACTOR * effort_multiplier,
+        )
+
+        # Cap at maximum timeout
+        return min(config.O_SERIES_MAX_TIMEOUT, calculated_timeout)
+    else:
+        # Standard model calculation (maintain existing logic)
+        calculated_timeout = max(
+            config.STANDARD_BASE_TIMEOUT,
+            approx_token_count * config.STANDARD_TOKEN_FACTOR,
+        )
+        return min(config.STANDARD_MAX_TIMEOUT, calculated_timeout)
 
 
 app = FastAPI()
@@ -386,14 +436,13 @@ async def chat(request: Request, chat_message: ChatMessage):
     input_logger.info(chat_message.message)
 
     # Prepare messages list with developer config and user input
-    # Initialize messages list with developer message for o-series models
     messages = []
 
     # Use developer message (preferred for o-series) over system message
     if chat_message.developer_config:
         messages.append(
             {
-                "role": "developer",  # Using developer role as specified in API
+                "role": "developer",
                 "content": (
                     f"Formatting re-enabled - {chat_message.developer_config}"
                     if "formatting" in chat_message.developer_config.lower()
@@ -423,7 +472,7 @@ async def chat(request: Request, chat_message: ChatMessage):
         # Format messages according to API schema
         formatted_messages = []
 
-        # Add developer config if present, using it instead of system messages for o-series
+        # Add developer config if present
         if chat_message.developer_config:
             formatted_messages.append(
                 {
@@ -493,107 +542,130 @@ async def chat(request: Request, chat_message: ChatMessage):
         )
 
         try:
-            # Strict timeout calculation
-            base_timeout = min(
-                30.0,  # 30 second maximum base timeout
-                max(
-                    15.0,  # 15 second minimum base timeout
-                    len(str(messages)) * 0.03  # 0.03 seconds per token - more aggressive
-                )
-            )
+            # Enhanced retry and timeout implementation
+            original_reasoning_effort = params.get("reasoning_effort", "medium")
+            retry_attempts = 0
+            max_retries = config.O_SERIES_MAX_RETRIES if is_o_series else 1
+            retry_reasoning_efforts = []
+            timeouts_used = []
 
-            # Set initial client timeout
-            client.timeout = base_timeout
-            
-            try:
-                start_time = perf_counter()
-                
-                # Pre-emptively use low reasoning if message is long
-                if len(str(messages)) > 1000 and params.get("reasoning_effort") != "low":
-                    logger.info("Pre-emptively using low reasoning effort for long message")
-                    params["reasoning_effort"] = "low"
-                
+            while True:
+                current_reasoning = params.get("reasoning_effort", "medium")
+
+                # Calculate appropriate timeout based on model and reasoning effort
+                timeout = calculate_model_timeout(
+                    formatted_messages, model_name, current_reasoning
+                )
+
+                # Apply retry backoff if this is a retry attempt
+                if retry_attempts > 0:
+                    backoff_multiplier = (
+                        config.O_SERIES_BACKOFF_MULTIPLIER**retry_attempts
+                    )
+                    timeout = timeout * backoff_multiplier
+
+                # Track timeouts for logging/debugging
+                timeouts_used.append(timeout)
+
+                logger.info(
+                    f"Attempt {retry_attempts+1}/{max_retries+1} with "
+                    f"{current_reasoning} reasoning effort, timeout: {timeout:.1f}s"
+                )
+
+                # Set client timeout
+                client.timeout = timeout
+
                 try:
+                    attempt_start = perf_counter()
                     response = client.chat.completions.create(**params)
+
+                    # If we got here, request succeeded
+                    elapsed = perf_counter() - attempt_start
+                    logger.info(
+                        f"Request completed successfully in {elapsed:.2f}s using "
+                        f"{current_reasoning} reasoning effort"
+                    )
+                    break
+
                 except Exception as e:
-                    elapsed = perf_counter() - start_time
+                    elapsed = perf_counter() - attempt_start
                     error_msg = str(e).lower()
-                    
-                    # Handle timeouts with a single retry at low reasoning
-                    if ("timeout" in error_msg or elapsed >= base_timeout) and params.get("reasoning_effort") != "low":
-                        logger.warning(
-                            f"Request timed out after {elapsed:.2f}s with "
-                            f"{params.get('reasoning_effort', 'default')} reasoning"
+
+                    # Track what we tried
+                    retry_reasoning_efforts.append(current_reasoning)
+
+                    # Check if we've exhausted our retries
+                    if retry_attempts >= max_retries:
+                        logger.error(
+                            f"All {retry_attempts+1} attempts failed. Final error after "
+                            f"{elapsed:.2f}s: {error_msg}"
                         )
-                        
-                        logger.info("Final attempt with low reasoning effort")
-                        params["reasoning_effort"] = "low"
-                        client.timeout = 20.0  # Fixed timeout for retry
-                        response = client.chat.completions.create(**params)
-                    else:
-                        # If already using low reasoning or other error, fail fast
                         raise create_error_response(
                             status_code=503,
                             code="service_timeout",
-                            message="Service temporarily unavailable",
+                            message="Service temporarily unavailable - all retry attempts failed",
                             error_type="timeout",
                             inner_error={
-                                "original_error": str(e),
-                                "elapsed_seconds": elapsed,
-                                "reasoning_effort": params.get("reasoning_effort"),
-                                "base_timeout": base_timeout
-                            }
+                                "original_error": error_msg,
+                                "total_elapsed_seconds": perf_counter() - start_time,
+                                "reasoning_attempts": [original_reasoning_effort]
+                                + retry_reasoning_efforts,
+                                "timeouts_used": timeouts_used,
+                            },
                         )
 
-                # Log successful response
-                elapsed = perf_counter() - start_time
-                logger.info(
-                    f"Request completed in {elapsed:.2f}s using "
-                    f"{params.get('reasoning_effort', 'default')} reasoning effort"
+                    retry_attempts += 1
+
+                    # For o-series models, progressively reduce reasoning effort
+                    if is_o_series and "low" != current_reasoning:
+                        # First try reducing to medium if we're on high
+                        if current_reasoning == "high" and retry_attempts == 1:
+                            params["reasoning_effort"] = "medium"
+                            logger.warning(
+                                f"Request timed out after {elapsed:.2f}s with high reasoning. "
+                                f"Retrying with medium reasoning."
+                            )
+                        else:
+                            # Otherwise reduce to low
+                            params["reasoning_effort"] = "low"
+                            logger.warning(
+                                f"Request timed out after {elapsed:.2f}s with {current_reasoning} reasoning. "
+                                f"Retrying with low reasoning."
+                            )
+                    else:
+                        # If already at low reasoning, we'll retry with same parameters but longer timeout
+                        # due to backoff multiplier applied above
+                        logger.warning(
+                            f"Request timed out after {elapsed:.2f}s with {current_reasoning} reasoning. "
+                            f"Retrying with increased timeout."
+                        )
+
+            # Log successful response with detailed performance info
+            elapsed_total = perf_counter() - start_time
+
+            # Log the raw JSON response with performance data
+            import json
+
+            try:
+                response_data = (
+                    response.to_dict() if hasattr(response, "to_dict") else response
+                )
+                response_data["_performance"] = {
+                    "total_elapsed_seconds": elapsed_total,
+                    "attempts": retry_attempts + 1,
+                    "final_reasoning_effort": params.get("reasoning_effort"),
+                    "original_reasoning_effort": original_reasoning_effort,
+                    "timeouts_used": timeouts_used,
+                }
+                raw_json = json.dumps(response_data, default=str, indent=2)
+                response_logger.info("Raw JSON response: %s", raw_json)
+            except Exception as log_ex:
+                response_logger.warning(
+                    f"Failed to serialize raw response: {str(log_ex)}"
                 )
 
-                # Log the raw JSON response with detailed performance info
-                import json
-
-                try:
-                    response_data = (
-                        response.to_dict() if hasattr(response, "to_dict") else response
-                    )
-                    response_data["_performance"] = {
-                        "elapsed_seconds": elapsed,
-                        "base_timeout": base_timeout,
-                        "reasoning_effort": params.get("reasoning_effort"),
-                        "message_token_count": len(str(messages)),
-                    }
-                    raw_json = json.dumps(response_data, default=str, indent=2)
-                    response_logger.info("Raw JSON response: %s", raw_json)
-                except Exception as log_ex:
-                    response_logger.warning(
-                        f"Failed to serialize raw response: {str(log_ex)}"
-                    )
-
-                assistant_msg = response.choices[0].message.content
-                response_logger.info(assistant_msg)
-
-            except Exception as e:
-                elapsed = perf_counter() - start_time
-                logger.error(
-                    f"Azure OpenAI API Error after {elapsed:.2f}s: {str(e)}\n"
-                    f"Using reasoning_effort: {params.get('reasoning_effort')}\n"
-                    f"Base timeout: {base_timeout}s"
-                )
-                raise create_error_response(
-                    status_code=500,
-                    code="azure_openai_error",
-                    message="Error communicating with Azure OpenAI service",
-                    error_type="api_error",
-                    inner_error={
-                        "original_error": str(e),
-                        "elapsed_seconds": elapsed,
-                        "reasoning_effort": params.get("reasoning_effort"),
-                        "base_timeout": base_timeout,
-                    },
-                )
+            assistant_msg = response.choices[0].message.content
+            response_logger.info(assistant_msg)
 
         except Exception as outer_e:
             error_msg = str(outer_e)

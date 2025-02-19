@@ -27,8 +27,8 @@
                    placeholder="Custom configuration for the assistant">
             
             <div class="effort-slider">
-                <label>Reasoning Effort:</label>
-                <input type="range" id="reasoning-effort-slider" 
+                <label>Reasoning Effort: <span id="effort-display">Medium</span></label>
+                <input type="range" id="reasoning-effort-slider"
                        min="0" max="2" value="1"
                        list="effort-ticks">
                 <datalist id="effort-ticks">
@@ -36,6 +36,11 @@
                     <option value="1" label="Medium"></option>
                     <option value="2" label="High"></option>
                 </datalist>
+                <div class="effort-description">
+                    <small id="effort-description-text">
+                        Medium: Balanced processing time (1-3min) and quality. Suitable for most queries.
+                    </small>
+                </div>
             </div>
         </div>
 

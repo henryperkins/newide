@@ -12,6 +12,34 @@ AZURE_OPENAI_API_VERSION = os.getenv(
     "2025-01-01-preview"
 )
 
+O_SERIES_BASE_TIMEOUT = float(
+    os.getenv("O_SERIES_BASE_TIMEOUT", "120.0")
+)  # 2 minute base timeout
+O_SERIES_MAX_TIMEOUT = float(
+    os.getenv("O_SERIES_MAX_TIMEOUT", "360.0")
+)  # 6 minute max timeout
+O_SERIES_TOKEN_FACTOR = float(
+    os.getenv("O_SERIES_TOKEN_FACTOR", "0.15")
+)  # 0.15 seconds per token
+O_SERIES_MAX_RETRIES = int(
+    os.getenv("O_SERIES_MAX_RETRIES", "2")
+)  # Max number of retries
+O_SERIES_BACKOFF_MULTIPLIER = float(
+    os.getenv("O_SERIES_BACKOFF_MULTIPLIER", "1.5")
+)  # Backoff multiplier
+
+# Reasoning effort multipliers
+REASONING_EFFORT_MULTIPLIERS = {
+    "low": float(os.getenv("REASONING_EFFORT_LOW_MULTIPLIER", "1.0")),
+    "medium": float(os.getenv("REASONING_EFFORT_MEDIUM_MULTIPLIER", "2.5")),
+    "high": float(os.getenv("REASONING_EFFORT_HIGH_MULTIPLIER", "5.0")),
+}
+
+# Standard model timeout settings (keep existing defaults)
+STANDARD_BASE_TIMEOUT = float(os.getenv("STANDARD_BASE_TIMEOUT", "15.0"))
+STANDARD_MAX_TIMEOUT = float(os.getenv("STANDARD_MAX_TIMEOUT", "30.0"))
+STANDARD_TOKEN_FACTOR = float(os.getenv("STANDARD_TOKEN_FACTOR", "0.03"))
+
 # PostgreSQL Configuration
 POSTGRES_HOST = os.getenv("PGHOST")
 POSTGRES_USER = os.getenv("PGUSER")

@@ -53,78 +53,152 @@ async function sendMessage() {
         }
     }
 
+    let timeoutId;
+    let data;
+
     try {
         userInput.disabled = true;  // Disable input while processing
         lastUserMessage = message;
         displayMessage(message, 'user');
         userInput.value = '';
-        showTypingIndicator();
 
+        // Get reasoning effort and show appropriate expectations
         const developerConfig = document.getElementById('developer-config').value.trim();
         const effortMap = ['low', 'medium', 'high'];
         const reasoningEffort = effortMap[document.getElementById('reasoning-effort-slider').value];
 
-        const response = await fetch('/chat', {
+        // Show appropriate timing expectations based on reasoning effort
+        if (reasoningEffort === 'high') {
+            showNotification(
+                "Using high reasoning effort - responses may take several minutes. Consider medium for faster responses.",
+                "info",
+                8000
+            );
+        } else if (reasoningEffort === 'medium') {
+            showNotification(
+                "Using medium reasoning effort - responses may take 1-3 minutes for complex queries.",
+                "info",
+                6000
+            );
+        }
+
+        // Show enhanced typing indicator with timing info
+        showTypingIndicator(reasoningEffort);
+
+        // Set up a controller for timeout handling
+        const controller = new AbortController();
+        const timeoutDuration =
+            reasoningEffort === 'high' ? 360000 :  // 6 minutes
+            reasoningEffort === 'medium' ? 240000 : // 4 minutes
+            120000;                                 // 2 minutes (low)
+
+        // Prepare a promise to handle request timeouts
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+                controller.abort();
+                reject(new Error('Request timeout - the server may still be processing'));
+            }, timeoutDuration);
+        });
+
+        // Prepare the fetch request
+        const fetchPromise = fetch('/chat', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
             body: JSON.stringify({
                 message: message,
                 session_id: sessionId,
                 developer_config: developerConfig || undefined,
-                reasoning_effort: reasoningEffort || undefined
+                reasoning_effort: reasoningEffort || undefined,
+                include_usage_metrics: true
             })
         });
 
+        // Race the fetch against the timeout
+        const response = await Promise.race([fetchPromise, timeoutPromise]);
+
+        // Since we got a response, clear the timeout
+        clearTimeout(timeoutId);
+
+        // Check for errors
         if (response.status === 400) {
             const errorData = await response.json();
             throw new Error(errorData.detail || 'Invalid request');
         }
-
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            if (response.status === 503) {
+                const errorData = await response.json();
+                if (errorData?.error?.type === 'timeout') {
+                    throw new Error(`Request timed out.Try using lower reasoning effort (currently: ${ reasoningEffort }).`);
+                }
+            }
+            throw new Error(`HTTP error! status: ${ response.status } `);
         }
 
-        const data = await response.json();
+        // Parse the response
+        data = await response.json();
         if (!data.response) {
             throw new Error('No response received from server');
         }
 
+        // Display assistant’s response
         displayMessage(data.response, 'assistant');
-        
-        // Display enhanced token metrics
-        const usageHtml = `
-            <div class="metric-display bg-blue-50 p-3 rounded-lg mt-4">
-                <h4 class="font-semibold text-blue-800 mb-2">Azure OpenAI Token Usage</h4>
-                <div class="grid grid-cols-3 gap-4 text-sm">
-                    <div class="metric-item">
-                        <span class="font-medium">Total:</span>
-                        <span class="text-blue-600">${data.usage.total_tokens}</span>
-                    </div>
-                    <div class="metric-item">
-                        <span class="font-medium">Prompt:</span>
-                        <span class="text-blue-600">${data.usage.prompt_tokens}</span>
-                    </div>
-                    <div class="metric-item">
-                        <span class="font-medium">Completion:</span>
-                        <span class="text-blue-600">${data.usage.completion_tokens}</span>
-                    </div>
-                </div>
-                ${data.using_file_context ?
-                    `<div class="mt-3 text-xs text-blue-700">
-                        Includes token context from uploaded files
-                    </div>` : ''}
-            </div>
-        `;
-        document.querySelector('.message.assistant-message:last-child .message-content').insertAdjacentHTML('beforeend', usageHtml);
 
+        // Insert token usage info if available
         if (data.usage) {
+            let usageHtml = `
+    < div class="metric-display bg-blue-50 p-3 rounded-lg mt-4" >
+                    <h4 class="font-semibold text-blue-800 mb-2">Azure OpenAI Token Usage</h4>
+                    <div class="grid grid-cols-3 gap-4 text-sm">
+                        <div class="metric-item">
+                            <span class="font-medium">Total:</span>
+                            <span class="text-blue-600">${data.usage.total_tokens}</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="font-medium">Prompt:</span>
+                            <span class="text-blue-600">${data.usage.prompt_tokens}</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="font-medium">Completion:</span>
+                            <span class="text-blue-600">${data.usage.completion_tokens}</span>
+                        </div>
+                    </div>`;
+
+            if (data.usage.completion_details && data.usage.completion_details.reasoning_tokens) {
+                usageHtml += `
+    < div class="mt-3 flex justify-between text-sm" >
+                        <div class="metric-item">
+                            <span class="font-medium text-indigo-700">Reasoning Tokens:</span>
+                            <span class="text-indigo-600">${data.usage.completion_details.reasoning_tokens}</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="font-medium text-indigo-700">Reasoning Effort:</span>
+                            <span class="text-indigo-600">${reasoningEffort}</span>
+                        </div>
+                    </div > `;
+            }
+
+            usageHtml += `</div > `;
+            document
+                .querySelector('.message.assistant-message:last-child .message-content')
+                .insertAdjacentHTML('beforeend', usageHtml);
+
             updateTokenUsage(data.usage);
         }
     } catch (error) {
         console.error('Error sending message:', error);
-        displayMessage('Error: Could not send message. Please try again.', 'error');
+
+        // Enhanced error handling
+        if (error.name === 'AbortError') {
+            displayMessage(
+                'The request was aborted due to taking too long. The server may still be processing your request. ' +
+                'Consider using a lower reasoning effort setting for faster responses.',
+                'error'
+            );
+        } else {
+            displayMessage('Error: ' + error.message, 'error');
+        }
+
         showNotification(error.message, 'error');
     } finally {
         removeTypingIndicator();
@@ -139,6 +213,24 @@ async function regenerateResponse() {
         userInput.value = lastUserMessage;
         await sendMessage();
     }
+}
+
+// Update reasoning effort descriptions
+function updateReasoningEffortDescription() {
+    const slider = document.getElementById('reasoning-effort-slider');
+    const value = parseInt(slider.value);
+    const effortDisplay = document.getElementById('effort-display');
+    const descriptionText = document.getElementById('effort-description-text');
+    
+    const effortMap = ['Low', 'Medium', 'High'];
+    const descMap = [
+        'Low: Faster responses (30-60s) with basic reasoning. Best for simple queries.',
+        'Medium: Balanced processing time (1-3min) and quality. Suitable for most queries.',
+        'High: Extended reasoning (2-5min) for complex problems. Expect longer wait times.'
+    ];
+    
+    effortDisplay.textContent = effortMap[value];
+    descriptionText.textContent = descMap[value];
 }
 
 // Initialize markdown parser
@@ -192,17 +284,34 @@ function configureMarkdownWithPrism() {
     return true;
 }
 
-// Show typing indicator
-function showTypingIndicator() {
+// Show typing indicator with timing info
+function showTypingIndicator(reasoningEffort = 'medium') {
     const typingDiv = document.createElement('div');
     typingDiv.className = 'message assistant-message typing-indicator';
+    
+    // Create dots container
+    const dotsContainer = document.createElement('div');
+    dotsContainer.className = 'dots-container';
     
     // Create dots with staggered animation
     for (let i = 0; i < 3; i++) {
         const dot = document.createElement('span');
         dot.style.animationDelay = `${i * 0.15}s`;
-        typingDiv.appendChild(dot);
+        dotsContainer.appendChild(dot);
     }
+    typingDiv.appendChild(dotsContainer);
+    
+    // Add expected time info based on reasoning effort
+    const timeInfo = document.createElement('div');
+    timeInfo.className = 'typing-time-info';
+    
+    const timeEstimate =
+        reasoningEffort === 'high' ? '2-5 minutes' :
+        reasoningEffort === 'medium' ? '1-3 minutes' :
+        '30-60 seconds';
+    
+    timeInfo.innerHTML = `<small>Processing with ${reasoningEffort} reasoning (est. ${timeEstimate})</small>`;
+    typingDiv.appendChild(timeInfo);
 
     document.getElementById('chat-history').appendChild(typingDiv);
     typingDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -614,6 +723,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 "Warning: Markdown formatting and syntax highlighting may be limited due to missing dependencies",
                 "warning"
             );
+        }
+
+        // Set up reasoning effort slider
+        const slider = document.getElementById('reasoning-effort-slider');
+        if (slider) {
+            // Set initial description
+            updateReasoningEffortDescription();
+            
+            // Update on change
+            slider.addEventListener('input', updateReasoningEffortDescription);
         }
 
         // Initialize session first
