@@ -923,7 +923,7 @@ async def get_files(session_id: str):
             result = await db_session.execute(
                 text(
                     """
-                    SELECT id, filename, size, upload_time
+                    SELECT id, filename, size, upload_time, LENGTH(content) AS char_count, LENGTH(content) / 3 AS token_count
                     FROM uploaded_files
                     WHERE session_id = :session_id
                     ORDER BY upload_time DESC
@@ -943,6 +943,8 @@ async def get_files(session_id: str):
                         filename=file["filename"],
                         size=file["size"],
                         upload_time=file["upload_time"].isoformat(),
+                        char_count=file["char_count"],
+                        token_count=file["token_count"],
                     )
                     for file in files
                 ],
