@@ -379,7 +379,7 @@ class FileResponseModel(BaseModel):
 
 
 class FileListResponse(BaseModel):
-    files: list[FileResponse]
+    files: list[FileResponseModel]
     total_count: int
     total_size: int
 
