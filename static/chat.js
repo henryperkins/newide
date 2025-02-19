@@ -87,17 +87,21 @@ async function sendMessage() {
 
         // Set up a controller for timeout handling
         const controller = new AbortController();
-        const timeoutDuration =
+        // Use the last server-calculated timeout if available, else fallback
+        const fallbackDurationMillis =
             reasoningEffort === 'high' ? 360000 :  // 6 minutes
             reasoningEffort === 'medium' ? 240000 : // 4 minutes
-            120000;                                 // 2 minutes (low)
+            120000; // 2 minutes (low)
 
-        // Prepare a promise to handle request timeouts
+        const dynamicDurationMillis = window.serverCalculatedTimeout
+            ? window.serverCalculatedTimeout * 1000
+            : fallbackDurationMillis;
+
         const timeoutPromise = new Promise((_, reject) => {
             timeoutId = setTimeout(() => {
                 controller.abort();
                 reject(new Error('Request timeout - the server may still be processing'));
-            }, timeoutDuration);
+            }, dynamicDurationMillis);
         });
 
         // Prepare the fetch request
@@ -242,11 +246,8 @@ let mdParser = null;
 if (typeof markdownit !== 'undefined') {
   mdParser = markdownit({
     highlight: function (str, lang) {
-      // Switch to using highlight.js instead of Prism for consistency
-      if (typeof hljs !== "undefined" && lang && hljs.getLanguage(lang)) {
-        return hljs.highlight(str, { language: lang }).value;
-      } else if (typeof hljs !== "undefined") {
-        return hljs.highlightAuto(str).value;
+      if (typeof Prism !== 'undefined' && Prism.languages[lang]) {
+        return Prism.highlight(str, Prism.languages[lang], lang);
       }
       return str;
     }
