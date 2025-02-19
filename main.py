@@ -17,7 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-    import os
+import os
 
 # Ensure the logs directory exists
 if not os.path.exists("logs"):
