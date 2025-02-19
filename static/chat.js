@@ -153,42 +153,6 @@ async function sendMessage() {
         displayMessage(data.response, 'assistant');
 
         if (data.usage) {
-            let usageHtml = `
-    < div class="metric-display bg-blue-50 p-3 rounded-lg mt-4" >
-                    <h4 class="font-semibold text-blue-800 mb-2">Azure OpenAI Token Usage</h4>
-                    <div class="grid grid-cols-3 gap-4 text-sm">
-                        <div class="metric-item">
-                            <span class="font-medium">Total:</span>
-                            <span class="text-blue-600">${data.usage.total_tokens}</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="font-medium">Prompt:</span>
-                            <span class="text-blue-600">${data.usage.prompt_tokens}</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="font-medium">Completion:</span>
-                            <span class="text-blue-600">${data.usage.completion_tokens}</span>
-                        </div>
-                    </div>`;
-
-            if (data.usage.completion_details && data.usage.completion_details.reasoning_tokens) {
-                usageHtml += `
-    < div class="mt-3 flex justify-between text-sm" >
-                        <div class="metric-item">
-                            <span class="font-medium text-indigo-700">Reasoning Tokens:</span>
-                            <span class="text-indigo-600">${data.usage.completion_details.reasoning_tokens}</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="font-medium text-indigo-700">Reasoning Effort:</span>
-                            <span class="text-indigo-600">${reasoningEffort}</span>
-                        </div>
-                    </div > `;
-            }
-
-            usageHtml += `</div > `;
-            document
-                .querySelector('.message.assistant-message:last-child .message-content')
-                .insertAdjacentHTML('beforeend', usageHtml);
 
     const usageDiv = document.createElement('div');
     usageDiv.className = 'metric-display bg-blue-50 p-3 rounded-lg mt-4';
@@ -677,7 +641,7 @@ async function loadFilesList() {
                     </div>
                 </div>
                 <div class="file-actions">
-                    <button class="delete-file" onclick="deleteFile('${file.file_id}')">×</button>
+                    <button class="delete-file" onclick="deleteFile('${file.id}')">×</button>
                 </div>
             `;
             fileList.appendChild(fileItem);

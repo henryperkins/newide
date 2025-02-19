@@ -374,6 +374,8 @@ class FileResponse(BaseModel):
     filename: str
     size: int
     upload_time: str
+    char_count: int
+    token_count: int
 
 
 class FileListResponse(BaseModel):
