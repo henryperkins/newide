@@ -250,7 +250,7 @@ async def root():
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    return FileResponse("static/favicon.ico")
+    return FileResponseModel(path="static/favicon.ico")
 
 
 app.add_middleware(
@@ -369,7 +369,7 @@ def validate_reasoning_effort(value: Optional[ReasoningEffort]) -> str:
 
 
 # API Response Models
-class FileResponse(BaseModel):
+class FileResponseModel(BaseModel):
     id: str
     filename: str
     size: int
@@ -940,7 +940,7 @@ async def get_files(session_id: str):
 
             return FileListResponse(
                 files=[
-                    FileResponse(
+                    FileResponseModel(
                         id=str(file["id"]),
                         filename=file["filename"],
                         size=file["size"],
@@ -1001,7 +1001,7 @@ async def delete_file(session_id: str, file_id: str):
                 )
 
             await db_session.commit()
-            return DeleteFileResponse(
+            return DeleteFileResponseModel(
                 id=str(deleted[0]),
                 message="File deleted successfully",
                 deleted_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
