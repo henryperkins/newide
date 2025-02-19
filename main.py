@@ -26,19 +26,22 @@ if not os.path.exists("logs"):
 # Configure a dedicated logger for user input
 input_logger = logging.getLogger("input_logger")
 input_logger.setLevel(logging.INFO)
-input_handler = logging.FileHandler("logs/input.log")
+input_handler = RotatingFileHandler("logs/input.log", maxBytes=5_000_000, backupCount=3)
 input_handler.setLevel(logging.INFO)
-input_handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s"))
+input_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
 input_logger.addHandler(input_handler)
+input_logger.propagate = False
 
 # Configure a dedicated logger for model responses
 response_logger = logging.getLogger("response_logger")
 response_logger.setLevel(logging.INFO)
-response_handler = logging.FileHandler("logs/response.log")
+response_handler = RotatingFileHandler("logs/response.log", maxBytes=5_000_000, backupCount=3)
 response_handler.setLevel(logging.INFO)
-response_handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s"))
+response_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
 response_logger.addHandler(response_handler)
+response_logger.propagate = False
 
+from logging.handlers import RotatingFileHandler
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import (
@@ -432,8 +435,8 @@ class ChatMessage(BaseModel):
 async def chat(request: Request, chat_message: ChatMessage):
     start_time = perf_counter()
     session_id = chat_message.session_id
-    logger.info(f"Chat request received from session {session_id}")
-    input_logger.info(chat_message.message)
+    logger.info(f"[session {session_id}] Chat request received")
+    input_logger.info(f"[session {session_id}] {chat_message.message}")
 
     # Prepare messages list with developer config and user input
     messages = []
@@ -658,14 +661,14 @@ async def chat(request: Request, chat_message: ChatMessage):
                     "timeouts_used": timeouts_used,
                 }
                 raw_json = json.dumps(response_data, default=str, indent=2)
-                response_logger.info("Raw JSON response: %s", raw_json)
+                response_logger.info("[session %s] Raw JSON response: %s", session_id, raw_json)
             except Exception as log_ex:
                 response_logger.warning(
                     f"Failed to serialize raw response: {str(log_ex)}"
                 )
 
             assistant_msg = response.choices[0].message.content
-            response_logger.info(assistant_msg)
+            response_logger.info(f"[session {session_id}] {assistant_msg}")
 
         except Exception as outer_e:
             error_msg = str(outer_e)
