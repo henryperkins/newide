@@ -64,7 +64,7 @@ REASONING_EFFORT_MULTIPLIERS = {
 }
 
 # PostgreSQL Configuration with full SSL verification
-POSTGRES_URL = f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD.get_secret_value()}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+POSTGRES_URL = f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
 
 # Session configuration
 SESSION_TIMEOUT_MINUTES = settings.session_timeout_minutes
