@@ -1,7 +1,45 @@
-from dotenv import load_dotenv
+from pydantic import BaseSettings, SecretStr, validator
+from typing import Dict
 import os
 
-load_dotenv()
+class Settings(BaseSettings):
+    # Azure OpenAI settings
+    azure_openai_endpoint: str
+    azure_openai_api_key: SecretStr
+    azure_openai_deployment_name: str
+    azure_openai_api_version: str = "2025-01-01-preview"
+
+    # Database settings  
+    postgres_host: str
+    postgres_user: str
+    postgres_password: SecretStr
+    postgres_db: str
+    postgres_port: int = 5432
+
+    # Timeout settings
+    o_series_base_timeout: float = 120.0
+    o_series_max_timeout: float = 360.0
+    o_series_token_factor: float = 0.15
+    o_series_max_retries: int = 2
+    o_series_backoff_multiplier: float = 1.5
+
+    reasoning_effort_multipliers: Dict[str, float] = {
+        "low": 1.0,
+        "medium": 2.5,
+        "high": 5.0
+    }
+
+    @validator("postgres_port")
+    def validate_port(cls, v):
+        if not 1024 <= v <= 65535:
+            raise ValueError("Port must be between 1024 and 65535")
+        return v
+
+    class Config:
+        env_file = '.env'
+        env_file_encoding = 'utf-8'
+
+settings = Settings()
 
 # Azure OpenAI Configuration
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")

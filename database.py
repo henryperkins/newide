@@ -35,8 +35,14 @@ class Session(Base):
 class Conversation(Base):
     """ORM model for conversation messages."""
     __tablename__ = "conversations"
+    __table_args__ = (
+        Index('ix_conversations_session_id', 'session_id'),
+        Index('ix_conversations_timestamp', 'timestamp'),
+        Index('ix_conversations_session_timestamp', 'session_id', 'timestamp')
+    )
+    
     id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(PGUUID, ForeignKey("sessions.id"), nullable=False)
+    session_id = Column(PGUUID, ForeignKey("sessions.id", ondelete='CASCADE'), nullable=False)
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"))

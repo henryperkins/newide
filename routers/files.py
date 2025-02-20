@@ -163,8 +163,8 @@ async def delete_file(session_id: str, file_id: str, db_session: AsyncSession = 
                 param="session_id",
             )
         result = await db_session.execute(text("""
-            DELETE FROM uploaded_files
-            WHERE session_id = :session_id AND id = :file_id
+            DELETE FROM uploaded_files 
+            WHERE session_id = :session_id AND id = :file_id::uuid
             RETURNING id
         """), {"session_id": session_id, "file_id": file_id})
         deleted = result.first()

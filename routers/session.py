@@ -33,9 +33,10 @@ async def get_conversation(session_id: str, db_session: AsyncSession = Depends(g
                 param="session_id",
             )
         result = await db_session.execute(text("""
-            SELECT role, content, timestamp FROM conversations
-            WHERE session_id = :session_id
+            SELECT role, content, timestamp FROM conversations 
+            WHERE session_id = :session_id::uuid
             ORDER BY timestamp ASC
+            LIMIT 50
         """), {"session_id": session_id})
         history = result.mappings().all()
         return ConversationResponse(

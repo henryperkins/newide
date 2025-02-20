@@ -19,7 +19,6 @@ export function configureMarkdown() {
 }
 
 export function safeMarkdownParse(text) {
-    // Styles now handled through components.css
     if (!mdParser) {
         configureMarkdown();
         if (!mdParser) return text;
@@ -28,10 +27,18 @@ export function safeMarkdownParse(text) {
     try {
         // Sanitize input before parsing
         const sanitized = sanitizeInput(text);
-        return mdParser.render(sanitized);
+        const rawHtml = mdParser.render(sanitized);
+        
+        // Sanitize output HTML
+        return DOMPurify.sanitize(rawHtml, {
+            ALLOWED_TAGS: ['p', 'code', 'pre', 'em', 'strong', 'ul', 'ol', 'li', 'blockquote'],
+            ALLOWED_ATTR: ['class', 'id'],
+            FORBID_TAGS: ['style', 'script'],
+            FORBID_ATTR: ['style', 'onerror', 'onload', 'onclick']
+        });
     } catch (error) {
         console.error('Markdown parsing error:', error);
-        return text;
+        return sanitizeInput(text); // Fallback to plain text
     }
 }
 
