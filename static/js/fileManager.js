@@ -1,4 +1,4 @@
-import { sessionId, initializeSession } from '../core/sessionManager.js';
+import { sessionId, initializeSession } from '../session.js';
 import { showNotification } from '../ui/notificationManager.js';
 import { formatFileSize } from '../utils/helpers.js';
 
@@ -34,67 +34,7 @@ export async function handleFileUpload(file) {
     const progressDiv = document.createElement('div');
     progressDiv.className = 'upload-progress';
     progressDiv.innerHTML = `
-        <div class="file-info">
-            <div class="filename">${file.name}</div>
-            <div class="file-meta">${formatFileSize(file.size)}</div>
-            <div class="upload-progress-bar">
-                <div class="progress"></div>
-            </div>
-            <div class="upload-status"></div>
-        </div>
-    `;
-    document.getElementById('file-list').prepend(progressDiv);
-
-    try {
-        // Prepare form data
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("session_id", sessionId);
-        formData.append("purpose", "assistants");
-
-        // Configure XHR with progress tracking
-        const xhr = new XMLHttpRequest();
-        const startTime = Date.now();
-        
-        xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-                const percent = (event.loaded / event.total) * 100;
-                const elapsed = (Date.now() - startTime) / 1000;
-                const speed = event.loaded / elapsed;
-                const remaining = (event.total - event.loaded) / speed;
-                
-                progressDiv.querySelector('.progress').style.width = `${percent}%`;
-                progressDiv.querySelector('.upload-status').textContent = 
-                    `${percent.toFixed(1)}% • ${formatFileSize(speed)}/s • ${remaining.toFixed(1)}s remaining`;
-            }
-        };
-
-        xhr.onload = async () => {
-            if (xhr.status === 200) {
-                const data = JSON.parse(xhr.responseText);
-                await createVectorStore(data.file_id);
-                progressDiv.querySelector('.upload-status').textContent = 'Processed successfully';
-                progressDiv.querySelector('.progress').style.backgroundColor = '#4CAF50';
-                setTimeout(() => progressDiv.remove(), 2000);
-                await loadFilesList();
-            } else {
-                throw new Error(xhr.statusText);
-            }
-        };
-
-        xhr.onerror = () => {
-            progressDiv.remove();
-            showNotification(`Failed to upload ${file.name}`, 'error');
-        };
-
-        xhr.open('POST', '/upload', true);
-        xhr.send(formData);
-
-    } catch (error) {
-        progressDiv.remove();
-        showNotification(`Upload failed: ${error.message}`, 'error');
-    }
-}
+        <div class=
 
 // Create vector store for uploaded file
 async function createVectorStore(fileId) {

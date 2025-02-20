@@ -1,20 +1,23 @@
-import { initializeSession } from './core/session.js';
-import { initializeConfig, updateReasoningEffortDisplay } from './core/config.js';
-import { sendMessage, regenerateResponse } from './core/messageHandler.js';
-import { setupDragAndDrop, loadFilesList } from './file/fileManager.js';
+import { initializeSession } from '/static/js/session.js';
+import { initializeConfig, updateReasoningEffortDisplay } from './config.js';
+import { sendMessage, regenerateResponse } from './messageHandler.js';
+import { setupDragAndDrop, loadFilesList } from './fileManager.js';
 import { configureMarkdown, injectMarkdownStyles } from './utils/markdownParser.js';
 import { showNotification } from './ui/notificationManager.js';
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        // Configure core application features
         initializeMarkdownSupport();
-        initializeUIEventHandlers();
-        initializeSessionHandling();
-        initializeFileHandling();
-        
-        console.log("Application initialized successfully");
+        await initializeUIComponents();
+        await initializeSessionHandling();
+        await initializeFileHandling();
+
+        // Log successful initialization with timestamp
+        console.log(`Application initialized successfully at ${new Date().toISOString()}`);
     } catch (error) {
+        // Forward to centralized error handler
         handleInitializationError(error);
     }
 });

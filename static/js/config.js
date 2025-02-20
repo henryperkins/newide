@@ -58,9 +58,16 @@ export function getDeveloperConfig() {
 }
 
 export function getModelSettings() {
+    const modelName = window.modelName || '';
     return {
-        supportsVision: window.modelName?.includes('o1') || false,
-        supportsStreaming: window.modelName?.includes('o3-mini') || false
+        name: modelName,
+        supportsVision: modelName.includes('o1'),
+        supportsStreaming: modelName.includes('o3-mini'),
+        contextWindow: {
+            input: modelName.includes('o1') ? 200000 : 128000,
+            output: modelName.includes('o1') ? 100000 : 32768
+        },
+        requiresSystemMessageConversion: modelName.includes('o-series')
     };
 }
 

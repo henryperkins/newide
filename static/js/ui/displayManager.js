@@ -1,9 +1,17 @@
-import { safeMarkdownParse } from '../utils/markdownParser.js';
-import { copyToClipboard } from '../utils/helpers.js';
+import { safeMarkdownParse } from './markdownParser.js';
+import { copyToClipboard } from '../../utils/helpers.js';
 
 export function displayMessage(content, role) {
     const chatHistory = document.getElementById('chat-history');
     if (!chatHistory) return;
+
+    // Handle developer messages
+    if (role === 'developer') {
+        const isFormattingMessage = content.startsWith('Formatting re-enabled');
+        const messageDiv = createDeveloperMessage(content, isFormattingMessage);
+        chatHistory.appendChild(messageDiv);
+        return;
+    }
 
     const messageDiv = createMessageElement(role);
     const contentDiv = createContentElement(content, role);
@@ -14,6 +22,26 @@ export function displayMessage(content, role) {
     applyEntranceAnimation(messageDiv);
     chatHistory.appendChild(messageDiv);
     scheduleScroll(messageDiv);
+}
+
+function createDeveloperMessage(content, isFormattingMessage) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message developer-message';
+    messageDiv.setAttribute('role', 'alert');
+    messageDiv.setAttribute('aria-live', 'assertive');
+
+    if (isFormattingMessage) {
+        messageDiv.innerHTML = `
+            <div class="formatting-notice">
+                <span aria-hidden="true">⚙️</span>
+                <strong>System:</strong> ${safeMarkdownParse(content)}
+            </div>
+        `;
+    } else {
+        messageDiv.textContent = content;
+    }
+    
+    return messageDiv;
 }
 
 function createMessageElement(role) {
@@ -84,12 +112,19 @@ function createAssistantContent(parsedContent, citations) {
 
 function createCitationHTML(index, citation) {
     return `
-        <div class="file-citation">
-            <div class="citation-header">
-                <span class="citation-number">[${index}]</span>
-                <span class="citation-file">${citation.file_name}</span>
+        <div class="file-citation" 
+             role="region" 
+             aria-label="Document reference ${index}"
+             tabindex="0">
+            <div class="citation-header" id="citation-heading-${index}">
+                <span class="citation-number" aria-label="Reference number">[${index}]</span>
+                <span class="citation-file" aria-label="Source document">
+                    ${citation.file_name}
+                </span>
             </div>
-            <div class="citation-quote">${citation.quote}</div>
+            <div class="citation-quote" aria-label="Relevant excerpt">
+                ${citation.quote}
+            </div>
         </div>
     `;
 }

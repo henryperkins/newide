@@ -6,17 +6,28 @@
     <title>Azure OpenAI o1 Chat</title>
     
     <!-- Fonts and Styles -->
-    <link rel="stylesheet" href="/static/fonts.css">
-    <link rel="stylesheet" href="/static/variables.css">
-    <link rel="stylesheet" href="/static/base.css">
-    <link rel="stylesheet" href="/static/components.css">
-    <link rel="stylesheet" href="/static/media.css">
-    <link rel="stylesheet" href="/static/lib/prism.min.css">
+    <link rel="stylesheet" href="static/css/fonts.css">
+    <link rel="stylesheet" href="static/css/variables.css">
+    <link rel="stylesheet" href="static/css/base.css">
+    <link rel="stylesheet" href="static/css/components.css">
+    <link rel="stylesheet" href="static/css/media.css">
+    <link rel="stylesheet" href="static/lib/prism.min.css">
 
     <!-- Scripts -->
-    <script src="/static/lib/markdown-it.min.js"></script>
-    <script src="/static/lib/prism.min.js"></script>
-    <script src="/static/lib/marked.min.js"></script>
+    <script src="static/lib/markdown-it.min.js"></script>
+    <script src="static/lib/prism.min.js"></script>
+    <script src="static/lib/marked.min.js"></script>
+    
+    <!-- Core Modules -->
+    <script type="module" src="static/js/session.js"></script>
+    <script type="module" src="static/js/config.js"></script>
+    <script type="module" src="static/js/utils/helpers.js"></script>
+    <script type="module" src="static/js/ui/markdownParser.js"></script>
+    <script type="module" src="static/js/ui/notificationManager.js"></script>
+    <script type="module" src="static/js/ui/displayManager.js"></script>
+    <script type="module" src="static/js/fileManager.js"></script>
+    <script type="module" src="static/js/messageHandler.js"></script>
+    <script type="module" src="static/js/main.js"></script>
 </head>
 <body>
     <!-- Skip link for accessibility -->
@@ -152,7 +163,35 @@
         </div>
     </div>
 
-    <!-- Scripts (at the end of body) -->
-    <script src="/static/chat.js"></script>
+    <!-- Initialization -->
+    <script type="module">
+        import { initializeSession } from './static/js/session.js';
+        import { loadFilesList, setupDragAndDrop } from './static/js/fileManager.js';
+        import { initializeConfig } from './static/js/config.js';
+        import { showNotification } from './static/js/ui/notificationManager.js';
+
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Initialize session first
+                const sessionInitialized = await initializeSession();
+                if (!sessionInitialized) {
+                    showNotification("Failed to initialize session", "error");
+                    return;
+                }
+                
+                // Load initial files list
+                await loadFilesList();
+                
+                // Set up UI components
+                setupDragAndDrop();
+                initializeConfig();
+                
+            } catch (error) {
+                console.error('Initialization error:', error);
+                showNotification("Failed to initialize application", "error");
+            }
+        });
+    </script>
 </body>
 </html>

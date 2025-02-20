@@ -3,7 +3,7 @@
     font-family: 'Inter';
     font-style: normal;
     font-weight: 400;
-    src: url('fonts/inter/inter-400.woff2') format('woff2');
+    src: url('/static/fonts/inter/inter-400.woff2') format('woff2');
     font-display: swap;
 }
 
@@ -11,7 +11,7 @@
     font-family: 'Inter';
     font-style: normal;
     font-weight: 500;
-    src: url('fonts/inter/inter-500.woff2') format('woff2');
+    src: url('/static/fonts/inter/inter-500.woff2') format('woff2');
     font-display: swap;
 }
 
@@ -19,7 +19,7 @@
     font-family: 'Inter';
     font-style: normal;
     font-weight: 600;
-    src: url('fonts/inter/inter-600.woff2') format('woff2');
+    src: url('/static/fonts/inter/inter-600.woff2') format('woff2');
     font-display: swap;
 }
 
@@ -27,7 +27,7 @@
     font-family: 'Inter';
     font-style: normal;
     font-weight: 700;
-    src: url('fonts/inter/inter-700.woff2') format('woff2');
+    src: url('/static/fonts/inter/inter-700.woff2') format('woff2');
     font-display: swap;
 }
 
@@ -36,7 +36,7 @@
     font-family: 'JetBrains Mono';
     font-style: normal;
     font-weight: 400;
-    src: url('fonts/jetbrains-mono/jetbrains-mono-400.woff2') format('woff2');
+    src: url('/static/fonts/jetbrains-mono/jetbrains-mono-400.woff2') format('woff2');
     font-display: swap;
 }
 
@@ -44,6 +44,6 @@
     font-family: 'JetBrains Mono';
     font-style: normal;
     font-weight: 500;
-    src: url('fonts/jetbrains-mono/jetbrains-mono-500.woff2') format('woff2');
+    src: url('/static/fonts/jetbrains-mono/jetbrains-mono-500.woff2') format('woff2');
     font-display: swap;
 }

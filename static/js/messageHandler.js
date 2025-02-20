@@ -7,10 +7,10 @@ import {
     showNotification,
     showTypingIndicator,
     removeTypingIndicator
-} from '../ui/notificationManager.js';
-import { displayMessage } from '../ui/displayManager.js';
-import { safeMarkdownParse } from '../utils/markdownParser.js';
-import { updateTokenUsage } from '../utils/helpers.js';
+} from '/static/js/ui/notificationManager.js';
+import { displayMessage } from '/static/js/ui/displayManager.js';
+import { safeMarkdownParse } from '/static/js/ui/markdownParser.js';
+import { updateTokenUsage } from '/static/js/utils/helpers.js';
 import { 
     getCurrentConfig,
     getTimeoutDurations,
@@ -20,6 +20,7 @@ import {
 export async function sendMessage() {
     const userInput = document.getElementById('user-input');
     const message = userInput.value.trim();
+    const modelSettings = getModelSettings();
     
     if (!message) return;
 
@@ -27,6 +28,17 @@ export async function sendMessage() {
         // Session management
         if (!sessionId && !(await initializeSession())) {
             throw new Error('Failed to initialize session');
+        }
+
+        // Handle o1 model requirements
+        if (modelSettings.name.includes('o1')) {
+            if (modelSettings.supportsVision) {
+                displayMessage('Formatting re-enabled: Markdown processing activated', 'developer');
+            }
+            if (document.getElementById('streaming-toggle').checked) {
+                showNotification('o1 models do not support streaming', 'warning');
+                return;
+            }
         }
 
         // UI state management
