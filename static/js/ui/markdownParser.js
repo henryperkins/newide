@@ -19,6 +19,7 @@ export function configureMarkdown() {
 }
 
 export function safeMarkdownParse(text) {
+    // Styles now handled through components.css
     if (!mdParser) {
         configureMarkdown();
         if (!mdParser) return text;
