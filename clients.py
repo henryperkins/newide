@@ -1,4 +1,6 @@
 # clients.py
+import asyncio
+import time
 from openai import AsyncAzureOpenAI
 import config
 from typing import List, Optional

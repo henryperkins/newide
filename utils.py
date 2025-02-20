@@ -1,5 +1,6 @@
 # utils.py
 import tiktoken
+import os
 from typing import Optional
 import config
 from logging_config import logger

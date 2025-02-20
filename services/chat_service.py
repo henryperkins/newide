@@ -1,5 +1,7 @@
 # services/chat_service.py
 import asyncio
+from urllib.parse import urlparse
+import mimetypes
 from openai import AzureOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
