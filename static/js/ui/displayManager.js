@@ -1,5 +1,5 @@
 import { safeMarkdownParse } from './markdownParser.js';
-import { copyToClipboard } from '/static/js/utils/helpers.js';
+import { copyToClipboard } from '../utils/helpers.js';
 
 export function displayMessage(content, role) {
     const chatHistory = document.getElementById('chat-history');
