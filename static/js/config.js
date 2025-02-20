@@ -1,4 +1,4 @@
-import { showNotification } from '../ui/notificationManager.js';
+import { showNotification } from './ui/notificationManager.js';
 
 // Configuration state and utilities
 const effortMap = ['low', 'medium', 'high'];

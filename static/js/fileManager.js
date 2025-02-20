@@ -34,7 +34,13 @@ export async function handleFileUpload(file) {
     const progressDiv = document.createElement('div');
     progressDiv.className = 'upload-progress';
     progressDiv.innerHTML = `
-        <div class=
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 0%"></div>
+            </div>
+            <div class="progress-text">Uploading... 0%</div>
+        </div>
+    `;
 
 // Create vector store for uploaded file
 async function createVectorStore(fileId) {
