@@ -41,12 +41,16 @@ async def add_security_headers(request, call_next):
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Mount static files with specific MIME types
+# Mount static files
 app.mount("/static", StaticFiles(
     directory="/home/azureuser/newide/static",
-    check_dir=True,
     html=False
 ), name="static")
+
+# Add explicit root endpoint handler
+@app.get("/")
+async def read_index():
+    return FileResponse("/home/azureuser/newide/static/index.html")
 
 app.include_router(session_router)
 app.include_router(files_router)
@@ -69,3 +73,18 @@ async def favicon():
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "timestamp": datetime.datetime.utcnow()}
+
+@app.get("/test-static")
+async def test_static():
+    """Test endpoint to verify static file serving"""
+    import os
+    static_dir = "/home/azureuser/newide/static"
+    files = []
+    for root, _, filenames in os.walk(static_dir):
+        for filename in filenames:
+            files.append(os.path.relpath(os.path.join(root, filename), static_dir))
+    return {
+        "static_dir": static_dir,
+        "files": files,
+        "index_html_exists": os.path.exists(os.path.join(static_dir, "index.html"))
+    }
