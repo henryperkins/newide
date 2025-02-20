@@ -1,5 +1,5 @@
 import { sessionId, initializeSession } from '../session.js';
-import { showNotification } from '../ui/notificationManager.js';
+import { showNotification } from './ui/notificationManager.js';
 import { formatFileSize } from '../utils/helpers.js';
 
 // File upload handler with progress tracking
