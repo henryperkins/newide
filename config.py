@@ -33,6 +33,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "allow"  # Allow extra parameters in .env without validation errors
         env_file_encoding = "utf-8"
 
 settings = Settings()
