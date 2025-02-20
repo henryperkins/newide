@@ -1,6 +1,6 @@
 import { sessionId, initializeSession } from '../session.js';
 import { showNotification } from './ui/notificationManager.js';
-import { formatFileSize } from '../utils/helpers.js';
+import { formatFileSize } from './utils/helpers.js';
 
 // File upload handler with progress tracking
 export async function handleFileUpload(file) {
@@ -41,6 +41,12 @@ export async function handleFileUpload(file) {
             <div class="progress-text">Uploading... 0%</div>
         </div>
     `;
+
+    // Add progress element to DOM
+    document.getElementById('upload-progress-container').appendChild(progressDiv);
+    
+    // ... rest of upload logic ...
+} // End of handleFileUpload
 
 // Create vector store for uploaded file
 async function createVectorStore(fileId) {
