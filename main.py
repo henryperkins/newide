@@ -8,7 +8,6 @@ from pathlib import Path
 
 # Third-party imports
 from fastapi import FastAPI, WebSocket
-from starlette.middleware import SecurityHeadersMiddleware
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -34,12 +33,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
-
-app.add_middleware(
-    SecurityHeadersMiddleware,
-    content_security_policy="default-src 'self' https://liveonshuffle.com; style-src 'self' 'unsafe-inline' https://liveonshuffle.com;",
-    permissions_policy=""
-)
 
 # Mount static files with specific MIME types
 app.mount("/static", StaticFiles(
