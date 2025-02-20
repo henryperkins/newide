@@ -109,12 +109,9 @@ async def process_chat_message(
         params["max_completion_tokens"] = 40000
         params["reasoning_effort"] = chat_message.reasoning_effort.value if chat_message.reasoning_effort else "low"
     else:
+        # Standard models use max_tokens parameter
         params.update({
-            "max_tokens": 4096,
-            "temperature": 1.0,
-            "top_p": 1.0,
-            "presence_penalty": 0,
-            "frequency_penalty": 0,
+            "max_tokens": 4096
         })
     if chat_message.response_format:
         params["response_format"] = {"type": chat_message.response_format}
@@ -206,15 +203,47 @@ async def process_chat_message(
         "prompt": response.usage.prompt_tokens if response.usage else 0,
         "completion": response.usage.completion_tokens if response.usage else 0,
         "total": response.usage.total_tokens if response.usage else 0,
+        "reasoning": getattr(response.usage.completion_tokens_details, "reasoning_tokens", 0) if hasattr(response.usage, "completion_tokens_details") else 0,
     }
+    # For o-series models, override local calculations with API-reported values
+    if is_o_series and response.usage:
+        tokens["prompt"] = response.usage.prompt_tokens
+        tokens["completion"] = response.usage.completion_tokens
+        tokens["total"] = response.usage.total_tokens
     logger.info(f"Chat completed in {elapsed_total:.2f}s - Tokens used: {tokens['total']} (prompt: {tokens['prompt']}, completion: {tokens['completion']})")
 
+    # Handle structured outputs
     assistant_msg = response.choices[0].message.content
+    
+    if chat_message.response_format == "xml":
+        try:
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(assistant_msg)
+            # Convert XML to structured dict
+            xml_data = {}
+            for child in root:
+                xml_data[child.tag] = child.text
+            assistant_msg = xml_data
+        except Exception as e:
+            logger.error(f"XML parsing failed: {str(e)}")
+            raise create_error_response(
+                status_code=500,
+                code="xml_parse_error",
+                message="Failed to parse XML response",
+                error_type="processing_error",
+                inner_error={"original_error": str(e)},
+            )
     response_logger.info(f"[session {session_id}] Response generated. Length: {len(assistant_msg)} chars. Preview: {assistant_msg[:100]}{'...' if len(assistant_msg) > 100 else ''}")
 
     # Save user and assistant messages to the database
     user_msg = Conversation(session_id=session_id, role="user", content=chat_message.message)
-    assistant_msg_obj = Conversation(session_id=session_id, role="assistant", content=assistant_msg)
+    assistant_msg_obj = Conversation(
+        session_id=session_id,
+        role="assistant", 
+        content=assistant_msg,
+        model_version=getattr(response, "model", ""),
+        service_tier=getattr(response, "service_tier", "standard")
+    )
     db_session.add(user_msg)
     db_session.add(assistant_msg_obj)
     await db_session.execute(text("UPDATE sessions SET last_activity = NOW() WHERE id = :session_id"), {"session_id": session_id})

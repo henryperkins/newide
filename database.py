@@ -49,6 +49,8 @@ class Conversation(Base):
     system_fingerprint = Column(String(64))
     prompt_filter_results = Column(JSONB)
     content_filter_results = Column(JSONB)
+    model_version = Column(String(50))  # Stores the model version from API response
+    service_tier = Column(String(50))   # Stores the service tier from API response
 
 class UploadedFile(Base):
     """ORM model for uploaded files."""
