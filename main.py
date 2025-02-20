@@ -32,11 +32,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add security headers middleware
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Content-Security-Policy"] = "default-src 'self' https://liveonshuffle.com; script-src 'self' 'sha256-uqAHP7oSlmC974F5gyOP6L4B7iW5WC3Qh6vE9V4ekPg=' 'sha256-RIrTk/seH7EQbSSoo6rWBqdTlxBImAyqdCDIDMHC22s='; style-src 'self' 'unsafe-hashes' 'sha256-biLFinpqYMtWHmXfkA1BPeCY0/fNt46SAZ+BBk5YUog='"
+    return response
+
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Mount static files with specific MIME types
 app.mount("/static", StaticFiles(
-    directory="static",
+    directory="/home/azureuser/newide/static",
     check_dir=True,
     html=False
 ), name="static")
@@ -52,6 +60,10 @@ async def startup():
 @app.get("/")
 async def root():
     return RedirectResponse(url="/static/index.html")
+
+@app.get("/favicon.ico")
+async def favicon():
+    return FileResponse("static/favicon.ico")
 
 @app.get("/health")
 async def health_check():
