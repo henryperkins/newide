@@ -8,7 +8,7 @@ from pathlib import Path
 
 # Third-party imports
 from fastapi import FastAPI, WebSocket
-from starlette.middleware import SecurityHeadersMiddleware
+from starlette.middleware.security import SecurityHeadersMiddleware
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
