@@ -77,18 +77,27 @@ async def chat(
     params = {
         "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
         "messages": formatted_messages,
-        "stream": "o3-mini" in model_name,  # Enable streaming for o3-mini
+        "stream": chat_message.stream if hasattr(chat_message, "stream") else False,
+        "response_format": {"type": chat_message.response_format} if chat_message.response_format else None,
+        "max_completion_tokens": chat_message.max_completion_tokens,
     }
+
+    # o-series specific parameters
     if is_o_series:
-        params["max_completion_tokens"] = 40000
-        params["reasoning_effort"] = chat_message.reasoning_effort.value if chat_message.reasoning_effort else "medium"
-    else:
         params.update({
-            "max_tokens": 4096,
-            "temperature": 1.0,
-            "top_p": 1.0,
+            "reasoning_effort": chat_message.reasoning_effort.value,
+            "temperature": None,  # Explicitly null unsupported params
+            "top_p": None,
+            "presence_penalty": None,
+            "frequency_penalty": None
+        })
+    else:
+        # Standard model parameters
+        params.update({
+            "temperature": 0.7,
+            "top_p": 0.95,
             "presence_penalty": 0,
-            "frequency_penalty": 0,
+            "frequency_penalty": 0.1
         })
     if chat_message.response_format:
         params["response_format"] = {"type": chat_message.response_format}

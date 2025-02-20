@@ -26,10 +26,28 @@ class ReasoningEffort(str, Enum):
 class ChatMessage(BaseModel):
     message: str
     session_id: str
-    developer_config: Optional[str] = None
-    reasoning_effort: Optional[ReasoningEffort] = None
-    response_format: Optional[str] = None
-    include_usage_metrics: Optional[bool] = False
+    developer_config: Optional[str] = Field(
+        default=None,
+        description="Developer instructions with 'Formatting re-enabled' prefix for markdown support"
+    )
+    reasoning_effort: Optional[ReasoningEffort] = Field(
+        default=ReasoningEffort.medium,
+        description="Default effort level for optimal performance"
+    )
+    response_format: Optional[str] = Field(
+        default=None,
+        json_schema_extra={"enum": ["text", "json_object"]}
+    )
+    include_usage_metrics: Optional[bool] = Field(
+        default=False,
+        description="Include detailed token usage metrics"
+    )
+    max_completion_tokens: Optional[int] = Field(
+        default=None,
+        ge=100,
+        le=100000,
+        description="Maximum number of tokens to generate (o-series models only)"
+    )
 
 
     @validator("response_format")
