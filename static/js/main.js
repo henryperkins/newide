@@ -1,9 +1,9 @@
-import { initializeSession } from '/static/js/session.js';
+import { initializeSession } from './session.js';
 import { initializeConfig, updateReasoningEffortDisplay } from './config.js';
 import { sendMessage, regenerateResponse } from './messageHandler.js';
 import { setupDragAndDrop, loadFilesList } from './fileManager.js';
 import { configureMarkdown, injectMarkdownStyles } from './ui/markdownParser.js';
-import { showNotification } from '/static/js/ui/notificationManager.js';
+import { showNotification } from './ui/notificationManager.js';
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', async () => {
