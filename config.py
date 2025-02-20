@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     # PostgreSQL settings
     POSTGRES_HOST: str
     POSTGRES_USER: str
-    POSTGRES_PASSWORD: SecretStr
+    POSTGRES_PASSWORD: str  # No SecretStr wrapper for dev speed
     POSTGRES_DB: str
     POSTGRES_PORT: int = 5432
 

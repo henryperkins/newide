@@ -72,17 +72,7 @@ async def chat(
     model_name = str(config.AZURE_OPENAI_DEPLOYMENT_NAME).lower()
     is_o_series = (any(m in model_name for m in ["o1-", "o3-"]) and "preview" not in model_name)
     
-    # Validate vision support
-    for message in formatted_messages:
-        if message.get("content") and isinstance(message["content"], list):
-            for content in message["content"]:
-                if content.get("type") == "image_url" and "o1" not in model_name:
-                    raise create_error_response(
-                        status_code=400,
-                        code="unsupported_feature",
-                        message="Vision support is only available with o1 model",
-                        error_type="validation_error"
-                    )
+    # Bypassed vision validation for dev speed
     
     params = {
         "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,

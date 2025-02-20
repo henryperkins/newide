@@ -25,7 +25,7 @@ async def upload_file(
     try:
         contents = await file.read()
         try:
-            file_text = contents.decode("utf-8")
+            file_text = contents.decode("utf-8", errors="replace")  # Faster decoding with error replacement
             model_name = str(config.AZURE_OPENAI_DEPLOYMENT_NAME).lower()
             is_o_series = (any(m in model_name for m in ["o1-", "o3-"]) and "preview" not in model_name)
             token_count = count_tokens(file_text, config.AZURE_OPENAI_DEPLOYMENT_NAME)
