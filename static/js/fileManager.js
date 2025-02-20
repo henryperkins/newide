@@ -1,4 +1,4 @@
-import { sessionId, initializeSession } from '../session.js';
+import { sessionId, initializeSession } from './session.js';
 import { showNotification } from './ui/notificationManager.js';
 import { formatFileSize } from './utils/helpers.js';
 
