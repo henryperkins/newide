@@ -83,11 +83,31 @@ function initializeFileHandling() {
 }
 
 function switchTab(tabId) {
-    const tabs = ['token-stats', 'file-stats'];
-    tabs.forEach(tab => {
-        const element = document.getElementById(tab);
-        if (element) element.classList.toggle('active', tab === tabId);
+    // Hide all tab content first
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+        content.setAttribute('aria-hidden', 'true');
     });
+    
+    // Deactivate all tab buttons
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('active');
+        button.setAttribute('aria-selected', 'false');
+    });
+    
+    // Activate selected tab and its content
+    const selectedContent = document.getElementById(tabId);
+    const selectedTab = document.querySelector(`[data-target-tab="${tabId}"]`);
+    
+    if (selectedContent) {
+        selectedContent.classList.add('active');
+        selectedContent.setAttribute('aria-hidden', 'false');
+    }
+    
+    if (selectedTab) {
+        selectedTab.classList.add('active');
+        selectedTab.setAttribute('aria-selected', 'true');
+    }
 }
 
 function handleInitializationError(error) {
