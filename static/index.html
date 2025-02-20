@@ -6,28 +6,28 @@
     <title>Azure OpenAI o1 Chat</title>
     
     <!-- Fonts and Styles -->
-    <link rel="stylesheet" href="static/css/fonts.css">
-    <link rel="stylesheet" href="static/css/variables.css">
-    <link rel="stylesheet" href="static/css/base.css">
-    <link rel="stylesheet" href="static/css/components.css">
-    <link rel="stylesheet" href="static/css/media.css">
-    <link rel="stylesheet" href="static/lib/prism.min.css">
+    <link rel="stylesheet" href="/css/fonts.css">
+    <link rel="stylesheet" href="/css/variables.css">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/media.css">
+    <link rel="stylesheet" href="/lib/prism.min.css">
 
     <!-- Scripts -->
-    <script src="static/lib/markdown-it.min.js"></script>
-    <script src="static/lib/prism.min.js"></script>
-    <script src="static/lib/marked.min.js"></script>
+    <script src="/lib/markdown-it.min.js"></script>
+    <script src="/lib/prism.min.js"></script>
+    <script src="/lib/marked.min.js"></script>
     
     <!-- Core Modules -->
-    <script type="module" src="static/js/session.js"></script>
-    <script type="module" src="static/js/config.js"></script>
-    <script type="module" src="static/js/utils/helpers.js"></script>
-    <script type="module" src="static/js/ui/markdownParser.js"></script>
-    <script type="module" src="static/js/ui/notificationManager.js"></script>
-    <script type="module" src="static/js/ui/displayManager.js"></script>
-    <script type="module" src="static/js/fileManager.js"></script>
-    <script type="module" src="static/js/messageHandler.js"></script>
-    <script type="module" src="static/js/main.js"></script>
+    <script type="module" src="/js/session.js"></script>
+    <script type="module" src="/js/config.js"></script>
+    <script type="module" src="/js/utils/helpers.js"></script>
+    <script type="module" src="/js/ui/markdownParser.js"></script>
+    <script type="module" src="/js/ui/notificationManager.js"></script>
+    <script type="module" src="/js/ui/displayManager.js"></script>
+    <script type="module" src="/js/fileManager.js"></script>
+    <script type="module" src="/js/messageHandler.js"></script>
+    <script type="module" src="/js/main.js"></script>
 </head>
 <body>
     <!-- Skip link for accessibility -->
@@ -165,10 +165,10 @@
 
     <!-- Initialization -->
     <script type="module">
-        import { initializeSession } from './static/js/session.js';
-        import { loadFilesList, setupDragAndDrop } from './static/js/fileManager.js';
-        import { initializeConfig } from './static/js/config.js';
-        import { showNotification } from './static/js/ui/notificationManager.js';
+        import { initializeSession } from './js/session.js';
+        import { loadFilesList, setupDragAndDrop } from './js/fileManager.js';
+        import { initializeConfig } from './js/config.js';
+        import { showNotification } from './js/ui/notificationManager.js';
 
 
         window.addEventListener('DOMContentLoaded', async () => {
