@@ -1,6 +1,6 @@
 # errors.py
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from fastapi import HTTPException
 
 class ErrorBase(BaseModel):
