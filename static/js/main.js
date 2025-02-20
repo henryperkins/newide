@@ -2,7 +2,7 @@ import { initializeSession } from './session.js';
 import { initializeConfig, updateReasoningEffortDisplay } from './config.js';
 import { sendMessage, regenerateResponse } from './messageHandler.js';
 import { setupDragAndDrop, loadFilesList } from './fileManager.js';
-import { configureMarkdown, injectMarkdownStyles } from './ui/markdownParser.js';
+import { configureMarkdown } from './ui/markdownParser.js';
 import { showNotification } from './ui/notificationManager.js';
 
 // Initialize application

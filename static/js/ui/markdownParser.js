@@ -1,5 +1,22 @@
 let mdParser = null;
 
+export function injectMarkdownStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .markdown-content {
+            line-height: 1.6;
+            font-family: var(--font-primary);
+        }
+        .markdown-content code {
+            font-family: var(--font-mono);
+            background: var(--code-bg);
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
 export function configureMarkdown() {
     if (typeof markdownit !== 'undefined' && !mdParser) {
         mdParser = markdownit({
@@ -43,4 +60,3 @@ export function safeMarkdownParse(text) {
 }
 
 import { sanitizeInput } from '../utils/helpers.js';
-
