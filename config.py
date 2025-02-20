@@ -4,17 +4,17 @@ import os
 
 class Settings(BaseSettings):
     # Azure OpenAI settings
-    azure_openai_endpoint: str
-    azure_openai_api_key: SecretStr
-    azure_openai_deployment_name: str
-    azure_openai_api_version: str = "2024-02-01"  # Use current stable version
+    AZURE_OPENAI_ENDPOINT: str
+    AZURE_OPENAI_API_KEY: SecretStr
+    AZURE_OPENAI_DEPLOYMENT_NAME: str
+    AZURE_OPENAI_API_VERSION: str = "2024-02-01"  # Use current stable version
 
     # PostgreSQL settings
-    postgres_host: str
-    postgres_user: str
-    postgres_password: SecretStr
-    postgres_db: str
-    postgres_port: int = 5432
+    POSTGRES_HOST: str
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: SecretStr
+    POSTGRES_DB: str
+    POSTGRES_PORT: int = 5432
 
     # Timeout settings (with defaults)
     o_series_base_timeout: float = 120.0  # 2 minute base timeout
@@ -38,10 +38,10 @@ class Settings(BaseSettings):
 settings = Settings()
 
 # Export settings for use in application
-AZURE_OPENAI_ENDPOINT = settings.azure_openai_endpoint
-AZURE_OPENAI_API_KEY = settings.azure_openai_api_key.get_secret_value()
-AZURE_OPENAI_DEPLOYMENT_NAME = settings.azure_openai_deployment_name
-AZURE_OPENAI_API_VERSION = settings.azure_openai_api_version
+AZURE_OPENAI_ENDPOINT = settings.AZURE_OPENAI_ENDPOINT
+AZURE_OPENAI_API_KEY = settings.AZURE_OPENAI_API_KEY.get_secret_value()
+AZURE_OPENAI_DEPLOYMENT_NAME = settings.AZURE_OPENAI_DEPLOYMENT_NAME
+AZURE_OPENAI_API_VERSION = settings.AZURE_OPENAI_API_VERSION
 
 # Timeouts and retries
 O_SERIES_BASE_TIMEOUT = settings.o_series_base_timeout
@@ -63,7 +63,7 @@ REASONING_EFFORT_MULTIPLIERS = {
 }
 
 # PostgreSQL Configuration
-POSTGRES_URL = f"postgresql+asyncpg://{settings.postgres_user}:{settings.postgres_password.get_secret_value()}@{settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}"
+POSTGRES_URL = f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD.get_secret_value()}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
 
 # Session configuration
 SESSION_TIMEOUT_MINUTES = settings.session_timeout_minutes
