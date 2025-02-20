@@ -9,8 +9,8 @@ import {
     removeTypingIndicator
 } from '/static/js/ui/notificationManager.js';
 import { displayMessage } from '/static/js/ui/displayManager.js';
-import { safeMarkdownParse } from '/static/js/ui/markdownParser.js';
-import { updateTokenUsage } from '/static/js/utils/helpers.js';
+import { safeMarkdownParse } from './ui/markdownParser.js';
+import { updateTokenUsage } from './utils/helpers.js';
 import { 
     getCurrentConfig,
     getTimeoutDurations,
