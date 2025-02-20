@@ -104,24 +104,220 @@ async function sendMessage() {
             }, dynamicDurationMillis);
         });
 
-        // Prepare the fetch request
+        // Check for image URLs in the message
+        const hasImageUrls = message.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/g);
+        const modelName = window.modelName || ''; // Get model name from window context
+        if (hasImageUrls && !modelName.includes('o1')) {
+            throw new Error('Vision features are only supported with o1 model');
+        }
+
+        // Prepare message content
+        const messageContent = hasImageUrls ? 
+            hasImageUrls.map(match => {
+                const url = match.match(/\((https?:\/\/[^\s)]+)\)/)[1];
+                return {
+                    type: "image_url",
+                    image_url: {
+                        url: url,
+                        detail: "auto"
+                    }
+                };
+            }) : 
+            message;
+
+        // Detect if we're using o3-mini for streaming
+        const isO3Mini = modelName.includes('o3-mini');
+        
+        // Get active vector store IDs for file context
+        const vectorStoreResponse = await fetch(`/vector_stores/${sessionId}`);
+        const vectorStores = vectorStoreResponse.ok ? await vectorStoreResponse.json() : { vector_store_ids: [] };
+
+        // Prepare the fetch request with file search capabilities
         const fetchPromise = fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             signal: controller.signal,
             body: JSON.stringify({
-                message: message,
+                message: messageContent,
                 session_id: sessionId,
                 developer_config: developerConfig || undefined,
                 reasoning_effort: reasoningEffort || undefined,
-                include_usage_metrics: true
+                include_usage_metrics: true,
+                tools: [{ type: "file_search" }],
+                tool_resources: vectorStores.vector_store_ids.length > 0 ? {
+                    file_search: {
+                        vector_store_ids: vectorStores.vector_store_ids
+                    }
+                } : undefined
             })
         });
 
-        // Race the fetch against the timeout
-        const response = await Promise.race([fetchPromise, timeoutPromise]);
+        // Handle streaming for o3-mini model
+        if (isO3Mini) {
+            const response = await fetchPromise;
+            clearTimeout(timeoutId);
+            
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let accumulatedResponse = '';
+            let messageDiv = null;
+            
+            try {
+                while (true) {
+                    const {value, done} = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value);
+                    accumulatedResponse += chunk;
+                    
+                    // Create or update message div
+                    if (!messageDiv) {
+                        messageDiv = document.createElement('div');
+                        messageDiv.className = 'message assistant-message streaming';
+                        document.getElementById('chat-history').appendChild(messageDiv);
+                        
+                        // Add streaming styles
+                        const style = document.createElement('style');
+                        style.textContent = `
+                            .streaming {
+                                position: relative;
+                                padding-right: 1.5em;
+                            }
+                            .streaming::after {
+                                content: '▋';
+                                position: absolute;
+                                right: 0.5em;
+                                bottom: 0.5em;
+                                display: inline-block;
+                                vertical-align: bottom;
+                                animation: blink 1s steps(2) infinite;
+                                color: #3b82f6;
+                            }
+                            @keyframes blink {
+                                0% { opacity: 1; }
+                                50% { opacity: 0; }
+                            }
+                            .streaming pre {
+                                margin-bottom: 1em;
+                            }
+                            .streaming code {
+                                opacity: 0;
+                                transition: opacity 0.3s ease;
+                            }
+                            .streaming code.highlighted {
+                                opacity: 1;
+                            }
+                            .streaming .copy-button {
+                                opacity: 0.5;
+                                transition: opacity 0.3s ease;
+                            }
+                            .streaming:hover .copy-button {
+                                opacity: 1;
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    }
+                    
+                    // Update content with markdown parsing, syntax highlighting, and file citations
+                    try {
+                        const responseData = JSON.parse(accumulatedResponse);
+                        if (responseData.content && responseData.content[0]?.text?.annotations) {
+                            const messageContent = responseData.content[0].text;
+                            const annotations = messageContent.annotations;
+                            let finalContent = messageContent.value;
+                            const citations = [];
 
-        // Since we got a response, clear the timeout
+                            // Process annotations and citations
+                            annotations.forEach((annotation, index) => {
+                                if (annotation.file_citation) {
+                                    finalContent = finalContent.replace(
+                                        annotation.text,
+                                        `[${index + 1}]`
+                                    );
+                                    citations.push(`
+                                        <div class="file-citation">
+                                            <div class="citation-header">
+                                                <span class="citation-number">[${index + 1}]</span>
+                                                <span class="citation-file">${annotation.file_citation.file_name}</span>
+                                            </div>
+                                            <div class="citation-quote">${annotation.file_citation.quote}</div>
+                                        </div>
+                                    `);
+                                }
+                            });
+
+                            messageDiv.innerHTML = `
+                                <div class="message-text">${safeMarkdownParse(finalContent)}</div>
+                                ${citations.length > 0 ? `
+                                    <div class="citations-container">
+                                        <div class="citations-header">
+                                            <span class="citations-icon">📚</span>
+                                            <span>Sources</span>
+                                        </div>
+                                        ${citations.join('')}
+                                    </div>
+                                ` : ''}
+                            `;
+                        } else {
+                            messageDiv.innerHTML = safeMarkdownParse(accumulatedResponse);
+                        }
+                    } catch (e) {
+                        // If parsing fails, treat as regular markdown
+                        messageDiv.innerHTML = safeMarkdownParse(accumulatedResponse);
+                    }
+
+                    // Add syntax highlighting
+                    messageDiv.querySelectorAll('pre code').forEach((block) => {
+                        Prism.highlightElement(block);
+                    });
+                    
+                    // Scroll to bottom
+                    messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
+                
+                // Remove streaming class and cursor when done
+                if (messageDiv) {
+                    messageDiv.classList.remove('streaming');
+                }
+                
+                // Parse the final response for token usage and metrics
+                try {
+                    const finalResponse = JSON.parse(accumulatedResponse);
+                    if (finalResponse.usage) {
+                        const usageDetails = {
+                            prompt_tokens: finalResponse.usage.prompt_tokens || 0,
+                            completion_tokens: finalResponse.usage.completion_tokens || 0,
+                            total_tokens: finalResponse.usage.total_tokens || 0,
+                            completion_details: finalResponse.usage.completion_details,
+                            prompt_details: finalResponse.usage.prompt_details
+                        };
+                        updateTokenUsage(usageDetails);
+                    }
+                } catch (e) {
+                    console.warn('Could not parse token usage from streaming response:', e);
+                }
+
+                // Add copy button to streamed message
+                if (messageDiv) {
+                    const copyButton = document.createElement('button');
+                    copyButton.className = 'copy-button';
+                    copyButton.innerHTML = '📋';
+                    copyButton.title = "Copy to clipboard";
+                    copyButton.onclick = () => copyToClipboard(accumulatedResponse);
+                    messageDiv.insertBefore(copyButton, messageDiv.firstChild);
+                }
+                
+                return;
+            } catch (error) {
+                if (messageDiv) {
+                    messageDiv.remove();
+                }
+                throw error;
+            }
+        }
+        
+        // For non-streaming responses
+        const response = await Promise.race([fetchPromise, timeoutPromise]);
         clearTimeout(timeoutId);
 
         // Check for errors
@@ -145,16 +341,47 @@ async function sendMessage() {
             throw new Error('No response received from server');
         }
 
-        // Cache the server’s latest calculated_timeout (in seconds) for subsequent requests
+        // Cache the server's latest calculated_timeout (in seconds) for subsequent requests
         if (data.calculated_timeout) {
             window.serverCalculatedTimeout = data.calculated_timeout;
         }
-        // Display assistant’s response
+
+        // Display assistant's response
         displayMessage(data.response, 'assistant');
 
+        // Enhanced token usage tracking
         if (data.usage) {
-            // Update token stats without displaying in message
-            updateTokenUsage(data.usage);
+            const usageDetails = {
+                prompt_tokens: data.usage.prompt_tokens || 0,
+                completion_tokens: data.usage.completion_tokens || 0,
+                total_tokens: data.usage.total_tokens || 0
+            };
+
+            // Add reasoning tokens if available
+            if (data.usage.completion_details?.reasoning_tokens) {
+                usageDetails.reasoning_tokens = data.usage.completion_details.reasoning_tokens;
+                // Update UI to show reasoning tokens
+                const tokenStats = document.getElementById('token-stats');
+                if (tokenStats) {
+                    const reasoningTokensDiv = document.createElement('div');
+                    reasoningTokensDiv.innerHTML = `<strong>Reasoning Tokens:</strong> <span>${usageDetails.reasoning_tokens}</span>`;
+                    tokenStats.appendChild(reasoningTokensDiv);
+                }
+            }
+
+            // Add cached tokens if available
+            if (data.usage.prompt_details?.cached_tokens) {
+                usageDetails.cached_tokens = data.usage.prompt_details.cached_tokens;
+                // Update UI to show cached tokens
+                const tokenStats = document.getElementById('token-stats');
+                if (tokenStats) {
+                    const cachedTokensDiv = document.createElement('div');
+                    cachedTokensDiv.innerHTML = `<strong>Cached Tokens:</strong> <span>${usageDetails.cached_tokens}</span>`;
+                    tokenStats.appendChild(cachedTokensDiv);
+                }
+            }
+
+            updateTokenUsage(usageDetails);
         }
     } catch (error) {
         console.error('Error sending message:', error);
@@ -313,9 +540,108 @@ function displayMessage(message, role) {
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
 
-    // Render content with improved markdown parsing
+    // Render content with improved markdown parsing and file citations
     if (role === 'assistant') {
-        contentDiv.innerHTML = safeMarkdownParse(message);
+        // Check if the message has file citations
+        const hasCitations = typeof message === 'object' && 
+                           message.content && 
+                           message.content[0]?.text?.annotations;
+        
+        if (hasCitations) {
+            const messageContent = message.content[0].text;
+            const annotations = messageContent.annotations;
+            let finalContent = messageContent.value;
+            const citations = [];
+
+            // Process annotations and citations
+            annotations.forEach((annotation, index) => {
+                if (annotation.file_citation) {
+                    // Replace citation text with a numbered reference
+                    finalContent = finalContent.replace(
+                        annotation.text,
+                        `[${index + 1}]`
+                    );
+                    
+                    // Add citation to the list with quote preview
+                    citations.push(`
+                        <div class="file-citation">
+                            <div class="citation-header">
+                                <span class="citation-number">[${index + 1}]</span>
+                                <span class="citation-file">${annotation.file_citation.file_name}</span>
+                            </div>
+                            <div class="citation-quote">${annotation.file_citation.quote}</div>
+                        </div>
+                    `);
+                }
+            });
+
+            // Render message with citations
+            contentDiv.innerHTML = `
+                <div class="message-text">${safeMarkdownParse(finalContent)}</div>
+                ${citations.length > 0 ? `
+                    <div class="citations-container">
+                        <div class="citations-header">
+                            <span class="citations-icon">📚</span>
+                            <span>Sources</span>
+                        </div>
+                        ${citations.join('')}
+                    </div>
+                ` : ''}
+            `;
+
+            // Add styles for citations
+            const style = document.createElement('style');
+            style.textContent = `
+                .citations-container {
+                    margin-top: 1.5em;
+                    padding-top: 1em;
+                    border-top: 1px solid rgba(0, 0, 0, 0.1);
+                }
+                .citations-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5em;
+                    font-weight: 600;
+                    color: #4b5563;
+                    margin-bottom: 1em;
+                }
+                .citations-icon {
+                    font-size: 1.2em;
+                }
+                .file-citation {
+                    margin: 1em 0;
+                    padding: 1em;
+                    background: rgba(59, 130, 246, 0.05);
+                    border-radius: 8px;
+                    border-left: 3px solid #3b82f6;
+                }
+                .citation-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5em;
+                    margin-bottom: 0.5em;
+                }
+                .citation-number {
+                    color: #3b82f6;
+                    font-weight: 600;
+                    font-family: 'JetBrains Mono', monospace;
+                }
+                .citation-file {
+                    color: #6b7280;
+                    font-size: 0.9em;
+                }
+                .citation-quote {
+                    color: #1f2937;
+                    font-style: italic;
+                    line-height: 1.5;
+                    font-size: 0.95em;
+                    white-space: pre-wrap;
+                }
+            `;
+            document.head.appendChild(style);
+        } else {
+            contentDiv.innerHTML = safeMarkdownParse(message);
+        }
         
         // Add syntax highlighting with animation
         contentDiv.querySelectorAll('pre code').forEach((block) => {
@@ -392,16 +718,57 @@ async function handleFileUpload(file) {
         return;
     }
 
+    // Check file size and type
+    if (file.size > 512 * 1024 * 1024) {
+        showNotification('File size must be under 512MB', 'error');
+        return;
+    }
+
+    // Check MIME type against supported types
+    const supportedTypes = {
+        'text/plain': ['.txt', '.text'],
+        'text/markdown': ['.md'],
+        'text/x-python': ['.py'],
+        'text/javascript': ['.js'],
+        'text/css': ['.css'],
+        'text/html': ['.html'],
+        'text/x-c': ['.c'],
+        'text/x-csharp': ['.cs'],
+        'text/x-c++': ['.cpp'],
+        'text/x-java': ['.java'],
+        'text/x-php': ['.php'],
+        'text/x-ruby': ['.rb'],
+        'application/json': ['.json'],
+        'application/pdf': ['.pdf'],
+        'application/msword': ['.doc'],
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+        'application/typescript': ['.ts'],
+        'application/x-sh': ['.sh']
+    };
+
+    const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+    const isSupported = Object.entries(supportedTypes).some(([mime, exts]) => 
+        file.type === mime || exts.includes(fileExt)
+    );
+
+    if (!isSupported) {
+        showNotification('Unsupported file type. Please check documentation for supported file types.', 'error');
+        return;
+    }
+
     const formData = new FormData();
     formData.append("file", file);
     formData.append('session_id', sessionId);
+    formData.append('purpose', 'assistants');  // Mark file for use with assistants
 
-    // Create enhanced upload progress element
+    // Create enhanced upload progress element with file type info
     const progressDiv = document.createElement('div');
     progressDiv.className = 'upload-progress';
     progressDiv.innerHTML = `
         <div class="file-info">
             <div class="filename">${file.name}</div>
+            <div class="file-meta">Type: ${file.type || `File (${fileExt})`}</div>
             <div class="upload-progress-header">
                 <span class="upload-progress-percent">0%</span>
                 <span class="file-size">${formatFileSize(file.size)}</span>
@@ -446,13 +813,50 @@ async function handleFileUpload(file) {
         xhr.onload = async () => {
             if (xhr.status === 200) {
                 const data = JSON.parse(xhr.responseText);
-                showNotification(`${file.name} uploaded successfully`, 'success');
-                await loadFilesList();
                 
-                // Animate progress bar completion
-                const progress = progressDiv.querySelector('.progress');
-                progress.style.backgroundColor = '#22c55e';
-                setTimeout(() => progressDiv.remove(), 1000);
+                try {
+                    // Create or update vector store for the file
+                    const vectorStoreResponse = await fetch('/vector_store', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            session_id: sessionId,
+                            file_id: data.file_id,
+                            expires_after: {
+                                anchor: "last_active_at",
+                                days: 7
+                            }
+                        })
+                    });
+
+                    if (!vectorStoreResponse.ok) {
+                        throw new Error('Failed to process file for contextual search');
+                    }
+
+                    showNotification(`${file.name} uploaded and processed successfully`, 'success');
+                    
+                    // Update UI to show file is ready for contextual chat
+                    const progress = progressDiv.querySelector('.progress');
+                    progress.style.backgroundColor = '#22c55e';
+                    
+                    const fileMeta = progressDiv.querySelector('.file-meta');
+                    fileMeta.innerHTML += ' <span class="status-badge">Ready for chat</span>';
+                    
+                    setTimeout(() => {
+                        progressDiv.classList.add('fade-out');
+                        setTimeout(() => progressDiv.remove(), 300);
+                    }, 2000);
+
+                    await loadFilesList();
+                } catch (error) {
+                    console.error('Error processing file:', error);
+                    showNotification(
+                        `File uploaded but not available for chat: ${error.message}`,
+                        'warning'
+                    );
+                }
             } else {
                 throw new Error(JSON.parse(xhr.responseText).detail || xhr.statusText);
             }
@@ -476,12 +880,133 @@ async function handleFileUpload(file) {
     }
 }
 
-// Update token usage
+// Update token usage with enhanced metrics
 function updateTokenUsage(usage) {
-    if (usage) {
-        document.getElementById('prompt-tokens').textContent = usage.prompt_tokens || 0;
-        document.getElementById('completion-tokens').textContent = usage.completion_tokens || 0;
-        document.getElementById('total-tokens').textContent = usage.total_tokens || 0;
+    if (!usage) return;
+
+    // Update basic token counts
+    document.getElementById('prompt-tokens').textContent = usage.prompt_tokens || 0;
+    document.getElementById('completion-tokens').textContent = usage.completion_tokens || 0;
+    document.getElementById('total-tokens').textContent = usage.total_tokens || 0;
+
+    // Get or create advanced metrics container
+    let advancedMetrics = document.getElementById('advanced-token-metrics');
+    if (!advancedMetrics) {
+        advancedMetrics = document.createElement('div');
+        advancedMetrics.id = 'advanced-token-metrics';
+        advancedMetrics.className = 'advanced-metrics';
+        const tokenStats = document.getElementById('token-stats');
+        if (tokenStats) {
+            tokenStats.appendChild(advancedMetrics);
+        }
+    }
+
+    // Build advanced metrics HTML
+    let metricsHtml = '';
+    
+    // Add reasoning tokens if available
+    if (usage.completion_details?.reasoning_tokens !== undefined) {
+        const reasoningTokens = usage.completion_details.reasoning_tokens;
+        const reasoningPercent = ((reasoningTokens / usage.completion_tokens) * 100).toFixed(1);
+        metricsHtml += `
+            <div class="metric reasoning-tokens">
+                <div class="metric-header">
+                    <span class="metric-label">Reasoning Tokens</span>
+                    <span class="metric-value">${reasoningTokens.toLocaleString()}</span>
+                </div>
+                <div class="metric-bar">
+                    <div class="metric-fill" style="width: ${reasoningPercent}%"></div>
+                </div>
+                <div class="metric-footer">
+                    ${reasoningPercent}% of completion tokens
+                </div>
+            </div>`;
+    }
+    
+    // Add cached tokens if available
+    if (usage.prompt_details?.cached_tokens !== undefined) {
+        const cachedTokens = usage.prompt_details.cached_tokens;
+        const cachePercent = ((cachedTokens / usage.prompt_tokens) * 100).toFixed(1);
+        metricsHtml += `
+            <div class="metric cached-tokens">
+                <div class="metric-header">
+                    <span class="metric-label">Cached Tokens</span>
+                    <span class="metric-value">${cachedTokens.toLocaleString()}</span>
+                </div>
+                <div class="metric-bar">
+                    <div class="metric-fill" style="width: ${cachePercent}%"></div>
+                </div>
+                <div class="metric-footer">
+                    ${cachePercent}% of prompt tokens
+                </div>
+            </div>`;
+    }
+    
+    // Update or hide advanced metrics
+    if (metricsHtml) {
+        advancedMetrics.innerHTML = metricsHtml;
+        advancedMetrics.style.display = 'block';
+        
+        // Add styles for metrics
+        const style = document.createElement('style');
+        style.textContent = `
+            .advanced-metrics {
+                margin-top: 16px;
+                padding: 12px;
+                border-radius: 8px;
+                background: rgba(0, 0, 0, 0.03);
+                font-size: 0.9em;
+            }
+            .metric {
+                margin: 12px 0;
+            }
+            .metric-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 4px;
+            }
+            .metric-label {
+                font-weight: 500;
+                color: #4b5563;
+            }
+            .metric-value {
+                font-family: 'JetBrains Mono', monospace;
+                color: #1f2937;
+            }
+            .metric-bar {
+                height: 6px;
+                background: rgba(0, 0, 0, 0.1);
+                border-radius: 3px;
+                overflow: hidden;
+            }
+            .metric-fill {
+                height: 100%;
+                transition: width 0.6s ease-out;
+            }
+            .reasoning-tokens .metric-fill {
+                background: #3b82f6;
+            }
+            .cached-tokens .metric-fill {
+                background: #10b981;
+            }
+            .metric-footer {
+                margin-top: 4px;
+                font-size: 0.85em;
+                color: #6b7280;
+                text-align: right;
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .advanced-metrics {
+                animation: fadeIn 0.3s ease-out;
+            }
+        `;
+        document.head.appendChild(style);
+    } else {
+        advancedMetrics.style.display = 'none';
     }
 }
 

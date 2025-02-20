@@ -428,10 +428,23 @@ async def chat(request: Request, chat_message: ChatMessage):
     # Define parameters according to API schema
     model_name = str(config.AZURE_OPENAI_DEPLOYMENT_NAME).lower()
     is_o_series = (any(m in model_name for m in ["o1-", "o3-"]) and "preview" not in model_name)
+    
+    # Validate vision support
+    for message in formatted_messages:
+        if message.get("content") and isinstance(message["content"], list):
+            for content in message["content"]:
+                if content.get("type") == "image_url" and "o1" not in model_name:
+                    raise create_error_response(
+                        status_code=400,
+                        code="unsupported_feature",
+                        message="Vision support is only available with o1 model",
+                        error_type="validation_error"
+                    )
+    
     params = {
         "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
         "messages": formatted_messages,
-        "stream": False,
+        "stream": "o3-mini" in model_name,  # Enable streaming for o3-mini
     }
     if is_o_series:
         params["max_completion_tokens"] = 40000
@@ -470,7 +483,33 @@ async def chat(request: Request, chat_message: ChatMessage):
 
         try:
             attempt_start = perf_counter()
-            response = client.chat.completions.create(**params)
+            if params.get("stream"):
+                # Handle streaming response for o3-mini
+                collected_messages = []
+                collected_tokens = {"prompt": 0, "completion": 0, "total": 0}
+                async for chunk in client.chat.completions.create(**params):
+                    if chunk.choices[0].delta.content is not None:
+                        collected_messages.append(chunk.choices[0].delta.content)
+                    if hasattr(chunk, "usage"):
+                        collected_tokens = {
+                            "prompt": chunk.usage.prompt_tokens,
+                            "completion": chunk.usage.completion_tokens,
+                            "total": chunk.usage.total_tokens
+                        }
+                response_content = "".join(collected_messages)
+                # Create a response object similar to non-streaming response
+                response = type('StreamResponse', (), {
+                    'choices': [type('Choice', (), {
+                        'message': type('Message', (), {'content': response_content})(),
+                        'finish_reason': chunk.choices[0].finish_reason if hasattr(chunk.choices[0], 'finish_reason') else None,
+                        'content_filter_results': getattr(chunk.choices[0], 'content_filter_results', None)
+                    })()],
+                    'usage': type('Usage', (), collected_tokens)(),
+                    'system_fingerprint': getattr(chunk, 'system_fingerprint', None),
+                    'prompt_filter_results': getattr(chunk, 'prompt_filter_results', None)
+                })()
+            else:
+                response = client.chat.completions.create(**params)
             elapsed = perf_counter() - attempt_start
             logger.info(f"Request completed in {elapsed:.2f}s using {current_reasoning} reasoning")
             break
@@ -550,10 +589,16 @@ async def chat(request: Request, chat_message: ChatMessage):
             "total_tokens": tokens["total"],
         },
     }
-    if chat_message.include_usage_metrics and hasattr(response.usage, "completion_tokens_details"):
+    # Always include detailed token usage for o-series models
+    if is_o_series and hasattr(response.usage, "completion_tokens_details"):
         completion_details = response.usage.completion_tokens_details
-        if hasattr(completion_details, "reasoning_tokens"):
-            final_response["usage"]["completion_details"] = {"reasoning_tokens": completion_details.reasoning_tokens}
+        final_response["usage"]["completion_details"] = {
+            "reasoning_tokens": completion_details.reasoning_tokens if hasattr(completion_details, "reasoning_tokens") else None,
+        }
+        if hasattr(response.usage, "prompt_tokens_details"):
+            final_response["usage"]["prompt_details"] = {
+                "cached_tokens": response.usage.prompt_tokens_details.cached_tokens
+            }
     if hasattr(response, "choices") and response.choices:
         choice = response.choices[0]
         if hasattr(choice, "finish_reason"):
