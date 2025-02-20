@@ -17,7 +17,10 @@ engine = create_async_engine(
 
 # Create a session maker for async sessions
 AsyncSessionLocal = sessionmaker(
-    bind=engine, class_=AsyncSession, expire_on_commit=False, autoflush=False
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False
 )
 
 # Base class for ORM models
