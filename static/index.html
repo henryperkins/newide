@@ -133,13 +133,14 @@
                         <div class="upload-prompt">
                             <i class="upload-icon" aria-hidden="true">📁</i>
                             <p>Drop files here or click to select<br>
-                                <span class="file-limit" role="note">(Max 512MB, text formats)</span>
+                                <span id="file-input-label" class="file-limit">(Max 512MB, text formats)</span>
                             </p>
                             <input type="file" 
                                    id="file-input" 
                                    accept=".txt,.text,text/*,.md,.json,.csv,.js,.html,.css" 
                                    multiple 
                                    hidden 
+                                   aria-labelledby="file-input-label"
                                    aria-label="File upload input">
                         </div>
                     </div>
