@@ -77,12 +77,37 @@ async def process_chat_message(
     model_name = str(config.AZURE_OPENAI_DEPLOYMENT_NAME).lower()
     is_o_series = (any(m in model_name for m in ["o1-", "o3-"]) and "preview" not in model_name)
 
-    # Validate vision support (only available in o1 models)
-    has_vision_content = any(
-        content.get("type") == "image_url" 
-        for msg in formatted_messages 
-        for content in (msg.get("content", []) if isinstance(msg.get("content"), list) else [])
-    )
+    class VisionValidator:
+        MAX_IMAGE_SIZE_MB = 20
+        ALLOWED_MIME_TYPES = ["image/jpeg", "image/png"]
+        
+        def validate_image(self, image_url: str):
+            parsed = urlparse(image_url)
+            if parsed.size > self.MAX_IMAGE_SIZE_MB*1024*1024:
+                raise ValueError("Image size exceeds limit")
+                
+            mimetype = mimetypes.guess_type(image_url)[0]
+            if mimetype not in self.ALLOWED_MIME_TYPES:
+                raise ValueError("Unsupported image type")
+
+    # Validate vision content
+    vision_validator = VisionValidator()
+    has_vision_content = False
+    for msg in formatted_messages:
+        contents = msg.get("content", [])
+        if isinstance(contents, list):
+            for content in contents:
+                if content.get("type") == "image_url":
+                    try:
+                        vision_validator.validate_image(content["image_url"]["url"])
+                        has_vision_content = True
+                    except ValueError as e:
+                        raise create_error_response(
+                            status_code=400,
+                            code="invalid_image",
+                            message=str(e),
+                            error_type="validation_error"
+                        )
     # Validate vision support against documentation requirements
     if has_vision_content:
         is_o1_model = any(name in model_name.lower() for name in ["o1-", "o1.", "o1_"])
@@ -100,10 +125,24 @@ async def process_chat_message(
             )
 
     # Configure API parameters
+    STRICT_MODEL_REGISTRY = {
+        "o3-mini-2025": {
+            "supports_streaming": True,
+            "max_streams": 5
+        },
+        "o1-prod": {
+            "supports_streaming": False
+        }
+    }
+
+    def validate_streaming(model_id: str) -> bool:
+        model_config = STRICT_MODEL_REGISTRY.get(model_id, {})
+        return model_config.get('supports_streaming', False)
+
     params = {
         "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
         "messages": formatted_messages,
-        "stream": "o3-mini" in model_name,  # Enable streaming for o3-mini
+        "stream": validate_streaming(model_name),
     }
     if is_o_series:
         params["max_completion_tokens"] = 40000
@@ -197,13 +236,38 @@ async def process_chat_message(
             else:
                 logger.warning(f"Request timed out after {elapsed:.2f}s with {current_reasoning} reasoning. Retrying with increased timeout.")
 
+    # Safe response handling
+    class AzureResponseWrapper:
+        def __init__(self, response):
+            self._response = response
+            
+        @property
+        def reasoning_tokens(self):
+            return getattr(
+                getattr(self._response.usage, 'completion_tokens_details', {}),
+                'reasoning_tokens', 0
+            )
+            
+        @property
+        def prompt_tokens(self):
+            return getattr(self._response.usage, 'prompt_tokens', 0)
+            
+        @property 
+        def completion_tokens(self):
+            return getattr(self._response.usage, 'completion_tokens', 0)
+            
+        @property
+        def total_tokens(self):
+            return getattr(self._response.usage, 'total_tokens', 0)
+
     # Log performance metrics
     elapsed_total = perf_counter() - start_time
+    wrapped_response = AzureResponseWrapper(response)
     tokens = {
-        "prompt": response.usage.prompt_tokens if response.usage else 0,
-        "completion": response.usage.completion_tokens if response.usage else 0,
-        "total": response.usage.total_tokens if response.usage else 0,
-        "reasoning": getattr(response.usage.completion_tokens_details, "reasoning_tokens", 0) if hasattr(response.usage, "completion_tokens_details") else 0,
+        "prompt": wrapped_response.prompt_tokens,
+        "completion": wrapped_response.completion_tokens,
+        "total": wrapped_response.total_tokens,
+        "reasoning": wrapped_response.reasoning_tokens,
     }
     # For o-series models, override local calculations with API-reported values
     if is_o_series and response.usage:

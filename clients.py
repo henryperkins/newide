@@ -38,8 +38,29 @@ async def init_client_pool():
             
             _client_pool.append(client)
 
+class SecureTokenProvider:
+    def __init__(self, credential):
+        self._credential = credential
+        self._token_cache = None
+        self._refresh_lock = asyncio.Lock()
+    
+    async def get_token(self):
+        async with self._refresh_lock:
+            if not self._token_cache or self._token_cache.expires_on < time.time():
+                self._token_cache = await self._credential.get_token(
+                    "https://cognitiveservices.azure.com/.default"
+                )
+        return self._token_cache.token
+
 async def get_azure_client() -> AsyncAzureOpenAI:
     """Get an authenticated client from the pool"""
     if not _client_pool:
         await init_client_pool()
-    return _client_pool[len(_client_pool) % _pool_size]  # Simple round-robin
+    
+    client = _client_pool[len(_client_pool) % _pool_size]
+    
+    # Refresh token if needed
+    if hasattr(client, '_token_provider') and isinstance(client._token_provider, SecureTokenProvider):
+        await client._token_provider.get_token()
+        
+    return client

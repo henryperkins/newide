@@ -4,6 +4,15 @@ from typing import Optional
 import config
 from logging_config import logger
 
+def resolve_api_version(deployment_name: str) -> str:
+    version_matrix = {
+        "o1-prod": "2024-12-01",
+        "o3-mini": "2025-01-01-preview", 
+        "gpt-4": "2023-12-01"
+    }
+    return version_matrix.get(deployment_name.lower(), 
+                            os.getenv("DEFAULT_API_VERSION", "2024-12-01-preview"))
+
 def count_tokens(text: str, model: Optional[str] = None) -> int:
     """
     Model-specific token counting with fallback
