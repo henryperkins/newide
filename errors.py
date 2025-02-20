@@ -25,13 +25,5 @@ def create_error_response(
 ) -> HTTPException:
     return HTTPException(
         status_code=status_code,
-        detail=ErrorResponse(
-            error=Error(
-                code=code,
-                message=message,
-                param=param,
-                type=error_type,
-                inner_error=inner_error,
-            )
-        ).dict(),
+        detail={"error": str(message)},  # Simplified error response
     )

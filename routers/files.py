@@ -20,23 +20,7 @@ async def upload_file(
     session_id: str = Form(...),
     db_session: AsyncSession = Depends(get_db_session)
 ):
-    logger.info(f"File upload request received: {file.filename} for session {session_id}")
-    if not session_id:
-        raise create_error_response(
-            status_code=400,
-            code="missing_session_id",
-            message="Session ID is required",
-            param="session_id",
-        )
-
-    session_obj = await db_session.get(Session, session_id)
-    if not session_obj:
-        raise create_error_response(
-            status_code=400,
-            code="invalid_session_id",
-            message="Invalid session ID",
-            param="session_id",
-        )
+    logger.info(f"Quick file upload: {file.filename}")
 
     try:
         contents = await file.read()

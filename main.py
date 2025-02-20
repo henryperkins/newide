@@ -21,9 +21,8 @@ from routers.session import router as session_router
 from routers.chat import router as chat_router
 from routers.files import router as files_router
 
-app = FastAPI()
-limiter = Limiter(key_func=get_remote_address)
-app.state.limiter = limiter
+app = FastAPI(docs_url="/", redoc_url=None, debug=True)
+app.state.limiter = None  # Disable rate limiting for development speed
 
 app.add_middleware(
     CORSMiddleware,

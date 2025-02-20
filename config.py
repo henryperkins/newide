@@ -5,7 +5,7 @@ import os
 class Settings(BaseSettings):
     # Azure OpenAI settings
     AZURE_OPENAI_ENDPOINT: str
-    AZURE_OPENAI_API_KEY: SecretStr
+    AZURE_OPENAI_API_KEY: str
     AZURE_OPENAI_DEPLOYMENT_NAME: str
     AZURE_OPENAI_API_VERSION: str = "2024-02-01"  # Use current stable version
 
@@ -40,7 +40,7 @@ settings = Settings()
 
 # Export settings for use in application
 AZURE_OPENAI_ENDPOINT = settings.AZURE_OPENAI_ENDPOINT
-AZURE_OPENAI_API_KEY = settings.AZURE_OPENAI_API_KEY.get_secret_value()
+AZURE_OPENAI_API_KEY = settings.AZURE_OPENAI_API_KEY
 AZURE_OPENAI_DEPLOYMENT_NAME = settings.AZURE_OPENAI_DEPLOYMENT_NAME
 AZURE_OPENAI_API_VERSION = settings.AZURE_OPENAI_API_VERSION
 

@@ -31,14 +31,6 @@ class ChatMessage(BaseModel):
     response_format: Optional[str] = None
     include_usage_metrics: Optional[bool] = False
 
-    @validator("session_id")
-    def validate_session_id(cls, value):
-        try:
-            from uuid import UUID as PyUUID
-            PyUUID(value)
-            return value
-        except ValueError:
-            raise ValueError("Invalid session ID format (must be a valid UUID)")
 
     @validator("response_format")
     def validate_response_format(cls, value):
