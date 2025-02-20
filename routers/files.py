@@ -1,5 +1,6 @@
 # routers/files.py
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from logging_config import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from database import get_db_session, UploadedFile, Session
