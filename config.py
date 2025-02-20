@@ -63,8 +63,8 @@ REASONING_EFFORT_MULTIPLIERS = {
     "high": 5.0,
 }
 
-# PostgreSQL Configuration
-POSTGRES_URL = f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD.get_secret_value()}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+# PostgreSQL Configuration with proper SSL validation
+POSTGRES_URL = f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD.get_secret_value()}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}?sslmode=verify-full&sslrootcert=./certs/azure-root-ca-bundle.pem"
 
 # Session configuration
 SESSION_TIMEOUT_MINUTES = settings.session_timeout_minutes
