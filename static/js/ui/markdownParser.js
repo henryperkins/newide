@@ -34,12 +34,7 @@ export function safeMarkdownParse(text) {
     }
 }
 
-function sanitizeInput(text) {
-    return text
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/&/g, '&amp;');
-}
+import { sanitizeInput } from '../utils/helpers.js';
 
 export function injectMarkdownStyles() {
     if (document.getElementById('markdown-styles')) return;
