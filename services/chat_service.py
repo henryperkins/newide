@@ -77,11 +77,13 @@ async def process_chat_message(
     model_name = str(config.AZURE_OPENAI_DEPLOYMENT_NAME).lower()
     is_o_series = (any(m in model_name for m in ["o1-", "o3-"]) and "preview" not in model_name)
 
-    # Validate vision support (only for o1 models)
-    for message in formatted_messages:
-        if message.get("content") and isinstance(message["content"], list):
-            for content in message["content"]:
-                if content.get("type") == "image_url" and "o1" not in model_name:
+    # Validate vision support (only available in o1 models)
+    has_vision_content = any(
+        content.get("type") == "image_url" 
+        for msg in formatted_messages 
+        for content in (msg.get("content", []) if isinstance(msg.get("content"), list) else [])
+    )
+    if has_vision_content and "o1" not in model_name.lower():
                     raise create_error_response(
                         status_code=400,
                         code="unsupported_feature",

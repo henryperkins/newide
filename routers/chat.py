@@ -86,10 +86,7 @@ async def chat(
     if is_o_series:
         params.update({
             "reasoning_effort": chat_message.reasoning_effort.value,
-            "temperature": None,  # Explicitly null unsupported params
-            "top_p": None,
-            "presence_penalty": None,
-            "frequency_penalty": None
+            "max_completion_tokens": min(chat_message.max_completion_tokens or 40000, 100000)
         })
     else:
         # Standard model parameters

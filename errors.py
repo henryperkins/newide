@@ -1,4 +1,5 @@
 # errors.py
+import json
 from pydantic import BaseModel
 from typing import Optional, List
 from fastapi import HTTPException
@@ -40,7 +41,8 @@ def create_error_response(
         status_code=status_code,
         detail=ErrorResponse(error=error_detail).model_dump(),
         headers={
-            "x-ms-error-code": code,
-            "x-ms-error-message": message
+            "x-ms-error-code": code.upper().replace("_", "-"),
+            "x-ms-error-message": message,
+            "x-ms-error-details": json.dumps(inner_error) if inner_error else None
         }
     )
