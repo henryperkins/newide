@@ -6,14 +6,18 @@ from logging_config import logger
 
 def count_tokens(text: str, model: Optional[str] = None) -> int:
     """
-    Accurate token counting using tiktoken
+    Model-specific token counting with fallback
     """
     try:
-        encoding = tiktoken.get_encoding("cl100k_base")
+        if model and any(m in model.lower() for m in ["o1-", "o3-"]):
+            encoding = tiktoken.get_encoding("cl100k_base")
+        else:
+            encoding = tiktoken.get_encoding("cl100k_base")
+            
         return len(encoding.encode(text))
     except Exception as e:
-        # Fallback to conservative estimation if tiktoken fails
-        return len(text.encode("utf-8")) // 3
+        logger.warning(f"Token counting error: {str(e)}")
+        return len(text) // 4  # Conservative fallback
 
 def calculate_model_timeout(messages, model_name, reasoning_effort="medium"):
     is_o_series = (

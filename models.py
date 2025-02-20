@@ -53,8 +53,8 @@ class ChatMessage(BaseModel):
 
     @validator("response_format")
     def validate_response_format(cls, value):
-        if value and value not in ["text", "json_object"]:
-            raise ValueError("response_format must be either 'text' or 'json_object'")
+        if value and value not in ["text", "json_object", "xml"]:
+            raise ValueError("response_format must be either 'text', 'json_object' or 'xml'")
         return value
 
 class FileResponseModel(BaseModel):

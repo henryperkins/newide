@@ -46,6 +46,9 @@ class Conversation(Base):
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"))
+    system_fingerprint = Column(String(64))
+    prompt_filter_results = Column(JSONB)
+    content_filter_results = Column(JSONB)
 
 class UploadedFile(Base):
     """ORM model for uploaded files."""

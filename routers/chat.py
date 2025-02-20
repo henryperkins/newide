@@ -34,9 +34,7 @@ async def chat(
         if "o1" in model_name:
             messages.append({
                 "role": "developer",
-                "content": (f"Formatting re-enabled - {chat_message.developer_config}" 
-                          if not chat_message.developer_config.startswith("Formatting re-enabled")
-                          else chat_message.developer_config)
+                "content": f"Formatting re-enabled - {chat_message.developer_config.lstrip('Formatting re-enabled - ')}"
             })
         else:
             messages.append({
