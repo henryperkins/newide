@@ -55,6 +55,8 @@ app.include_router(chat_router)
 @app.on_event("startup")
 async def startup():
     await init_database()
+    from clients import init_client_pool
+    await init_client_pool()
 
 @app.get("/")
 async def root():

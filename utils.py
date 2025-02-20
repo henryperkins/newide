@@ -5,8 +5,17 @@ import config
 from logging_config import logger
 
 def count_tokens(text: str, model: Optional[str] = None) -> int:
+    """
+    Fast token estimation with fallback to tiktoken for high-precision needs
+    """
     try:
-        if model and any(m in model.lower() for m in ["o1-", "o3-"]):
+        # Fast path: Use byte-based estimation for most cases
+        if not model or len(text) < 10000:
+            # Empirically derived formula: bytes/3 + adjustment for special chars
+            return (len(text.encode("utf-8")) // 3) + (len(text) // 4 // 1000) * 250
+        
+        # Slow path: Use tiktoken for large texts or specific model requirements
+        if any(m in str(model).lower() for m in ["o1-", "o3-"]):
             encoding = tiktoken.get_encoding("cl100k_base")
         else:
             try:
