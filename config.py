@@ -1,4 +1,5 @@
-from pydantic import BaseSettings, SecretStr, validator
+from pydantic_settings import BaseSettings
+from pydantic import SecretStr, validator
 from typing import Dict
 import os
 
