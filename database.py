@@ -38,7 +38,7 @@ class Conversation(Base):
     """ORM model for conversation messages."""
     __tablename__ = "conversations"
     __table_args__ = (
-        Index('ix_conversations_session_timestamp', 'session_id', 'timestamp')
+        Index('ix_conversations_session_timestamp', 'session_id', 'timestamp'),
     )
     
     id = Column(Integer, primary_key=True, autoincrement=True)
