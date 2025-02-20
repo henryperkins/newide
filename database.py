@@ -12,10 +12,7 @@ engine = create_async_engine(
     config.POSTGRES_URL,
     pool_size=20,
     max_overflow=10,
-    pool_recycle=3600,
-    connect_args={
-        "ssl": "require"  # Simplified SSL requirement without verification
-    }
+    pool_recycle=3600
 )
 
 # Create a session maker for async sessions
