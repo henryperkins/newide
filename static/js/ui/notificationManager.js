@@ -38,6 +38,8 @@ function ensureNotificationContainer() {
     if (!container) {
         container = document.createElement('div');
         container.className = 'notification-container';
+        container.setAttribute('aria-live', 'polite');
+        container.setAttribute('aria-atomic', 'false');
         document.body.appendChild(container);
     }
     return container;

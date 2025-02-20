@@ -6,6 +6,16 @@ export let lastUserMessage = null;
 
 export async function initializeSession() {
     try {
+        // Check localStorage first
+        const storedSession = localStorage.getItem('chatSession');
+        if (storedSession) {
+            const {id, expires} = JSON.parse(storedSession);
+            if (new Date(expires) > new Date()) {
+                sessionId = id;
+                return true;
+            }
+        }
+
         const response = await fetch('/new_session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }

@@ -31,12 +31,16 @@ function createDeveloperMessage(content, isFormattingMessage) {
     messageDiv.setAttribute('aria-live', 'assertive');
 
     if (isFormattingMessage) {
-        messageDiv.innerHTML = `
-            <div class="formatting-notice">
-                <span aria-hidden="true">⚙️</span>
-                <strong>System:</strong> ${safeMarkdownParse(content)}
-            </div>
+        messageDiv.textContent = ''; // Clear existing content
+        const noticeDiv = document.createElement('div');
+        noticeDiv.className = 'formatting-notice';
+        noticeDiv.innerHTML = `
+            <span aria-hidden="true">⚙️</span>
+            <strong>System:</strong>
         `;
+        const textNode = document.createTextNode(content);
+        noticeDiv.appendChild(textNode);
+        messageDiv.appendChild(noticeDiv);
     } else {
         messageDiv.textContent = content;
     }
