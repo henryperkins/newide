@@ -13,7 +13,10 @@ engine = create_async_engine(
     pool_size=20,
     max_overflow=10,
     pool_recycle=3600,
-    connect_args={"ssl": "prefer"},
+    connect_args={
+        "ssl": "require",
+        "sslrootcert": "certs/azure-root.crt"
+    }
 )
 
 # Create a session maker for async sessions
