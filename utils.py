@@ -6,10 +6,14 @@ from logging_config import logger
 
 def count_tokens(text: str, model: Optional[str] = None) -> int:
     """
-    Ultra-fast token estimation - byte-based only 
+    Accurate token counting using tiktoken
     """
-    # Simple byte-length approximation
-    return len(text.encode("utf-8")) // 3
+    try:
+        encoding = tiktoken.get_encoding("cl100k_base")
+        return len(encoding.encode(text))
+    except Exception as e:
+        # Fallback to conservative estimation if tiktoken fails
+        return len(text.encode("utf-8")) // 3
 
 def calculate_model_timeout(messages, model_name, reasoning_effort="medium"):
     is_o_series = (

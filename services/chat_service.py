@@ -83,13 +83,21 @@ async def process_chat_message(
         for msg in formatted_messages 
         for content in (msg.get("content", []) if isinstance(msg.get("content"), list) else [])
     )
-    if has_vision_content and "o1" not in model_name.lower():
-                    raise create_error_response(
-                        status_code=400,
-                        code="unsupported_feature",
-                        message="Vision support is only available with o1 model",
-                        error_type="validation_error"
-                    )
+    # Validate vision support (only available in o1 models with correct API version)
+    if has_vision_content:
+        is_o1_model = any(name in model_name.lower() for name in ["o1-", "o1."])
+        if not is_o1_model or config.AZURE_OPENAI_API_VERSION < "2024-12-01-preview":
+            raise create_error_response(
+                status_code=400,
+                code="unsupported_feature",
+                message="Vision support requires o1 model and API version 2024-12-01-preview or later",
+                error_type="validation_error",
+                inner_error={
+                    "model": model_name,
+                    "api_version": config.AZURE_OPENAI_API_VERSION,
+                    "required_version": "2024-12-01-preview"
+                }
+            )
 
     # Configure API parameters
     params = {

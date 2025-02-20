@@ -29,12 +29,20 @@ async def chat(
     # Build initial messages list
     messages = []
     if chat_message.developer_config:
-        messages.append({
-            "role": "developer",
-            "content": (f"Formatting re-enabled - {chat_message.developer_config}"
-                        if "formatting" in chat_message.developer_config.lower()
-                        else chat_message.developer_config)
-        })
+        # Always prefix with Formatting re-enabled for o1 models
+        model_name = str(config.AZURE_OPENAI_DEPLOYMENT_NAME).lower()
+        if "o1" in model_name:
+            messages.append({
+                "role": "developer",
+                "content": (f"Formatting re-enabled - {chat_message.developer_config}" 
+                          if not chat_message.developer_config.startswith("Formatting re-enabled")
+                          else chat_message.developer_config)
+            })
+        else:
+            messages.append({
+                "role": "developer",
+                "content": chat_message.developer_config
+            })
     messages.append({"role": "user", "content": chat_message.message})
 
     # Retrieve conversation history from the database

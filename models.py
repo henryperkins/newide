@@ -36,7 +36,8 @@ class ChatMessage(BaseModel):
     )
     response_format: Optional[str] = Field(
         default=None,
-        json_schema_extra={"enum": ["text", "json_object"]}
+        json_schema_extra={"enum": ["text", "json_object", "xml"]},
+        description="Response format: text, json_object, or xml (o1 models only)"
     )
     include_usage_metrics: Optional[bool] = Field(
         default=False,
