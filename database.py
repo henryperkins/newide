@@ -14,7 +14,7 @@ engine = create_async_engine(
     max_overflow=10,
     pool_recycle=3600,
     connect_args={
-        "ssl": "verify-full"  # Enable SSL with full certificate verification
+        "ssl": "require"  # Simplified SSL requirement without verification
     }
 )
 
