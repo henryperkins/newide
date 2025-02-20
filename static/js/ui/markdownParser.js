@@ -36,37 +36,3 @@ export function safeMarkdownParse(text) {
 
 import { sanitizeInput } from '../utils/helpers.js';
 
-export function injectMarkdownStyles() {
-    if (document.getElementById('markdown-styles')) return;
-
-    const style = document.createElement('style');
-    style.id = 'markdown-styles';
-    style.textContent = `
-        .message-text pre {
-            background: #f8f8f8;
-            padding: 1em;
-            border-radius: 4px;
-            overflow-x: auto;
-            margin: 1em 0;
-        }
-        .message-text code {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.9em;
-        }
-        .message-text blockquote {
-            border-left: 3px solid #ddd;
-            margin: 1em 0;
-            padding-left: 1em;
-            color: #666;
-        }
-        .message-text table {
-            border-collapse: collapse;
-            margin: 1em 0;
-        }
-        .message-text td, .message-text th {
-            border: 1px solid #ddd;
-            padding: 0.5em;
-        }
-    `;
-    document.head.appendChild(style);
-}

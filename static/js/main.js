@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         // Configure core application features
         initializeMarkdownSupport();
-        await initializeUIComponents();
+        initializeUIEventHandlers();
         await initializeSessionHandling();
         await initializeFileHandling();
 
@@ -117,6 +117,9 @@ function handleInitializationError(error) {
         "error",
         10000
     );
-    document.getElementById('chat-interface').style.display = 'none';
-    document.getElementById('error-display').style.display = 'block';
+    const chatInterface = document.getElementById('chat-interface');
+    const errorDisplay = document.getElementById('error-display');
+    
+    if (chatInterface) chatInterface.style.display = 'none';
+    if (errorDisplay) errorDisplay.style.display = 'block';
 }
