@@ -114,7 +114,7 @@ async def init_database():
         
         # Create sessions table
         await conn.execute(text("""
-            CREATE TABLE sessions (
+            CREATE TABLE IF NOT EXISTS sessions (
                 id UUID PRIMARY KEY,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 last_activity TIMESTAMPTZ DEFAULT NOW(),
@@ -123,7 +123,7 @@ async def init_database():
         
         # Create conversations table
         await conn.execute(text("""
-            CREATE TABLE conversations (
+            CREATE TABLE IF NOT EXISTS conversations (
                 id SERIAL PRIMARY KEY,
                 session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
                 role VARCHAR(20) NOT NULL,
@@ -138,7 +138,7 @@ async def init_database():
         
         # Create uploaded_files table with enhanced fields
         await conn.execute(text("""
-            CREATE TABLE uploaded_files (
+            CREATE TABLE IF NOT EXISTS uploaded_files (
                 id UUID PRIMARY KEY,
                 session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
                 filename TEXT NOT NULL,
@@ -156,7 +156,7 @@ async def init_database():
         
         # Create vector_stores table
         await conn.execute(text("""
-            CREATE TABLE vector_stores (
+            CREATE TABLE IF NOT EXISTS vector_stores (
                 id UUID PRIMARY KEY,
                 session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
                 name TEXT NOT NULL,
@@ -168,7 +168,7 @@ async def init_database():
         
         # Create file_citations table
         await conn.execute(text("""
-            CREATE TABLE file_citations (
+            CREATE TABLE IF NOT EXISTS file_citations (
                 id UUID PRIMARY KEY,
                 conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
                 file_id UUID REFERENCES uploaded_files(id) ON DELETE SET NULL,
