@@ -10,6 +10,13 @@ class DataSourceConfig(BaseModel):
     parameters: dict
 
 class Settings(BaseSettings):
+    # PostgreSQL configuration
+    POSTGRES_HOST: str = Field(..., description="PostgreSQL host address")
+    POSTGRES_USER: str = Field(..., description="PostgreSQL username")
+    POSTGRES_PASSWORD: str = Field(..., description="PostgreSQL password")
+    POSTGRES_DB: str = Field(..., description="PostgreSQL database name")
+    POSTGRES_PORT: int = Field(default=5432, description="PostgreSQL port number")
+
     # File size limits
     MAX_FILE_SIZE: int = 512 * 1024 * 1024  # 512MB
     WARNING_FILE_SIZE: int = 256 * 1024 * 1024  # 256MB
