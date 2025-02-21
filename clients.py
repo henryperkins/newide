@@ -2,6 +2,7 @@
 import asyncio
 import time
 from openai import AsyncAzureOpenAI
+from azure.core.exceptions import HttpResponseError
 import config
 from typing import List, Optional
 import os

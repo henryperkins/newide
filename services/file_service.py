@@ -346,9 +346,13 @@ async def embed_file(file_id: str, text: str, azure_client):
             "dimensions": len(embedding),
             "created_at": datetime.now().isoformat()
         }
-    except Exception as e:
-        logger.exception(f"Error creating embedding: {e}")
-        return {"error": str(e)}
+    except HttpResponseError as e:
+        logger.exception(f"Azure API Error: {e.status_code} {e.message}")
+        if e.status_code == 429:
+            return {"error": "Too many requests - please try again later"}
+        elif e.status_code == 413:
+            return {"error": "File size exceeds 4MB limit"}
+        return {"error": f"Azure service error: {e.message}"}
 
 def get_mime_type(filename: str) -> str:
     """

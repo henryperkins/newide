@@ -505,7 +505,13 @@ client = AzureOpenAI(
     )
 
 # Create a vector store called "Financial Statements"
-vector_store = client.beta.vector_stores.create(name="Financial Statements")
+vector_store = client.beta.vector_stores.create(
+    name="Financial Statements",
+    azure_extension={
+        "resource_name": os.getenv("AZURE_SEARCH_RESOURCE"),
+        "index_name": "financial-statements-index"
+    }
+)
  
 # Ready the files for upload to OpenAI
 file_paths = ["mydirectory/myfile1.pdf", "mydirectory/myfile2.txt"]
