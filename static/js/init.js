@@ -1,5 +1,5 @@
 import { initializeSession } from '/static/js/session.js';
-import { loadFilesList, setupDragAndDrop } from '/static/js/fileManager.js';
+import { initializeFileManager } from '/static/js/fileManager.js';
 import { initializeConfig } from '/static/js/config.js';
 import { showNotification } from '/static/js/ui/notificationManager.js';
 
@@ -12,11 +12,9 @@ window.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         
-        // Load initial files list
-        await loadFilesList();
+        // Initialize file management system
+        await initializeFileManager();
         
-        // Set up UI components
-        setupDragAndDrop();
         // Initialize configuration with validation
         const config = initializeConfig();
         if (!config?.initialized) {

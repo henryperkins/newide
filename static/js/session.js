@@ -1,7 +1,7 @@
 import { showNotification } from '/static/js/ui/notificationManager.js';
 
 export let sessionId = null;
-export let lastUserMessage = '';
+let _lastUserMessage = '';
 
 export async function initializeSession() {
     try {
@@ -35,4 +35,12 @@ export async function initializeSession() {
 
 export function getSessionId() {
     return sessionId;
+}
+
+export function setLastUserMessage(message) {
+    _lastUserMessage = message;
+}
+
+export function getLastUserMessage() {
+    return _lastUserMessage;
 }

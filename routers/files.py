@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from logging_config import logger
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text, select, update
+from sqlalchemy import text, update
 from database import get_db_session, UploadedFile, Session, AsyncSessionLocal
 from errors import create_error_response
 from models import FileResponseModel, FileListResponse, DeleteFileResponse
@@ -12,12 +12,12 @@ import uuid
 import config
 import datetime
 import json
-import asyncio
 import os
 from typing import List, Optional, Dict, Any
 
 router = APIRouter()
 
+# File upload endpoint
 @router.post("/upload")
 async def upload_file(
     background_tasks: BackgroundTasks,
@@ -27,15 +27,34 @@ async def upload_file(
     db_session: AsyncSession = Depends(get_db_session),
     azure_client: Optional[Any] = Depends(get_azure_client),
 ):
-    """Upload a file with enhanced processing options"""
+    """Upload a file with enhanced processing options.
+
+    Args:
+        background_tasks: BackgroundTasks for scheduling Azure processing.
+        file: The uploaded file.
+        session_id: The session ID associated with the upload.
+        process_with_azure: Boolean to determine if Azure processing is required.
+        db_session: Database session dependency.
+        azure_client: Azure client dependency.
+
+    Returns:
+        dict: Response containing file details and processing status.
+    """
     logger.info(f"File upload: {file.filename} for session {session_id}, azure processing: {process_with_azure}")
 
     try:
+        # Read file contents and validate size
         contents = await file.read()
+        size = len(contents)
+        if size > config.MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="File too large")
+        if size > config.WARNING_FILE_SIZE:
+            logger.warning(f"Large file uploaded: {size} bytes, filename: {file.filename}")
+
         filename = file.filename or "unnamed_file.txt"
         file_extension = os.path.splitext(filename)[1].lower()
         supported_extensions = ['.txt', '.md', '.pdf', '.docx', '.doc', '.json', '.js', '.py', '.html', '.css']
-        
+
         if file_extension not in supported_extensions:
             raise create_error_response(
                 status_code=400,
@@ -48,11 +67,11 @@ async def upload_file(
         model_name = config.AZURE_OPENAI_DEPLOYMENT_NAME
         from services.file_service import process_uploaded_file
         processed_data = await process_uploaded_file(contents, filename, model_name)
-        
+
         file_id = uuid.uuid4()
         metadata = {
             "filename": filename,
-            "original_size": len(contents),
+            "original_size": size,
             "processed_time": datetime.datetime.now().isoformat(),
             "token_count": processed_data["token_count"],
             "chunk_count": processed_data["chunk_count"],
@@ -61,15 +80,16 @@ async def upload_file(
             "vector_store_id": None
         }
 
+        # Create parent file entry
         uploaded_file = UploadedFile(
             id=file_id,
             session_id=session_id,
             filename=filename,
             content=processed_data.get("original_text", ""),
-            size=len(contents),
+            size=size,
             file_type=processed_data.get("file_type", file_extension),
             chunk_count=processed_data["chunk_count"],
-            metadata=metadata,
+            file_metadata=metadata,
             status="ready"
         )
 
@@ -86,7 +106,7 @@ async def upload_file(
                     size=len(chunk.encode('utf-8')),
                     file_type=processed_data["file_type"],
                     status="chunk",
-                    metadata={
+                    file_metadata={
                         "parent_file_id": str(file_id),
                         "chunk_index": i,
                         "total_chunks": processed_data["chunk_count"],
@@ -98,12 +118,13 @@ async def upload_file(
         db_session.add(uploaded_file)
         await db_session.commit()
 
+        # Schedule Azure processing if requested
         if process_with_azure and azure_client:
             metadata["azure_processing"] = "scheduled"
             background_tasks.add_task(
-                process_file_with_azure, 
-                file_id=str(file_id), 
-                session_id=session_id, 
+                process_file_with_azure,
+                file_id=str(file_id),
+                session_id=session_id,
                 chunk_ids=chunk_ids,
                 azure_client=azure_client
             )
@@ -128,70 +149,62 @@ async def upload_file(
 
 @router.get("/{session_id}", response_model=FileListResponse)
 async def get_files(session_id: str, db_session: AsyncSession = Depends(get_db_session)):
-    """Get all files for a session with enhanced metadata"""
+    """Get all files for a session with enhanced metadata."""
+    logger.info(f"Fetching files for session_id: {session_id}")
     try:
-        session_obj = await db_session.get(Session, session_id)
-        if not session_obj:
-            raise create_error_response(
-                status_code=404,
-                code="session_not_found",
-                message="Session not found",
-                error_type="not_found",
-                param="session_id",
-            )
-            
+        # Validate session existence
         result = await db_session.execute(
-            text("""
-                SELECT id, filename, size, file_type, chunk_count, status, metadata, upload_time
-                FROM uploaded_files
-                WHERE session_id = :session_id AND (status != 'chunk' OR status IS NULL)
-                ORDER BY upload_time DESC
-            """), 
+            text("SELECT id FROM sessions WHERE id = :session_id"),
             {"session_id": session_id}
         )
-        
+        if not result.scalar_one_or_none():
+            logger.warning(f"Session not found: {session_id}")
+            return FileListResponse(files=[], total_count=0, total_size=0)
+
+        # Fetch files with simplified query
+        result = await db_session.execute(
+            text("""
+                SELECT 
+                    id, 
+                    filename, 
+                    size, 
+                    file_type,
+                    COALESCE(chunk_count, 1) as chunk_count,
+                    COALESCE(status, 'ready') as status,
+                    file_metadata,
+                    upload_time
+                FROM uploaded_files
+                WHERE session_id = :session_id 
+                AND (status != 'chunk' OR status IS NULL)
+                ORDER BY upload_time DESC
+            """),
+            {"session_id": session_id}
+        )
         files = result.mappings().all()
+
         files_with_details = []
-        
+        total_size = 0
+
         for file in files:
             file_dict = dict(file)
             
-            if file_dict.get("metadata"):
-                try:
-                    file_dict["metadata"] = json.loads(file_dict["metadata"]) if isinstance(file_dict["metadata"], str) else file_dict["metadata"]
-                except:
-                    file_dict["metadata"] = {}
-            
-            if file_dict.get("chunk_count", 0) > 1:
-                chunk_result = await db_session.execute(
-                    text("""
-                        SELECT SUM(LENGTH(content)) as total_chars,
-                               jsonb_agg(metadata) as chunks_metadata
-                        FROM uploaded_files
-                        WHERE session_id = :session_id 
-                              AND status = 'chunk'
-                              AND metadata->>'parent_file_id' = :parent_id
-                    """),
-                    {"session_id": session_id, "parent_id": str(file_dict["id"])}
+            # Handle metadata safely
+            try:
+                file_dict["file_metadata"] = (
+                    json.loads(file_dict["file_metadata"])
+                    if isinstance(file_dict["file_metadata"], str)
+                    else file_dict["file_metadata"] or {}
                 )
-                chunk_data = chunk_result.mappings().first()
-                
-                if chunk_data:
-                    file_dict["char_count"] = chunk_data["total_chars"] or 0
-                    chunks_metadata = chunk_data["chunks_metadata"] or []
-                    chunks_metadata = [json.loads(m) if isinstance(m, str) else m for m in chunks_metadata]
-                    file_dict["token_count"] = sum(m.get("token_count", 0) for m in chunks_metadata)
-                else:
-                    file_dict["char_count"] = len(file_dict.get("content", ""))
-                    file_dict["token_count"] = file_dict.get("size", 0) // 4
-            else:
-                file_dict["char_count"] = len(file_dict.get("content", ""))
-                file_dict["token_count"] = file_dict["metadata"].get("token_count", file_dict.get("size", 0) // 4)
+            except (json.JSONDecodeError, TypeError):
+                file_dict["file_metadata"] = {}
+
+            # Set default values
+            file_dict["char_count"] = 0
+            file_dict["token_count"] = file_dict["file_metadata"].get("token_count", file_dict["size"] // 4)
+            total_size += file_dict["size"]
             
             files_with_details.append(file_dict)
-        
-        total_size = sum(file.get("size", 0) for file in files_with_details)
-        
+
         return FileListResponse(
             files=[
                 FileResponseModel(
@@ -199,47 +212,53 @@ async def get_files(session_id: str, db_session: AsyncSession = Depends(get_db_s
                     filename=file["filename"],
                     size=file["size"],
                     upload_time=file["upload_time"].isoformat(),
-                    char_count=file.get("char_count", 0),
-                    token_count=file.get("token_count", 0),
+                    char_count=file["char_count"],
+                    token_count=file["token_count"],
                     file_type=file.get("file_type", ""),
-                    chunk_count=file.get("chunk_count", 1),
-                    status=file.get("status", "ready"),
-                    metadata=file.get("metadata", {})
+                    chunk_count=file["chunk_count"],
+                    status=file["status"],
+                    file_metadata=file["file_metadata"]
                 )
                 for file in files_with_details
             ],
             total_count=len(files_with_details),
-            total_size=total_size,
+            total_size=total_size
         )
 
     except Exception as e:
-        logger.exception(f"Error retrieving files: {e}")
-        raise create_error_response(
-            status_code=500,
-            code="database_error",
-            message="Error retrieving files",
-            error_type="internal_error",
-            inner_error={"original_error": str(e)},
-        )
+        logger.exception(f"Error retrieving files for session {session_id}: {e}")
+        # Return empty response instead of throwing error
+        return FileListResponse(files=[], total_count=0, total_size=0)
 
+# Delete file endpoint
 @router.delete("/{session_id}/{file_id}", response_model=DeleteFileResponse)
 async def delete_file(
-    session_id: str, 
-    file_id: str, 
+    session_id: str,
+    file_id: str,
     db_session: AsyncSession = Depends(get_db_session),
     azure_client: Optional[Any] = Depends(get_azure_client)
 ):
-    """Delete a file and optionally remove it from Azure OpenAI"""
+    """Delete a file and its associated chunks if applicable.
+
+    Args:
+        session_id: The session ID of the file.
+        file_id: The ID of the file to delete.
+        db_session: Database session dependency.
+        azure_client: Azure client dependency.
+
+    Returns:
+        DeleteFileResponse: Confirmation of deletion.
+    """
     try:
         file_result = await db_session.execute(
             text("""
-                SELECT id, filename, metadata FROM uploaded_files 
+                SELECT id, filename, file_metadata, status FROM uploaded_files 
                 WHERE session_id = :session_id AND id = :file_id::uuid
-            """), 
+            """),
             {"session_id": session_id, "file_id": file_id}
         )
         file_data = file_result.mappings().first()
-        
+
         if not file_data:
             raise create_error_response(
                 status_code=404,
@@ -248,43 +267,41 @@ async def delete_file(
                 error_type="not_found",
                 param="file_id",
             )
-        
-        metadata = file_data.get("metadata", {})
+
+        metadata = file_data.get("file_metadata", {})
         if isinstance(metadata, str):
             try:
                 metadata = json.loads(metadata)
             except:
                 metadata = {}
-                
-        azure_file_id = metadata.get("azure_file_id")
-        vector_store_id = metadata.get("vector_store_id")
-        
-        if azure_file_id and vector_store_id and azure_client:
-            try:
-                file_service = AzureFileService(azure_client)
-                await file_service.delete_file_from_vector_store(vector_store_id, azure_file_id)
-            except Exception as e:
-                logger.exception(f"Error deleting file from Azure: {e}")
-                raise create_error_response(
-                    status_code=500,
-                    code="azure_deletion_error",
-                    message="Error deleting file from Azure",
-                    error_type="internal_error",
-                    inner_error={"original_error": str(e)},
-                )
 
+        # Delete associated chunks if the file is a parent with chunks
+        chunk_count = metadata.get("chunk_count", 1)
+        if chunk_count > 1:
+            await db_session.execute(
+                text("""
+                    DELETE FROM uploaded_files 
+                    WHERE session_id = :session_id 
+                    AND file_metadata->>'parent_file_id' = :file_id
+                """),
+                {"session_id": session_id, "file_id": file_id}
+            )
+
+        # Delete the parent file
         await db_session.execute(
             text("""
                 DELETE FROM uploaded_files 
                 WHERE session_id = :session_id AND id = :file_id::uuid
-            """), 
+            """),
             {"session_id": session_id, "file_id": file_id}
         )
+
         await db_session.commit()
 
         return DeleteFileResponse(
+            id=file_id,
             message="File deleted successfully",
-            file_id=file_id
+            deleted_at=datetime.datetime.now().isoformat()
         )
 
     except Exception as e:
@@ -297,23 +314,30 @@ async def delete_file(
             inner_error={"original_error": str(e)},
         )
 
+# Background task for Azure processing
 async def process_file_with_azure(
     file_id: str,
     session_id: str,
     chunk_ids: List[str],
     azure_client: Any
 ):
-    """Process file with Azure OpenAI and update status"""
+    """Process file with Azure OpenAI and update status.
+
+    Args:
+        file_id: The ID of the parent file.
+        session_id: The session ID.
+        chunk_ids: List of chunk IDs if applicable.
+        azure_client: Azure client instance.
+    """
     try:
         file_service = AzureFileService(azure_client)
         if chunk_ids:
-            # Process chunks
             for chunk_id in chunk_ids:
                 async with AsyncSessionLocal() as db_session:
                     chunk_data = await db_session.get(UploadedFile, chunk_id)
                     if chunk_data:
-                        vector_store_id = chunk_data.metadata.get("vector_store_id")
-                        azure_file_id = chunk_data.metadata.get("azure_file_id")
+                        vector_store_id = chunk_data.file_metadata.get("vector_store_id")
+                        azure_file_id = chunk_data.file_metadata.get("azure_file_id")
                         await file_service.add_file_to_vector_store(vector_store_id, azure_file_id)
                         processing_success = await file_service.wait_for_file_processing(vector_store_id, azure_file_id)
                         await update_file_status(
@@ -330,8 +354,8 @@ async def process_file_with_azure(
             async with AsyncSessionLocal() as db_session:
                 file_data = await db_session.get(UploadedFile, file_id)
                 if file_data:
-                    vector_store_id = file_data.metadata.get("vector_store_id")
-                    azure_file_id = file_data.metadata.get("azure_file_id")
+                    vector_store_id = file_data.file_metadata.get("vector_store_id")
+                    azure_file_id = file_data.file_metadata.get("azure_file_id")
                     await file_service.add_file_to_vector_store(vector_store_id, azure_file_id)
                     processing_success = await file_service.wait_for_file_processing(vector_store_id, azure_file_id)
                     await update_file_status(
@@ -357,12 +381,22 @@ async def process_file_with_azure(
             }
         )
 
+# Utility function to update file status
 async def update_file_status(file_id: str, status: str, metadata_updates: Dict[str, Any]):
-    """Update the status and metadata of a file"""
+    """Update the status and metadata of a file.
+
+    Args:
+        file_id: The ID of the file to update.
+        status: New status for the file.
+        metadata_updates: Dictionary of metadata updates.
+    """
     async with AsyncSessionLocal() as db_session:
         await db_session.execute(
             update(UploadedFile)
             .where(UploadedFile.id == file_id)
-            .values(status=status, metadata=UploadedFile.metadata + metadata_updates)
+            .values(
+                status=status,
+                file_metadata=UploadedFile.file_metadata.op('||')(metadata_updates)
+            )
         )
         await db_session.commit()

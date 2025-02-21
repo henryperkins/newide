@@ -1,4 +1,4 @@
-// fileManager.js - Enhanced file handling 
+// fileManager.js - Enhanced file handling
 
 // Import dependencies
 import { getSessionId } from '/static/js/session.js';
@@ -25,20 +25,43 @@ export function initializeFileManager() {
     }
 }
 
-export async function loadFilesList() {
+export async function loadFilesList(retryCount = 0) {
     try {
         const sessionId = getSessionId();
         if (!sessionId) {
             console.warn('No session ID available');
+            showNotification('Session expired - please refresh the page', 'error');
+            // Consider a more graceful redirection or modal instead of an immediate reload.
+            window.location.reload();
             return;
         }
         
-        const response = await fetch(`/api/files/${sessionId}`);
+        // Add timeout and retry logic
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        const response = await fetch(`/api/files/${sessionId}`, {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            // Try to get error details from response
+            let errorDetails = '';
+            try {
+                const errorResponse = await response.json();
+                errorDetails = errorResponse.detail || errorResponse.message || '';
+            } catch (e) {}
+            
+            throw new Error(`HTTP ${response.status} - Failed to load files. ${errorDetails}`);
         }
         
         const filesData = await response.json();
+        
+        // Validate response structure
+        if (!filesData?.files || !Array.isArray(filesData.files)) {
+            throw new Error('Invalid files data format from server');
+        }
         updateFileList(filesData.files);
         updateFileStats(filesData.total_count, filesData.total_size);
         
@@ -50,8 +73,40 @@ export async function loadFilesList() {
         
         return filesData;
     } catch (error) {
-        console.error('Error loading files:', error);
-        showNotification('Failed to load files list', 'error');
+        console.error('File load error:', {
+            error: error.message,
+            stack: error.stack,
+            retryCount
+        });
+        
+        // Handle specific error cases
+        let errorMessage = 'Failed to load files';
+        let isRecoverable = true;
+        
+        if (error.message.includes('401')) {
+            errorMessage = 'Session expired - redirecting...';
+            isRecoverable = false;
+            setTimeout(() => window.location.reload(), 2000);
+        } else if (error.message.includes('500')) {
+            errorMessage = 'Server error - try again later';
+        } else if (error.name === 'AbortError') {
+            errorMessage = 'Request timed out - check your connection';
+        }
+        
+        showNotification(`${errorMessage} (${error.message})`, 'error', 
+            isRecoverable ? [{
+                label: 'Retry',
+                action: () => loadFilesList(Math.min(retryCount + 1, 3))
+            }] : null
+        );
+
+        // Exponential backoff retry for network errors
+        if (isRecoverable && retryCount < 3) {
+            const delay = Math.pow(2, retryCount) * 1000;
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return loadFilesList(retryCount + 1);
+        }
+        
         return { files: [], total_count: 0, total_size: 0 };
     }
 }
@@ -90,7 +145,7 @@ export function setupDragAndDrop() {
     });
 }
 
-function setupFileSelector() {
+const setupFileSelector = () => {
     const fileList = document.getElementById('file-list');
     if (fileList) {
         fileList.addEventListener('click', (e) => {
@@ -110,9 +165,9 @@ function setupFileSelector() {
     if (selectAllBtn) {
         selectAllBtn.addEventListener('click', toggleSelectAllFiles);
     }
-}
+};
 
-function toggleFileSelection(fileId, fileElement) {
+const toggleFileSelection = (fileId, fileElement) => {
     if (selectedFiles.has(fileId)) {
         selectedFiles.delete(fileId);
         fileElement.classList.remove('selected');
@@ -123,9 +178,9 @@ function toggleFileSelection(fileId, fileElement) {
     
     // Update UI to show selected files count
     updateSelectionStatus();
-}
+};
 
-function toggleSelectAllFiles() {
+const toggleSelectAllFiles = () => {
     const fileElements = document.querySelectorAll('.file-item');
     
     // If all are selected, deselect all, otherwise select all
@@ -144,16 +199,16 @@ function toggleSelectAllFiles() {
     }
     
     updateSelectionStatus();
-}
+};
 
-function updateSelectionStatus() {
+const updateSelectionStatus = () => {
     const statusElement = document.getElementById('file-selection-status');
     if (statusElement) {
         statusElement.textContent = selectedFiles.size > 0 
             ? `${selectedFiles.size} file(s) selected` 
             : 'No files selected';
     }
-}
+};
 
 async function handleFiles(fileList) {
     const files = Array.from(fileList);
@@ -208,13 +263,17 @@ async function handleFiles(fileList) {
         }
     });
     
-    // Upload files with progress
-    for (const file of validFiles) {
-        const progress = progressElements[file.name];
-        await uploadFileWithProgress(file, sessionId, progress);
-    }
+    // Upload files in parallel; errors for individual uploads are caught
+    const uploadPromises = validFiles.map(file => 
+        uploadFileWithProgress(file, sessionId, progressElements[file.name])
+            .catch(error => {
+                // Error already notified in uploadFileWithProgress; return error info if needed.
+                return { error, fileName: file.name };
+            })
+    );
+    await Promise.all(uploadPromises);
     
-    // Reload file list
+    // Refresh file list once after all uploads complete
     await loadFilesList();
 }
 
@@ -258,10 +317,8 @@ async function uploadFileWithProgress(file, sessionId, progressUI) {
         formData.append('session_id', sessionId);
         formData.append('process_with_azure', useFileSearch);
         
-        // Setup progress tracking
+        // Setup progress tracking with XMLHttpRequest
         const xhr = new XMLHttpRequest();
-        
-        // Track upload progress
         xhr.upload.onprogress = (event) => {
             if (event.lengthComputable && progressUI) {
                 const percent = Math.round((event.loaded / event.total) * 100);
@@ -310,20 +367,16 @@ async function uploadFileWithProgress(file, sessionId, progressUI) {
         // Wait for upload to complete
         const result = await uploadPromise;
         
-        // Update progress UI with result
+        // Update progress UI with result details
         if (progressUI) {
-            // Update status based on chunks
             if (result.chunks > 1) {
                 progressUI.statusText.textContent = `Processed into ${result.chunks} chunks`;
             } else {
                 progressUI.statusText.textContent = 'Completed';
             }
             
-            // Show azure processing status if applicable
             if (result.azure_processing) {
                 progressUI.container.classList.add('azure-processing');
-                
-                // Add Azure processing indicator
                 const azureIndicator = document.createElement('div');
                 azureIndicator.className = 'azure-indicator';
                 azureIndicator.innerHTML = '<span class="azure-icon">🔍</span> Azure processing';
@@ -342,6 +395,7 @@ async function uploadFileWithProgress(file, sessionId, progressUI) {
             progressUI.statusText.textContent = 'Failed: ' + error.message;
         }
         
+        // Rethrow so that individual upload errors can be caught in the parallel batch
         throw error;
     }
 }
@@ -361,32 +415,25 @@ function updateFileList(files) {
         return;
     }
     
-    // Group files by parent/chunks
+    // Group files by parent/chunks with safe metadata checks
     const fileGroups = {};
     const standaloneFiles = [];
     
     files.forEach(file => {
-        if (file.metadata && file.metadata.parent_file_id) {
-            // This is a chunk
-            const parentId = file.metadata.parent_file_id;
+        const metadata = file.metadata && typeof file.metadata === 'object' ? file.metadata : {};
+        if (metadata.parent_file_id) {
+            const parentId = metadata.parent_file_id;
             if (!fileGroups[parentId]) {
-                fileGroups[parentId] = {
-                    chunks: []
-                };
+                fileGroups[parentId] = { chunks: [] };
             }
             fileGroups[parentId].chunks.push(file);
         } else if (file.chunk_count > 1) {
-            // This is a parent file with chunks
             if (!fileGroups[file.id]) {
-                fileGroups[file.id] = {
-                    parent: file,
-                    chunks: []
-                };
+                fileGroups[file.id] = { parent: file, chunks: [] };
             } else {
                 fileGroups[file.id].parent = file;
             }
         } else {
-            // Regular file without chunks
             standaloneFiles.push(file);
         }
     });
@@ -405,16 +452,17 @@ function updateFileList(files) {
         fileList.appendChild(fileElement);
     });
     
-    // Update selection after rebuilding list
+    // Update selection highlights
     updateSelectionHighlights();
 }
 
 function updateSelectionHighlights() {
-    // Highlight selected files
     document.querySelectorAll('.file-item').forEach(el => {
         const fileId = el.dataset.fileId;
         if (fileId && selectedFiles.has(fileId)) {
             el.classList.add('selected');
+        } else {
+            el.classList.remove('selected');
         }
     });
 }
@@ -446,9 +494,11 @@ function createFileGroupElement(parentFile, chunks) {
     const chunksContainer = document.createElement('div');
     chunksContainer.className = 'file-chunks hidden';
     
-    // Add each chunk
+    // Sort and add each chunk
     chunks.sort((a, b) => {
-        return (a.metadata?.chunk_index || 0) - (b.metadata?.chunk_index || 0);
+        const aIndex = a.metadata && a.metadata.chunk_index !== undefined ? a.metadata.chunk_index : 0;
+        const bIndex = b.metadata && b.metadata.chunk_index !== undefined ? b.metadata.chunk_index : 0;
+        return aIndex - bIndex;
     }).forEach(chunk => {
         const chunkElement = createFileElement(chunk, false, true);
         chunksContainer.appendChild(chunkElement);
@@ -463,12 +513,12 @@ function createFileElement(file, isParent = false, isChunk = false) {
     div.className = `file-item ${isParent ? 'parent-file' : ''} ${isChunk ? 'chunk-file' : ''}`;
     div.dataset.fileId = file.id;
     
-    // Add selected class if in selection
+    // Add selected class if already selected
     if (selectedFiles.has(file.id)) {
         div.classList.add('selected');
     }
     
-    // Create file type icon based on extension
+    // File type icon based on extension
     const fileIcon = document.createElement('span');
     fileIcon.className = 'file-icon';
     const fileType = file.filename.split('.').pop().toLowerCase();
@@ -481,21 +531,18 @@ function createFileElement(file, isParent = false, isChunk = false) {
         case 'md': iconText = '📋'; break;
         case 'js': case 'py': case 'html': case 'css': iconText = '💻'; break;
     }
-    
     fileIcon.textContent = iconText;
     
-    // File name with chunk indicator if needed
+    // File name with chunk indicator if applicable
     const nameSpan = document.createElement('span');
     nameSpan.className = 'file-name';
     let displayName = file.filename;
-    
-    if (isChunk && file.metadata?.chunk_index !== undefined) {
+    if (isChunk && file.metadata && file.metadata.chunk_index !== undefined) {
         displayName = `Chunk ${file.metadata.chunk_index + 1}`;
     }
-    
     nameSpan.textContent = displayName;
     
-    // File size and token count
+    // File size and token count information
     const infoSpan = document.createElement('span');
     infoSpan.className = 'file-info';
     
@@ -505,7 +552,7 @@ function createFileElement(file, isParent = false, isChunk = false) {
     
     const tokenSpan = document.createElement('span');
     tokenSpan.className = 'file-tokens';
-    tokenSpan.textContent = `~${file.token_count.toLocaleString()} tokens`;
+    tokenSpan.textContent = `~${file.token_count?.toLocaleString() || '0'} tokens`;
     
     infoSpan.appendChild(sizeSpan);
     infoSpan.appendChild(tokenSpan);
@@ -519,7 +566,7 @@ function createFileElement(file, isParent = false, isChunk = false) {
     }
     
     // Azure processing badge if applicable
-    if (file.metadata?.azure_processing) {
+    if (file.metadata && file.metadata.azure_processing) {
         const azureBadge = document.createElement('span');
         azureBadge.className = 'azure-badge';
         
@@ -578,7 +625,7 @@ async function deleteFile(fileId, filename) {
         // Remove from selected files
         selectedFiles.delete(fileId);
         
-        // Reload file list
+        // Reload file list after deletion
         await loadFilesList();
     } catch (error) {
         console.error('Error deleting file:', error);

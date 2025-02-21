@@ -22,7 +22,7 @@ import { getFilesForChat } from '/static/js/fileManager.js';
 export async function sendMessage() {
     const userInput = document.getElementById('user-input');
     const message = userInput.value.trim();
-    const modelSettings = getModelSettings();
+    let modelSettings = getModelSettings();
     
     if (!message) return;
 
@@ -49,13 +49,6 @@ export async function sendMessage() {
         displayMessage(message, 'user');
         userInput.value = '';
 
-        // Get current configuration
-        const { reasoningEffort, developerConfig } = getCurrentConfig();
-        const timeoutDurations = getTimeoutDurations();
-        const modelSettings = getModelSettings();
-
-        // Show timing expectations
-        handleReasoningEffortNotifications(reasoningEffort);
 
         // Prepare request components
         const { controller, timeoutId } = createAbortController(timeoutDurations[reasoningEffort]);
@@ -396,6 +389,9 @@ function displayFileCitations(citations) {
         
         const citationContent = document.createElement('div');
         citationContent.className = 'citation-content';
+        citationContent.textContent = citation.text;
+        
+        citationElement.appendChild(citationHeader);
         citationContent.textContent = citation.text;
         
         citationElement.appendChild(citationHeader);

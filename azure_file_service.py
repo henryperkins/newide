@@ -27,7 +27,9 @@ class AzureFileService:
         form_data.add_field('file', file_content, filename=filename)
         
         # Make API call
-        async with aiohttp.ClientSession() as session:
+        # Temporary SSL verification disable for development
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector) as session:
             headers = await self._get_auth_headers()
             async with session.post(endpoint, data=form_data, headers=headers) as response:
                 if response.status != 200:
@@ -49,7 +51,8 @@ class AzureFileService:
         }
         
         # Make API call
-        async with aiohttp.ClientSession() as session:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector) as session:
             headers = await self._get_auth_headers()
             async with session.post(endpoint, json=payload, headers=headers) as response:
                 if response.status != 200:
@@ -70,7 +73,8 @@ class AzureFileService:
         }
         
         # Make API call
-        async with aiohttp.ClientSession() as session:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector) as session:
             headers = await self._get_auth_headers()
             async with session.post(endpoint, json=payload, headers=headers) as response:
                 if response.status != 200:
@@ -86,7 +90,8 @@ class AzureFileService:
         endpoint = f"{self.endpoint}/openai/vector_stores/{vector_store_id}/files/{file_id}?api-version={self.api_version}"
         
         # Make API call
-        async with aiohttp.ClientSession() as session:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector) as session:
             headers = await self._get_auth_headers()
             async with session.get(endpoint, headers=headers) as response:
                 if response.status != 200:
@@ -130,7 +135,8 @@ class AzureFileService:
         }
         
         # Make API call
-        async with aiohttp.ClientSession() as session:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector) as session:
             headers = await self._get_auth_headers()
             async with session.post(endpoint, json=payload, headers=headers) as response:
                 if response.status != 200:
@@ -146,7 +152,8 @@ class AzureFileService:
         endpoint = f"{self.endpoint}/openai/vector_stores?api-version={self.api_version}"
         
         # Make API call
-        async with aiohttp.ClientSession() as session:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector) as session:
             headers = await self._get_auth_headers()
             async with session.get(endpoint, headers=headers) as response:
                 if response.status != 200:

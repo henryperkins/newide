@@ -5,13 +5,27 @@ export class NotificationManager {
         document.body.appendChild(this.container);
     }
 
-    show(message, type = 'info', duration = 3000) {
+    show(message, type = 'info', duration = 3000, actions = null) {
         try {
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
-            notification.textContent = message;
+            notification.innerHTML = `
+                <div class="notification-message">${message}</div>
+                ${actions ? `<div class="notification-actions">
+                    ${actions.map(a => `<button class="notification-action">${a.label}</button>`).join('')}
+                </div>` : ''}
+            `;
             notification.setAttribute('role', 'alert');
             notification.setAttribute('aria-live', 'polite');
+
+            if (actions) {
+                notification.querySelectorAll('.notification-action').forEach((button, index) => {
+                    button.addEventListener('click', () => {
+                        notification.remove();
+                        actions[index].action();
+                    });
+                });
+            }
             
             this.container.appendChild(notification);
             setTimeout(() => {
