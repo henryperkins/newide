@@ -15,13 +15,13 @@ class Settings(BaseSettings):
         description="Azure OpenAI API version"
     )
     
-    # Version matrix for model families
-    MODEL_API_VERSIONS: ClassVar[Dict[str, str]] = {
-        "o1": "2024-12-01-preview",
-        "o3-mini": "2025-01-01-preview", 
-        "o1-preview": "2024-09-01-preview",
-        "default": "2024-12-01-preview"
-    }
+# Version matrix for model families (module-level constant)
+MODEL_API_VERSIONS = {
+    "o1": "2024-12-01-preview",
+    "o3-mini": "2025-01-01-preview", 
+    "o1-preview": "2024-09-01-preview",
+    "default": "2024-12-01-preview"
+}
 
     @validator("AZURE_OPENAI_API_VERSION")
     def validate_api_version(cls, v, values):
@@ -33,7 +33,7 @@ class Settings(BaseSettings):
             "default"
         )
         
-        expected_version = cls.MODEL_API_VERSIONS.get(model_family, cls.MODEL_API_VERSIONS["default"])
+        expected_version = MODEL_API_VERSIONS.get(model_family, MODEL_API_VERSIONS["default"])
         
         if v != expected_version:
             print(f"Model/version mismatch! {deployment} requires {expected_version}, using {v}")

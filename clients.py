@@ -33,14 +33,14 @@ async def init_client_pool():
                 )
             else:  # Use API key
                 # Determine API version based on model
-                api_version = config.Settings.MODEL_API_VERSIONS["default"]
+                api_version = config.MODEL_API_VERSIONS["default"]
                 if model_name := os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"):
                     model_family = next(
                         (key for key in ["o3-mini", "o1", "o1-preview"] 
                          if model_name.lower().startswith(key)),
                         None
                     )
-                    api_version = config.Settings.MODEL_API_VERSIONS.get(model_family, api_version)
+                    api_version = config.MODEL_API_VERSIONS.get(model_family, api_version)
 
                 client = AsyncAzureOpenAI(
                     api_key=config.AZURE_OPENAI_API_KEY,
