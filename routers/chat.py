@@ -1,6 +1,6 @@
 # routers/chat.py
 import json
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from openai import AsyncAzureOpenAI
 from database import get_db_session
