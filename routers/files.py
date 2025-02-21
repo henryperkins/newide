@@ -52,7 +52,7 @@ async def upload_file(
             raise create_error_response(
                 status_code=413,
                 code="file_too_large", 
-                message=f"File exceeds size limit ({config.settings.MAX_FILE_SIZE_HUMAN})",
+                message=f"File exceeds Azure size limit ({config.settings.MAX_FILE_SIZE_HUMAN})",
                 param="file",
                 error_type="validation_error"
             )
