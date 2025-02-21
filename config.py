@@ -23,7 +23,55 @@ class Settings(BaseSettings):
         default="2024-12-01-preview",
         description="Azure OpenAI API version"
     )
+
+    # Timeouts and retries
+    O_SERIES_BASE_TIMEOUT: float = Field(
+        default=120.0,
+        description="Base timeout in seconds for o-series model requests"
+    )
+    O_SERIES_MAX_TIMEOUT: float = Field(
+        default=300.0,
+        description="Maximum timeout in seconds for o-series model requests"
+    )
+    O_SERIES_TOKEN_FACTOR: float = Field(
+        default=0.05,
+        description="Timeout multiplier per token for o-series models"
+    )
+    O_SERIES_MAX_RETRIES: int = Field(
+        default=3,
+        description="Maximum retry attempts for o-series models"
+    )
+    O_SERIES_BACKOFF_MULTIPLIER: float = Field(
+        default=1.5,
+        description="Exponential backoff multiplier for retries"
+    )
     
+    # Standard model settings
+    STANDARD_BASE_TIMEOUT: float = Field(
+        default=15.0,
+        description="Base timeout in seconds for standard model requests"
+    )
+    STANDARD_MAX_TIMEOUT: float = Field(
+        default=60.0,
+        description="Maximum timeout in seconds for standard models"
+    )
+    STANDARD_TOKEN_FACTOR: float = Field(
+        default=0.02,
+        description="Timeout multiplier per token for standard models"
+    )
+
+    # Session configuration
+    SESSION_TIMEOUT_MINUTES: int = Field(
+        default=30,
+        description="Session expiration time in minutes"
+    )
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+
 # Version matrix for model families (module-level constant)
 from typing import Any
 MODEL_API_VERSIONS = {
