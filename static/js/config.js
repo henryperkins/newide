@@ -8,20 +8,35 @@ export function initializeConfig() {
     return { initialized: true }; // Add return value
 }
 
+/**
+ * Get current application configuration with validation
+ * @returns {Object} Validated configuration object
+ */
 export function getCurrentConfig() {
-    return {
+    const config = {
         reasoningEffort: "medium",
         developerConfig: "",
         // Additional configuration properties can be added here.
     };
+    
+    // Validate reasoning effort
+    if (!['low', 'medium', 'high'].includes(config.reasoningEffort)) {
+        console.warn('Invalid reasoning effort, defaulting to medium');
+        config.reasoningEffort = 'medium';
+    }
+    
+    return config;
 }
 
-// Returns timeout durations (in milliseconds) based on reasoning effort.
+/**
+ * Get timeout durations for different reasoning levels
+ * @returns {Object} Timeouts in milliseconds for low/medium/high effort
+ */
 export function getTimeoutDurations() {
     return {
-        low: 15000,
-        medium: 30000,
-        high: 60000
+        low: 15000,    // 15 seconds
+        medium: 30000, // 30 seconds
+        high: 60000    // 60 seconds
     };
 }
 

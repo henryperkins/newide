@@ -52,9 +52,18 @@ export async function sendMessage() {
 
 
         // Prepare request components
-        const { controller, timeoutId } = createAbortController(
-            getTimeoutDurations()[getCurrentConfig().reasoningEffort]
-        );
+        // Get configuration with safe defaults
+        const config = getCurrentConfig();
+        const effortLevel = config?.reasoningEffort || 'medium';
+        const timeout = getTimeoutDurations()[effortLevel] || 30000; // 30s default
+
+        console.log('[Config] Current settings:', {
+            effort: effortLevel,
+            timeout: timeout,
+            model: getModelSettings()
+        });
+
+        const { controller, timeoutId } = createAbortController(timeout);
         const messageContent = processMessageContent(message, modelSettings.supportsVision);
         const vectorStores = await fetchVectorStores();
 
