@@ -469,13 +469,6 @@ function handleMessageError(error) {
     displayMessage(`Error: ${errorMessage}`, 'error');
     showNotification(errorMessage, 'error');
 }
-import { getSessionId } from '/static/js/session.js';
-import { getCurrentConfig } from '/static/js/config.js';
-import { showNotification, showTypingIndicator, removeTypingIndicator } from '/static/js/ui/notificationManager.js';
-import { displayMessage } from '/static/js/ui/displayManager.js';
-import { getFilesForChat } from '/static/js/fileManager.js';
-
-export async function sendMessage() {
     const userInput = document.getElementById('user-input');
     const message = userInput.value.trim();
     const config = getCurrentConfig();
