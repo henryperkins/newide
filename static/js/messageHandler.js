@@ -183,28 +183,58 @@ async function handleStandardResponse(response) {
     processResponseData(data);
 }
 
-async function handleStreamingResponse(response, controller) {
-    clearTimeout(controller.timeoutId);
+async function handleTrueStreaming() {
+    const eventSource = new EventSource(`/api/chat/stream?session_id=${sessionId}`);
+    let messageContainer = null;
     
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let accumulated = '';
-    let messageDiv = null;
-
-    try {
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+    eventSource.onmessage = (event) => {
+        try {
+            const response = JSON.parse(event.data);
             
-            accumulated += decoder.decode(value);
-            messageDiv = updateStreamingUI(accumulated, messageDiv);
+            if (response.error) {
+                displayMessage(`Error: ${response.error}`, 'error');
+                eventSource.close();
+                return;
+            }
+            
+            if (!messageContainer) {
+                messageContainer = createMessageContainer();
+                injectStreamingStyles();
+            }
+            
+            updateStreamingUI(response, messageContainer);
+            
+            if (response.choices[0].finish_reason === 'stop') {
+                finalizeStreaming(messageContainer);
+                eventSource.close();
+            }
+            
+        } catch (error) {
+            console.error('Stream error:', error);
+            eventSource.close();
         }
+    };
 
-        finalizeStreamingResponse(accumulated, messageDiv);
-    } catch (error) {
-        if (messageDiv) messageDiv.remove();
-        throw error;
-    }
+    eventSource.onerror = (error) => {
+        console.error('EventSource failed:', error);
+        eventSource.close();
+        removeTypingIndicator();
+    };
+}
+
+// Helper functions
+function createMessageContainer() {
+    const container = document.createElement('div');
+    container.className = 'message assistant-message streaming';
+    document.getElementById('chat-history').appendChild(container);
+    return container;
+}
+
+function updateStreamingUI(response, container) {
+    const content = response.choices[0].delta.content || '';
+    container.innerHTML += sanitizeInput(content);
+    highlightCodeBlocks(container);
+    container.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
 function updateStreamingUI(content, container) {

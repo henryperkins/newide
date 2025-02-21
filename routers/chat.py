@@ -10,6 +10,30 @@ from errors import create_error_response
 from logging_config import logger
 import config
 router = APIRouter(prefix="/chat")
+from fastapi.responses import StreamingResponse
+
+@router.post("/stream")
+async def stream_chat_response(
+    message: ChatMessage,
+    client: AsyncAzureOpenAI = Depends(get_azure_client)
+):
+    async def generate():
+        try:
+            response = await client.chat.completions.create(
+                model=config.AZURE_OPENAI_DEPLOYMENT_NAME,
+                messages=[{"role": "user", "content": message.message}],
+                stream=True,
+                max_completion_tokens=message.max_completion_tokens
+            )
+            
+            async for chunk in response:
+                yield f"data: {chunk.model_dump_json()}\n\n"
+                
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
 @router.get("/model/capabilities")
 async def get_model_capabilities():
     from services.chat_service import get_model_config
