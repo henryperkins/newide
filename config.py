@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     AZURE_OPENAI_API_KEY: str = Field(..., description="Azure OpenAI API key")
     AZURE_OPENAI_DEPLOYMENT_NAME: str = Field(..., description="Azure OpenAI deployment name")
     AZURE_OPENAI_API_VERSION: str = Field(
-        default="2024-12-01-preview",
+        default="2024-05-01-preview",
         description="Azure OpenAI API version"
     )
 

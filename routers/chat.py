@@ -24,9 +24,8 @@ from models import CreateChatCompletionRequest
 import uuid
 import time
 
-@router.post("/deployments/{deployment_id}/chat/completions")
+@router.post("/chat")
 async def create_chat_completion(
-    deployment_id: str,
     request: CreateChatCompletionRequest,
     api_version: str = Query(..., alias="api-version"),
     db: AsyncSession = Depends(get_db_session),

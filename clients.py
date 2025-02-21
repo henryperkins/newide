@@ -33,7 +33,8 @@ async def init_client_pool():
                 client = AsyncAzureOpenAI(
                     azure_ad_token_provider=token_provider,
                     api_version=config.AZURE_OPENAI_API_VERSION,
-                    azure_endpoint=config.AZURE_OPENAI_ENDPOINT
+                    azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
+                    api_version="2024-05-01-preview"
                 )
             else:  # Use API key
                 # Determine API version based on model

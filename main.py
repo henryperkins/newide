@@ -27,8 +27,19 @@ app.add_middleware(
     allow_origins=["*"],  # In production, lock this down
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["Content-Type", "Authorization"]
+    allow_headers=[
+        "Content-Type",
+        "Authorization", 
+        "api-key",
+        "X-API-Version"
+    ],
+    expose_headers=[
+        "Content-Type",
+        "Authorization",
+        "X-API-Version",
+        "x-ms-error-code",
+        "x-ms-error-message"
+    ]
 )
 
 # Include API routers with non-root prefixes.
