@@ -1,6 +1,7 @@
 from pydantic import BaseModel, validator, Field
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from enum import Enum
+from datetime import datetime
 class ClearConversationResponse(BaseModel):
     message: str
     cleared_at: str
