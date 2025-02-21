@@ -186,9 +186,10 @@ async def build_api_params_with_search(
     # Base parameters
     model_params = MODEL_CONFIG.get(model_name.lower(), MODEL_CONFIG["deepseek-r1"])
     params = {
-        "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
+        "azure_deployment": config.AZURE_OPENAI_DEPLOYMENT_NAME,
         "messages": formatted_messages,
         "stream": validate_streaming(model_name),
+        "api_version": "2024-05-01-preview",
         **model_params
     }
     
@@ -341,11 +342,17 @@ async def process_chat_message(
                         "endpoint": azure_search_endpoint,
                         "index_name": azure_search_index,
                         "authentication": {
-                            "type": "system_assigned_managed_identity"
+                            "type": "api_key",
+                            "key": azure_search_key
                         },
                         "query_type": "vector_semantic_hybrid",
-                        "fields_mapping": config.AZURE_SEARCH_FIELDS,
+                        "fields_mapping": {
+                            "content_fields": ["content"],
+                            "title_field": "filename",
+                            "url_field": "filepath"
+                        },
                         "strictness": 3,
+                        "top_n_documents": 5,
                         "filter": quote(file_filter) if file_filter else None
                     }
                 }]
