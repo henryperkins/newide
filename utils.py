@@ -1,7 +1,7 @@
 # utils.py
 import tiktoken
 import os
-from typing import Optional
+from typing import Optional, List, Dict
 import config
 from logging_config import logger
 
