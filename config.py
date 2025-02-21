@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     AZURE_OPENAI_API_VERSION: str = os.getenv("DEFAULT_API_VERSION", "2024-12-01-preview")
     
     # Version matrix for model families
-    MODEL_API_VERSIONS = {
+    MODEL_API_VERSIONS: dict = {
         "o1": "2024-12-01-preview",
         "o3-mini": "2025-01-01-preview",
         "o1-preview": "2024-09-01-preview",
