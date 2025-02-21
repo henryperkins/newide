@@ -20,12 +20,23 @@ class ChatRequest(BaseModel):
     reasoning_effort: str = "medium"
     include_files: bool = False
 
-@router.post("/")
-async def chat_endpoint(
-    chat_message: ChatMessage,
+from models import CreateChatCompletionRequest
+
+@router.post("/deployments/{deployment_id}/chat/completions")
+async def create_chat_completion(
+    deployment_id: str,
+    request: CreateChatCompletionRequest,
     db: AsyncSession = Depends(get_db_session),
     client: AsyncAzureOpenAI = Depends(get_azure_client)
 ):
+    # Validate deployment ID matches configuration
+    if deployment_id != config.AZURE_OPENAI_DEPLOYMENT_NAME:
+        raise create_error_response(
+            status_code=400,
+            code="invalid_deployment",
+            message="Invalid deployment ID",
+            error_type="invalid_request_error"
+        )
     return await process_chat_message(chat_message, db, client)
 
 @router.post("/stream")
@@ -76,7 +87,24 @@ async def generate(message, client):
             response = await client.chat.completions.create(**params)
             
             async for chunk in response:
-                yield f"data: {chunk.model_dump_json()}\n\n"
+                response_data = {
+                    "id": f"chatcmpl-{uuid.uuid4()}",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
+                    "system_fingerprint": getattr(response, 'system_fingerprint', ''),
+                    "choices": [{
+                        "index": idx,
+                        "delta": {
+                            "content": choice.delta.content,
+                            "role": choice.delta.role,
+                            "tool_calls": choice.delta.tool_calls
+                        },
+                        "finish_reason": choice.finish_reason,
+                        **({"content_filter_results": choice.content_filter_results} if hasattr(choice, 'content_filter_results') else {})
+                    } for idx, choice in enumerate(chunk.choices)]
+                }
+                yield f"data: {json.dumps(response_data)}\n\n"
                 
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"

@@ -28,7 +28,8 @@ def create_error_response(
     message: str,
     param: Optional[str] = None,
     error_type: Optional[str] = None,
-    content_filter_results: Optional[Dict[str, Dict]] = None
+    content_filter_results: Optional[Dict[str, Dict]] = None,
+    inner_error: Optional[Dict[str, Any]] = None
 ) -> HTTPException:
     # Convert content filter results to proper format
     inner_error = None
@@ -46,8 +47,12 @@ def create_error_response(
         code=code,
         message=message,
         param=param,
-        type=error_type or "server_error",
-        inner_error=inner_error
+        type=error_type or "invalid_request_error",
+        inner_error=InnerError(
+            code=code,
+            content_filter_results=content_filter_results,
+            **(inner_error or {})
+        ) if content_filter_results or inner_error else None
     )
     
     return HTTPException(
