@@ -118,16 +118,16 @@ AZURE_OPENAI_DEPLOYMENT_NAME = settings.AZURE_OPENAI_DEPLOYMENT_NAME
 AZURE_OPENAI_API_VERSION = settings.AZURE_OPENAI_API_VERSION
 
 # Timeouts and retries
-O_SERIES_BASE_TIMEOUT = settings.o_series_base_timeout
-O_SERIES_MAX_TIMEOUT = settings.o_series_max_timeout
-O_SERIES_TOKEN_FACTOR = settings.o_series_token_factor
-O_SERIES_MAX_RETRIES = settings.o_series_max_retries
-O_SERIES_BACKOFF_MULTIPLIER = settings.o_series_backoff_multiplier
+O_SERIES_BASE_TIMEOUT = settings.O_SERIES_BASE_TIMEOUT
+O_SERIES_MAX_TIMEOUT = settings.O_SERIES_MAX_TIMEOUT
+O_SERIES_TOKEN_FACTOR = settings.O_SERIES_TOKEN_FACTOR
+O_SERIES_MAX_RETRIES = settings.O_SERIES_MAX_RETRIES
+O_SERIES_BACKOFF_MULTIPLIER = settings.O_SERIES_BACKOFF_MULTIPLIER
 
 # Standard model settings
-STANDARD_BASE_TIMEOUT = settings.standard_base_timeout
-STANDARD_MAX_TIMEOUT = settings.standard_max_timeout
-STANDARD_TOKEN_FACTOR = settings.standard_token_factor
+STANDARD_BASE_TIMEOUT = settings.STANDARD_BASE_TIMEOUT
+STANDARD_MAX_TIMEOUT = settings.STANDARD_MAX_TIMEOUT
+STANDARD_TOKEN_FACTOR = settings.STANDARD_TOKEN_FACTOR
 
 # Reasoning effort multipliers
 REASONING_EFFORT_MULTIPLIERS = {
