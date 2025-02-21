@@ -36,6 +36,17 @@ class ReasoningEffort(str, Enum):
     medium = "medium"
     high = "high"
 
+class CreateChatCompletionRequest(BaseModel):
+    model: str
+    messages: List[Dict[str, str]]
+    temperature: Optional[float] = 1.0
+    max_tokens: Optional[int] = None
+    top_p: Optional[float] = 1.0
+    frequency_penalty: Optional[float] = 0.0
+    presence_penalty: Optional[float] = 0.0
+    stop: Optional[List[str]] = None
+    stream: Optional[bool] = False
+
 class ChatMessage(BaseModel):
     message: str
     session_id: str
