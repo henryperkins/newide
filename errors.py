@@ -23,9 +23,9 @@ class ErrorResponse(BaseModel):
     error: ErrorDetails
 
 def create_error_response(
-    status_code: int,
-    code: str,
-    message: str,
+    status_code: int,  
+    code: str,  # Required parameter
+    message: str,  # Required parameter
     param: Optional[str] = None,
     error_type: Optional[str] = None,
     inner_error: Optional[dict] = None,

@@ -6,6 +6,11 @@ import os
 from pydantic import validator
 
 class Settings(BaseSettings):
+    # File size limits
+    MAX_FILE_SIZE: int = 512 * 1024 * 1024  # 512MB
+    WARNING_FILE_SIZE: int = 256 * 1024 * 1024  # 256MB
+    MAX_FILE_SIZE_HUMAN: str = "512MB"  # For error messages
+    
     # Azure OpenAI settings
     AZURE_OPENAI_ENDPOINT: str = Field(..., description="Azure OpenAI endpoint URL")
     AZURE_OPENAI_API_KEY: str = Field(..., description="Azure OpenAI API key")

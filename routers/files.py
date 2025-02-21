@@ -46,9 +46,18 @@ async def upload_file(
         # Read file contents and validate size
         contents = await file.read()
         size = len(contents)
-        if size > config.MAX_FILE_SIZE:
-            raise HTTPException(status_code=413, detail="File too large")
-        if size > config.WARNING_FILE_SIZE:
+        
+        # Use the new config settings
+        if size > config.settings.MAX_FILE_SIZE:
+            raise create_error_response(
+                status_code=413,
+                code="file_too_large", 
+                message=f"File exceeds size limit ({config.settings.MAX_FILE_SIZE_HUMAN})",
+                param="file",
+                error_type="validation_error"
+            )
+            
+        if size > config.settings.WARNING_FILE_SIZE:
             logger.warning(f"Large file uploaded: {size} bytes, filename: {file.filename}")
 
         filename = file.filename or "unnamed_file.txt"
@@ -142,9 +151,12 @@ async def upload_file(
         raise create_error_response(
             status_code=500,
             code="file_processing_error",
-            message="Error processing file",
+            message=str(e),
             error_type="internal_error",
-            inner_error={"original_error": str(e)},
+            inner_error={
+                "original_error": str(e),
+                "max_size": config.settings.MAX_FILE_SIZE_HUMAN
+            }
         )
 
 @router.get("/{session_id}", response_model=FileListResponse)
