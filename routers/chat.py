@@ -20,7 +20,7 @@ class ChatRequest(BaseModel):
     reasoning_effort: str = "medium"
     include_files: bool = False
 
-from models import CreateChatCompletionRequest
+from models import CreateChatCompletionRequest, ChatCompletionResponse
 import uuid
 import time
 
