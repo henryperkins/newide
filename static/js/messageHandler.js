@@ -23,7 +23,13 @@ import { getFilesForChat } from '/static/js/fileManager.js';
 export async function sendMessage() {
     const userInput = document.getElementById('user-input');
     const message = userInput.value.trim();
-    let modelSettings = getModelSettings();
+    let modelSettings = getModelSettings() || {};
+    
+    console.log('[MessageHandler] Initiated sendMessage:', {
+        messagePreview: message.slice(0, 50) + (message.length > 50 ? '...' : ''),
+        messageLength: message.length,
+        modelSettings
+    });
     
     if (!message) return;
 
@@ -34,7 +40,7 @@ export async function sendMessage() {
         }
 
         // Handle o1 model requirements
-        if (modelSettings.name.includes('o1')) {
+        if (modelSettings?.name?.includes?.('o1') && modelSettings.supportsVision) {
             if (modelSettings.supportsVision) {
                 displayMessage('Formatting re-enabled: Markdown processing activated', 'developer');
             }
@@ -191,7 +197,19 @@ async function handleChatRequest({
 }
 
 async function handleStandardResponse(response) {
-    if (!response.ok) throw new Error(await getErrorDetails(response));
+        console.log('[MessageHandler] Received response after', 
+            Date.now() - requestStartTime, 'ms', 
+            'Status:', response.status
+        );
+        
+        if (!response.ok) {
+            const errorDetails = await getErrorDetails(response);
+            console.error('[MessageHandler] API Error:', {
+                status: response.status,
+                details: errorDetails
+            });
+            throw new Error(errorDetails);
+        }
     
     const data = await response.json();
     processResponseData(data);

@@ -38,7 +38,29 @@ class ConfigService:
         await self.db.commit()
 
     async def get_all_configs(self) -> Dict[str, Any]:
-        result = await self.db.execute(
-            text("SELECT key, value FROM app_configurations WHERE is_secret = false")
-        )
-        return {row.key: json.loads(row.value) for row in result.fetchall()}
+        try:
+            # Check if table exists first
+            table_exists = await self.db.execute(
+                text("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_name = 'app_configurations'
+                    )
+                """)
+            )
+            if not table_exists.scalar():
+                return {}
+
+            result = await self.db.execute(
+                text("SELECT key, value FROM app_configurations WHERE is_secret = false")
+            )
+            configs = {}
+            for row in result.fetchall():
+                try:
+                    configs[row.key] = json.loads(row.value)
+                except json.JSONDecodeError:
+                    configs[row.key] = row.value
+            return configs
+        except Exception as e:
+            print(f"Error fetching configs: {str(e)}")
+            return {}

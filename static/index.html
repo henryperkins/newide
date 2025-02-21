@@ -8,9 +8,14 @@
     <!-- Styles -->
     <link rel="stylesheet" href="/static/index.css">
 
-    <!-- Scripts -->
-    
-      
+    <!-- Libraries -->
+    <script src="/static/lib/purify.min.js"></script>
+    <script src="/static/lib/markdown-it.min.js"></script>
+    <script>
+        // Initialize DOMPurify once
+        window.DOMPurify = DOMPurify;
+    </script>
+
     <!-- Core Modules -->
     <script type="module" src="/static/js/session.js"></script>
     <script type="module" src="/static/js/config.js"></script>
@@ -42,9 +47,9 @@
             <section class="input-section">
                 <div class="input-container">
                     <textarea id="user-input" 
-                             placeholder="Type your message..."
-                             aria-label="Your message"
-                             rows="3"></textarea>
+                              placeholder="Type your message..."
+                              aria-label="Your message"
+                              rows="3"></textarea>
                     <button id="send-button" class="primary-button">
                         <span aria-hidden="true">↑</span>
                         <span class="sr-only">Send message</span>
@@ -120,15 +125,16 @@
                     </p>
                 </div>
 
-                <div class="config-section" id="reasoning-controls" style="display: none;">
+                <div class="config-section" id="reasoning-controls">
                     <label for="reasoning-effort-slider">
-                        Reasoning Effort: <span id="effort-display">Medium</span>
+                        Reasoning Effort: 
+                        <span id="reasoning-effort-display">Medium</span>
                     </label>
                     <input type="range" 
                            id="reasoning-effort-slider"
-                           min="0" 
-                           max="2" 
-                           value="1"
+                           min="1" 
+                           max="3" 
+                           value="2"
                            aria-valuetext="Medium">
                     <div class="effort-description">
                         <p id="effort-description-text">
@@ -143,31 +149,15 @@
                     </label>
                 </div>
 
-                <div class="config-section">
-                    <label for="reasoning-effort-slider">
-                        Reasoning Effort: <span id="effort-display">Medium</span>
-                    </label>
-                    <input type="range" 
-                           id="reasoning-effort-slider"
-                           min="0" 
-                           max="2" 
-                           value="1"
-                           aria-valuetext="Medium">
-                    <div class="effort-description">
-                        <p id="effort-description-text">
-                            Medium: Balanced processing time (1-3min) and quality
-                        </p>
-                    </div>
-                </div>
             </div>
 
             <!-- Files Panel -->
-            <div id="files-content" class="tab-content active" role="tabpanel" aria-hidden="false">
+            <div id="files-content" class="tab-content" role="tabpanel" aria-hidden="true">
                 <div class="file-upload-area" id="drop-zone" tabindex="0" role="button">
                     <div class="upload-prompt">
                         <i class="upload-icon" aria-hidden="true">📁</i>
                         <p>Drop files or click to upload<br>
-                            <span class="file-limit">(Max 512MB)</span>
+                           <span class="file-limit">(Max 512MB)</span>
                         </p>
                         <input type="file" 
                                id="file-input" 

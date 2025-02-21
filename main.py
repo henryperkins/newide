@@ -35,7 +35,7 @@ app.add_middleware(
 app.include_router(session_router, prefix="/api/session")
 app.include_router(files_router, prefix="/api/files")
 app.include_router(chat_router, prefix="/api/chat")
-app.include_router(config_router)
+app.include_router(config_router, prefix="/api")
 
 # Mount static files at '/static' instead
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

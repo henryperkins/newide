@@ -72,3 +72,4 @@ export function safeMarkdownParse(text) {
 }
 
 import { sanitizeInput } from '../utils/helpers.js';
+const DOMPurify = window.dompurify || window.DOMPurify;

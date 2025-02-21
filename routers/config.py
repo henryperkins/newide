@@ -3,7 +3,7 @@ from services.config_service import ConfigService
 from database import get_db_session
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/config")
+router = APIRouter(prefix="/config", tags=["Configuration"])
 
 class ConfigUpdate(BaseModel):
     value: dict
@@ -24,4 +24,17 @@ async def update_config(key: str, update: ConfigUpdate, config_service: ConfigSe
 
 @router.get("/")
 async def get_all_configs(config_service: ConfigService = Depends()):
-    return await config_service.get_all_configs()
+    try:
+        configs = await config_service.get_all_configs() or {}
+        # Ensure required fields with type safety
+        return {
+            "selectedModel": configs.get("selectedModel", "o1"),
+            "reasoningEffort": configs.get("reasoningEffort", "medium"),
+            "includeFiles": configs.get("includeFiles", False),
+            **configs
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Config load failed: {str(e)}"
+        )

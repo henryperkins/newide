@@ -1,6 +1,6 @@
 import { initializeSession } from '/static/js/session.js';
 import { initializeFileManager } from '/static/js/fileManager.js';
-import { initializeConfig, updateReasoningEffortDisplay, getCurrentConfig } from '/static/js/config.js';
+import { initializeConfig, updateReasoningEffortDisplay, getCurrentConfig, getModelSettings } from '/static/js/config.js';
 import { showNotification } from '/static/js/ui/notificationManager.js';
 import { sendMessage, regenerateResponse } from '/static/js/messageHandler.js';
 import { configureMarkdown, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
@@ -114,20 +114,24 @@ function updateModelSpecificUI(model) {
     const reasoningControls = document.getElementById('reasoning-controls');
     const streamingToggle = document.getElementById('streaming-toggle');
 
-    // Toggle reasoning controls based on model capabilities
-    reasoningControls.style.display = modelConfig.capabilities.requires_reasoning_effort ? 
-        'block' : 'none';
+    // Toggle reasoning controls with null safety
+    const requiresEffort = modelConfig.capabilities?.requires_reasoning_effort ?? true;
+    reasoningControls.style.display = requiresEffort ? 'block' : 'none';
         
-    // Toggle streaming availability
-    streamingToggle.disabled = !modelConfig.capabilities.supports_streaming;
+    // Toggle streaming availability with null safety
+    streamingToggle.disabled = !(modelConfig.capabilities?.supports_streaming ?? false);
     
     // Update temperature display
-    document.getElementById('temperature-value').textContent = 
-        modelConfig.capabilities.default_temperature;
+    const tempElement = document.getElementById('temperature-value');
+    if (tempElement) {
+        tempElement.textContent = modelConfig.capabilities.default_temperature;
+    }
         
     // Update token counter limits
-    document.getElementById('max-tokens').dataset.max = 
-        modelConfig.capabilities.max_tokens;
+    const maxTokensElement = document.getElementById('max-tokens');
+    if (maxTokensElement) {
+        maxTokensElement.dataset.max = modelConfig.capabilities.max_tokens;
+    }
 }
 
 function handleInitializationError(error) {
