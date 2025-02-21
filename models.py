@@ -127,11 +127,6 @@ class ChatCompletionResponse(BaseModel):
         default=ReasoningEffort.medium,
         description="Default effort level for optimal performance"
     )
-    response_format: Optional[str] = Field(
-        default=None,
-        json_schema_extra={"enum": ["text", "json_object", "xml"]},
-        description="Response format: text, json_object, or xml (o1 models only)"
-    )
     include_usage_metrics: Optional[bool] = Field(
         default=False,
         description="Include detailed token usage metrics"
@@ -141,6 +136,18 @@ class ChatCompletionResponse(BaseModel):
         ge=100,
         le=100000,
         description="Maximum number of tokens to generate (o-series models only)"
+    )
+    tools: Optional[List[Dict]] = Field(
+        default=None,
+        description="Tools available to the model"
+    )
+    tool_resources: Optional[Dict] = Field(
+        default=None,
+        description="Resource references for tools"
+    )
+    include_usage_metrics: Optional[bool] = Field(
+        default=False,
+        description="Include detailed token metrics"
     )
 
 
