@@ -1,7 +1,8 @@
 import { 
     sessionId, 
-    initializeSession, 
-    lastUserMessage 
+    initializeSession,
+    getLastUserMessage,
+    setLastUserMessage
 } from '/static/js/session.js';
 import { 
     NotificationManager,
@@ -45,7 +46,7 @@ export async function sendMessage() {
 
         // UI state management
         userInput.disabled = true;
-        lastUserMessage = message;
+        setLastUserMessage(message);
         displayMessage(message, 'user');
         userInput.value = '';
 
@@ -79,8 +80,9 @@ export async function sendMessage() {
 }
 
 export async function regenerateResponse() {
-    if (lastUserMessage) {
-        document.getElementById('user-input').value = lastUserMessage;
+    const lastMessage = getLastUserMessage();
+    if (lastMessage) {
+        document.getElementById('user-input').value = lastMessage;
         await sendMessage();
     }
 }
