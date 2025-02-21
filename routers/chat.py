@@ -64,9 +64,30 @@ async def stream_chat_response(
         session_id = request_data.get("session_id")
         
         if not message or not session_id:
-            raise HTTPException(status_code=400, detail="Missing required fields")
+            raise HTTPException(
+                status_code=400, 
+                detail={
+                    "error": {
+                        "message": "Missing required fields",
+                        "fields": ["message", "session_id"],
+                        "type": "validation_error"
+                    }
+                }
+            )
             
+        # Validate reasoning effort value
         reasoning_effort = request_data.get("reasoning_effort", "medium")
+        if reasoning_effort not in ["low", "medium", "high"]:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "message": "Invalid reasoning_effort value",
+                        "allowed_values": ["low", "medium", "high"],
+                        "type": "validation_error"
+                    }
+                }
+            )
         return StreamingResponse(
             generate(message, client, reasoning_effort),
             media_type="text/event-stream",
