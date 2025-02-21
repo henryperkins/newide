@@ -49,7 +49,17 @@ async def create_chat_completion(
             message="Invalid deployment ID",
             error_type="invalid_request_error"
         )
-    return await process_chat_message(request, db, client)
+    # Transform flat request into message format expected by processing
+    chat_message = ChatMessage(
+        message=request.message,
+        session_id=request.session_id,
+        developer_config=request.developer_config,
+        reasoning_effort=request.reasoning_effort,
+        include_files=request.include_files,
+        response_format=None,
+        max_completion_tokens=request.max_completion_tokens
+    )
+    return await process_chat_message(chat_message, db, client)
 
 @router.post("/stream")
 async def stream_chat_response(

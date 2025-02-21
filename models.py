@@ -42,7 +42,8 @@ class ChatMessageContent(BaseModel):
 
 class CreateChatCompletionRequest(BaseModel):
     model: str = Field(..., description="Azure OpenAI deployment name")
-    messages: List[ChatMessageContent] = Field(..., min_items=1)
+    message: str = Field(..., description="User message content")
+    session_id: str = Field(..., description="Session ID for conversation history")
     reasoning_effort: ReasoningEffort = Field(
         default=ReasoningEffort.medium,
         description="Reasoning effort level (required for o-series models)"
@@ -62,6 +63,14 @@ class CreateChatCompletionRequest(BaseModel):
     stream: bool = Field(
         default=False,
         description="Streaming enabled (only supported for o3-mini)"
+    )
+    developer_config: Optional[str] = Field(
+        default=None,
+        description="Developer instructions with formatting hints"
+    )
+    include_files: Optional[bool] = Field(
+        default=False,
+        description="Whether to include file context in the request"
     )
 
     @model_validator(mode='after')
