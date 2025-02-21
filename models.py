@@ -173,3 +173,12 @@ class ConversationMessage(BaseModel):
 class ConversationResponse(BaseModel):
     conversation: List[ConversationMessage]
     total_messages: int
+
+class ChatMessage(BaseModel):
+    message: str
+    session_id: str
+    developer_config: Optional[str] = None
+    reasoning_effort: ReasoningEffort = ReasoningEffort.medium
+    include_files: bool = False
+    response_format: Optional[str] = None
+    max_completion_tokens: Optional[int] = 40000
