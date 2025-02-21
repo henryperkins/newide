@@ -9,6 +9,7 @@ from database import init_database
 from routers.session import router as session_router
 from routers.chat import router as chat_router
 from routers.files import router as files_router
+from routers.config import router as config_router
 
 # Resolve absolute path to the static directory
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -34,6 +35,7 @@ app.add_middleware(
 app.include_router(session_router, prefix="/api/session")
 app.include_router(files_router, prefix="/api/files")
 app.include_router(chat_router, prefix="/api/chat")
+app.include_router(config_router)
 
 # Mount static files at '/static' instead
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

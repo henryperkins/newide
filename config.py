@@ -33,15 +33,39 @@ MODEL_API_VERSIONS = {
     "default": "2024-05-01-preview"
 }
 
+async def get_db_config(key: str, default: Any = None) -> Any:
+    from services.config_service import ConfigService
+    from database import get_db_session
+    async with get_db_session() as session:
+        config_service = ConfigService(session)
+        value = await config_service.get_config(key)
+        return value if value is not None else default
+
+async def azure_openai_settings():
+    return await get_db_config("azure_openai", {
+        "endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
+        "api_version": "2024-05-01-preview"
+    })
+
+async def model_settings():
+    return await get_db_config("models", {
+        "o1": {
+            "max_tokens": 40000,
+            "temperature": 1.0
+        },
+        "deepseek-r1": {
+            "max_tokens": 4096,
+            "temperature": 0.7
+        }
+    })
+
 class Settings(BaseSettings):
-    # Azure OpenAI settings
-    AZURE_OPENAI_ENDPOINT: str = Field(..., description="Azure OpenAI endpoint URL")
-    AZURE_OPENAI_API_KEY: str = Field(..., description="Azure OpenAI API key")
-    AZURE_OPENAI_DEPLOYMENT_NAME: str = Field(..., description="Azure OpenAI deployment name")
-    AZURE_OPENAI_API_VERSION: str = Field(
-        default="2024-12-01-preview",
-        description="Azure OpenAI API version"
-    )
+    # Core infrastructure settings remain in env vars
+    POSTGRES_HOST: str
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    POSTGRES_PORT: int = 5432
 
     @validator("AZURE_OPENAI_API_VERSION")
     def validate_api_version(cls, v, values):

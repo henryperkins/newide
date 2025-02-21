@@ -1,26 +1,36 @@
 /* static/js/config.js */
 
-// getCurrentConfig fetches the app configuration.
-// In a real implementation, this could fetch live data from the backend.
-export function initializeConfig() {
-    // Configuration initialization logic
-    console.log('Config system initialized');
-    return { initialized: true }; // Add return value
-}
+const fallbackConfig = {
+    reasoningEffort: "medium",
+    developerConfig: "Formatting re-enabled - use markdown code blocks",
+    includeFiles: false,
+    selectedModel: "o1"
+};
 
 /**
- * Get current application configuration with validation
+ * Get current application configuration from server
  * @returns {Object} Validated configuration object
  */
-export function getCurrentConfig() {
-    // Get stored configuration from localStorage
-    const storedConfig = localStorage.getItem('appConfig');
-    const defaultConfig = {
-        reasoningEffort: "medium",
-        developerConfig: "Formatting re-enabled - use markdown code blocks",
-        includeFiles: false,
-        selectedModel: "o1" // Default model
-    };
+export async function getCurrentConfig() {
+    try {
+        const response = await fetch('/api/config');
+        if (!response.ok) throw new Error('Config load failed');
+        const serverConfig = await response.json();
+        return { ...fallbackConfig, ...serverConfig };
+    } catch (error) {
+        console.error('Using fallback config:', error);
+        return fallbackConfig;
+    }
+}
+
+export async function updateConfig(key, value) {
+    const response = await fetch(`/api/config/${key}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ value })
+    });
+    return response.ok;
+}
 
     // Merge stored config with defaults
     const config = storedConfig ? 
