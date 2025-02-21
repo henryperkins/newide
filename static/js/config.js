@@ -2,6 +2,12 @@
 
 // getCurrentConfig fetches the app configuration.
 // In a real implementation, this could fetch live data from the backend.
+export function initializeConfig() {
+    // Configuration initialization logic
+    console.log('Config system initialized');
+    return { initialized: true }; // Add return value
+}
+
 export function getCurrentConfig() {
     return {
         reasoningEffort: "medium",
@@ -31,4 +37,15 @@ export function getModelSettings() {
             api_version: "2023-12-01"
         }
     };
+}
+
+// Update UI display for reasoning effort selection
+export function updateReasoningEffortDisplay() {
+    const slider = document.getElementById('reasoning-effort-slider');
+    const effortDisplay = document.getElementById('reasoning-effort-display');
+    if (!slider || !effortDisplay) return;
+
+    const effortLevels = ['low', 'medium', 'high'];
+    const selectedEffort = effortLevels[slider.value - 1];
+    effortDisplay.textContent = selectedEffort.charAt(0).toUpperCase() + selectedEffort.slice(1);
 }

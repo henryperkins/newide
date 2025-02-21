@@ -1,7 +1,7 @@
-import { initializeSession } from './session.js';
-import { loadFilesList, setupDragAndDrop } from './fileManager.js';
-import { initializeConfig } from './config.js';
-import { showNotification } from './ui/notificationManager.js';
+import { initializeSession } from '/static/js/session.js';
+import { loadFilesList, setupDragAndDrop } from '/static/js/fileManager.js';
+import { initializeConfig } from '/static/js/config.js';
+import { showNotification } from '/static/js/ui/notificationManager.js';
 
 window.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -17,7 +17,11 @@ window.addEventListener('DOMContentLoaded', async () => {
         
         // Set up UI components
         setupDragAndDrop();
-        initializeConfig();
+        // Initialize configuration with validation
+        const config = initializeConfig();
+        if (!config?.initialized) {
+            throw new Error('Configuration initialization failed');
+        }
         
     } catch (error) {
         console.error('Initialization error:', error);

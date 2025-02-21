@@ -16,7 +16,7 @@ import asyncio
 import os
 from typing import List, Optional, Dict, Any
 
-router = APIRouter(prefix="/files")
+router = APIRouter()
 
 @router.post("/upload")
 async def upload_file(
@@ -263,46 +263,28 @@ async def delete_file(
             try:
                 file_service = AzureFileService(azure_client)
                 await file_service.delete_file_from_vector_store(vector_store_id, azure_file_id)
-                logger.info(f"Removed file {azure_file_id} from vector store {vector_store_id}")
             except Exception as e:
-                logger.error(f"Error removing file from Azure: {e}")
-        
-        if metadata.get("chunk_count", 0) > 1:
-            await db_session.execute(
-                text("""
-                    DELETE FROM uploaded_files 
-                    WHERE session_id = :session_id 
-                    AND status = 'chunk' 
-                    AND metadata->>'parent_file_id' = :parent_id
-                """), 
-                {"session_id": session_id, "parent_id": file_id}
-            )
-        
-        result = await db_session.execute(
+                logger.exception(f"Error deleting file from Azure: {e}")
+                raise create_error_response(
+                    status_code=500,
+                    code="azure_deletion_error",
+                    message="Error deleting file from Azure",
+                    error_type="internal_error",
+                    inner_error={"original_error": str(e)},
+                )
+
+        await db_session.execute(
             text("""
                 DELETE FROM uploaded_files 
                 WHERE session_id = :session_id AND id = :file_id::uuid
-                RETURNING id
             """), 
             {"session_id": session_id, "file_id": file_id}
         )
-        
-        deleted = result.first()
-        if not deleted:
-            raise create_error_response(
-                status_code=404,
-                code="file_not_found",
-                message="File not found",
-                error_type="not_found",
-                param="file_id",
-            )
-            
         await db_session.commit()
-        
+
         return DeleteFileResponse(
-            id=str(deleted[0]),
             message="File deleted successfully",
-            deleted_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            file_id=file_id
         )
 
     except Exception as e:
@@ -321,109 +303,37 @@ async def process_file_with_azure(
     chunk_ids: List[str],
     azure_client: Any
 ):
-    """Process a file with Azure OpenAI in the background"""
-    async def update_file_status(file_id: str, status: str, metadata_update: Dict[str, Any]) -> None:
-        async with AsyncSessionLocal() as db_session:
-            try:
-                result = await db_session.execute(
-                    text("SELECT metadata FROM uploaded_files WHERE id = :file_id::uuid"),
-                    {"file_id": file_id}
-                )
-                file_data = result.first()
-                
-                if not file_data:
-                    return
-                
-                current_metadata = file_data[0] or {}
-                if isinstance(current_metadata, str):
-                    try:
-                        current_metadata = json.loads(current_metadata)
-                    except:
-                        current_metadata = {}
-                
-                updated_metadata = {**current_metadata, **metadata_update}
-                
-                await db_session.execute(
-                    text("""
-                        UPDATE uploaded_files 
-                        SET status = :status, metadata = :metadata::jsonb
-                        WHERE id = :file_id::uuid
-                    """),
-                    {
-                        "file_id": file_id, 
-                        "status": status, 
-                        "metadata": json.dumps(updated_metadata)
-                    }
-                )
-                await db_session.commit()
-            except Exception as e:
-                await db_session.rollback()
-
+    """Process file with Azure OpenAI and update status"""
     try:
         file_service = AzureFileService(azure_client)
-        await update_file_status(
-            file_id, 
-            "processing", 
-            {"azure_processing": "started", "process_start_time": datetime.datetime.now().isoformat()}
-        )
-        
-        vector_store = await file_service.get_vector_store_for_session(session_id)
-        vector_store_id = vector_store["id"]
-        
         if chunk_ids:
-            azure_file_ids = []
+            # Process chunks
             for chunk_id in chunk_ids:
                 async with AsyncSessionLocal() as db_session:
-                    result = await db_session.execute(
-                        text("SELECT content, filename FROM uploaded_files WHERE id = :id::uuid"),
-                        {"id": chunk_id}
-                    )
-                    chunk_data = result.first()
-                    
+                    chunk_data = await db_session.get(UploadedFile, chunk_id)
                     if chunk_data:
-                        chunk_content, chunk_filename = chunk_data
-                        azure_file_id = await file_service.create_azure_file(chunk_content, chunk_filename)
-                        azure_file_ids.append(azure_file_id)
-                        
-                        await db_session.execute(
-                            text("""
-                                UPDATE uploaded_files 
-                                SET metadata = jsonb_set(metadata, '{azure_file_id}', :azure_file_id::jsonb)
-                                WHERE id = :id::uuid
-                            """),
-                            {"id": chunk_id, "azure_file_id": f'"{azure_file_id}"'}
+                        vector_store_id = chunk_data.metadata.get("vector_store_id")
+                        azure_file_id = chunk_data.metadata.get("azure_file_id")
+                        await file_service.add_file_to_vector_store(vector_store_id, azure_file_id)
+                        processing_success = await file_service.wait_for_file_processing(vector_store_id, azure_file_id)
+                        await update_file_status(
+                            chunk_id,
+                            "ready" if processing_success else "processing_error",
+                            {
+                                "azure_processing": "completed" if processing_success else "failed",
+                                "vector_store_id": vector_store_id,
+                                "azure_file_id": azure_file_id,
+                                "process_complete_time": datetime.datetime.now().isoformat()
+                            }
                         )
-                        await db_session.commit()
-            
-            if azure_file_ids:
-                batch_id = await file_service.create_file_batch(vector_store_id, azure_file_ids)
-                processing_success = await file_service.wait_for_file_processing(vector_store_id, azure_file_ids[0])
-                
-                await update_file_status(
-                    file_id,
-                    "ready" if processing_success else "processing_error",
-                    {
-                        "azure_processing": "completed" if processing_success else "failed",
-                        "vector_store_id": vector_store_id,
-                        "azure_file_ids": azure_file_ids,
-                        "azure_batch_id": batch_id,
-                        "process_complete_time": datetime.datetime.now().isoformat()
-                    }
-                )
         else:
             async with AsyncSessionLocal() as db_session:
-                result = await db_session.execute(
-                    text("SELECT content, filename FROM uploaded_files WHERE id = :id::uuid"),
-                    {"id": file_id}
-                )
-                file_data = result.first()
-                
+                file_data = await db_session.get(UploadedFile, file_id)
                 if file_data:
-                    content, filename = file_data
-                    azure_file_id = await file_service.create_azure_file(content, filename)
+                    vector_store_id = file_data.metadata.get("vector_store_id")
+                    azure_file_id = file_data.metadata.get("azure_file_id")
                     await file_service.add_file_to_vector_store(vector_store_id, azure_file_id)
                     processing_success = await file_service.wait_for_file_processing(vector_store_id, azure_file_id)
-                    
                     await update_file_status(
                         file_id,
                         "ready" if processing_success else "processing_error",
@@ -446,3 +356,13 @@ async def process_file_with_azure(
                 "process_error_time": datetime.datetime.now().isoformat()
             }
         )
+
+async def update_file_status(file_id: str, status: str, metadata_updates: Dict[str, Any]):
+    """Update the status and metadata of a file"""
+    async with AsyncSessionLocal() as db_session:
+        await db_session.execute(
+            update(UploadedFile)
+            .where(UploadedFile.id == file_id)
+            .values(status=status, metadata=UploadedFile.metadata + metadata_updates)
+        )
+        await db_session.commit()

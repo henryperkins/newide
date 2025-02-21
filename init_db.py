@@ -9,8 +9,6 @@ async def init_database():
     
     try:
         async with engine.begin() as conn:
-            # Create database if it doesn't exist
-            # Create tables separately to avoid multi-command prepared statement issue
             # Create sessions table
             await conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS sessions (
@@ -20,6 +18,7 @@ async def init_database():
                     expires_at TIMESTAMPTZ NOT NULL
                 );"""))
 
+        async with engine.begin() as conn:
             # Create conversations table
             await conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS conversations (
@@ -35,6 +34,7 @@ async def init_database():
                     service_tier VARCHAR(50)
                 );"""))
 
+        async with engine.begin() as conn:
             # Create enhanced uploaded_files table
             await conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS uploaded_files (
@@ -49,10 +49,11 @@ async def init_database():
                     chunk_count INTEGER DEFAULT 1,
                     token_count INTEGER,
                     embedding_id VARCHAR(255),
-                    metadata JSONB,
+                    file_metadata JSONB,
                     azure_status VARCHAR(20)
                 );"""))
 
+        async with engine.begin() as conn:
             # Create vector_stores table
             await conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS vector_stores (
@@ -62,9 +63,10 @@ async def init_database():
                     azure_id VARCHAR(255),
                     created_at TIMESTAMPTZ DEFAULT NOW(),
                     status VARCHAR(20) DEFAULT 'active',
-                    metadata JSONB
+                    file_metadata JSONB
                 );"""))
 
+        async with engine.begin() as conn:
             # Create file_citations table
             await conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS file_citations (
@@ -75,6 +77,8 @@ async def init_database():
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 );"""))
 
+        async with engine.begin() as conn:
+            # Create typing_activity table
             await conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS typing_activity (
                     session_id UUID REFERENCES sessions(id),
@@ -82,7 +86,8 @@ async def init_database():
                     last_activity TIMESTAMPTZ DEFAULT NOW(),
                     PRIMARY KEY (session_id, user_id)
                 );"""))
-            print("✅ Database tables created successfully!")
+
+        print("✅ Database tables created successfully!")
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
     finally:

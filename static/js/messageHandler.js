@@ -2,21 +2,22 @@ import {
     sessionId, 
     initializeSession, 
     lastUserMessage 
-} from './session.js';
+} from '/static/js/session.js';
 import { 
+    NotificationManager,
     showNotification,
     showTypingIndicator,
     removeTypingIndicator
-} from './ui/notificationManager.js';
-import { displayMessage } from './ui/displayManager.js';
-import { safeMarkdownParse } from './ui/markdownParser.js';
-import { updateTokenUsage } from './utils/helpers.js';
+} from '/static/js/ui/notificationManager.js';
+import { displayMessage } from '/static/js/ui/displayManager.js';
+import { safeMarkdownParse } from '/static/js/ui/markdownParser.js';
+import { updateTokenUsage } from '/static/js/utils/helpers.js';
 import { 
     getCurrentConfig,
     getTimeoutDurations,
     getModelSettings
-} from './config.js';
-import { getFilesForChat } from './fileManager.js';
+} from '/static/js/config.js';
+import { getFilesForChat } from '/static/js/fileManager.js';
 
 export async function sendMessage() {
     const userInput = document.getElementById('user-input');

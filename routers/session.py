@@ -1,9 +1,21 @@
 from fastapi import APIRouter
+from uuid import uuid4
+from datetime import datetime
+from pydantic import BaseModel
 
-router = APIRouter(prefix="/api/session")
+class SessionResponse(BaseModel):
+    session_id: str
+    created_at: str
+    expires_in: int
 
-@router.api_route("/create", methods=["GET", "POST"])
+router = APIRouter()
+
+@router.get("/create", response_model=SessionResponse)
+@router.post("/create", response_model=SessionResponse)
 async def create_session():
-    # Dummy implementation for session creation.
-    # In production, implement proper session creation and validation.
-    return {"sessionId": "dummy-session-id"}
+    session_id = str(uuid4())
+    return SessionResponse(
+        session_id=session_id,
+        created_at=datetime.utcnow().isoformat(),
+        expires_in=3600
+    )

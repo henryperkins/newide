@@ -1,5 +1,5 @@
 from pydantic import BaseModel, validator, Field
-from typing import Optional, List
+from typing import Optional, List, Dict
 from enum import Enum
 class ClearConversationResponse(BaseModel):
     message: str
@@ -62,8 +62,10 @@ class FileResponseModel(BaseModel):
     filename: str
     size: int
     upload_time: str
-    char_count: int
-    token_count: int
+    file_type: Optional[str] = None
+    status: Optional[str] = "ready"
+    chunk_count: Optional[int] = 1
+    file_metadata: Optional[Dict] = None
 
 class FileListResponse(BaseModel):
     files: List[FileResponseModel]

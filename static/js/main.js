@@ -1,28 +1,24 @@
-import { initializeSession } from './session.js';
-import { initializeConfig, updateReasoningEffortDisplay } from './config.js';
-import { sendMessage, regenerateResponse } from './messageHandler.js';
-import { setupDragAndDrop, loadFilesList } from './fileManager.js';
-import { configureMarkdown } from './ui/markdownParser.js';
-import { showNotification } from './ui/notificationManager.js';
+import { initializeSession } from '/static/js/session.js';
+import { initializeConfig, updateReasoningEffortDisplay } from '/static/js/config.js';
+import { sendMessage, regenerateResponse } from '/static/js/messageHandler.js';
+import { setupDragAndDrop, loadFilesList } from '/static/js/fileManager.js';
+import { configureMarkdown, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
+import { showNotification } from '/static/js/ui/notificationManager.js';
 
-// Initialize application
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // Configure core application features
-        initializeMarkdownSupport();
-        initializeUIEventHandlers();
+        await initializeMarkdownSupport();
+        await initializeUIEventHandlers();
         await initializeSessionHandling();
         await initializeFileHandling();
 
-        // Log successful initialization with timestamp
         console.log(`Application initialized successfully at ${new Date().toISOString()}`);
     } catch (error) {
-        // Forward to centralized error handler
         handleInitializationError(error);
     }
 });
 
-function initializeMarkdownSupport() {
+async function initializeMarkdownSupport() {
     if (!configureMarkdown()) {
         showNotification(
             "Markdown support limited - required libraries not loaded",
@@ -33,7 +29,7 @@ function initializeMarkdownSupport() {
     injectMarkdownStyles();
 }
 
-function initializeUIEventHandlers() {
+async function initializeUIEventHandlers() {
     // Send button handler
     document.getElementById('send-button')?.addEventListener('click', async (e) => {
         e.preventDefault();

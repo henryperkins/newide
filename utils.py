@@ -13,7 +13,59 @@ def resolve_api_version(deployment_name: str) -> str:
     }
     return version_matrix.get(deployment_name.lower(), 
                             os.getenv("DEFAULT_API_VERSION", "2024-12-01-preview"))
+# Add this function to utils.py
 
+def validate_streaming(model_id: str) -> bool:
+    """
+    Determine if the current model supports streaming.
+    
+    Args:
+        model_id: The model identifier to check
+        
+    Returns:
+        Boolean indicating if streaming is supported
+    """
+    STREAMING_MODEL_REGISTRY = {
+        "o3-mini": {
+            "supports_streaming": True,
+            "max_streams": 5
+        },
+        "o1-2025": {
+            "supports_streaming": True,
+            "max_streams": 5
+        },
+        "o1-prod": {
+            "supports_streaming": False
+        },
+        "gpt-4": {
+            "supports_streaming": True
+        },
+        "gpt-35-turbo": {
+            "supports_streaming": True
+        }
+    }
+    
+    # Extract the base model from the model_id
+    # This handles cases like "gpt-4-1106", "o1-prod-2024", etc.
+    base_model = None
+    
+    if model_id:
+        model_id = model_id.lower()
+        if model_id.startswith("o3-mini"):
+            base_model = "o3-mini"
+        elif model_id.startswith("o1-2025"):
+            base_model = "o1-2025"
+        elif model_id.startswith("o1-prod") or model_id.startswith("o1-") and "preview" not in model_id:
+            base_model = "o1-prod"
+        elif model_id.startswith("gpt-4"):
+            base_model = "gpt-4"
+        elif model_id.startswith("gpt-35") or model_id.startswith("gpt-3.5"):
+            base_model = "gpt-35-turbo"
+    
+    # Get configuration for the base model with fallback to False
+    model_config = STREAMING_MODEL_REGISTRY.get(base_model, {})
+    return model_config.get('supports_streaming', False)
+    
 def count_tokens(text: str, model: Optional[str] = None) -> int:
     """
     Model-specific token counting with fallback

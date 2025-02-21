@@ -1,4 +1,4 @@
-export default class NotificationManager {
+export class NotificationManager {
     constructor() {
         this.container = document.createElement('div');
         this.container.className = 'notification-container';
@@ -27,7 +27,34 @@ export default class NotificationManager {
     }
 }
 
-// Named export
+// Named exports
 export function showNotification(message, type = 'info', duration = 3000) {
     new NotificationManager().show(message, type, duration);
+}
+
+export function removeTypingIndicator() {
+    const indicators = document.querySelectorAll('.typing-indicator');
+    indicators.forEach(indicator => indicator.remove());
+}
+
+export function showTypingIndicator(effortLevel = 'medium') {
+    const existing = document.querySelector('.typing-indicator');
+    if (existing) existing.remove();
+
+    const typingIndicator = document.createElement('div');
+    typingIndicator.className = `typing-indicator ${effortLevel}`;
+    typingIndicator.setAttribute('aria-live', 'polite');
+    typingIndicator.innerHTML = `
+        <div class="dots-container">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+        </div>
+        <span class="effort-text">${effortLevel} reasoning effort</span>
+    `;
+
+    const notificationManager = new NotificationManager();
+    notificationManager.container.prepend(typingIndicator);
+    
+    return typingIndicator;
 }

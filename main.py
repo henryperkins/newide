@@ -1,4 +1,3 @@
-# main.py
 import datetime
 from pathlib import Path
 from fastapi import FastAPI
@@ -30,19 +29,23 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# Mount static files at root with html=True so that index.html is served automatically.
-app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+# Include API routers with non-root prefixes.
+app.include_router(session_router, prefix="/api/session")
+app.include_router(files_router, prefix="/api/files")
+app.include_router(chat_router, prefix="/api/chat")
 
-# (Optional) Define favicon route in case additional headers are needed.
+# Mount static files at '/static' instead
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+
+# Serve the index file on the root path
+@app.get("/")
+def read_index():
+    return FileResponse(STATIC_DIR / "index.html")
+
 @app.get("/favicon.ico")
 def favicon():
     favicon_path = STATIC_DIR / "favicon.ico"
     return FileResponse(str(favicon_path))
-
-# Include API routers with prefixes. They won't conflict with the static files.
-app.include_router(session_router)
-app.include_router(files_router, prefix="/api/files")
-app.include_router(chat_router, prefix="/api/chat")
 
 @app.on_event("startup")
 async def startup():

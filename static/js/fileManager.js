@@ -1,9 +1,9 @@
 // fileManager.js - Enhanced file handling 
 
 // Import dependencies
-import { getSessionId } from './session.js';
-import { showNotification } from './ui/notificationManager.js';
-import { formatFileSize } from './utils/helpers.js';
+import { getSessionId } from '/static/js/session.js';
+import { showNotification } from '/static/js/ui/notificationManager.js';
+import { formatFileSize } from '/static/js/utils/helpers.js';
 
 // Initialize file manager state
 let uploadedFiles = new Map();
@@ -56,7 +56,7 @@ export async function loadFilesList() {
     }
 }
 
-function setupDragAndDrop() {
+export function setupDragAndDrop() {
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
     
