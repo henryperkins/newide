@@ -26,19 +26,24 @@ export function initializeFileManager() {
     }
 }
 
-export async function loadFilesList(retryCount = 0) {
+export async function loadFilesList(retryCount = 0, limit = 20, cursor = null) {
     try {
         const sessionId = getSessionId();
         if (!sessionId) {
             console.warn('No session ID available');
             showNotification('Starting new session...', 'info');
             await initializeSession();
-            return loadFilesList();
+            return loadFilesList(0, limit);
         }
         
         // Add timeout and retry logic
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        let url = `/api/files/${sessionId}?limit=${limit}`;
+        if (cursor) {
+            url += `&cursor=${cursor}`;
+        }
         
         const response = await fetch(`/api/files/${sessionId}`, {
             signal: controller.signal
