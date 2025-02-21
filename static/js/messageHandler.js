@@ -491,11 +491,36 @@ function displayFileCitations(citations) {
 
 function handleMessageError(error) {
     console.error('Message handling error:', error);
-
-    const errorMessage = error.name === 'AbortError' ?
-        'Request timed out. Consider using lower reasoning effort.' :
-        error.message;
-
+    
+    let errorMessage = 'An unexpected error occurred';
+    let errorDetails = [];
+    
+    if (error.name === 'AbortError') {
+        errorMessage = 'Request timed out. Consider using lower reasoning effort.';
+    } else if (error.response) {
+        // Handle structured error response from API
+        try {
+            const apiError = error.response.data?.error || {};
+            errorMessage = apiError.message || error.message;
+            
+            // Parse validation errors
+            if (apiError.type === 'validation_error') {
+                if (apiError.fields) {
+                    errorDetails = apiError.fields.map(f => `${f} parameter`);
+                }
+                if (apiError.allowed_values) {
+                    errorDetails.push(`Allowed values: ${apiError.allowed_values.join(', ')}`);
+                }
+            }
+        } catch (parseError) {
+            console.error('Error parsing error response:', parseError);
+        }
+    } else if (error.message) {
+        errorMessage = error.message;
+    }
+    
+    const fullErrorText = [errorMessage, ...errorDetails].filter(Boolean).join('\n');
+    
     displayMessage(`Error: ${errorMessage}`, 'error');
-    showNotification(errorMessage, 'error');
+    showNotification(fullErrorText, 'error');
 }
