@@ -271,4 +271,4 @@ def get_azure_search_index_schema(index_name):
 POSTGRES_URL = f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
 
 # Session configuration
-SESSION_TIMEOUT_MINUTES = settings.session_timeout_minutes
+SESSION_TIMEOUT_MINUTES = settings.SESSION_TIMEOUT_MINUTES
