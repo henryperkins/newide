@@ -65,7 +65,7 @@ export async function sendMessage() {
 
         const { controller, timeoutId } = createAbortController(timeout);
         const messageContent = processMessageContent(message, modelSettings.supportsVision);
-        const vectorStores = await fetchVectorStores();
+        const vectorStores = await fetch(`/api/files/${sessionId}`).then(r => r.ok ? r.json() : { vector_store_ids: [] });
 
         // Execute request
         const response = await handleChatRequest({
