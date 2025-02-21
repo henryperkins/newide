@@ -1,5 +1,5 @@
 from pydantic import BaseModel, validator, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from enum import Enum
 from datetime import datetime
 class ClearConversationResponse(BaseModel):
@@ -36,16 +36,37 @@ class ReasoningEffort(str, Enum):
     medium = "medium"
     high = "high"
 
+class ChatMessageContent(BaseModel):
+    role: Literal["user", "assistant", "developer"] = Field(..., description="Message author role")
+    content: str = Field(..., min_length=1, description="Message content")
+
 class CreateChatCompletionRequest(BaseModel):
-    model: str
-    messages: List[Dict[str, str]]
-    temperature: Optional[float] = 1.0
-    max_tokens: Optional[int] = None
-    top_p: Optional[float] = 1.0
-    frequency_penalty: Optional[float] = 0.0
-    presence_penalty: Optional[float] = 0.0
-    stop: Optional[List[str]] = None
-    stream: Optional[bool] = False
+    model: str = Field(..., description="Azure OpenAI deployment name")
+    messages: List[ChatMessageContent] = Field(..., min_items=1)
+    reasoning_effort: ReasoningEffort = Field(
+        default=ReasoningEffort.medium,
+        description="Reasoning effort level (required for o-series models)"
+    )
+    max_completion_tokens: int = Field(
+        default=40000,
+        ge=100,
+        le=100000,
+        description="Maximum tokens for response (required for o-series)"
+    )
+    temperature: float = Field(
+        default=1.0, 
+        ge=0.0, 
+        le=2.0,
+        description="Temperature setting (fixed for o-series)"
+    )
+    stream: bool = Field(
+        default=False,
+        description="Streaming enabled (only supported for o3-mini)"
+    )
+
+    @validator('max_tokens', 'top_p', 'frequency_penalty', 'presence_penalty', allow_reuse=True)
+    def validate_unsupported_params(cls, value):
+        raise ValueError("Parameter not supported for o-series models")
 
 class ChatMessage(BaseModel):
     message: str
@@ -53,6 +74,11 @@ class ChatMessage(BaseModel):
     developer_config: Optional[str] = Field(
         default=None,
         description="Developer instructions with 'Formatting re-enabled' prefix for markdown support"
+    )
+    response_format: Optional[str] = Field(
+        default=None,
+        description="Response format: text, json_object, or xml (o1 models only)",
+        json_schema_extra={"enum": ["text", "json_object", "xml"]}
     )
     reasoning_effort: Optional[ReasoningEffort] = Field(
         default=ReasoningEffort.medium,
