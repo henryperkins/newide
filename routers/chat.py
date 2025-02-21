@@ -34,7 +34,19 @@ async def stream_chat_response(
         
         if not message or not session_id:
             raise HTTPException(status_code=400, detail="Missing required fields")
-    async def generate():
+            
+        return StreamingResponse(
+            generate(message, client),
+            media_type="text/event-stream",
+            headers={
+                "X-Accel-Buffering": "no",
+                "Cache-Control": "no-cache"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def generate(message, client):
         try:
             # Configure parameters based on model type
             model_name = config.AZURE_OPENAI_DEPLOYMENT_NAME.lower()

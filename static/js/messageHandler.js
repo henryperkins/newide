@@ -469,4 +469,3 @@ function handleMessageError(error) {
     displayMessage(`Error: ${errorMessage}`, 'error');
     showNotification(errorMessage, 'error');
 }
-}
