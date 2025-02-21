@@ -23,6 +23,16 @@ MODEL_API_VERSIONS = {
     "default": "2024-12-01-preview"
 }
 
+class Settings(BaseSettings):
+    # Azure OpenAI settings
+    AZURE_OPENAI_ENDPOINT: str = Field(..., description="Azure OpenAI endpoint URL")
+    AZURE_OPENAI_API_KEY: str = Field(..., description="Azure OpenAI API key")
+    AZURE_OPENAI_DEPLOYMENT_NAME: str = Field(..., description="Azure OpenAI deployment name")
+    AZURE_OPENAI_API_VERSION: str = Field(
+        default="2024-12-01-preview",
+        description="Azure OpenAI API version"
+    )
+
     @validator("AZURE_OPENAI_API_VERSION")
     def validate_api_version(cls, v, values):
         deployment = values.get("AZURE_OPENAI_DEPLOYMENT_NAME", "").lower()
