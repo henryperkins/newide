@@ -190,7 +190,7 @@ async function handleChatRequest({
         })
     };
 
-    return await fetch('/chat', init);
+    return await fetch('/api/chat/stream', init);
 }
 
 async function handleStandardResponse(response) {
@@ -469,52 +469,4 @@ function handleMessageError(error) {
     displayMessage(`Error: ${errorMessage}`, 'error');
     showNotification(errorMessage, 'error');
 }
-    const userInput = document.getElementById('user-input');
-    const message = userInput.value.trim();
-    const config = getCurrentConfig();
-    
-    if (!message) return;
-
-    try {
-        userInput.disabled = true;
-        displayMessage(message, 'user');
-        userInput.value = '';
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-        showTypingIndicator(config.reasoningEffort);
-
-        const response = await handleChatRequest({
-            messageContent: message,
-            controller,
-            developerConfig: config.developerConfig,
-            reasoningEffort: config.reasoningEffort,
-            ...getFilesForChat()
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const modelSettings = {
-            supportsStreaming: true // This should come from your model config
-        };
-
-        if (modelSettings.supportsStreaming) {
-            await handleTrueStreaming(response, controller);
-        } else {
-            const data = await response.json();
-            await handleStandardResponse(data);
-        }
-
-    } catch (error) {
-        console.error('Message sending error:', error);
-        showNotification(error.message, 'error');
-    } finally {
-        removeTypingIndicator();
-        userInput.disabled = false;
-    }
 }

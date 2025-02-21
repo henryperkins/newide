@@ -37,6 +37,7 @@ function initializeUIEventHandlers() {
     // Send button handler
     document.getElementById('send-button')?.addEventListener('click', async (e) => {
         e.preventDefault();
+        e.stopPropagation();
         await sendMessage();
     });
 
@@ -44,6 +45,7 @@ function initializeUIEventHandlers() {
     document.getElementById('user-input')?.addEventListener('keypress', async (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
+            e.stopPropagation();
             await sendMessage();
         }
     });

@@ -13,11 +13,27 @@ import config
 router = APIRouter(prefix="/chat")
 from fastapi.responses import StreamingResponse
 
+from fastapi import Request
+from pydantic import BaseModel, HTTPException
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: str
+    reasoning_effort: str = "medium"
+    include_files: bool = False
+
 @router.post("/stream")
 async def stream_chat_response(
-    message: ChatMessage,
+    request: Request,
     client: AsyncAzureOpenAI = Depends(get_azure_client)
 ):
+    try:
+        request_data = await request.json()
+        message = request_data.get("message")
+        session_id = request_data.get("session_id")
+        
+        if not message or not session_id:
+            raise HTTPException(status_code=400, detail="Missing required fields")
     async def generate():
         try:
             # Configure parameters based on model type
