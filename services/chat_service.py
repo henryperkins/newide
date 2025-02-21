@@ -5,6 +5,8 @@ import mimetypes
 from openai import AzureOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+from typing import List, Dict, Any, Optional
+import json
 from models import ChatMessage
 from utils import count_tokens, calculate_model_timeout
 from logging_config import input_logger, response_logger, logger
@@ -13,41 +15,280 @@ from database import Conversation
 import config
 from time import perf_counter
 
+async def get_file_context(
+    session_id: str,
+    file_ids: List[str],
+    db_session
+) -> List[Dict[str, Any]]:
+    """
+    Retrieve file content and metadata for use in chat context
+    
+    Args:
+        session_id: Current session ID
+        file_ids: List of file IDs to include, or empty to include all
+        db_session: Database session
+        
+    Returns:
+        List of file objects with content and metadata
+    """
+    file_context = []
+    
+    try:
+        # If no specific files requested, include all session files
+        if not file_ids:
+            result = await db_session.execute(
+                text("""
+                    SELECT id FROM uploaded_files 
+                    WHERE session_id = :session_id 
+                    AND (status = 'ready' OR status IS NULL)
+                    AND (metadata IS NULL OR metadata->>'azure_processing' != 'failed')
+                """),
+                {"session_id": session_id}
+            )
+            file_ids = [str(row[0]) for row in result.fetchall()]
+        
+        # Retrieve file content for each file (or its chunks)
+        for file_id in file_ids:
+            # First check if this file has chunks
+            result = await db_session.execute(
+                text("""
+                    SELECT chunk_count, filename 
+                    FROM uploaded_files 
+                    WHERE id = :file_id::uuid
+                """),
+                {"file_id": file_id}
+            )
+            file_info = result.fetchone()
+            
+            if not file_info:
+                continue  # File not found
+                
+            chunk_count, filename = file_info
+            
+            if chunk_count and chunk_count > 1:
+                # This file has chunks - get them
+                result = await db_session.execute(
+                    text("""
+                        SELECT uf.content, uf.filename, uf.metadata
+                        FROM uploaded_files uf
+                        WHERE uf.status = 'chunk' 
+                        AND uf.metadata->>'parent_file_id' = :parent_id
+                        ORDER BY (uf.metadata->>'chunk_index')::int
+                    """),
+                    {"parent_id": file_id}
+                )
+                chunks = result.fetchall()
+                
+                # Process each chunk
+                for i, (content, chunk_filename, metadata) in enumerate(chunks):
+                    # Parse metadata if needed
+                    if isinstance(metadata, str):
+                        try:
+                            metadata = json.loads(metadata)
+                        except:
+                            metadata = {}
+                    
+                    # Add to context
+                    file_context.append({
+                        "filename": f"{filename} (chunk {i+1}/{len(chunks)})",
+                        "content": content,
+                        "metadata": metadata
+                    })
+            else:
+                # Single file - get content directly
+                result = await db_session.execute(
+                    text("""
+                        SELECT content, filename, metadata 
+                        FROM uploaded_files 
+                        WHERE id = :file_id::uuid
+                    """),
+                    {"file_id": file_id}
+                )
+                file_data = result.fetchone()
+                
+                if file_data:
+                    content, filename, metadata = file_data
+                    
+                    # Parse metadata if needed
+                    if isinstance(metadata, str):
+                        try:
+                            metadata = json.loads(metadata)
+                        except:
+                            metadata = {}
+                    
+                    # Add to context
+                    file_context.append({
+                        "filename": filename,
+                        "content": content,
+                        "metadata": metadata
+                    })
+        
+        return file_context
+    except Exception as e:
+        logger.error(f"Error retrieving file context: {e}")
+        return []
+
+def format_messages(chat_message, history):
+    """
+    Build the list of formatted messages for the API.
+    """
+    formatted = []
+    if chat_message.developer_config:
+        formatted.append({
+            "role": "developer",
+            "content": [{"type": "text", "text": chat_message.developer_config}],
+        })
+    for msg in history:
+        formatted.append({
+            "role": msg["role"],
+            "content": [{"type": "text", "text": msg["content"]}],
+        })
+    formatted.append({
+        "role": "user",
+        "content": [{"type": "text", "text": chat_message.message}],
+    })
+    return formatted
+
+# Define a centralized model configuration registry
+MODEL_CONFIGS = {
+    "o3": {
+        "api_version": config.AZURE_OPENAI_API_VERSION,
+        "max_completion_tokens_default": 40000,
+        "max_completion_tokens_limit": 100000,
+        "supports_streaming": True,
+        "supports_vision": False
+    },
+    "o1": {
+        "api_version": config.AZURE_OPENAI_API_VERSION,
+        "max_completion_tokens_default": 40000,
+        "max_completion_tokens_limit": 100000,
+        "supports_streaming": True,
+        "supports_vision": True
+    },
+    "default": {
+        "api_version": "2023-12-01",
+        "max_tokens_default": 4096,
+        "max_tokens_limit": 16384,
+        "supports_streaming": True,
+        "supports_vision": False
+    }
+}
+
+def get_model_config():
+    model_id = config.AZURE_OPENAI_DEPLOYMENT_NAME.split('-')[0].lower()
+    return MODEL_CONFIGS.get(model_id, MODEL_CONFIGS["default"])
+
+def build_api_params(formatted_messages, chat_message, model_name, is_o_series):
+    """
+    Build the parameters dictionary for the Azure OpenAI API call using the centralized model configuration.
+    """
+    model_conf = get_model_config()
+    params = {
+        "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
+        "messages": formatted_messages,
+        "stream": model_conf.get("supports_streaming", False),
+    }
+    if is_o_series:
+        params["max_completion_tokens"] = model_conf.get("max_completion_tokens_default", 40000)
+        params["reasoning_effort"] = chat_message.reasoning_effort.value if chat_message.reasoning_effort else "low"
+    else:
+        params["max_tokens"] = model_conf.get("max_tokens_default", 4096)
+    if chat_message.response_format:
+        params["response_format"] = {"type": chat_message.response_format}
+    return params
+
 async def process_chat_message(
     chat_message: ChatMessage,
     db_session: AsyncSession,
     azure_client: AzureOpenAI,
 ) -> dict:
     """
+    Process a chat message with file context integration, handling:
+    - Conversation history retrieval
+    - File context processing
+    - Azure OpenAI API calls
+    - Response formatting and error handling
+    """
+    
+    # Get file context if available
+    file_context = []
+    if hasattr(chat_message, 'include_files') and chat_message.include_files:
+        file_ids = chat_message.file_ids if hasattr(chat_message, 'file_ids') and chat_message.file_ids else []
+        file_context = await get_file_context(session_id, file_ids, db_session)
+    
+    # Add file context to messages
+    if file_context:
+        # Find or create developer/system message
+        system_message = next((m for m in formatted_messages if m["role"] in ["developer", "system"]), None)
+        if not system_message:
+            system_message = {"role": "developer", "content": ""}
+            formatted_messages.insert(0, system_message)
+        
+        # Add file context instruction
+        file_instruction = "\n\nYou have access to the following files:\n"
+        for i, file in enumerate(file_context):
+            file_instruction += f"{i+1}. {file['filename']}\n"
+        
+        file_instruction += "\nRefer to these files when answering questions. Use information from the files to provide detailed responses."
+        
+        # Append to developer/system message
+        if isinstance(system_message["content"], str):
+            system_message["content"] += file_instruction
+        elif isinstance(system_message["content"], list):
+            system_message["content"].append({"type": "text", "text": file_instruction})
+        
+        # Add file content to latest user message
+        user_message = formatted_messages[-1]
+        if user_message["role"] == "user":
+            file_content_text = "\n\nHere is the content of the files:\n\n"
+            for i, file in enumerate(file_context):
+                file_content_text += f"[File {i+1}: {file['filename']}]\n{file['content']}\n\n"
+            
+            if isinstance(user_message["content"], str):
+                user_message["content"] += file_content_text
+            elif isinstance(user_message["content"], list):
+                user_message["content"].append({"type": "text", "text": file_content_text})
+    
+    # Add Azure file search tool support if requested
+    use_azure_file_search = hasattr(chat_message, 'use_file_search') and chat_message.use_file_search
+    
+    # Build API params
+    params = build_api_params(formatted_messages, chat_message, model_name, is_o_series)
+    
+    # Add file tools if using Azure file search
+    if use_azure_file_search and azure_client:
+        try:
+            # Add file search tool
+            params["tools"] = params.get("tools", []) + [{"type": "file_search"}]
+            
+            # Configure Azure AI Search integration
+            params["extra_body"] = {
+                "data_sources": [{
+                    "type": "azure_search",
+                    "parameters": {
+                        "endpoint": config.AZURE_SEARCH_ENDPOINT,
+                        "index_name": f"session-{session_id}",
+                        "authentication": {
+                            "type": "api_key",
+                            "key": config.AZURE_SEARCH_KEY
+                        }
+                    }
+                }]
+            }
+            
+            logger.info(f"Integrated Azure AI Search for session {session_id}")
+        except Exception as e:
+            logger.error(f"Error setting up file search: {e}")
+            # Continue without file search if it fails
+    
+    """
     Process a chat message by retrieving history, calling the Azure OpenAI API,
     and saving the conversation to the database.
-
-    Args:
-        chat_message (ChatMessage): The incoming chat message with session ID and options.
-        db_session (AsyncSession): The database session for async operations.
-        azure_client (AzureOpenAI): The Azure OpenAI client instance.
-
-    Returns:
-        dict: The response containing the assistant's message and usage metrics.
-
-    Raises:
-        Exception: If all retry attempts fail or validation errors occur.
     """
     start_time = perf_counter()
     session_id = chat_message.session_id
     logger.info(f"[session {session_id}] Chat request received")
     input_logger.info(f"[session {session_id}] Message received. Length: {len(chat_message.message)} chars")
-
-    # Build initial messages list
-    messages = []
-    if chat_message.developer_config:
-        messages.append({
-            "role": "developer",
-            "content": (f"Formatting re-enabled - {chat_message.developer_config}"
-                        if "formatting" in chat_message.developer_config.lower()
-                        else chat_message.developer_config)
-        })
-    messages.append({"role": "user", "content": chat_message.message})
 
     # Retrieve conversation history from the database
     result = await db_session.execute(
@@ -55,117 +296,24 @@ async def process_chat_message(
         {"session_id": session_id},
     )
     history = result.mappings().all()
-    if history:
-        messages = [{"role": row["role"], "content": row["content"]} for row in history] + messages
 
-    # Format messages for the Azure OpenAI API
-    formatted_messages = []
-    if chat_message.developer_config:
-        formatted_messages.append({
-            "role": "developer",
-            "content": [{"type": "text", "text": chat_message.developer_config}],
-        })
-    for msg in history:
-        formatted_messages.append({
-            "role": msg["role"],
-            "content": [{"type": "text", "text": msg["content"]}],
-        })
-    formatted_messages.append({
-        "role": "user",
-        "content": [{"type": "text", "text": chat_message.message}],
-    })
+    # Format messages for the API
+    formatted_messages = format_messages(chat_message, history)
 
-    # Determine model type and set parameters
+    # Determine model type
     model_name = str(config.AZURE_OPENAI_DEPLOYMENT_NAME).lower()
     is_o_series = (any(m in model_name for m in ["o1-", "o3-"]) and "preview" not in model_name)
 
-    class VisionValidator:
-        MAX_IMAGE_SIZE_MB = 20
-        ALLOWED_MIME_TYPES = ["image/jpeg", "image/png"]
-        
-        def validate_image(self, image_url: str):
-            parsed = urlparse(image_url)
-            if parsed.size > self.MAX_IMAGE_SIZE_MB*1024*1024:
-                raise ValueError("Image size exceeds limit")
-                
-            mimetype = mimetypes.guess_type(image_url)[0]
-            if mimetype not in self.ALLOWED_MIME_TYPES:
-                raise ValueError("Unsupported image type")
+    # Build API parameters
+    params = build_api_params(formatted_messages, chat_message, model_name, is_o_series)
+    logger.info(f"Using API parameters for {'o-series' if is_o_series else 'standard'} model: {params}")
 
-    # Validate vision content
-    vision_validator = VisionValidator()
-    has_vision_content = False
-    for msg in formatted_messages:
-        contents = msg.get("content", [])
-        if isinstance(contents, list):
-            for content in contents:
-                if content.get("type") == "image_url":
-                    try:
-                        vision_validator.validate_image(content["image_url"]["url"])
-                        has_vision_content = True
-                    except ValueError as e:
-                        raise create_error_response(
-                            status_code=400,
-                            code="invalid_image",
-                            message=str(e),
-                            error_type="validation_error"
-                        )
-    # Validate vision support against documentation requirements
-    if has_vision_content:
-        is_o1_model = any(name in model_name.lower() for name in ["o1-", "o1.", "o1_"])
-        if not (is_o1_model and config.AZURE_OPENAI_API_VERSION >= "2024-12-01-preview"):
-            raise create_error_response(
-                status_code=400,
-                code="unsupported_feature",
-                message="Vision support requires o1 model and API version 2024-12-01-preview or later",
-                error_type="validation_error",
-                inner_error={
-                    "model": model_name,
-                    "api_version": config.AZURE_OPENAI_API_VERSION,
-                    "required_version": "2024-12-01-preview"
-                }
-            )
-
-    # Configure API parameters
-    STRICT_MODEL_REGISTRY = {
-        "o3-mini-2025": {
-            "supports_streaming": True,
-            "max_streams": 5
-        },
-        "o1-prod": {
-            "supports_streaming": False
-        }
-    }
-
-    def validate_streaming(model_id: str) -> bool:
-        model_config = STRICT_MODEL_REGISTRY.get(model_id, {})
-        return model_config.get('supports_streaming', False)
-
-    params = {
-        "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
-        "messages": formatted_messages,
-        "stream": validate_streaming(model_name),
-    }
-    if is_o_series:
-        params["max_completion_tokens"] = 40000
-        params["reasoning_effort"] = chat_message.reasoning_effort.value if chat_message.reasoning_effort else "low"
-    else:
-        # Standard models use max_tokens parameter
-        params.update({
-            "max_tokens": 4096
-        })
-    if chat_message.response_format:
-        params["response_format"] = {"type": chat_message.response_format}
-
-    logger.info(f"Using API parameters for {'o-series' if is_o_series else 'standard'} model: {str(params)}")
-
-    # Retry logic for API calls
+    # Retry logic for API call
     original_reasoning_effort = params.get("reasoning_effort", "medium")
     retry_attempts = 0
     max_retries = config.O_SERIES_MAX_RETRIES if is_o_series else 1
     retry_reasoning_efforts = []
     timeouts_used = []
-    error_msg = ""
 
     while True:
         current_reasoning = params.get("reasoning_effort", "medium")
@@ -180,7 +328,6 @@ async def process_chat_message(
         try:
             attempt_start = perf_counter()
             if params.get("stream"):
-                # Handle streaming response for o3-mini
                 collected_messages = []
                 collected_tokens = {"prompt": 0, "completion": 0, "total": 0}
                 async for chunk in azure_client.chat.completions.create(**params):
@@ -193,7 +340,6 @@ async def process_chat_message(
                             "total": chunk.usage.total_tokens
                         }
                 response_content = "".join(collected_messages)
-                # Mock response object for consistency
                 response = type('StreamResponse', (), {
                     'choices': [type('Choice', (), {
                         'message': type('Message', (), {'content': response_content})(),
@@ -238,31 +384,23 @@ async def process_chat_message(
             else:
                 logger.warning(f"Request timed out after {elapsed:.2f}s with {current_reasoning} reasoning. Retrying with increased timeout.")
 
-    # Safe response handling
+    # Wrap response usage tokens safely
     class AzureResponseWrapper:
         def __init__(self, response):
             self._response = response
-            
-        @property
-        def reasoning_tokens(self):
-            return getattr(
-                getattr(self._response.usage, 'completion_tokens_details', {}),
-                'reasoning_tokens', 0
-            )
-            
         @property
         def prompt_tokens(self):
             return getattr(self._response.usage, 'prompt_tokens', 0)
-            
         @property 
         def completion_tokens(self):
             return getattr(self._response.usage, 'completion_tokens', 0)
-            
         @property
         def total_tokens(self):
             return getattr(self._response.usage, 'total_tokens', 0)
+        @property
+        def reasoning_tokens(self):
+            return getattr(getattr(self._response.usage, 'completion_tokens_details', {}), 'reasoning_tokens', 0)
 
-    # Log performance metrics
     elapsed_total = perf_counter() - start_time
     wrapped_response = AzureResponseWrapper(response)
     tokens = {
@@ -271,51 +409,19 @@ async def process_chat_message(
         "total": wrapped_response.total_tokens,
         "reasoning": wrapped_response.reasoning_tokens,
     }
-    # For o-series models, override local calculations with API-reported values
-    if is_o_series and response.usage:
-        tokens["prompt"] = response.usage.prompt_tokens
-        tokens["completion"] = response.usage.completion_tokens
-        tokens["total"] = response.usage.total_tokens
     logger.info(f"Chat completed in {elapsed_total:.2f}s - Tokens used: {tokens['total']} (prompt: {tokens['prompt']}, completion: {tokens['completion']})")
 
-    # Handle structured outputs
     assistant_msg = response.choices[0].message.content
-    
-    if chat_message.response_format == "xml":
-        try:
-            import xml.etree.ElementTree as ET
-            root = ET.fromstring(assistant_msg)
-            # Convert XML to structured dict
-            xml_data = {}
-            for child in root:
-                xml_data[child.tag] = child.text
-            assistant_msg = xml_data
-        except Exception as e:
-            logger.error(f"XML parsing failed: {str(e)}")
-            raise create_error_response(
-                status_code=500,
-                code="xml_parse_error",
-                message="Failed to parse XML response",
-                error_type="processing_error",
-                inner_error={"original_error": str(e)},
-            )
     response_logger.info(f"[session {session_id}] Response generated. Length: {len(assistant_msg)} chars. Preview: {assistant_msg[:100]}{'...' if len(assistant_msg) > 100 else ''}")
 
-    # Save user and assistant messages to the database
+    # Save conversation to database
     user_msg = Conversation(session_id=session_id, role="user", content=chat_message.message)
-    assistant_msg_obj = Conversation(
-        session_id=session_id,
-        role="assistant", 
-        content=assistant_msg,
-        model_version=getattr(response, "model", ""),
-        service_tier=getattr(response, "service_tier", "standard")
-    )
+    assistant_msg_obj = Conversation(session_id=session_id, role="assistant", content=assistant_msg)
     db_session.add(user_msg)
     db_session.add(assistant_msg_obj)
     await db_session.execute(text("UPDATE sessions SET last_activity = NOW() WHERE id = :session_id"), {"session_id": session_id})
     await db_session.commit()
 
-    # Prepare the final response
     final_response = {
         "response": assistant_msg,
         "usage": {
@@ -327,7 +433,7 @@ async def process_chat_message(
     if is_o_series and hasattr(response.usage, "completion_tokens_details"):
         completion_details = response.usage.completion_tokens_details
         final_response["usage"]["completion_details"] = {
-            "reasoning_tokens": completion_details.reasoning_tokens if hasattr(completion_details, "reasoning_tokens") else None,
+            "reasoning_tokens": getattr(completion_details, "reasoning_tokens", None),
         }
         if hasattr(response.usage, "prompt_tokens_details"):
             final_response["usage"]["prompt_details"] = {

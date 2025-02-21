@@ -1,4 +1,3 @@
-# database.py
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Integer, BigInteger, Index
@@ -53,14 +52,48 @@ class Conversation(Base):
     service_tier = Column(String(50))   # Stores the service tier from API response
 
 class UploadedFile(Base):
-    """ORM model for uploaded files."""
+    """Enhanced ORM model for uploaded files."""
     __tablename__ = "uploaded_files"
+    
     id = Column(PGUUID, primary_key=True)
-    session_id = Column(PGUUID, ForeignKey("sessions.id"), nullable=False)
+    session_id = Column(PGUUID, ForeignKey("sessions.id", ondelete='CASCADE'), nullable=False)
     filename = Column(Text, nullable=False)
     content = Column(Text, nullable=False)
     size = Column(BigInteger, nullable=False)
     upload_time = Column(DateTime(timezone=True), server_default=text("NOW()"))
+    
+    # New fields for enhanced file handling
+    file_type = Column(String(50))  # MIME type or file extension
+    status = Column(String(20), default="ready")  # ready, processing, error, chunk
+    chunk_count = Column(Integer, default=1)  # Number of chunks for large files
+    token_count = Column(Integer)  # Estimated token count
+    embedding_id = Column(String(255), nullable=True)  # For vector store reference
+    metadata = Column(JSONB, nullable=True)  # Additional file metadata
+    azure_status = Column(String(20), nullable=True)  # Status of Azure processing
+
+class VectorStore(Base):
+    """ORM model for vector stores."""
+    __tablename__ = "vector_stores"
+    
+    id = Column(PGUUID, primary_key=True)
+    session_id = Column(PGUUID, ForeignKey("sessions.id", ondelete='CASCADE'), nullable=False)
+    name = Column(Text, nullable=False)
+    azure_id = Column(String(255), nullable=True)  # Azure vector store ID
+    created_at = Column(DateTime(timezone=True), server_default=text("NOW()"))
+    status = Column(String(20), default="active")
+    metadata = Column(JSONB, nullable=True)
+
+class FileCitation(Base):
+    """ORM model for file citations in conversation."""
+    __tablename__ = "file_citations"
+    
+    id = Column(PGUUID, primary_key=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete='CASCADE'), nullable=False)
+    file_id = Column(PGUUID, ForeignKey("uploaded_files.id", ondelete='SET NULL'), nullable=True)
+    snippet = Column(Text, nullable=False)  # The cited text
+    position = Column(Integer)  # Citation position/index
+    created_at = Column(DateTime(timezone=True), server_default=text("NOW()"))
+    metadata = Column(JSONB, nullable=True)
 
 async def get_db_session() -> AsyncSession:
     """
@@ -75,6 +108,7 @@ async def get_db_session() -> AsyncSession:
 async def init_database():
     """Initialize the database by creating necessary tables if they don't exist."""
     async with engine.begin() as conn:
+        # Create sessions table
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id UUID PRIMARY KEY,
@@ -82,27 +116,76 @@ async def init_database():
                 last_activity TIMESTAMPTZ DEFAULT NOW(),
                 expires_at TIMESTAMPTZ NOT NULL
             )"""))
+        
+        # Create conversations table
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS conversations (
                 id SERIAL PRIMARY KEY,
-                session_id UUID REFERENCES sessions(id),
+                session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
                 role VARCHAR(20) NOT NULL,
                 content TEXT NOT NULL,
-                timestamp TIMESTAMPTZ DEFAULT NOW()
+                timestamp TIMESTAMPTZ DEFAULT NOW(),
+                system_fingerprint VARCHAR(64),
+                prompt_filter_results JSONB,
+                content_filter_results JSONB,
+                model_version VARCHAR(50),
+                service_tier VARCHAR(50)
             )"""))
+        
+        # Create uploaded_files table with enhanced fields
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS uploaded_files (
                 id UUID PRIMARY KEY,
-                session_id UUID REFERENCES sessions(id),
+                session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
                 filename TEXT NOT NULL,
                 content TEXT NOT NULL,
                 size BIGINT NOT NULL,
-                upload_time TIMESTAMPTZ DEFAULT NOW()
+                upload_time TIMESTAMPTZ DEFAULT NOW(),
+                file_type VARCHAR(50),
+                status VARCHAR(20) DEFAULT 'ready',
+                chunk_count INTEGER DEFAULT 1,
+                token_count INTEGER,
+                embedding_id VARCHAR(255),
+                metadata JSONB,
+                azure_status VARCHAR(20)
             )"""))
+        
+        # Create vector_stores table
         await conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS typing_activity (
-                session_id UUID REFERENCES sessions(id),
-                user_id UUID NOT NULL,
-                last_activity TIMESTAMPTZ DEFAULT NOW(),
-                PRIMARY KEY (session_id, user_id)
+            CREATE TABLE IF NOT EXISTS vector_stores (
+                id UUID PRIMARY KEY,
+                session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                azure_id VARCHAR(255),
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                status VARCHAR(20) DEFAULT 'active',
+                metadata JSONB
             )"""))
+        
+        # Create file_citations table
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS file_citations (
+                id UUID PRIMARY KEY,
+                conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+                file_id UUID REFERENCES uploaded_files(id) ON DELETE SET NULL,
+                snippet TEXT NOT NULL,
+                position INTEGER,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                metadata JSONB
+            )"""))
+        
+        # Create indexes
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS ix_uploaded_files_session_id 
+            ON uploaded_files(session_id)
+        """))
+        
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS ix_uploaded_files_status
+            ON uploaded_files(status)
+        """))
+        
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS ix_file_citations_conversation_id
+            ON file_citations(conversation_id)
+        """))

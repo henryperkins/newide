@@ -2,12 +2,24 @@ from pydantic_settings import BaseSettings
 from pydantic import SecretStr
 import os
 
+from pydantic import validator
+
 class Settings(BaseSettings):
     # Azure OpenAI settings
     AZURE_OPENAI_ENDPOINT: str
     AZURE_OPENAI_API_KEY: str
     AZURE_OPENAI_DEPLOYMENT_NAME: str
     AZURE_OPENAI_API_VERSION: str = os.getenv("DEFAULT_API_VERSION", "2024-12-01-preview")
+    
+    @validator("AZURE_OPENAI_API_VERSION")
+    def validate_api_version(cls, v, values):
+        deployment = values.get("AZURE_OPENAI_DEPLOYMENT_NAME", "").lower()
+        if deployment.startswith("o1") or deployment.startswith("o3"):
+            expected = "2025-01-01-preview"
+            if v != expected:
+                # Warning printed during validation; in production use logging
+                print(f"Warning: For deployment '{deployment}', expected API version {expected} but got {v}.")
+        return v
 
     # PostgreSQL settings
     POSTGRES_HOST: str
@@ -62,6 +74,130 @@ REASONING_EFFORT_MULTIPLIERS = {
     "medium": 2.5,
     "high": 5.0,
 }
+
+# Azure AI Search configuration
+AZURE_SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT")
+AZURE_SEARCH_KEY = os.getenv("AZURE_SEARCH_KEY")
+AZURE_SEARCH_USE_VECTOR = os.getenv("AZURE_SEARCH_USE_VECTOR", "True").lower() in ("true", "1", "yes")
+AZURE_SEARCH_SEMANTIC_CONFIG = os.getenv("AZURE_SEARCH_SEMANTIC_CONFIG", "default")
+
+# Azure AI Search index field mappings
+AZURE_SEARCH_FIELDS = {
+    "content_fields": ["content", "chunk_content"],
+    "title_field": "filename",
+    "url_field": "id",
+    "filepath_field": "filepath",
+    "vector_fields": ["content_vector"],
+}
+
+# Azure AI vector settings
+AZURE_EMBEDDING_DEPLOYMENT = os.getenv("AZURE_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002")
+AZURE_EMBEDDING_DIMENSION = int(os.getenv("AZURE_EMBEDDING_DIMENSION", "1536"))
+
+def get_azure_search_index_schema(index_name):
+    """
+    Get Azure AI Search index schema for file search
+    """
+    return {
+        "name": index_name,
+        "fields": [
+            {
+                "name": "id",
+                "type": "Edm.String",
+                "key": True,
+                "filterable": True
+            },
+            {
+                "name": "filename",
+                "type": "Edm.String",
+                "searchable": True,
+                "filterable": True,
+                "sortable": True
+            },
+            {
+                "name": "content",
+                "type": "Edm.String",
+                "searchable": True,
+                "analyzer": "standard.lucene"
+            },
+            {
+                "name": "chunk_content",
+                "type": "Edm.String",
+                "searchable": True,
+                "analyzer": "standard.lucene"
+            },
+            {
+                "name": "filepath",
+                "type": "Edm.String",
+                "searchable": True,
+                "filterable": True
+            },
+            {
+                "name": "file_type",
+                "type": "Edm.String",
+                "filterable": True
+            },
+            {
+                "name": "session_id",
+                "type": "Edm.String",
+                "filterable": True
+            },
+            {
+                "name": "chunk_id",
+                "type": "Edm.Int32",
+                "filterable": True,
+                "sortable": True
+            },
+            {
+                "name": "chunk_total",
+                "type": "Edm.Int32"
+            },
+            {
+                "name": "content_vector",
+                "type": "Collection(Edm.Single)",
+                "searchable": True,
+                "dimensions": AZURE_EMBEDDING_DIMENSION,
+                "vectorSearchConfiguration": "vectorConfig"
+            },
+            {
+                "name": "last_updated",
+                "type": "Edm.DateTimeOffset",
+                "filterable": True,
+                "sortable": True
+            }
+        ],
+        "vectorSearch": {
+            "algorithmConfigurations": [
+                {
+                    "name": "vectorConfig",
+                    "kind": "hnsw"
+                }
+            ]
+        },
+        "semantic": {
+            "configurations": [
+                {
+                    "name": "default",
+                    "prioritizedFields": {
+                        "contentFields": [
+                            {
+                                "fieldName": "content"
+                            },
+                            {
+                                "fieldName": "chunk_content"
+                            }
+                        ],
+                        "titleField": {
+                            "fieldName": "filename"
+                        },
+                        "urlField": {
+                            "fieldName": "filepath"
+                        }
+                    }
+                }
+            ]
+        }
+    }
 
 # PostgreSQL Configuration with full SSL verification
 POSTGRES_URL = f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"

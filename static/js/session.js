@@ -1,4 +1,4 @@
-import { showNotification } from '/static/js/ui/notificationManager.js';
+import { showNotification } from './ui/notificationManager.js';
 
 let sessionId = null;
 

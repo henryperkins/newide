@@ -2,20 +2,21 @@ import {
     sessionId, 
     initializeSession, 
     lastUserMessage 
-} from '/static/js/session.js';
+} from './session.js';
 import { 
     showNotification,
     showTypingIndicator,
     removeTypingIndicator
-} from '/static/js/ui/notificationManager.js';
-import { displayMessage } from '/static/js/ui/displayManager.js';
-import { safeMarkdownParse } from '/static/js/ui/markdownParser.js';
-import { updateTokenUsage } from '/static/js/utils/helpers.js';
+} from './ui/notificationManager.js';
+import { displayMessage } from './ui/displayManager.js';
+import { safeMarkdownParse } from './ui/markdownParser.js';
+import { updateTokenUsage } from './utils/helpers.js';
 import { 
     getCurrentConfig,
     getTimeoutDurations,
     getModelSettings
-} from '/static/js/config.js';
+} from './config.js';
+import { getFilesForChat } from './fileManager.js';
 
 export async function sendMessage() {
     const userInput = document.getElementById('user-input');
@@ -366,6 +367,46 @@ async function getErrorDetails(response) {
             'Service unavailable';
     }
     return `HTTP error! status: ${response.status}`;
+}
+
+// Display file citations in a special UI element
+function displayFileCitations(citations) {
+    // Create citations container
+    const citationsContainer = document.createElement('div');
+    citationsContainer.className = 'file-citations';
+    
+    // Add header
+    const header = document.createElement('div');
+    header.className = 'citations-header';
+    header.innerHTML = '<span class="citation-icon">📚</span> Citations from Files';
+    citationsContainer.appendChild(header);
+    
+    // Add each citation
+    citations.forEach((citation, index) => {
+        const citationElement = document.createElement('div');
+        citationElement.className = 'citation-item';
+        
+        const citationHeader = document.createElement('div');
+        citationHeader.className = 'citation-item-header';
+        citationHeader.innerHTML = `
+            <span class="citation-number">[${index + 1}]</span>
+            <span class="citation-filename">${citation.filename}</span>
+        `;
+        
+        const citationContent = document.createElement('div');
+        citationContent.className = 'citation-content';
+        citationContent.textContent = citation.text;
+        
+        citationElement.appendChild(citationHeader);
+        citationElement.appendChild(citationContent);
+        citationsContainer.appendChild(citationElement);
+    });
+    
+    // Add to the chat history
+    const chatHistory = document.getElementById('chat-history');
+    if (chatHistory) {
+        chatHistory.appendChild(citationsContainer);
+    }
 }
 
 function handleMessageError(error) {

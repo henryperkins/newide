@@ -11,6 +11,7 @@ async def init_database():
         async with engine.begin() as conn:
             # Create database if it doesn't exist
             # Create tables separately to avoid multi-command prepared statement issue
+            # Create sessions table
             await conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     id UUID PRIMARY KEY,
@@ -19,23 +20,59 @@ async def init_database():
                     expires_at TIMESTAMPTZ NOT NULL
                 );"""))
 
+            # Create conversations table
             await conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS conversations (
                     id SERIAL PRIMARY KEY,
-                    session_id UUID REFERENCES sessions(id),
+                    session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
                     role VARCHAR(20) NOT NULL,
                     content TEXT NOT NULL,
-                    timestamp TIMESTAMPTZ DEFAULT NOW()
+                    timestamp TIMESTAMPTZ DEFAULT NOW(),
+                    system_fingerprint VARCHAR(64),
+                    prompt_filter_results JSONB,
+                    content_filter_results JSONB,
+                    model_version VARCHAR(50),
+                    service_tier VARCHAR(50)
                 );"""))
 
+            # Create enhanced uploaded_files table
             await conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS uploaded_files (
                     id UUID PRIMARY KEY,
-                    session_id UUID REFERENCES sessions(id),
+                    session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
                     filename TEXT NOT NULL,
                     content TEXT NOT NULL,
                     size BIGINT NOT NULL,
-                    upload_time TIMESTAMPTZ DEFAULT NOW()
+                    upload_time TIMESTAMPTZ DEFAULT NOW(),
+                    file_type VARCHAR(50),
+                    status VARCHAR(20) DEFAULT 'ready',
+                    chunk_count INTEGER DEFAULT 1,
+                    token_count INTEGER,
+                    embedding_id VARCHAR(255),
+                    metadata JSONB,
+                    azure_status VARCHAR(20)
+                );"""))
+
+            # Create vector_stores table
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS vector_stores (
+                    id UUID PRIMARY KEY,
+                    session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL,
+                    azure_id VARCHAR(255),
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    status VARCHAR(20) DEFAULT 'active',
+                    metadata JSONB
+                );"""))
+
+            # Create file_citations table
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS file_citations (
+                    id UUID PRIMARY KEY,
+                    conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+                    file_id UUID REFERENCES uploaded_files(id) ON DELETE CASCADE,
+                    citation_text TEXT NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
                 );"""))
 
             await conn.execute(text("""

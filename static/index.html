@@ -6,28 +6,21 @@
     <title>Azure OpenAI o1 Chat</title>
     
     <!-- Styles -->
-    <link rel="stylesheet" href="/static/css/fonts.css">
-    <link rel="stylesheet" href="/static/css/variables.css">
-    
-    <link rel="stylesheet" href="/static/css/components.css">
-    
-    
+    <link rel="stylesheet" href="index.css">
 
     <!-- Scripts -->
     
-    
-    
-    
+      
     <!-- Core Modules -->
-    <script type="module" src="/static/js/session.js"></script>
-    <script type="module" src="/static/js/config.js"></script>
-    <script type="module" src="/static/js/utils/helpers.js"></script>
-    <script type="module" src="/static/js/ui/markdownParser.js"></script>
-    <script type="module" src="/static/js/ui/notificationManager.js"></script>
-    <script type="module" src="/static/js/ui/displayManager.js"></script>
-    <script type="module" src="/static/js/fileManager.js"></script>
-    <script type="module" src="/static/js/messageHandler.js"></script>
-    <script type="module" src="/static/js/main.js"></script>
+    <script type="module" src="/js/session.js"></script>
+    <script type="module" src="/js/config.js"></script>
+    <script type="module" src="/js/utils/helpers.js"></script>
+    <script type="module" src="/js/ui/markdownParser.js"></script>
+    <script type="module" src="/js/ui/notificationManager.js"></script>
+    <script type="module" src="/js/ui/displayManager.js"></script>
+    <script type="module" src="/js/fileManager.js"></script>
+    <script type="module" src="/js/messageHandler.js"></script>
+    <script type="module" src="/js/main.js"></script>
 </head>
 <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -140,12 +133,35 @@
                         </p>
                         <input type="file" 
                                id="file-input" 
-                               accept=".txt,.md,.json,.js" 
+                               accept=".txt,.md,.json,.js,.py,.html,.css,.pdf,.docx,.doc" 
                                multiple 
                                hidden>
                     </div>
                 </div>
                 
+                <!-- File Upload Status -->
+                <div id="file-upload-status" class="file-upload-status"></div>
+                
+                <!-- File Selection Controls -->
+                <div class="file-controls">
+                    <div class="file-selection-wrapper">
+                        <span id="file-selection-status" class="file-selection-status">No files selected</span>
+                        <button id="select-all-files" class="select-all-button">Select All</button>
+                    </div>
+                    
+                    <!-- Azure File Search Toggle -->
+                    <div class="file-search-toggle">
+                        <input type="checkbox" id="use-file-search" class="toggle-input">
+                        <label for="use-file-search" class="toggle-label">Use Azure Search</label>
+                        <span class="help-tooltip" title="Process files with Azure OpenAI for semantic search capability">ⓘ</span>
+                    </div>
+                </div>
+                
+                <!-- File List -->
+                <div class="file-list-header">
+                    <h3>Uploaded Files</h3>
+                    <span class="file-help-text">Click on files to select them as context</span>
+                </div>
                 <div class="file-list" id="file-list"></div>
                 
                 <div class="file-stats">
@@ -153,8 +169,8 @@
                     <dl>
                         <dt>Files:</dt>
                         <dd id="total-files">0</dd>
-                        <dt>Characters:</dt>
-                        <dd id="total-chars">0</dd>
+                        <dt>Total Size:</dt>
+                        <dd id="total-size">0</dd>
                         <dt>Estimated Tokens:</dt>
                         <dd id="estimated-tokens">0</dd>
                     </dl>
@@ -172,6 +188,6 @@
     <div id="error-display" class="error-message"></div>
 
     <!-- Initialization -->
-    <script type="module" src="/static/js/init.js"></script>
+    <script type="module" src="/js/init.js"></script>
 </body>
 </html>

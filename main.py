@@ -1,21 +1,19 @@
 # main.py
 import datetime
-import os
 from pathlib import Path
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from database import init_database
 from routers.session import router as session_router
 from routers.chat import router as chat_router
 from routers.files import router as files_router
 
-# Get absolute path to static directory
-STATIC_DIR = Path(__file__).parent / "static"
+# Resolve absolute path to the static directory
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
-# Create FastAPI app with minimal config
 app = FastAPI(
     docs_url=None,
     redoc_url=None,
@@ -32,26 +30,17 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# Mount static files first
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+# Mount static files at root with html=True so that index.html is served automatically.
+app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
-# Root route
-@app.get("/", response_class=FileResponse)
-def root():
-    index_path = STATIC_DIR / "index.html"
-    return FileResponse(
-        path=str(index_path),
-        media_type="text/html",
-        headers={"Content-Type": "text/html; charset=utf-8"}
-    )
-
+# (Optional) Define favicon route in case additional headers are needed.
 @app.get("/favicon.ico")
 def favicon():
     favicon_path = STATIC_DIR / "favicon.ico"
     return FileResponse(str(favicon_path))
 
-# Include API routers with prefixes
-app.include_router(session_router, prefix="/api/session")
+# Include API routers with prefixes. They won't conflict with the static files.
+app.include_router(session_router)
 app.include_router(files_router, prefix="/api/files")
 app.include_router(chat_router, prefix="/api/chat")
 
