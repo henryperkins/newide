@@ -59,7 +59,8 @@ async def create_chat_completion(
         response_format=None,
         max_completion_tokens=request.max_completion_tokens
     )
-    return await process_chat_message(chat_message, db, client)
+    response_data = await process_chat_message(chat_message, db, client)
+    return ChatCompletionResponse(**response_data)
 
 @router.post("/stream")
 async def stream_chat_response(

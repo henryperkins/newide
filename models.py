@@ -83,12 +83,40 @@ class CreateChatCompletionRequest(BaseModel):
                 raise ValueError(f"Parameters {forbidden_params} not supported for o-series models")
         return values
 
-class ChatMessage(BaseModel):
-    message: str
-    session_id: str
-    developer_config: Optional[str] = Field(
-        default=None,
-        description="Developer instructions with 'Formatting re-enabled' prefix for markdown support"
+class ChatCompletionResponseChoice(BaseModel):
+    finish_reason: str = Field(..., alias="finish_reason")
+    index: int
+    message: Dict[str, Any] = Field(..., description="Message content with citations")
+    content_filter_results: Dict[str, Any] = Field(
+        ..., 
+        alias="content_filter_results",
+        description="Azure content filtering results"
+    )
+
+class ChatCompletionResponseUsage(BaseModel):
+    completion_tokens: int
+    prompt_tokens: int
+    total_tokens: int
+    completion_tokens_details: Dict[str, Optional[int]] = Field(
+        default_factory=dict,
+        description="Includes reasoning_tokens for o-series"
+    )
+    prompt_tokens_details: Dict[str, Optional[int]] = Field(
+        default_factory=dict,
+        description="Includes cached_tokens if applicable"
+    )
+
+class ChatCompletionResponse(BaseModel):
+    id: str
+    created: int
+    model: str
+    system_fingerprint: str
+    object: str = "chat.completion"
+    choices: List[ChatCompletionResponseChoice]
+    usage: ChatCompletionResponseUsage
+    prompt_filter_results: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Content filtering results for prompts"
     )
     response_format: Optional[str] = Field(
         default=None,

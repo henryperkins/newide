@@ -404,12 +404,34 @@ async def process_chat_message(
     await db_session.execute(text("UPDATE sessions SET last_activity = NOW() WHERE id = :session_id"), {"session_id": session_id})
     await db_session.commit()
     
+    # Build response matching Azure API schema
     final_response = {
-        "response": assistant_msg,
+        "id": f"chatcmpl-{uuid.uuid4()}",
+        "created": int(time.time()),
+        "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
+        "system_fingerprint": getattr(response, 'system_fingerprint', ''),
+        "object": "chat.completion",
+        "choices": [{
+            "index": idx,
+            "message": {
+                "role": "assistant",
+                "content": choice.message.content,
+                **({"tool_calls": choice.message.tool_calls} if hasattr(choice.message, 'tool_calls') else {})
+            },
+            "finish_reason": choice.finish_reason,
+            "content_filter_results": getattr(choice, 'content_filter_results', {})
+        } for idx, choice in enumerate(response.choices)],
         "usage": {
-            "prompt_tokens": getattr(response.usage, 'prompt_tokens', 0),
-            "completion_tokens": getattr(response.usage, 'completion_tokens', 0),
-            "total_tokens": getattr(response.usage, 'total_tokens', 0),
+            "completion_tokens": response.usage.completion_tokens,
+            "prompt_tokens": response.usage.prompt_tokens,
+            "total_tokens": response.usage.total_tokens,
+            "completion_tokens_details": {
+                "reasoning_tokens": getattr(response.usage, 'reasoning_tokens', None)
+            },
+            "prompt_tokens_details": {
+                "cached_tokens": getattr(response.usage, 'cached_tokens', 0)
+            }
         },
+        "prompt_filter_results": getattr(response, 'prompt_filter_results', [])
     }
     return final_response
