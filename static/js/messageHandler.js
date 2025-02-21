@@ -230,13 +230,6 @@ function createMessageContainer() {
     return container;
 }
 
-function updateStreamingUI(response, container) {
-    const content = response.choices[0].delta.content || '';
-    container.innerHTML += sanitizeInput(content);
-    highlightCodeBlocks(container);
-    container.scrollIntoView({ behavior: 'smooth', block: 'end' });
-}
-
 function updateStreamingUI(content, container) {
     if (!container) {
         container = document.createElement('div');
