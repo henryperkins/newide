@@ -345,6 +345,20 @@ button:focus,
   z-index: 1;
 }
 
+/* Model-specific controls */
+.model-specific-control {
+    transition: all 0.3s ease;
+    opacity: 1;
+}
+
+.model-specific-control.hidden {
+    opacity: 0;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
 /* components.css */
 /* Chat Container Structure */
 .chat-container {

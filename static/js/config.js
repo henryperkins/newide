@@ -18,7 +18,8 @@ export function getCurrentConfig() {
     const defaultConfig = {
         reasoningEffort: "medium",
         developerConfig: "Formatting re-enabled - use markdown code blocks",
-        includeFiles: false
+        includeFiles: false,
+        selectedModel: "o1" // Default model
     };
 
     // Merge stored config with defaults

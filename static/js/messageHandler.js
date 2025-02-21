@@ -165,21 +165,18 @@ async function handleChatRequest({
     controller,
     vectorStores
 }) {
-    // Safe destructuring with defaults
-    const { 
-        developerConfig = "", 
-        reasoningEffort = "medium" 
-    } = getCurrentConfig();
+    const config = getCurrentConfig();
     
     const init = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
+            model: config.selectedModel, // Send selected model to backend
             message: messageContent,
             session_id: sessionId,
-            developer_config: developerConfig,
-            reasoning_effort: reasoningEffort,
+            developer_config: config.developerConfig,
+            reasoning_effort: config.reasoningEffort,
             include_usage_metrics: true,
             tools: [{ type: "file_search" }],
             tool_resources: vectorStores.vector_store_ids.length > 0 ? {

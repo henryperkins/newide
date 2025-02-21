@@ -39,10 +39,22 @@ function initializeUIEventHandlers() {
         const config = {
             developerConfig: document.getElementById('developer-config').value,
             reasoningEffort: ['low', 'medium', 'high'][document.getElementById('reasoning-effort-slider').value - 1],
-            includeFiles: document.getElementById('use-file-search').checked
+            includeFiles: document.getElementById('use-file-search').checked,
+            selectedModel: document.getElementById('model-selector').value
         };
         localStorage.setItem('appConfig', JSON.stringify(config));
     };
+
+    // Model selector handler
+    document.getElementById('model-selector').addEventListener('change', (e) => {
+        syncConfigToStorage();
+        showNotification(`Switched to ${e.target.value} model`, 'info', 2000);
+        updateModelSpecificUI(e.target.value);
+    });
+
+    // Initialize model-specific UI
+    const initialModel = getCurrentConfig().selectedModel;
+    updateModelSpecificUI(initialModel);
 
     // Send button handler
     document.getElementById('send-button')?.addEventListener('click', async (e) => {
@@ -95,6 +107,19 @@ function initializeFileHandling() {
         console.error("File list load failed:", error);
         showNotification("Failed to load file list", "error");
     });
+}
+
+function updateModelSpecificUI(model) {
+    const reasoningControls = document.getElementById('reasoning-controls');
+    const streamingToggle = document.getElementById('streaming-toggle');
+    
+    if (model === 'o1') {
+        reasoningControls.style.display = 'block';
+        if (streamingToggle) streamingToggle.disabled = true;
+    } else {
+        reasoningControls.style.display = 'none';
+        if (streamingToggle) streamingToggle.disabled = false;
+    }
 }
 
 function handleInitializationError(error) {
