@@ -186,7 +186,7 @@ async function handleChatRequest({
             session_id: sessionId,
             developer_config: developerConfig,
             reasoning_effort: reasoningEffort,
-            include_usage_metrics: true,
+            include_usage_metrics: config.include_usage_metrics,
             tools: [{ type: "file_search" }],
             tool_resources: (vectorStores.vector_store_ids?.length || 0) > 0 ? {
                 file_search: {
