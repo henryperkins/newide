@@ -24,7 +24,7 @@ from models import CreateChatCompletionRequest
 import uuid
 import time
 
-@router.post("/chat")
+@router.post("/")
 async def create_chat_completion(
     request: CreateChatCompletionRequest,
     api_version: str = Query(..., alias="api-version"),
