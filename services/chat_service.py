@@ -302,15 +302,49 @@ async def process_chat_message(
                         user_message["content"].append({"type": "text", "text": file_content_text})
     
     # Build API parameters with Azure AI Search integration if requested
-    params = await build_api_params_with_search(
-        formatted_messages, 
-        chat_message, 
-        model_name, 
-        is_o_series,
-        file_ids=file_ids,
-        session_id=session_id,
-        use_file_search=use_file_search
-    )
+    params = {
+        "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
+        "messages": formatted_messages,
+        "stream": validate_streaming(model_name),
+    }
+    
+    # Model-specific parameters
+    if is_o_series:
+        params.update({
+            "max_completion_tokens": chat_message.max_completion_tokens or 40000,
+            "reasoning_effort": chat_message.reasoning_effort.value if chat_message.reasoning_effort else "medium"
+        })
+    else:
+        params["max_tokens"] = 4096
+        
+    # Add Azure AI Search integration if requested
+    if use_file_search and session_id:
+        try:
+            azure_search_endpoint = os.getenv("AZURE_SEARCH_ENDPOINT")
+            azure_search_key = os.getenv("AZURE_SEARCH_KEY")
+            azure_search_index = f"index-{session_id}"
+            
+            if azure_search_endpoint:
+                from urllib.parse import quote
+                file_filter = f"search.in(id, '{','.join(file_ids)}')" if file_ids else None
+                
+                params["data_sources"] = [{
+                    "type": "azure_search",
+                    "parameters": {
+                        "endpoint": azure_search_endpoint,
+                        "index_name": azure_search_index,
+                        "authentication": {
+                            "type": "system_assigned_managed_identity"
+                        },
+                        "query_type": "vector_semantic_hybrid",
+                        "fields_mapping": config.AZURE_SEARCH_FIELDS,
+                        "strictness": 3,
+                        "filter": quote(file_filter) if file_filter else None
+                    }
+                }]
+                logger.info(f"Added Azure AI Search integration with index {azure_search_index}")
+        except Exception as e:
+            logger.error(f"Error setting up Azure AI Search: {e}")
     
     # Execute API call (implement retry logic as needed)
     try:

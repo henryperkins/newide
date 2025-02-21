@@ -26,11 +26,11 @@ class Settings(BaseSettings):
     
 # Version matrix for model families (module-level constant)
 MODEL_API_VERSIONS = {
-    "o1": "2024-12-01-preview",
-    "o3-mini": "2025-01-01-preview", 
-    "o1-preview": "2024-09-01-preview",
-    "o1-mini": "2024-09-01-preview",
-    "default": "2024-05-01-preview"  # New baseline version
+    "o1": "2024-05-01-preview",
+    "o3-mini": "2024-05-01-preview",
+    "o1-preview": "2024-05-01-preview",
+    "o1-mini": "2024-05-01-preview",
+    "default": "2024-05-01-preview"
 }
 
 class Settings(BaseSettings):

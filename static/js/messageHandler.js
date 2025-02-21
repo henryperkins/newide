@@ -269,20 +269,33 @@ function updateStreamingUI(content, container) {
 }
 
 function processAnnotatedContent(responseData) {
-    if (!responseData?.content?.[0]?.text?.annotations) {
+    if (!responseData?.content) {
         return safeMarkdownParse(responseData);
     }
 
-    const { text, annotations } = responseData.content[0].text;
-    let content = text.value;
+    let content = responseData.content;
     const citations = [];
 
-    annotations.forEach((annotation, index) => {
-        if (annotation.file_citation) {
-            content = content.replace(annotation.text, `[${index + 1}]`);
-            citations.push(createCitationElement(index + 1, annotation.file_citation));
-        }
-    });
+    // Handle both old and new citation formats
+    if (responseData.context?.citations) {
+        responseData.context.citations.forEach((citation, index) => {
+            const ref = `[doc${index + 1}]`;
+            content = content.replace(ref, `[${index + 1}]`);
+            citations.push(createCitationElement(index + 1, {
+                file_name: citation.document_name,
+                quote: citation.content
+            }));
+        });
+    } else if (responseData.content?.[0]?.text?.annotations) {
+        const { text, annotations } = responseData.content[0].text;
+        content = text.value;
+        annotations.forEach((annotation, index) => {
+            if (annotation.file_citation) {
+                content = content.replace(annotation.text, `[${index + 1}]`);
+                citations.push(createCitationElement(index + 1, annotation.file_citation));
+            }
+        });
+    }
 
     return `
         <div class="message-text">${safeMarkdownParse(content)}</div>
