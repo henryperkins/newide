@@ -37,7 +37,7 @@ You can consume predictions from this model by using the `azure-ai-inference` pa
 Once you have these prerequisites, install the Azure AI inference package with the following command:
 
 ```bash
-pip install azure-ai-inference
+pip install azure-ai-inference azure-core azure-identity openai
 ```
 
 Read more about the [Azure AI inference package and reference](https://aka.ms/azsdk/azure-ai-inference/python/reference).
