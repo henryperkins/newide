@@ -32,19 +32,6 @@ export async function updateConfig(key, value) {
     return response.ok;
 }
 
-    // Merge stored config with defaults
-    const config = storedConfig ? 
-        {...defaultConfig, ...JSON.parse(storedConfig)} :
-        defaultConfig;
-
-    // Validate and ensure required fields
-    if (!['low', 'medium', 'high'].includes(config.reasoningEffort)) {
-        console.warn('Invalid reasoning effort, defaulting to medium');
-        config.reasoningEffort = 'medium';
-    }
-    
-    return config;
-}
 
 /**
  * Get timeout durations for different reasoning levels

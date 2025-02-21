@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     )
     
 # Version matrix for model families (module-level constant)
+from typing import Any
 MODEL_API_VERSIONS = {
     "o1": "2024-05-01-preview",
     "o3-mini": "2024-05-01-preview",
