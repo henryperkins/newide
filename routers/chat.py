@@ -20,12 +20,26 @@ async def stream_chat_response(
 ):
     async def generate():
         try:
-            response = await client.chat.completions.create(
-                model=config.AZURE_OPENAI_DEPLOYMENT_NAME,
-                messages=[{"role": "user", "content": message.message}],
-                stream=True,
-                max_completion_tokens=message.max_completion_tokens
-            )
+            # Configure parameters based on model type
+            model_name = config.AZURE_OPENAI_DEPLOYMENT_NAME.lower()
+            is_o_series = any(m in model_name for m in ["o1-", "o3-"]) and "preview" not in model_name
+            
+            params = {
+                "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
+                "messages": [{"role": "user", "content": message.message}],
+                "stream": True,
+            }
+            
+            # Add o-series specific parameters
+            if is_o_series:
+                params.update({
+                    "temperature": 1,  # Mandatory for o-series
+                    "max_completion_tokens": message.max_completion_tokens or 40000
+                })
+            else:
+                params["max_tokens"] = message.max_completion_tokens or 4096
+            
+            response = await client.chat.completions.create(**params)
             
             async for chunk in response:
                 yield f"data: {chunk.model_dump_json()}\n\n"

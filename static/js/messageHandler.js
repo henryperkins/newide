@@ -163,7 +163,7 @@ async function fetchVectorStores() {
 async function handleChatRequest({
     messageContent,
     controller,
-    developerConfig: getCurrentConfig().developerOptions,
+    developerConfig: getCurrentConfig().developerConfig,
     reasoningEffort: getCurrentConfig().reasoningEffort,
     vectorStores
 }) {
