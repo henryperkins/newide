@@ -16,6 +16,9 @@ async def init_client_pool():
     if not _client_pool:
         auth_method = os.getenv("AZURE_AUTH_METHOD", "key")
         
+        # Pre-warm connections for all model families
+        model_families = ["o1", "o3-mini", "deepseek-r1"]
+        
         for _ in range(_pool_size):
             if auth_method == "entra":
                 from azure.identity.aio import DefaultAzureCredential
@@ -73,7 +76,18 @@ async def get_azure_client() -> AsyncAzureOpenAI:
     if not _client_pool:
         await init_client_pool()
     
-    client = _client_pool[len(_client_pool) % _pool_size]
+    # Rotate clients with retry logic
+    max_retries = 3
+    for attempt in range(max_retries):
+        client = _client_pool[(len(_client_pool) + attempt) % _pool_size]
+        try:
+            if hasattr(client, '_token_provider') and isinstance(client._token_provider, SecureTokenProvider):
+                await client._token_provider.get_token()
+            return client
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            await asyncio.sleep(0.5 * (attempt + 1))
     
     # Refresh token if needed
     if hasattr(client, '_token_provider') and isinstance(client._token_provider, SecureTokenProvider):

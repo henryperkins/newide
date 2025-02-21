@@ -219,6 +219,16 @@ async def chunk_text(
     max_tokens_per_chunk: int = DEFAULT_CHUNK_SIZE, 
     model_name: str = None
 ) -> List[str]:
+    # Adaptive chunking based on model capabilities
+    is_o_series = model_name and any(m in model_name.lower() for m in ["o1-", "o3-"])
+    
+    if is_o_series:
+        # Use larger chunks with semantic boundaries for o-series
+        max_tokens_per_chunk = 8000
+        chunk_separators = ["\n\n## ", "\n\n", "\n", ". "]
+    else:
+        # Use smaller chunks with syntax boundaries for other models
+        chunk_separators = ["\n\n", "\n", "; ", "} ", "{ ", "// "]
     """
     Split text into chunks with intelligent boundaries
     

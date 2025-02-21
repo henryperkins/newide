@@ -11,12 +11,19 @@ const fallbackConfig = {
  * Get current application configuration from server
  * @returns {Object} Validated configuration object
  */
+let cachedConfig = null;
+let lastFetchTime = 0;
+
 export async function getCurrentConfig() {
     try {
-        const response = await fetch('/api/config');
-        if (!response.ok) throw new Error('Config load failed');
-        const serverConfig = await response.json();
-        return { ...fallbackConfig, ...serverConfig };
+        // Cache config for 5 minutes
+        if (!cachedConfig || Date.now() - lastFetchTime > 300000) {
+            const response = await fetch('/api/config');
+            if (!response.ok) throw new Error('Config load failed');
+            cachedConfig = { ...fallbackConfig, ...await response.json() };
+            lastFetchTime = Date.now();
+        }
+        return cachedConfig;
     } catch (error) {
         console.error('Using fallback config:', error);
         return fallbackConfig;
