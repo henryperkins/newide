@@ -54,8 +54,9 @@ async def stream_chat_response(
         if not message or not session_id:
             raise HTTPException(status_code=400, detail="Missing required fields")
             
+        reasoning_effort = request_data.get("reasoning_effort", "medium")
         return StreamingResponse(
-            generate(message, client),
+            generate(message, client, reasoning_effort),
             media_type="text/event-stream",
             headers={
                 "X-Accel-Buffering": "no",
@@ -65,10 +66,9 @@ async def stream_chat_response(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-async def generate(message, client):
+async def generate(message, client, reasoning_effort="medium"):
     deployment_name = config.AZURE_OPENAI_DEPLOYMENT_NAME.lower()
     if any(m in deployment_name for m in ["o1-", "o3-"]) and "preview" not in deployment_name:
-        raise HTTPException(400, "o-series models don't support streaming")
         try:
             # Configure parameters based on model type
             model_name = config.AZURE_OPENAI_DEPLOYMENT_NAME.lower()
@@ -85,10 +85,14 @@ async def generate(message, client):
                 params.update({
                     "temperature": 1,  # Mandatory for o-series
                     "max_completion_tokens": 40000,
-                    "reasoning_effort": request.reasoning_effort
+                    "reasoning_effort": reasoning_effort
                 })
             else:
                 params["max_tokens"] = 4096
+            
+            # Check again right before making the call
+            if any(m in deployment_name for m in ["o1-", "o3-"]) and "preview" not in deployment_name:
+                raise HTTPException(400, "o-series models don't support streaming")
             
             response = await client.chat.completions.create(**params)
             
