@@ -20,6 +20,14 @@ class ChatRequest(BaseModel):
     reasoning_effort: str = "medium"
     include_files: bool = False
 
+@router.post("/")
+async def chat_endpoint(
+    chat_message: ChatMessage,
+    db: AsyncSession = Depends(get_db_session),
+    client: AsyncAzureOpenAI = Depends(get_azure_client)
+):
+    return await process_chat_message(chat_message, db, client)
+
 @router.post("/stream")
 async def stream_chat_response(
     request: Request,
