@@ -102,6 +102,14 @@
             <!-- Configuration Panel -->
             <div id="config-content" class="tab-content active" role="tabpanel">
                 <div class="config-section">
+                    <label for="model-selector">AI Model:</label>
+                    <select id="model-selector" class="config-select">
+                        <option value="o1">Azure o1</option>
+                        <option value="deepseek-r1">DeepSeek-R1</option>
+                    </select>
+                </div>
+
+                <div class="config-section">
                     <label for="developer-config">Assistant Settings:</label>
                     <input type="text" 
                            id="developer-config"
