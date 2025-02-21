@@ -60,49 +60,6 @@ async def model_settings():
         }
     })
 
-class Settings(BaseSettings):
-    # Core infrastructure settings
-    POSTGRES_HOST: str
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_DB: str
-    POSTGRES_PORT: int = 5432
-
-    # Azure OpenAI settings
-    AZURE_OPENAI_ENDPOINT: str
-    AZURE_OPENAI_API_KEY: str
-    AZURE_OPENAI_DEPLOYMENT_NAME: str
-    AZURE_OPENAI_API_VERSION: str = Field(default="2024-05-01-preview")
-
-    @validator("AZURE_OPENAI_API_VERSION")
-    def validate_api_version(cls, v, values):
-        deployment = values.get("AZURE_OPENAI_DEPLOYMENT_NAME", "").lower()
-        model_family = next(
-            (key for key in ["o3-mini", "o1", "o1-preview"] if deployment.startswith(key)),
-            "default"
-        )
-        return MODEL_API_VERSIONS.get(model_family, MODEL_API_VERSIONS["default"])
-
-    # Timeout settings (with defaults)
-    o_series_base_timeout: float = 120.0  # 2 minute base timeout
-    o_series_max_timeout: float = 360.0   # 6 minute max timeout
-    o_series_token_factor: float = 0.15   # 0.15 seconds per token
-    o_series_max_retries: int = 2         # Max number of retries
-    o_series_backoff_multiplier: float = 1.5  # Backoff multiplier
-
-    # Standard model timeouts
-    standard_base_timeout: float = 15.0
-    standard_max_timeout: float = 30.0
-    standard_token_factor: float = 0.03
-
-    # Session configuration
-    session_timeout_minutes: int = 30
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        extra="allow",
-        env_file_encoding="utf-8"
-    )
 
 settings = Settings()
 
