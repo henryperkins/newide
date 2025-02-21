@@ -42,6 +42,27 @@ export function updateTokenUsage(usage) {
     setText('total-tokens', usage.total_tokens || 0);
     setText('vision-tokens', usage.vision_tokens || 0);
 
+    // Handle reasoning tokens if available
+    const reasoningTokens = usage.completion_tokens_details?.reasoning_tokens || 0;
+    if (reasoningTokens > 0) {
+        const baseCompletionTokens = usage.completion_tokens - reasoningTokens;
+        setText('reasoning-tokens', reasoningTokens);
+        setText('base-completion-tokens', baseCompletionTokens);
+        
+        // Calculate and display percentage
+        const reasoningPercent = ((reasoningTokens / usage.completion_tokens) * 100).toFixed(1);
+        const reasoningContainer = document.getElementById('reasoning-tokens').parentElement;
+        if (reasoningContainer) {
+            const breakdown = document.createElement('div');
+            breakdown.className = 'token-breakdown';
+            breakdown.innerHTML = `
+                <div class="reasoning-bar" style="width: ${reasoningPercent}%"></div>
+                <span>${reasoningPercent}% of completion tokens</span>
+            `;
+            reasoningContainer.appendChild(breakdown);
+        }
+    }
+
     // Handle advanced metrics
     const metricsContainer = document.getElementById('advanced-token-metrics') || 
         createAdvancedMetricsContainer();
