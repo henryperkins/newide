@@ -464,6 +464,8 @@ button:focus,
 
 /* Enhanced File Upload */
 .file-upload-area {
+    position: relative;
+    z-index: 10;
     border: 2px dashed var(--border-medium);
     border-radius: var(--radius-lg);
     padding: var(--space-xl);
