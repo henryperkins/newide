@@ -52,7 +52,9 @@ export async function sendMessage() {
 
 
         // Prepare request components
-        const { controller, timeoutId } = createAbortController(timeoutDurations[reasoningEffort]);
+        const { controller, timeoutId } = createAbortController(
+            getTimeoutDurations()[getCurrentConfig().reasoningEffort]
+        );
         const messageContent = processMessageContent(message, modelSettings.supportsVision);
         const vectorStores = await fetchVectorStores();
 
