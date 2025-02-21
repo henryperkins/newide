@@ -14,6 +14,7 @@ export function initializeFileManager() {
     setupDragAndDrop();
     setupFileSelector();
     loadFilesList();
+    setupMobileHandlers();
     
     // Initialize file search toggle
     const fileSearchToggle = document.getElementById('use-file-search');
@@ -657,4 +658,35 @@ export function getFilesForChat() {
         file_ids: Array.from(selectedFiles),
         use_file_search: useFileSearch
     };
+}
+
+function setupMobileHandlers() {
+    document.querySelector('.mobile-tab-toggle')?.addEventListener('click', () => {
+        document.querySelector('.sidebar').classList.toggle('active');
+    });
+
+    let dragTimeout;
+    document.addEventListener('dragover', (e) => {
+        if(isMobileDevice()) {
+            clearTimeout(dragTimeout);
+            const overlay = document.createElement('div');
+            overlay.className = 'mobile-drag-overlay';
+            overlay.textContent = 'Drop files to upload';
+            document.body.appendChild(overlay);
+        }
+    });
+
+    document.addEventListener('dragleave', (e) => {
+        if(isMobileDevice()) {
+            dragTimeout = setTimeout(() => {
+                document.querySelector('.mobile-drag-overlay')?.remove();
+            }, 100);
+        }
+    });
+
+    document.addEventListener('drop', (e) => {
+        if(isMobileDevice()) {
+            document.querySelector('.mobile-drag-overlay')?.remove();
+        }
+    });
 }
