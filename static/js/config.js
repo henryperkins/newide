@@ -48,18 +48,24 @@ export function getTimeoutDurations() {
     };
 }
 
-// Returns current model settings.
-// In production, these settings should be loaded from the backend capabilities endpoint.
+import { MODEL_CONFIG } from './models.js';
+
+// Returns current model settings from centralized config
 export function getModelSettings() {
-    return {
-        name: "default",
-        capabilities: {
-            supports_streaming: true,
-            supports_vision: false,
-            max_tokens: 4096,
-            api_version: "2023-12-01"
-        }
-    };
+    const config = getCurrentConfig();
+    return MODEL_CONFIG[config.selectedModel] || MODEL_CONFIG["deepseek-r1"];
+}
+
+// Get safety configuration for current model
+export function getSafetyConfig() {
+    const modelConfig = getModelSettings();
+    return modelConfig.safety_config || {};
+}
+
+// Get response formatting tags
+export function getResponseFormatting() {
+    const modelConfig = getModelSettings();
+    return modelConfig.response_format || {};
 }
 
 // Update UI display for reasoning effort selection

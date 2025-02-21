@@ -110,16 +110,24 @@ function initializeFileHandling() {
 }
 
 function updateModelSpecificUI(model) {
+    const modelConfig = getModelSettings();
     const reasoningControls = document.getElementById('reasoning-controls');
     const streamingToggle = document.getElementById('streaming-toggle');
+
+    // Toggle reasoning controls based on model capabilities
+    reasoningControls.style.display = modelConfig.capabilities.requires_reasoning_effort ? 
+        'block' : 'none';
+        
+    // Toggle streaming availability
+    streamingToggle.disabled = !modelConfig.capabilities.supports_streaming;
     
-    if (model === 'o1') {
-        reasoningControls?.style?.setProperty('display', 'block', 'important');
-        streamingToggle?.setAttribute('disabled', 'true');
-    } else {
-        reasoningControls?.style?.setProperty('display', 'none', 'important');
-        streamingToggle?.removeAttribute('disabled');
-    }
+    // Update temperature display
+    document.getElementById('temperature-value').textContent = 
+        modelConfig.capabilities.default_temperature;
+        
+    // Update token counter limits
+    document.getElementById('max-tokens').dataset.max = 
+        modelConfig.capabilities.max_tokens;
 }
 
 function handleInitializationError(error) {

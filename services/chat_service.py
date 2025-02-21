@@ -168,22 +168,29 @@ async def build_api_params_with_search(
     """
     Build the parameters dictionary for the Azure OpenAI API call with Azure AI Search integration.
     """
+    # Model configuration
+    MODEL_CONFIG = {
+        "o1": {
+            "max_tokens": 40000,
+            "temperature": 1.0,
+            "reasoning_effort": chat_message.reasoning_effort.value if chat_message.reasoning_effort else "medium"
+        },
+        "deepseek-r1": {
+            "max_tokens": 4096,
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "frequency_penalty": 0.2
+        }
+    }
+    
     # Base parameters
+    model_params = MODEL_CONFIG.get(model_name.lower(), MODEL_CONFIG["deepseek-r1"])
     params = {
         "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
         "messages": formatted_messages,
         "stream": validate_streaming(model_name),
+        **model_params
     }
-    
-    # Model-specific parameters
-    if is_o_series:
-        params.update({
-            "max_completion_tokens": 40000,
-            "temperature": 1.0 if model_name.startswith("o3") else None,
-            "reasoning_effort": chat_message.reasoning_effort.value if chat_message.reasoning_effort else "medium"
-        })
-    else:
-        params["max_tokens"] = 4096
     
     # Add response format if specified
     if hasattr(chat_message, 'response_format') and chat_message.response_format:
