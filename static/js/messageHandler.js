@@ -74,11 +74,12 @@ export async function sendMessage() {
         const vectorStores = await fetch(`/api/files/${sessionId}`).then(r => r.ok ? r.json() : { vector_store_ids: [] });
 
         // Execute request
+        const requestConfig = await getCurrentConfig();
         const response = await handleChatRequest({
             messageContent,
             controller,
-            developerConfig,
-            reasoningEffort,
+            developerConfig: config.developerConfig,
+            reasoningEffort: config.reasoningEffort,
             vectorStores
         });
 
@@ -169,10 +170,12 @@ async function fetchVectorStores() {
 async function handleChatRequest({
     messageContent,
     controller,
+    developerConfig,
+    reasoningEffort,
     vectorStores
 }) {
     const config = getCurrentConfig();
-    
+
     const init = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -181,11 +184,11 @@ async function handleChatRequest({
             model: config.selectedModel, // Send selected model to backend
             message: messageContent,
             session_id: sessionId,
-            developer_config: config.developerConfig,
-            reasoning_effort: config.reasoningEffort,
+            developer_config: developerConfig,
+            reasoning_effort: reasoningEffort,
             include_usage_metrics: true,
             tools: [{ type: "file_search" }],
-            tool_resources: vectorStores.vector_store_ids.length > 0 ? {
+            tool_resources: (vectorStores.vector_store_ids?.length || 0) > 0 ? {
                 file_search: {
                     vector_store_ids: vectorStores.vector_store_ids
                 }
@@ -193,12 +196,24 @@ async function handleChatRequest({
         })
     };
 
-    return await fetch('/api/chat/stream', init);
+    const requestStartTime = Date.now();
+    return await fetch('/api/chat', {
+        ...init,
+        headers: {
+            ...init.headers,
+            'Accept': 'application/json',
+            'X-API-Version': '2024-12-01-preview'
+        }
+    }).then(response => {
+        response.requestStartTime = requestStartTime;
+        return response;
+    });
 }
 
 async function handleStandardResponse(response) {
+        const requestDuration = Date.now() - response.requestStartTime;
         console.log('[MessageHandler] Received response after', 
-            Date.now() - requestStartTime, 'ms', 
+            requestDuration, 'ms', 
             'Status:', response.status
         );
         
