@@ -9,10 +9,26 @@ import datetime
 
 router = APIRouter(dependencies=[Depends(validate_auth)])
 
+from fastapi import Query, Path
+from typing import Optional
+from models import ListAssistantsResponse, DeleteAssistantResponse
+
+@router.get("/assistants", response_model=ListAssistantsResponse)
+async def list_assistants(
+    limit: int = Query(20, ge=1, le=100),
+    order: str = Query("desc", regex="^(asc|desc)$"),
+    after: Optional[str] = None,
+    before: Optional[str] = None,
+    api_version: str = Query(..., alias="api-version")
+):
+    # Implementation here
+    pass
+
 @router.post("/assistants", response_model=AssistantObject)
 async def create_assistant(
     request: AssistantCreateRequest,
-    background_tasks: BackgroundTasks
+    api_version: str = Query(..., alias="api-version"),
+    background_tasks: BackgroundTasks = BackgroundTasks()
 ):
     try:
         assistant_id = str(uuid.uuid4())

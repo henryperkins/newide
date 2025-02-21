@@ -49,7 +49,7 @@ def create_error_response(
         param=param,
         type=error_type or "invalid_request_error",
         inner_error=InnerError(
-            code=code,
+            code="content_filter" if content_filter_results else code,
             content_filter_results=content_filter_results,
             **(inner_error or {})
         ) if content_filter_results or inner_error else None
