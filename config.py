@@ -1,18 +1,22 @@
-from pydantic_settings import BaseSettings
-from pydantic import SecretStr, ClassVar
+from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import ClassVar, Dict
 import os
 
 from pydantic import validator
 
 class Settings(BaseSettings):
     # Azure OpenAI settings
-    AZURE_OPENAI_ENDPOINT: str
-    AZURE_OPENAI_API_KEY: str
-    AZURE_OPENAI_DEPLOYMENT_NAME: str
-    AZURE_OPENAI_API_VERSION: str = os.getenv("DEFAULT_API_VERSION", "2024-12-01-preview")
+    AZURE_OPENAI_ENDPOINT: str = Field(..., description="Azure OpenAI endpoint URL")
+    AZURE_OPENAI_API_KEY: str = Field(..., description="Azure OpenAI API key")
+    AZURE_OPENAI_DEPLOYMENT_NAME: str = Field(..., description="Azure OpenAI deployment name")
+    AZURE_OPENAI_API_VERSION: str = Field(
+        default="2024-12-01-preview",
+        description="Azure OpenAI API version"
+    )
     
     # Version matrix for model families
-    MODEL_API_VERSIONS: ClassVar[dict] = {
+    MODEL_API_VERSIONS: ClassVar[Dict[str, str]] = {
         "o1": "2024-12-01-preview",
         "o3-mini": "2025-01-01-preview", 
         "o1-preview": "2024-09-01-preview",
@@ -58,10 +62,11 @@ class Settings(BaseSettings):
     # Session configuration
     session_timeout_minutes: int = 30
 
-    class Config:
-        env_file = ".env"
-        extra = "allow"  # Allow extra parameters in .env without validation errors
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="allow",
+        env_file_encoding="utf-8"
+    )
 
 settings = Settings()
 
