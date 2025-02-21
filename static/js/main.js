@@ -1,6 +1,5 @@
 import { initializeSession } from '/static/js/session.js';
 import { initializeConfig, updateReasoningEffortDisplay } from '/static/js/config.js';
-import { sendMessage, regenerateResponse } from '/static/js/messageHandler.js';
 import { setupDragAndDrop, loadFilesList } from '/static/js/fileManager.js';
 import { configureMarkdown, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
 import { showNotification } from '/static/js/ui/notificationManager.js';

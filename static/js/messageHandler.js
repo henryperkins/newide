@@ -456,3 +456,146 @@ function handleMessageError(error) {
     displayMessage(`Error: ${errorMessage}`, 'error');
     showNotification(errorMessage, 'error');
 }
+import { getSessionId } from '/static/js/session.js';
+import { getCurrentConfig } from '/static/js/config.js';
+import { showNotification, showTypingIndicator, removeTypingIndicator } from '/static/js/ui/notificationManager.js';
+import { displayMessage } from '/static/js/ui/displayManager.js';
+import { getFilesForChat } from '/static/js/fileManager.js';
+
+export async function sendMessage() {
+    const userInput = document.getElementById('user-input');
+    const message = userInput.value.trim();
+    const config = getCurrentConfig();
+    
+    if (!message) return;
+
+    try {
+        userInput.disabled = true;
+        displayMessage(message, 'user');
+        userInput.value = '';
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+        showTypingIndicator(config.reasoningEffort);
+
+        const response = await handleChatRequest({
+            messageContent: message,
+            controller,
+            developerConfig: config.developerConfig,
+            reasoningEffort: config.reasoningEffort,
+            ...getFilesForChat()
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const modelSettings = {
+            supportsStreaming: true // This should come from your model config
+        };
+
+        if (modelSettings.supportsStreaming) {
+            await handleTrueStreaming(response, controller);
+        } else {
+            const data = await response.json();
+            await handleStandardResponse(data);
+        }
+
+    } catch (error) {
+        console.error('Message sending error:', error);
+        showNotification(error.message, 'error');
+    } finally {
+        removeTypingIndicator();
+        userInput.disabled = false;
+    }
+}
+
+async function handleChatRequest({
+    messageContent,
+    controller,
+    developerConfig,
+    reasoningEffort,
+    include_files,
+    file_ids,
+    use_file_search
+}) {
+    const sessionId = getSessionId();
+    
+    const init = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+            message: messageContent,
+            session_id: sessionId,
+            developer_config: developerConfig,
+            reasoning_effort: reasoningEffort,
+            include_usage_metrics: true,
+            include_files,
+            file_ids,
+            use_file_search
+        })
+    };
+
+    return await fetch('/api/chat/stream', init);
+}
+
+async function handleTrueStreaming(response, controller) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    
+    try {
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+            
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const data = JSON.parse(line.slice(5));
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    processStreamingResponse(data);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Streaming error:', error);
+        throw error;
+    } finally {
+        reader.releaseLock();
+    }
+}
+
+function processStreamingResponse(data) {
+    if (!data?.choices?.[0]?.delta?.content) return;
+    
+    const content = data.choices[0].delta.content;
+    displayMessage(content, 'assistant', true);
+}
+
+async function handleStandardResponse(data) {
+    if (!data?.response) {
+        throw new Error('Empty response from server');
+    }
+    
+    displayMessage(data.response, 'assistant');
+    
+    if (data.usage) {
+        updateTokenUsage(data.usage);
+    }
+}
+
+export async function regenerateResponse() {
+    const lastMessage = getLastUserMessage();
+    if (lastMessage) {
+        document.getElementById('user-input').value = lastMessage;
+        await sendMessage();
+    }
+}
