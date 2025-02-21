@@ -54,7 +54,7 @@ async def generate(message, client):
             
             params = {
                 "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
-                "messages": [{"role": "user", "content": message.message}],
+                "messages": [{"role": "user", "content": message}],
                 "stream": True,
             }
             
@@ -62,10 +62,10 @@ async def generate(message, client):
             if is_o_series:
                 params.update({
                     "temperature": 1,  # Mandatory for o-series
-                    "max_completion_tokens": message.max_completion_tokens or 40000
+                    "max_completion_tokens": 40000
                 })
             else:
-                params["max_tokens"] = message.max_completion_tokens or 4096
+                params["max_tokens"] = 4096
             
             response = await client.chat.completions.create(**params)
             
@@ -74,15 +74,6 @@ async def generate(message, client):
                 
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "X-Accel-Buffering": "no",
-            "Cache-Control": "no-cache"
-        }
-    )
 
 @router.get("/model/capabilities")
 async def get_model_capabilities():
