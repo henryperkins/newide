@@ -13,13 +13,20 @@ export function initializeConfig() {
  * @returns {Object} Validated configuration object
  */
 export function getCurrentConfig() {
-    const config = {
+    // Get stored configuration from localStorage
+    const storedConfig = localStorage.getItem('appConfig');
+    const defaultConfig = {
         reasoningEffort: "medium",
-        developerConfig: "",
-        // Additional configuration properties can be added here.
+        developerConfig: "Formatting re-enabled - use markdown code blocks",
+        includeFiles: false
     };
-    
-    // Validate reasoning effort
+
+    // Merge stored config with defaults
+    const config = storedConfig ? 
+        {...defaultConfig, ...JSON.parse(storedConfig)} :
+        defaultConfig;
+
+    // Validate and ensure required fields
     if (!['low', 'medium', 'high'].includes(config.reasoningEffort)) {
         console.warn('Invalid reasoning effort, defaulting to medium');
         config.reasoningEffort = 'medium';

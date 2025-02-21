@@ -165,10 +165,10 @@ async function handleChatRequest({
     controller,
     vectorStores
 }) {
-    // Get config values properly
+    // Safe destructuring with defaults
     const { 
-        developerConfig, 
-        reasoningEffort 
+        developerConfig = "", 
+        reasoningEffort = "medium" 
     } = getCurrentConfig();
     
     const init = {
