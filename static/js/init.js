@@ -34,10 +34,21 @@ async function initializeMarkdownSupport() {
 }
 
 function initializeUIEventHandlers() {
+    // Add configuration sync
+    const syncConfigToStorage = () => {
+        const config = {
+            developerConfig: document.getElementById('developer-config').value,
+            reasoningEffort: ['low', 'medium', 'high'][document.getElementById('reasoning-effort-slider').value - 1],
+            includeFiles: document.getElementById('use-file-search').checked
+        };
+        localStorage.setItem('appConfig', JSON.stringify(config));
+    };
+
     // Send button handler
     document.getElementById('send-button')?.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
+        syncConfigToStorage();
         await sendMessage();
     });
 
@@ -46,6 +57,7 @@ function initializeUIEventHandlers() {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             e.stopPropagation();
+            syncConfigToStorage();
             await sendMessage();
         }
     });
