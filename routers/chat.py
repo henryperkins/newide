@@ -1,6 +1,6 @@
 # routers/chat.py
 import json
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from openai import AsyncAzureOpenAI
 from database import get_db_session
@@ -12,9 +12,7 @@ from logging_config import logger
 import config
 router = APIRouter(prefix="/chat")
 from fastapi.responses import StreamingResponse
-
-from fastapi import Request
-from pydantic import BaseModel, HTTPException
+from pydantic import BaseModel
 
 class ChatRequest(BaseModel):
     message: str
