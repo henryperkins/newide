@@ -64,9 +64,13 @@ class CreateChatCompletionRequest(BaseModel):
         description="Streaming enabled (only supported for o3-mini)"
     )
 
-    @validator('max_tokens', 'top_p', 'frequency_penalty', 'presence_penalty', allow_reuse=True)
-    def validate_unsupported_params(cls, value):
-        raise ValueError("Parameter not supported for o-series models")
+    @root_validator
+    def validate_o_series_params(cls, values):
+        if "o" in values.get("model", "").lower():
+            forbidden_params = ["max_tokens", "top_p", "frequency_penalty", "presence_penalty"]
+            if any(values.get(param) for param in forbidden_params):
+                raise ValueError(f"Parameters {forbidden_params} not supported for o-series models")
+        return values
 
 class ChatMessage(BaseModel):
     message: str
