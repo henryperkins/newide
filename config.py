@@ -61,46 +61,27 @@ async def model_settings():
     })
 
 class Settings(BaseSettings):
-    # Core infrastructure settings remain in env vars
+    # Core infrastructure settings
     POSTGRES_HOST: str
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
     POSTGRES_PORT: int = 5432
 
+    # Azure OpenAI settings
+    AZURE_OPENAI_ENDPOINT: str
+    AZURE_OPENAI_API_KEY: str
+    AZURE_OPENAI_DEPLOYMENT_NAME: str
+    AZURE_OPENAI_API_VERSION: str = Field(default="2024-05-01-preview")
+
     @validator("AZURE_OPENAI_API_VERSION")
     def validate_api_version(cls, v, values):
         deployment = values.get("AZURE_OPENAI_DEPLOYMENT_NAME", "").lower()
-        
-        # Map deployment names to model families
         model_family = next(
             (key for key in ["o3-mini", "o1", "o1-preview"] if deployment.startswith(key)),
             "default"
         )
-        
-        # Get minimum required version for this model family
-        min_version = MODEL_API_VERSIONS.get(model_family, MODEL_API_VERSIONS["default"])
-        
-        # Compare version dates (ignoring '-preview' suffix)
-        def parse_version(ver):
-            return tuple(map(int, ver.split('-')[0].split('.')))
-            
-        current_ver = parse_version(v)
-        required_ver = parse_version(min_version)
-        
-        if current_ver < required_ver:
-            print(f"Version mismatch! {deployment} requires at least {min_version}, using {v}")
-        elif current_ver > required_ver:
-            print(f"Note: Using newer API version {v} (minimum required {min_version})")
-        
-        return v
-
-    # PostgreSQL settings
-    POSTGRES_HOST: str
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str  # No SecretStr wrapper for dev speed
-    POSTGRES_DB: str
-    POSTGRES_PORT: int = 5432
+        return MODEL_API_VERSIONS.get(model_family, MODEL_API_VERSIONS["default"])
 
     # Timeout settings (with defaults)
     o_series_base_timeout: float = 120.0  # 2 minute base timeout
