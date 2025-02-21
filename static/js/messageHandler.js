@@ -141,7 +141,7 @@ function createImageContent(match) {
 
 async function fetchVectorStores() {
     try {
-        const response = await fetch(`/vector_stores/${sessionId}`);
+        const response = await fetch(`/api/vector_stores/${sessionId}`);
         return response.ok ? 
             await response.json() : 
             { vector_store_ids: [] };
@@ -154,8 +154,8 @@ async function fetchVectorStores() {
 async function handleChatRequest({
     messageContent,
     controller,
-    developerConfig,
-    reasoningEffort,
+    developerConfig: getCurrentConfig().developerOptions,
+    reasoningEffort: getCurrentConfig().reasoningEffort,
     vectorStores
 }) {
     const init = {
