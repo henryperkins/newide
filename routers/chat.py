@@ -28,6 +28,7 @@ import time
 async def create_chat_completion(
     deployment_id: str,
     request: CreateChatCompletionRequest,
+    api_version: str = Query(..., alias="api-version"),
     db: AsyncSession = Depends(get_db_session),
     client: AsyncAzureOpenAI = Depends(get_azure_client)
 ):
