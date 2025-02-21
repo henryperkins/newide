@@ -163,10 +163,14 @@ async function fetchVectorStores() {
 async function handleChatRequest({
     messageContent,
     controller,
-    developerConfig: getCurrentConfig().developerConfig,
-    reasoningEffort: getCurrentConfig().reasoningEffort,
     vectorStores
 }) {
+    // Get config values properly
+    const { 
+        developerConfig, 
+        reasoningEffort 
+    } = getCurrentConfig();
+    
     const init = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
