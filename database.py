@@ -180,13 +180,13 @@ async def init_database():
         
         # Create indexes
         await conn.execute(text("""
-            CREATE INDEX ix_uploaded_files_session_id 
+            CREATE INDEX IF NOT EXISTS ix_uploaded_files_session_id 
             ON uploaded_files(session_id)"""))
         
         await conn.execute(text("""
-            CREATE INDEX ix_uploaded_files_status
+            CREATE INDEX IF NOT EXISTS ix_uploaded_files_status
             ON uploaded_files(status)"""))
         
         await conn.execute(text("""
-            CREATE INDEX ix_file_citations_conversation_id
+            CREATE INDEX IF NOT EXISTS ix_file_citations_conversation_id
             ON file_citations(conversation_id)"""))
