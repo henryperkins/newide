@@ -11,14 +11,29 @@ class Settings(BaseSettings):
     AZURE_OPENAI_DEPLOYMENT_NAME: str
     AZURE_OPENAI_API_VERSION: str = os.getenv("DEFAULT_API_VERSION", "2024-12-01-preview")
     
+    # Version matrix for model families
+    MODEL_API_VERSIONS = {
+        "o1": "2024-12-01-preview",
+        "o3-mini": "2025-01-01-preview",
+        "o1-preview": "2024-09-01-preview",
+        "default": "2024-12-01-preview"
+    }
+
     @validator("AZURE_OPENAI_API_VERSION")
     def validate_api_version(cls, v, values):
         deployment = values.get("AZURE_OPENAI_DEPLOYMENT_NAME", "").lower()
-        if deployment.startswith("o1") or deployment.startswith("o3"):
-            expected = "2025-01-01-preview"
-            if v != expected:
-                # Warning printed during validation; in production use logging
-                print(f"Warning: For deployment '{deployment}', expected API version {expected} but got {v}.")
+        
+        # Map deployment names to model families
+        model_family = next(
+            (key for key in ["o3-mini", "o1", "o1-preview"] if deployment.startswith(key)),
+            "default"
+        )
+        
+        expected_version = cls.MODEL_API_VERSIONS.get(model_family, cls.MODEL_API_VERSIONS["default"])
+        
+        if v != expected_version:
+            print(f"Model/version mismatch! {deployment} requires {expected_version}, using {v}")
+        
         return v
 
     # PostgreSQL settings
