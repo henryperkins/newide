@@ -1,7 +1,7 @@
 # routers/chat.py
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from openai import AzureOpenAI
+from openai import AsyncAzureOpenAI
 from database import get_db_session
 from clients import get_azure_client
 from models import ChatMessage
