@@ -1,6 +1,6 @@
 import { initializeSession } from '/static/js/session.js';
 import { initializeFileManager } from '/static/js/fileManager.js';
-import { initializeConfig, updateReasoningEffortDisplay } from '/static/js/config.js';
+import { initializeConfig, updateReasoningEffortDisplay, getCurrentConfig } from '/static/js/config.js';
 import { showNotification } from '/static/js/ui/notificationManager.js';
 import { sendMessage, regenerateResponse } from '/static/js/messageHandler.js';
 import { configureMarkdown, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
@@ -114,11 +114,11 @@ function updateModelSpecificUI(model) {
     const streamingToggle = document.getElementById('streaming-toggle');
     
     if (model === 'o1') {
-        reasoningControls.style.display = 'block';
-        if (streamingToggle) streamingToggle.disabled = true;
+        reasoningControls?.style?.setProperty('display', 'block', 'important');
+        streamingToggle?.setAttribute('disabled', 'true');
     } else {
-        reasoningControls.style.display = 'none';
-        if (streamingToggle) streamingToggle.disabled = false;
+        reasoningControls?.style?.setProperty('display', 'none', 'important');
+        streamingToggle?.removeAttribute('disabled');
     }
 }
 

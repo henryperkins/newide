@@ -120,6 +120,29 @@
                     </p>
                 </div>
 
+                <div class="config-section" id="reasoning-controls" style="display: none;">
+                    <label for="reasoning-effort-slider">
+                        Reasoning Effort: <span id="effort-display">Medium</span>
+                    </label>
+                    <input type="range" 
+                           id="reasoning-effort-slider"
+                           min="0" 
+                           max="2" 
+                           value="1"
+                           aria-valuetext="Medium">
+                    <div class="effort-description">
+                        <p id="effort-description-text">
+                            Medium: Balanced processing time (1-3min) and quality
+                        </p>
+                    </div>
+                </div>
+
+                <div class="config-section" id="streaming-toggle">
+                    <label>
+                        <input type="checkbox" id="enable-streaming"> Enable Streaming
+                    </label>
+                </div>
+
                 <div class="config-section">
                     <label for="reasoning-effort-slider">
                         Reasoning Effort: <span id="effort-display">Medium</span>
