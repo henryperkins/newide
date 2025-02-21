@@ -16,6 +16,10 @@ async def init_client_pool():
     
     if not _client_pool:
         auth_method = os.getenv("AZURE_AUTH_METHOD", "key")
+    
+        if auth_method == "entra":
+            if not os.getenv("AZURE_CLIENT_ID"):
+                raise ValueError("Entra ID authentication requires AZURE_CLIENT_ID environment variable")
         
         # Pre-warm connections for all model families
         model_families = ["o1", "o3-mini", "deepseek-r1"]

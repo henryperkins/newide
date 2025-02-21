@@ -203,6 +203,10 @@ async def build_api_params_with_search(
             # Get Azure Search endpoint from environment variables
             azure_search_endpoint = os.getenv("AZURE_SEARCH_ENDPOINT")
             azure_search_key = os.getenv("AZURE_SEARCH_KEY")
+            
+            if not azure_search_endpoint or not azure_search_key:
+                logger.error("Azure Search credentials missing. Required env vars: AZURE_SEARCH_ENDPOINT, AZURE_SEARCH_KEY")
+                raise ValueError("Azure Search configuration incomplete")
             azure_search_index = f"index-{session_id}"  # Index naming convention
             
             # If Azure Search credentials are available
@@ -360,6 +364,13 @@ async def process_chat_message(
         except Exception as e:
             logger.error(f"Error setting up Azure AI Search: {e}")
     
+    # Validate parameters for o-series models
+    if is_o_series:
+        if params.get("temperature") is None or params.get("max_completion_tokens") is None:
+            raise ValueError("o-series models require temperature and max_completion_tokens parameters")
+        if any([params.get("top_p"), params.get("frequency_penalty"), params.get("presence_penalty")]):
+            raise ValueError("o-series models don't support top_p, frequency_penalty, or presence_penalty parameters")
+
     # Execute API call (implement retry logic as needed)
     try:
         response = azure_client.chat.completions.create(**params)

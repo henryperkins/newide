@@ -66,6 +66,9 @@ async def stream_chat_response(
         raise HTTPException(status_code=500, detail=str(e))
 
 async def generate(message, client):
+    deployment_name = config.AZURE_OPENAI_DEPLOYMENT_NAME.lower()
+    if any(m in deployment_name for m in ["o1-", "o3-"]) and "preview" not in deployment_name:
+        raise HTTPException(400, "o-series models don't support streaming")
         try:
             # Configure parameters based on model type
             model_name = config.AZURE_OPENAI_DEPLOYMENT_NAME.lower()
@@ -81,7 +84,8 @@ async def generate(message, client):
             if is_o_series:
                 params.update({
                     "temperature": 1,  # Mandatory for o-series
-                    "max_completion_tokens": 40000
+                    "max_completion_tokens": 40000,
+                    "reasoning_effort": request.reasoning_effort
                 })
             else:
                 params["max_tokens"] = 4096
@@ -114,13 +118,13 @@ async def generate(message, client):
 @router.get("/model/capabilities")
 async def get_model_capabilities():
     from services.chat_service import get_model_config
-    config_dict = get_model_config()
+    deployment_name = config.AZURE_OPENAI_DEPLOYMENT_NAME.lower()
     return {
-        "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
+        "model": deployment_name,
         "capabilities": {
-            "supports_streaming": config_dict.get("supports_streaming", False),
-            "supports_vision": config_dict.get("supports_vision", False),
-            "max_tokens": config_dict.get("max_completion_tokens_default", 4096) if "max_completion_tokens_default" in config_dict else config_dict.get("max_tokens_default", 4096),
-            "api_version": config_dict.get("api_version")
+            "supports_streaming": "preview" not in deployment_name and any(m in deployment_name for m in ["o3-mini"]),
+            "supports_vision": "o1" in deployment_name,
+            "max_tokens": 40000 if "o" in deployment_name else 4096,
+            "api_version": "2024-12-01-preview"
         }
     }
