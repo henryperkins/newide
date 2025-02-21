@@ -31,8 +31,18 @@ async def create_chat_completion(
     db: AsyncSession = Depends(get_db_session),
     client: AsyncAzureOpenAI = Depends(get_azure_client)
 ):
-    # Validate deployment ID matches configuration
-    if request.model != config.AZURE_OPENAI_DEPLOYMENT_NAME:
+    # Case-insensitive model validation with API version check
+    if request.model.lower() != config.AZURE_OPENAI_DEPLOYMENT_NAME.lower():
+        logger.error(f"Model mismatch: Requested {request.model} vs configured {config.AZURE_OPENAI_DEPLOYMENT_NAME}")
+        raise create_error_response(
+            status_code=400,
+            code="invalid_deployment",
+            message=f"This endpoint only supports {config.AZURE_OPENAI_DEPLOYMENT_NAME}",
+            error_type="invalid_request_error"
+        )
+        
+    if api_version != config.AZURE_OPENAI_API_VERSION:
+        logger.error(f"API version mismatch: {api_version} vs {config.AZURE_OPENAI_API_VERSION}")
         raise create_error_response(
             status_code=400,
             code="invalid_deployment",

@@ -29,7 +29,8 @@ class Settings(BaseSettings):
     AZURE_OPENAI_API_VERSION: str = Field(
         default="2024-12-01-preview",
         description="Azure OpenAI API version",
-        pattern=r"2024-(09|10|12)-01-preview"
+        pattern=r"2024-(09|10|12)-01-preview",
+        json_schema_extra={"example": "2024-12-01-preview"}
     )
 
     # Timeouts and retries

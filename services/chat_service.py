@@ -314,17 +314,23 @@ async def process_chat_message(
                         user_message["content"].append({"type": "text", "text": file_content_text})
     
     # Build API parameters with Azure AI Search integration if requested
+    # Build base parameters with API version and model config
     params = {
         "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
         "messages": formatted_messages,
         "stream": validate_streaming(model_name),
+        "api_version": config.AZURE_OPENAI_API_VERSION  # Enforce correct API version
     }
     
-    # Model-specific parameters
+    # Model-specific parameters with validation
     if is_o_series:
+        if not chat_message.reasoning_effort:
+            raise HTTPException(400, "reasoning_effort is required for o-series models")
+            
         params.update({
             "max_completion_tokens": chat_message.max_completion_tokens or 40000,
-            "reasoning_effort": chat_message.reasoning_effort.value if chat_message.reasoning_effort else "medium"
+            "reasoning_effort": chat_message.reasoning_effort.value,
+            "temperature": 1.0  # Required fixed value for o-series
         })
     else:
         params["max_tokens"] = 4096
