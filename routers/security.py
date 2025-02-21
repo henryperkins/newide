@@ -1,4 +1,5 @@
 from fastapi.security import APIKeyHeader, HTTPBearer
+import config
 from fastapi import Depends, HTTPException
 from typing import Optional
 from errors import create_error_response

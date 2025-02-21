@@ -1,6 +1,6 @@
 # errors.py
 from pydantic import BaseModel
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import HTTPException
 import json
 

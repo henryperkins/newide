@@ -21,6 +21,8 @@ class ChatRequest(BaseModel):
     include_files: bool = False
 
 from models import CreateChatCompletionRequest
+import uuid
+import time
 
 @router.post("/deployments/{deployment_id}/chat/completions")
 async def create_chat_completion(
@@ -37,7 +39,7 @@ async def create_chat_completion(
             message="Invalid deployment ID",
             error_type="invalid_request_error"
         )
-    return await process_chat_message(chat_message, db, client)
+    return await process_chat_message(request, db, client)
 
 @router.post("/stream")
 async def stream_chat_response(
