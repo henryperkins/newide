@@ -1,4 +1,4 @@
-export class NotificationManager {
+export default class NotificationManager {
     constructor() {
         this.container = document.createElement('div');
         this.container.className = 'notification-container';
@@ -25,4 +25,9 @@ export class NotificationManager {
             console.error('Error showing notification:', error);
         }
     }
+}
+
+// Named export
+export function showNotification(message, type = 'info', duration = 3000) {
+    new NotificationManager().show(message, type, duration);
 }
