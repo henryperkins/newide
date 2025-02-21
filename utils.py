@@ -70,6 +70,27 @@ def count_tokens(text: str, model: Optional[str] = None) -> int:
     """
     Model-specific token counting with fallback
     """
+    if isinstance(text, list):
+        return count_vision_tokens(text)
+        
+def count_vision_tokens(content: List[Dict]) -> int:
+    """
+    Calculate token usage for vision content
+    """
+    token_count = 0
+    for item in content:
+        if item["type"] == "text":
+            token_count += count_tokens(item["text"])
+        elif item["type"] == "image_url":
+            # Base tokens for image presence
+            token_count += 85
+            # Detail-based tokens
+            detail = item.get("detail", "auto")
+            if detail == "high":
+                token_count += 170 * 2  # 170 tokens per 512x512 tile
+            elif detail == "low":
+                token_count += 85
+    return token_count
     try:
         if model and any(m in model.lower() for m in ["o1-", "o3-"]):
             encoding = tiktoken.get_encoding("cl100k_base")

@@ -38,14 +38,16 @@ class AzureFileService:
                 logger.info(f"Created Azure OpenAI file: {result['id']} for {filename}")
                 return result["id"]
 
-    async def create_vector_store(self, name: str, description: str = "") -> str:
+    async def create_vector_store(self, name: str, description: str = "", metadata: dict = None) -> str:
         """Create a vector store for file search"""
         endpoint = f"{self.endpoint}/openai/vector_stores?api-version={self.api_version}"
         
         # Prepare request
         payload = {
             "name": name,
-            "description": description
+            "description": description,
+            "metadata": metadata or {},
+            "index_schema": config.get_azure_search_index_schema(name)
         }
         
         # Make API call

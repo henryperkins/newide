@@ -31,12 +31,16 @@ export function updateTokenUsage(usage) {
     // Update basic token counters
     const setText = (id, value) => {
         const el = document.getElementById(id);
-        if (el) el.textContent = value.toLocaleString();
+        if (el) {
+            el.textContent = value.toLocaleString();
+            el.parentElement.style.display = value > 0 ? 'block' : 'none';
+        }
     };
 
     setText('prompt-tokens', usage.prompt_tokens || 0);
     setText('completion-tokens', usage.completion_tokens || 0);
     setText('total-tokens', usage.total_tokens || 0);
+    setText('vision-tokens', usage.vision_tokens || 0);
 
     // Handle advanced metrics
     const metricsContainer = document.getElementById('advanced-token-metrics') || 

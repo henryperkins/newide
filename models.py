@@ -13,10 +13,22 @@ class ClearConversationResponse(BaseModel):
             raise ValueError("cleared_message_count cannot be negative")
         return value
 class DeleteFileResponse(BaseModel):
-
     id: str
     message: str
     deleted_at: str
+
+class VectorStoreCreateRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Custom metadata for vector store organization"
+    )
+
+class VectorStoreResponse(VectorStoreCreateRequest):
+    id: str
+    created_at: datetime
+    object: str = "vector_store"
 
 class ReasoningEffort(str, Enum):
     low = "low"
