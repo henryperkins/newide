@@ -32,7 +32,7 @@ async def create_chat_completion(
     client: AsyncAzureOpenAI = Depends(get_azure_client)
 ):
     # Validate deployment ID matches configuration
-    if deployment_id != config.AZURE_OPENAI_DEPLOYMENT_NAME:
+    if request.model != config.AZURE_OPENAI_DEPLOYMENT_NAME:
         raise create_error_response(
             status_code=400,
             code="invalid_deployment",
