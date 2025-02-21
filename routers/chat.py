@@ -47,7 +47,14 @@ async def stream_chat_response(
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
-    return StreamingResponse(generate(), media_type="text/event-stream")
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache"
+        }
+    )
 
 @router.get("/model/capabilities")
 async def get_model_capabilities():

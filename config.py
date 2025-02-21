@@ -1,9 +1,13 @@
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import ClassVar, Dict
+from typing import ClassVar, Dict, Literal
 import os
 
 from pydantic import validator
+
+class DataSourceConfig(BaseModel):
+    type: Literal["azure_search", "pinecone", "elasticsearch"]
+    parameters: dict
 
 class Settings(BaseSettings):
     # File size limits
@@ -25,7 +29,8 @@ MODEL_API_VERSIONS = {
     "o1": "2024-12-01-preview",
     "o3-mini": "2025-01-01-preview", 
     "o1-preview": "2024-09-01-preview",
-    "default": "2024-12-01-preview"
+    "o1-mini": "2024-09-01-preview",
+    "default": "2024-05-01-preview"  # New baseline version
 }
 
 class Settings(BaseSettings):

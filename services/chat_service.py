@@ -177,8 +177,11 @@ async def build_api_params_with_search(
     
     # Model-specific parameters
     if is_o_series:
-        params["max_completion_tokens"] = chat_message.max_completion_tokens or 40000
-        params["reasoning_effort"] = chat_message.reasoning_effort.value if chat_message.reasoning_effort else "medium"
+        params.update({
+            "max_completion_tokens": 40000,
+            "temperature": 1.0 if model_name.startswith("o3") else None,
+            "reasoning_effort": chat_message.reasoning_effort.value if chat_message.reasoning_effort else "medium"
+        })
     else:
         params["max_tokens"] = 4096
     
@@ -195,26 +198,17 @@ async def build_api_params_with_search(
             azure_search_index = f"index-{session_id}"  # Index naming convention
             
             # If Azure Search credentials are available
-            if azure_search_endpoint and azure_search_key:
+            if azure_search_endpoint:
                 params["data_sources"] = [{
                     "type": "azure_search",
                     "parameters": {
                         "endpoint": azure_search_endpoint,
                         "index_name": azure_search_index,
                         "authentication": {
-                            "type": "api_key",
-                            "key": azure_search_key
+                            "type": "system_assigned_managed_identity"
                         },
-                        "top_n_documents": 5,
-                        "semantic_configuration": "default",
                         "query_type": "vector_semantic_hybrid",
-                        "fields_mapping": {
-                            "content_fields": ["content"],
-                            "title_field": "filename",
-                            "url_field": "id",
-                            "filepath_field": "filepath"
-                        },
-                        "in_scope": True,
+                        "fields_mapping": config.AZURE_SEARCH_FIELDS,
                         "strictness": 3,
                         # Use repr() to properly quote file_ids without backslashes in the f-string.
                         "filter": f"id in [{','.join([repr(file_id) for file_id in file_ids])}]" if file_ids and len(file_ids) > 0 else None

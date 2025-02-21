@@ -45,7 +45,11 @@ async def init_client_pool():
                 client = AsyncAzureOpenAI(
                     api_key=config.AZURE_OPENAI_API_KEY,
                     api_version=api_version,
-                    azure_endpoint=config.AZURE_OPENAI_ENDPOINT
+                    azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
+                    default_headers={
+                        "OData-MaxVersion": "4.0",
+                        "OData-Version": "4.0"
+                    }
                 )
             
             _client_pool.append(client)
