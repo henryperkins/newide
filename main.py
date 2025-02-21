@@ -1,60 +1,59 @@
 # main.py
 import datetime
-from typing import Dict
-
-# Standard library imports
 import os
 from pathlib import Path
-
-# Third-party imports
-from fastapi import FastAPI, WebSocket
-from fastapi.responses import RedirectResponse, FileResponse
+from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
-# Local imports
 from database import init_database
 from routers.session import router as session_router
 from routers.chat import router as chat_router
 from routers.files import router as files_router
 
-app = FastAPI(docs_url="/", redoc_url=None, debug=True)
-app.state.limiter = None  # Disable rate limiting for development speed
+# Get absolute path to static directory
+STATIC_DIR = Path(__file__).parent / "static"
 
+# Create FastAPI app with minimal config
+app = FastAPI(
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+    debug=True
+)
+
+# Add middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
 
-# Add security headers middleware
-@app.middleware("http")
-async def add_security_headers(request, call_next):
-    response = await call_next(request)
-    response.headers["Content-Security-Policy"] = "default-src 'self' https://liveonshuffle.com; script-src 'self' 'sha256-uqAHP7oSlmC974F5gyOP6L4B7iW5WC3Qh6vE9V4ekPg=' 'sha256-RIrTk/seH7EQbSSoo6rWBqdTlxBImAyqdCDIDMHC22s='; style-src 'self' 'unsafe-hashes' 'sha256-biLFinpqYMtWHmXfkA1BPeCY0/fNt46SAZ+BBk5YUog='"
-    return response
+# Mount static files first
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+# Root route
+@app.get("/", response_class=FileResponse)
+def root():
+    index_path = STATIC_DIR / "index.html"
+    return FileResponse(
+        path=str(index_path),
+        media_type="text/html",
+        headers={"Content-Type": "text/html; charset=utf-8"}
+    )
 
-# Mount static files
-app.mount("/static", StaticFiles(
-    directory="/home/azureuser/newide/static",
-    html=False
-), name="static")
+@app.get("/favicon.ico")
+def favicon():
+    favicon_path = STATIC_DIR / "favicon.ico"
+    return FileResponse(str(favicon_path))
 
-# Add explicit root endpoint handler
-@app.get("/")
-async def read_index():
-    return FileResponse("/home/azureuser/newide/static/index.html")
-
-app.include_router(session_router)
-app.include_router(files_router)
-app.include_router(chat_router)
+# Include API routers with prefixes
+app.include_router(session_router, prefix="/api/session")
+app.include_router(files_router, prefix="/api/files")
+app.include_router(chat_router, prefix="/api/chat")
 
 @app.on_event("startup")
 async def startup():
@@ -62,29 +61,10 @@ async def startup():
     from clients import init_client_pool
     await init_client_pool()
 
-@app.get("/")
-async def root():
-    return RedirectResponse(url="/static/index.html")
-
-@app.get("/favicon.ico")
-async def favicon():
-    return FileResponse("static/favicon.ico")
-
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "timestamp": datetime.datetime.utcnow()}
-
-@app.get("/test-static")
-async def test_static():
-    """Test endpoint to verify static file serving"""
-    import os
-    static_dir = "/home/azureuser/newide/static"
-    files = []
-    for root, _, filenames in os.walk(static_dir):
-        for filename in filenames:
-            files.append(os.path.relpath(os.path.join(root, filename), static_dir))
     return {
-        "static_dir": static_dir,
-        "files": files,
-        "index_html_exists": os.path.exists(os.path.join(static_dir, "index.html"))
+        "status": "ok",
+        "timestamp": datetime.datetime.utcnow(),
+        "version": "1.0.0"
     }

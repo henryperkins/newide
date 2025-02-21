@@ -74,43 +74,29 @@
   --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.4);
 }
 
-/* Dark mode variables */
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Dark mode colors */
-    --color-primary: #3b82f6;
-    --color-primary-dark: #2563eb;
-    --color-primary-light: #60a5fa;
-    
-    /* Text colors */
-    --text-primary: #f8fafc;
-    --text-secondary: #e2e8f0;
-    --text-muted: #94a3b8;
-    --text-inverted: #1e293b;
-    
-    /* Surface colors - use navy tones from screenshot */
-    --surface-main: #1e293b;
-    --surface-secondary: #111827;
-    --surface-tertiary: #1f2937;
-    --surface-elevated: #334155;
-    
-    /* Border and separation */
-    --border-subtle: #334155;
-    --border-medium: #475569;
-    --border-emphasis: #64748b;
-    
-    /* Shadows need to be more intense in dark mode */
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
-    
-    /* Focus ring for dark mode */
-    --focus-ring: 0 0 0 3px rgba(59, 130, 246, 0.6);
-
-    /* Button colors */
-    --button-primary: #3b82f6;
-    --button-primary-hover: #2563eb;
-    --button-secondary: rgba(255, 255, 255, 0.1);
-    --button-secondary-hover: rgba(255, 255, 255, 0.2);
-  }
+/* Dark theme */
+[data-theme="dark"] {
+  --color-primary: #3b82f6;
+  --color-primary-dark: #2563eb;
+  --color-primary-light: #60a5fa;
+  
+  --text-primary: #f8fafc;
+  --text-secondary: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-inverted: #1e293b;
+  
+  --surface-main: #1e293b;
+  --surface-secondary: #111827;
+  --surface-tertiary: #1f2937;
+  --surface-elevated: #334155;
+  
+  --border-subtle: #334155;
+  --border-medium: #475569;
+  --border-emphasis: #64748b;
+  
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+  
+  --focus-ring: 0 0 0 3px rgba(59, 130, 246, 0.6);
 }

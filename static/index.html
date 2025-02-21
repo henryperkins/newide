@@ -1,22 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Azure OpenAI o1 Chat</title>
     
-    <!-- Fonts and Styles -->
+    <!-- Styles -->
     <link rel="stylesheet" href="/static/css/fonts.css">
     <link rel="stylesheet" href="/static/css/variables.css">
-    <link rel="stylesheet" href="/static/css/base.css">
+    
     <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/media.css">
-    <link rel="stylesheet" href="/static/lib/prism.min.css">
+    
+    
 
     <!-- Scripts -->
-    <script src="/static/lib/markdown-it.min.js"></script>
-    <script src="/static/lib/prism.min.js"></script>
-    <script src="/static/lib/marked.min.js"></script>
+    
+    
+    
     
     <!-- Core Modules -->
     <script type="module" src="/static/js/session.js"></script>
@@ -30,143 +30,148 @@
     <script type="module" src="/static/js/main.js"></script>
 </head>
 <body>
-    <!-- Skip link for accessibility -->
     <a href="#main-content" class="skip-link">Skip to main content</a>
-    
-    <div class="container">
-        <h1>Azure OpenAI o1 Chat</h1>
-        
-        <!-- Model info stays at top -->
-        <div class="model-info">
-            <p><strong>Model Info:</strong> Using Azure OpenAI o1 model (no streaming, uses max_completion_tokens)</p>
-        </div>
 
-        <div class="main-layout">
-            <!-- Main chat column -->
-            <div class="chat-column">
-                <div class="chat-container" id="main-content">
-                    <div id="chat-history" role="log" aria-live="polite" aria-relevant="additions"></div>
-                    
-                    <div class="input-container">
-                        <textarea id="user-input" placeholder="Type your message..." aria-label="Your message"></textarea>
-                        <button id="send-button" aria-label="Send message">Send</button>
-                    </div>
+    <main class="chat-container">
+        <header class="chat-header">
+            <h1>Azure OpenAI o1 Chat</h1>
+            <div class="model-info">
+                <p><strong>Model Info:</strong> Using Azure OpenAI o1 model (no streaming)</p>
+            </div>
+        </header>
+
+        <div class="chat-main">
+            <!-- Chat History -->
+            <section class="chat-history" id="chat-history" role="log" aria-live="polite">
+                <!-- Messages injected via JavaScript -->
+            </section>
+
+            <!-- Input Area -->
+            <section class="input-section">
+                <div class="input-container">
+                    <textarea id="user-input" 
+                             placeholder="Type your message..."
+                             aria-label="Your message"
+                             rows="3"></textarea>
+                    <button id="send-button" class="primary-button">
+                        <span aria-hidden="true">↑</span>
+                        <span class="sr-only">Send message</span>
+                    </button>
                 </div>
                 
-                <!-- Token Usage moved directly below chat input -->
+                <!-- Token Usage -->
                 <div class="token-usage-compact">
-                    <h3>Token Usage Statistics</h3>
+                    <h2 class="stats-heading">Token Usage</h2>
                     <div class="stats-grid">
                         <div class="stat-item">
-                            <div class="stat-label">Prompt Tokens</div>
-                            <div class="stat-value" id="prompt-tokens">0</div>
+                            <span class="stat-label">Prompt</span>
+                            <span id="prompt-tokens" class="stat-value">0</span>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">Completion Tokens</div>
-                            <div class="stat-value" id="completion-tokens">0</div>
+                            <span class="stat-label">Completion</span>
+                            <span id="completion-tokens" class="stat-value">0</span>
                         </div>
                         <div class="stat-item highlight">
-                            <div class="stat-label">Total Tokens</div>
-                            <div class="stat-value" id="total-tokens">0</div>
+                            <span class="stat-label">Total</span>
+                            <span id="total-tokens" class="stat-value">0</span>
                         </div>
                     </div>
                 </div>
-                
-                <div class="effort-tooltip" role="note">
-                    Reasoning effort only applies to o1 and o3-mini models.
-                    Higher effort may produce better results but takes longer.
-                </div>
-            </div>
-
-            <!-- Sidebar column -->
-            <div class="sidebar-column">
-                <!-- Tabs at the top of sidebar -->
-                <div class="tabs" role="tablist">
-                    <button class="tab-button active" 
-                            id="config-tab"
-                            role="tab" 
-                            aria-selected="true" 
-                            aria-controls="config-content"
-                            data-target-tab="config-content">Configuration</button>
-                    <button class="tab-button" 
-                            id="files-tab"
-                            role="tab" 
-                            aria-selected="false" 
-                            aria-controls="files-content"
-                            data-target-tab="files-content">Files & Context</button>
-                </div>
-                
-                <!-- Configuration tab content -->
-                <div id="config-content" class="tab-content active" role="tabpanel" aria-labelledby="config-tab">
-                    <!-- Assistant Configuration moved to sidebar -->
-                    <div class="developer-config">
-                        <label for="developer-config">Assistant Configuration:</label>
-                        <input type="text" id="developer-config"
-                               value="Formatting re-enabled - please enclose code blocks with appropriate markdown tags"
-                               placeholder="Custom configuration for the assistant">
-                    </div>
-                    
-                    <!-- Reasoning Effort slider moved to sidebar -->
-                    <div class="effort-slider">
-                        <label for="reasoning-effort-slider">Reasoning Effort: <span id="effort-display">Medium</span></label>
-                        <input type="range" id="reasoning-effort-slider"
-                               min="0" max="2" value="1"
-                               list="effort-ticks"
-                               aria-label="Select reasoning effort level">
-                        <datalist id="effort-ticks">
-                            <option value="0" label="Low"></option>
-                            <option value="1" label="Medium"></option>
-                            <option value="2" label="High"></option>
-                        </datalist>
-                        <div class="effort-description">
-                            <small id="effort-description-text">
-                                Medium: Balanced processing time (1-3min) and quality. Suitable for most queries.
-                            </small>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Files tab content -->
-                <div id="files-content" class="tab-content" role="tabpanel" aria-labelledby="files-tab" aria-hidden="true">
-                    <div class="file-upload-area" id="drop-zone" tabindex="0" role="button" aria-label="Upload files">
-                        <div class="upload-prompt">
-                            <i class="upload-icon" aria-hidden="true">📁</i>
-                            <p>Drop files here or click to select<br>
-                                <span id="file-input-label" class="file-limit">(Max 512MB, text formats)</span>
-                            </p>
-                            <input type="file" 
-                                   id="file-input" 
-                                   accept=".txt,.text,text/*,.md,.json,.csv,.js,.html,.css" 
-                                   multiple 
-                                   hidden 
-                                   aria-labelledby="file-input-label"
-                                   aria-label="File upload input">
-                        </div>
-                    </div>
-                    
-                    <div class="file-list" id="file-list" role="region" aria-label="Uploaded files">
-                        <!-- Files will be listed here -->
-                    </div>
-                    
-                    <div class="file-stats">
-                        <h4>Context Statistics</h4>
-                        <dl>
-                            <dt>Total Files:</dt>
-                            <dd id="total-files">0</dd>
-                            <dt>Total Characters:</dt>
-                            <dd id="total-chars">0</dd>
-                            <dt>Estimated Tokens:</dt>
-                            <dd id="estimated-tokens">0</dd>
-                        </dl>
-                    </div>
-                </div>
-            </div>
+            </section>
         </div>
-    </div>
 
-    <!-- External initialization -->
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="tabs" role="tablist">
+                <button class="tab-button active" 
+                        id="config-tab"
+                        role="tab" 
+                        aria-selected="true"
+                        aria-controls="config-content">
+                    Configuration
+                </button>
+                <button class="tab-button"
+                        id="files-tab"
+                        role="tab"
+                        aria-selected="false"
+                        aria-controls="files-content">
+                    Files & Context
+                </button>
+            </div>
+
+            <!-- Configuration Panel -->
+            <div id="config-content" class="tab-content active" role="tabpanel">
+                <div class="config-section">
+                    <label for="developer-config">Assistant Settings:</label>
+                    <input type="text" 
+                           id="developer-config"
+                           value="Formatting re-enabled - use markdown code blocks"
+                           aria-describedby="config-help">
+                    <p id="config-help" class="help-text">
+                        Customize the assistant's response format
+                    </p>
+                </div>
+
+                <div class="config-section">
+                    <label for="reasoning-effort-slider">
+                        Reasoning Effort: <span id="effort-display">Medium</span>
+                    </label>
+                    <input type="range" 
+                           id="reasoning-effort-slider"
+                           min="0" 
+                           max="2" 
+                           value="1"
+                           aria-valuetext="Medium">
+                    <div class="effort-description">
+                        <p id="effort-description-text">
+                            Medium: Balanced processing time (1-3min) and quality
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Files Panel -->
+            <div id="files-content" class="tab-content" role="tabpanel" aria-hidden="true">
+                <div class="file-upload-area" id="drop-zone" tabindex="0" role="button">
+                    <div class="upload-prompt">
+                        <i class="upload-icon" aria-hidden="true">📁</i>
+                        <p>Drop files or click to upload<br>
+                            <span class="file-limit">(Max 512MB)</span>
+                        </p>
+                        <input type="file" 
+                               id="file-input" 
+                               accept=".txt,.md,.json,.js" 
+                               multiple 
+                               hidden>
+                    </div>
+                </div>
+                
+                <div class="file-list" id="file-list"></div>
+                
+                <div class="file-stats">
+                    <h3>Context Statistics</h3>
+                    <dl>
+                        <dt>Files:</dt>
+                        <dd id="total-files">0</dd>
+                        <dt>Characters:</dt>
+                        <dd id="total-chars">0</dd>
+                        <dt>Estimated Tokens:</dt>
+                        <dd id="estimated-tokens">0</dd>
+                    </dl>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Theme Toggle -->
+        <button class="theme-toggle" aria-label="Toggle theme">
+            <span class="theme-icon">🌓</span>
+        </button>
+    </main>
+
+    <!-- Error Display -->
+    <div id="error-display" class="error-message"></div>
+
+    <!-- Initialization -->
     <script type="module" src="/static/js/init.js"></script>
-    <div id="error-display" style="display: none;" class="error-message"></div>
-    <div id="upload-progress-container"></div>
 </body>
 </html>

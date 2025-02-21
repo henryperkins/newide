@@ -1,55 +1,28 @@
-import { showNotification } from '../ui/notificationManager.js';
+import { showNotification } from '/static/js/ui/notificationManager.js';
 
-// Session state management
-export let sessionId = null;
-export let lastUserMessage = null;
+let sessionId = null;
 
 export async function initializeSession() {
     try {
-        // Check localStorage first
-        const storedSession = localStorage.getItem('chatSession');
-        if (storedSession) {
-            const {id, expires} = JSON.parse(storedSession);
-            if (new Date(expires) > new Date()) {
-                sessionId = id;
-                return true;
-            }
-        }
-
-        const response = await fetch('/new_session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+        const response = await fetch('/api/session/create', {
+            method: 'POST'
         });
-
+        
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-
+        
         const data = await response.json();
-        if (!data.session_id) {
-            throw new Error("Invalid session ID received");
-        }
-
         sessionId = data.session_id;
-        console.log("Session initialized with ID:", sessionId);
+        
         return true;
     } catch (error) {
-        console.error('Error initializing session:', error);
-        showNotification('Failed to initialize session: ' + error.message, 'error');
+        console.error('Session initialization error:', error);
+        showNotification('Failed to initialize session', 'error');
         return false;
     }
 }
 
-export function clearSession() {
-    sessionId = null;
-    lastUserMessage = null;
-    console.log("Session state cleared");
-}
-
-export function getSessionInfo() {
-    return {
-        sessionId,
-        lastUserMessage,
-        created: new Date().toISOString()
-    };
+export function getSessionId() {
+    return sessionId;
 }

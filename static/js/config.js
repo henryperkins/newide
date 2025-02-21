@@ -1,80 +1,61 @@
-import { showNotification } from '../ui/notificationManager.js';
+import { showNotification } from '/static/js/ui/notificationManager.js';
 
-// Configuration state and utilities
-const effortMap = ['low', 'medium', 'high'];
-const descMap = [
-    'Low: Faster responses (30-60s) with basic reasoning. Best for simple queries.',
-    'Medium: Balanced processing time (1-3min) and quality. Suitable for most queries.',
-    'High: Extended reasoning (2-5min) for complex problems. Expect longer wait times.'
-];
+let config = {
+    reasoningEffort: 1, // Default to medium
+    developerConfig: ''
+};
 
 export function initializeConfig() {
+    setupEffortSlider();
+    setupDeveloperConfig();
+}
+
+export function getConfig() {
+    return { ...config };
+}
+
+function setupEffortSlider() {
     const slider = document.getElementById('reasoning-effort-slider');
-    if (!slider) {
-        showNotification('Missing configuration elements in DOM', 'error');
-        return;
-    }
-
-    // Set initial values
-    slider.value = 0;
-    updateReasoningEffortDisplay();
-
-    // Set up event listeners
-    slider.addEventListener('input', updateReasoningEffortDisplay);
-    console.log("Configuration system initialized");
+    const display = document.getElementById('effort-display');
+    const description = document.getElementById('effort-description-text');
+    
+    // Set initial display
+    updateEffortDisplay(slider.value);
+    
+    slider.addEventListener('input', (e) => {
+        updateEffortDisplay(e.target.value);
+    });
+    
+    slider.addEventListener('change', (e) => {
+        const value = parseInt(e.target.value);
+        config.reasoningEffort = value;
+        showNotification('Reasoning effort updated', 'info');
+    });
 }
 
-export function updateReasoningEffortDisplay() {
-    const slider = document.getElementById('reasoning-effort-slider');
-    const effortDisplay = document.getElementById('effort-display');
-    const descriptionText = document.getElementById('effort-description-text');
-
-    if (!slider || !effortDisplay || !descriptionText) {
-        console.error("Missing configuration DOM elements");
-        return;
-    }
-
-    const value = parseInt(slider.value);
-    effortDisplay.textContent = ['Low', 'Medium', 'High'][value];
-    descriptionText.textContent = descMap[value];
+function updateEffortDisplay(value) {
+    const display = document.getElementById('effort-display');
+    const description = document.getElementById('effort-description-text');
+    
+    const efforts = ['Low', 'Medium', 'High'];
+    const descriptions = [
+        'Low: Faster processing (30-60s) but may miss nuances.',
+        'Medium: Balanced processing time (1-3min) and quality. Suitable for most queries.',
+        'High: Thorough processing (3-5min) for complex tasks.'
+    ];
+    
+    display.textContent = efforts[value];
+    description.textContent = descriptions[value];
 }
 
-export function getCurrentConfig() {
-    return {
-        reasoningEffort: getReasoningEffort(),
-        developerConfig: getDeveloperConfig(),
-        modelSettings: getModelSettings()
-    };
-}
-
-export function getReasoningEffort() {
-    const slider = document.getElementById('reasoning-effort-slider');
-    return effortMap[slider?.value || 0];
-}
-
-export function getDeveloperConfig() {
-    const configEl = document.getElementById('developer-config');
-    return configEl?.value.trim() || '';
-}
-
-export function getModelSettings() {
-    const modelName = window.modelName || '';
-    return {
-        name: modelName,
-        supportsVision: modelName.includes('o1'),
-        supportsStreaming: modelName.includes('o3-mini'),
-        contextWindow: {
-            input: modelName.includes('o1') ? 200000 : 128000,
-            output: modelName.includes('o1') ? 100000 : 32768
-        },
-        requiresSystemMessageConversion: modelName.includes('o-series')
-    };
-}
-
-export function getTimeoutDurations() {
-    return {
-        low: 120000,    // 2 minutes
-        medium: 240000, // 4 minutes
-        high: 360000    // 6 minutes
-    };
+function setupDeveloperConfig() {
+    const input = document.getElementById('developer-config');
+    
+    // Set initial value
+    config.developerConfig = input.value;
+    
+    input.addEventListener('change', (e) => {
+        config.developerConfig = e.target.value;
+        showNotification('Developer configuration updated', 'info');
+    });
 }

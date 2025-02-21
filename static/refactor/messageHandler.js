@@ -2,25 +2,24 @@ import {
     sessionId, 
     initializeSession, 
     lastUserMessage 
-} from '/static/js/session.js';
+} from './session.js';
 import { 
     showNotification,
     showTypingIndicator,
     removeTypingIndicator
-} from '/static/js/ui/notificationManager.js';
-import { displayMessage } from '/static/js/ui/displayManager.js';
-import { safeMarkdownParse } from '/static/js/ui/markdownParser.js';
-import { updateTokenUsage } from '/static/js/utils/helpers.js';
+} from '../ui/notificationManager.js';
+import { displayMessage } from '../ui/displayManager.js';
+import { safeMarkdownParse } from '../utils/markdownParser.js';
+import { updateTokenUsage } from '../utils/helpers.js';
 import { 
     getCurrentConfig,
     getTimeoutDurations,
     getModelSettings
-} from '/static/js/config.js';
+} from './config.js';
 
 export async function sendMessage() {
     const userInput = document.getElementById('user-input');
     const message = userInput.value.trim();
-    const modelSettings = getModelSettings();
     
     if (!message) return;
 
@@ -28,17 +27,6 @@ export async function sendMessage() {
         // Session management
         if (!sessionId && !(await initializeSession())) {
             throw new Error('Failed to initialize session');
-        }
-
-        // Handle o1 model requirements
-        if (modelSettings.name.includes('o1')) {
-            if (modelSettings.supportsVision) {
-                displayMessage('Formatting re-enabled: Markdown processing activated', 'developer');
-            }
-            if (document.getElementById('streaming-toggle').checked) {
-                showNotification('o1 models do not support streaming', 'warning');
-                return;
-            }
         }
 
         // UI state management

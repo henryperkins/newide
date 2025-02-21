@@ -1,166 +1,165 @@
-import { sessionId, initializeSession } from './session.js';
-import { showNotification } from './ui/notificationManager.js';
+import { showNotification } from '/static/js/ui/notificationManager.js';
 import { formatFileSize } from './utils/helpers.js';
 
-// File upload handler with progress tracking
-export async function handleFileUpload(file) {
-    if (!sessionId) {
-        const initialized = await initializeSession();
-        if (!initialized) {
-            showNotification("Failed to initialize session", "error");
-            return;
-        }
-    }
+// File size limit in bytes (512MB)
+const MAX_FILE_SIZE = 512 * 1024 * 1024;
 
-    // Validate file type and size
-    const validTypes = [
-        'text/plain', 'text/markdown', 'text/csv', 'application/json',
-        'text/javascript', 'text/html', 'text/css', 'application/pdf',
-        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    ];
-    
-    const fileExt = file.name.split('.').pop().toLowerCase();
-    if (!validTypes.includes(file.type) && !['txt', 'md', 'csv', 'json', 'js', 'html', 'css', 'pdf', 'doc', 'docx'].includes(fileExt)) {
-        showNotification('Unsupported file type', 'error');
-        return;
-    }
+// Initialize file list state
+let uploadedFiles = new Map();
 
-    if (file.size > 512 * 1024 * 1024) {
-        showNotification('File size exceeds 512MB limit', 'error');
-        return;
-    }
-
-    // Create progress element
-    const progressDiv = document.createElement('div');
-    progressDiv.className = 'upload-progress';
-    progressDiv.innerHTML = `
-        <div class="progress-container">
-            <div class="progress-bar">
-                <div class="progress-fill" style="width: 0%"></div>
-            </div>
-            <div class="progress-text">Uploading... 0%</div>
-        </div>
-    `;
-
-    // Add progress element to DOM
-    document.getElementById('upload-progress-container').appendChild(progressDiv);
-    
-    // ... rest of upload logic ...
-} // End of handleFileUpload
-
-// Create vector store for uploaded file
-async function createVectorStore(fileId) {
+export async function loadFilesList() {
     try {
-        const response = await fetch('/vector_store', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                session_id: sessionId,
-                file_id: fileId,
-                expires_after: { anchor: "last_active_at", days: 7 }
-            })
-        });
-
+        const response = await fetch('/api/files/list');
         if (!response.ok) {
-            throw new Error('Failed to create search index');
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
+        const files = await response.json();
+        updateFileList(files);
     } catch (error) {
-        console.error('Vector store error:', error);
-        showNotification('File uploaded but not searchable', 'warning');
+        console.error('Error loading files:', error);
+        showNotification('Failed to load files list', 'error');
     }
 }
 
-// Setup drag and drop functionality
 export function setupDragAndDrop() {
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
 
-    if (!dropZone || !fileInput) return;
+    // Handle file selection via input
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
 
-    const preventDefaults = (e) => {
+    // Handle drag and drop
+    dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        e.stopPropagation();
-    };
-
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => {
-        dropZone.addEventListener(event, preventDefaults);
+        dropZone.classList.add('drag-over');
     });
 
-    ['dragenter', 'dragover'].forEach(event => {
-        dropZone.addEventListener(event, () => {
-            dropZone.classList.add('dragover');
-        });
-    });
-
-    ['dragleave', 'drop'].forEach(event => {
-        dropZone.addEventListener(event, () => {
-            dropZone.classList.remove('dragover');
-        });
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('drag-over');
     });
 
     dropZone.addEventListener('drop', (e) => {
-        const files = e.dataTransfer.files;
-        Array.from(files).forEach(handleFileUpload);
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        handleFiles(e.dataTransfer.files);
     });
 
-    fileInput.addEventListener('change', (e) => {
-        Array.from(e.target.files).forEach(handleFileUpload);
-        fileInput.value = '';
+    // Handle click to select files
+    dropZone.addEventListener('click', () => {
+        fileInput.click();
     });
 }
 
-// Load and display uploaded files
-export async function loadFilesList() {
-    if (!sessionId) return;
+async function handleFiles(fileList) {
+    const files = Array.from(fileList);
+    
+    // Validate files
+    const validFiles = files.filter(file => {
+        if (file.size > MAX_FILE_SIZE) {
+            showNotification(`File ${file.name} is too large (max 512MB)`, 'error');
+            return false;
+        }
+        return true;
+    });
 
-    try {
-        const response = await fetch(`/files/${sessionId}`);
-        const { files } = await response.json();
-        
-        const fileList = document.getElementById('file-list');
-        fileList.innerHTML = '';
+    if (validFiles.length === 0) return;
 
-        let totalSize = 0;
-        files.forEach(file => {
-            totalSize += file.size;
-            const fileItem = document.createElement('div');
-            fileItem.className = 'file-item';
-            fileItem.innerHTML = `
-                <div class="file-info">
-                    <div class="filename">${file.filename}</div>
-                    <div class="file-meta">
-                        ${formatFileSize(file.size)} • 
-                        ${new Date(file.uploaded_at).toLocaleDateString()}
-                    </div>
-                </div>
-                <button class="delete-btn" onclick="deleteFile('${file.id}')">
-                    ×
-                </button>
-            `;
-            fileList.appendChild(fileItem);
-        });
-
-        document.getElementById('total-files').textContent = files.length;
-        document.getElementById('total-storage').textContent = formatFileSize(totalSize);
-    } catch (error) {
-        showNotification('Failed to load files', 'error');
+    // Upload each valid file
+    for (const file of validFiles) {
+        await uploadFile(file);
     }
 }
 
-// Delete a file
-export async function deleteFile(fileId) {
-    if (!sessionId || !fileId) return;
+async function uploadFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
 
     try {
-        const response = await fetch(`/files/${sessionId}/${fileId}`, {
+        const response = await fetch('/api/files/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        showNotification(`Uploaded ${file.name} successfully`, 'success');
+        
+        // Refresh file list
+        await loadFilesList();
+
+    } catch (error) {
+        console.error('Error uploading file:', error);
+        showNotification(`Failed to upload ${file.name}`, 'error');
+    }
+}
+
+function updateFileList(files) {
+    const fileList = document.getElementById('file-list');
+    const totalFilesElement = document.getElementById('total-files');
+    const totalCharsElement = document.getElementById('total-chars');
+    const estimatedTokensElement = document.getElementById('estimated-tokens');
+
+    // Clear existing list
+    fileList.innerHTML = '';
+    
+    // Update stats
+    let totalChars = 0;
+    files.forEach(file => {
+        totalChars += file.char_count || 0;
+        
+        const fileElement = createFileElement(file);
+        fileList.appendChild(fileElement);
+    });
+
+    // Update statistics
+    totalFilesElement.textContent = files.length;
+    totalCharsElement.textContent = formatFileSize(totalChars);
+    estimatedTokensElement.textContent = Math.ceil(totalChars / 4); // Rough estimate
+}
+
+function createFileElement(file) {
+    const div = document.createElement('div');
+    div.className = 'file-item';
+    
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'file-name';
+    nameSpan.textContent = file.filename;
+    
+    const sizeSpan = document.createElement('span');
+    sizeSpan.className = 'file-size';
+    sizeSpan.textContent = formatFileSize(file.size);
+    
+    const deleteButton = document.createElement('button');
+    deleteButton.className = 'delete-file';
+    deleteButton.textContent = '×';
+    deleteButton.setAttribute('aria-label', `Delete ${file.filename}`);
+    deleteButton.onclick = () => deleteFile(file.filename);
+    
+    div.appendChild(nameSpan);
+    div.appendChild(sizeSpan);
+    div.appendChild(deleteButton);
+    
+    return div;
+}
+
+async function deleteFile(filename) {
+    try {
+        const response = await fetch(`/api/files/delete/${encodeURIComponent(filename)}`, {
             method: 'DELETE'
         });
 
-        if (!response.ok) throw new Error('Delete failed');
-        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        showNotification(`Deleted ${filename} successfully`, 'success');
         await loadFilesList();
-        showNotification('File deleted successfully', 'success');
+
     } catch (error) {
-        showNotification('Failed to delete file', 'error');
+        console.error('Error deleting file:', error);
+        showNotification(`Failed to delete ${filename}`, 'error');
     }
 }
