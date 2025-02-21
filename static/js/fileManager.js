@@ -30,10 +30,9 @@ export async function loadFilesList(retryCount = 0) {
         const sessionId = getSessionId();
         if (!sessionId) {
             console.warn('No session ID available');
-            showNotification('Session expired - please refresh the page', 'error');
-            // Consider a more graceful redirection or modal instead of an immediate reload.
-            window.location.reload();
-            return;
+            showNotification('Starting new session...', 'info');
+            await initializeSession();
+            return loadFilesList();
         }
         
         // Add timeout and retry logic

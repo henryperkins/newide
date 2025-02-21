@@ -109,11 +109,8 @@ async def init_database():
     """Initialize the database by creating necessary tables if they don't exist."""
     async with engine.begin() as conn:
         # Drop existing tables to ensure clean slate
-        await conn.execute(text("DROP TABLE IF EXISTS file_citations CASCADE"))
-        await conn.execute(text("DROP TABLE IF EXISTS vector_stores CASCADE"))
-        await conn.execute(text("DROP TABLE IF EXISTS uploaded_files CASCADE"))
-        await conn.execute(text("DROP TABLE IF EXISTS conversations CASCADE"))
-        await conn.execute(text("DROP TABLE IF EXISTS sessions CASCADE"))
+        # Remove destructive DROP TABLE commands
+        pass  # Let Alembic handle migrations in production
         
         # Create sessions table
         await conn.execute(text("""

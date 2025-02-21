@@ -44,8 +44,7 @@ def read_index():
 
 @app.get("/favicon.ico")
 def favicon():
-    favicon_path = STATIC_DIR / "favicon.ico"
-    return FileResponse(str(favicon_path))
+    return FileResponse(str(STATIC_DIR / "webfonts/fa-regular-400.woff2"))  # Serve any existing icon
 
 @app.on_event("startup")
 async def startup():
