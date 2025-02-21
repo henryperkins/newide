@@ -8,6 +8,7 @@ from time import perf_counter
 from typing import List, Dict, Any, Optional
 
 from openai import AzureOpenAI
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
