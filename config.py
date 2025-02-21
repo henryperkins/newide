@@ -43,10 +43,20 @@ class Settings(BaseSettings):
             "default"
         )
         
-        expected_version = MODEL_API_VERSIONS.get(model_family, MODEL_API_VERSIONS["default"])
+        # Get minimum required version for this model family
+        min_version = MODEL_API_VERSIONS.get(model_family, MODEL_API_VERSIONS["default"])
         
-        if v != expected_version:
-            print(f"Model/version mismatch! {deployment} requires {expected_version}, using {v}")
+        # Compare version dates (ignoring '-preview' suffix)
+        def parse_version(ver):
+            return tuple(map(int, ver.split('-')[0].split('.')))
+            
+        current_ver = parse_version(v)
+        required_ver = parse_version(min_version)
+        
+        if current_ver < required_ver:
+            print(f"Version mismatch! {deployment} requires at least {min_version}, using {v}")
+        elif current_ver > required_ver:
+            print(f"Note: Using newer API version {v} (minimum required {min_version})")
         
         return v
 
