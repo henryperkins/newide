@@ -60,6 +60,10 @@ def read_index():
 def favicon():
     return FileResponse(str(STATIC_DIR / "webfonts/fa-regular-400.woff2"))  # Serve any existing icon
 
+@app.get("/apple-touch-icon-precomposed.png")
+async def get_apple_touch_icon_precomposed():
+    return FileResponse(STATIC_DIR / "img/apple-touch-icon-precomposed.png")
+
 @app.on_event("startup")
 async def startup():
     await init_database()
