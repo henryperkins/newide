@@ -1,6 +1,9 @@
-export function buildAzureOpenAIUrl(deploymentName, apiVersion) {
-  // Hardcode the Azure OpenAI endpoint since config sync is unreliable
-  const baseUrl = new URL("https://api.openai.azure.com");
+import { getCurrentConfig } from "/static/js/config.js";
+
+export async function buildAzureOpenAIUrl(deploymentName, apiVersion) {
+  const config = await getCurrentConfig();
+  const endpoint = config.azureOpenAI?.endpoint || "https://aoai-east-2272068338224.cognitiveservices.azure.com";
+  const baseUrl = new URL(endpoint);
   const apiUrl = new URL(
     `openai/deployments/${deploymentName}/chat/completions`, 
     baseUrl

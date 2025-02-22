@@ -10,30 +10,25 @@ import config
 # Create an SSL context for Azure Database for PostgreSQL
 ssl_context = ssl.create_default_context()
 ssl_context.verify_mode = ssl.CERT_REQUIRED
+ssl_context.check_hostname = True
 
-# Get the root certificate for Azure Database for PostgreSQL
-ROOT_CERT_PATH = "DigiCertGlobalRootCA.crt.pem"
-
+# Load the root certificate
 try:
-    ssl_context.load_verify_locations(ROOT_CERT_PATH)
+     ssl_context.load_verify_locations("DigiCertGlobalRootCA.crt.pem")
 except Exception as e:
-    print(f"Warning: Could not load root certificate: {e}")
+    raise RuntimeError(f"Failed to load SSL certificate: {e}")
 
 # Construct PostgreSQL connection URL with proper SSL mode
 POSTGRES_URL = (
     f"postgresql+asyncpg://{config.settings.POSTGRES_USER}:{config.settings.POSTGRES_PASSWORD}"
-    f"@{config.settings.POSTGRES_HOST}:{config.settings.POSTGRES_PORT}/{config.settings.POSTGRES_DB}"
+    f"@{config.settings.POSTGRES_HOST}:{config.settings.POSTGRES_PORT}/{config.settings.POSTGRES_DB}?ssl=true"
 )
 
 # Create async engine with SSL context
 engine = create_async_engine(
     POSTGRES_URL,
-    pool_size=20,
-    max_overflow=10,
-    pool_recycle=3600,
     connect_args={
-        "ssl": ssl_context,
-        "server_hostname": config.settings.POSTGRES_HOST
+        "ssl": ssl_context
     }
 )
 

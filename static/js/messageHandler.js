@@ -118,7 +118,7 @@ async function handleStreamingResponse(response, controller) {
     console.error("[handleStreamingResponse] Config:", config);
     throw new Error("No valid deployment name found in configuration.");
   }
-  const streamUrl = buildAzureOpenAIUrl(deploymentName, modelConfig.api_version)
+  const streamUrl = await buildAzureOpenAIUrl(deploymentName, modelConfig.api_version)
     .replace('/chat/completions', '/chat/completions/stream')
     + `&session_id=${sessionId}`;
   console.log("[handleStreamingResponse] Using deployment name:", deploymentName);
@@ -504,7 +504,7 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
     throw new Error("Azure OpenAI API key not configured");
   }
 
-  const url = buildAzureOpenAIUrl(deploymentName, modelConfig.api_version);
+  const url = await buildAzureOpenAIUrl(deploymentName, modelConfig.api_version);
   const init = {
     method: "POST",
     headers: {

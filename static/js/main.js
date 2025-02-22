@@ -5,35 +5,77 @@ import { showNotification } from '/static/js/ui/notificationManager.js';
 import { configureMarkdown, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
 
 // Main application entry point
-async function initializeAzureConfig() {
+async function initializeAzureConfig(retryCount = 3, retryDelay = 1000) {
     try {
-        const response = await fetch('/api/config/');
-        const config = await response.json();
-        console.log("[initializeAzureConfig] Config response:", config);
+        let lastError = null;
+        
+        for (let attempt = 1; attempt <= retryCount; attempt++) {
+            try {
+                const response = await fetch('/api/config/', {
+                
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                if (response.status === 422) {
+                    const errorData = await response.json();
+                    console.error("[initializeAzureConfig] Validation error:", errorData);
+                    throw new Error(`Config validation failed: ${errorData.detail || 'Unknown validation error'}`);
+                }
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const config = await response.json();
+                console.log("[initializeAzureConfig] Config response:", config);
 
-        if (!config.deploymentName) {
-            throw new Error("No deployment name found in config");
+               // Validate required fields
+                const requiredFields = {
+                    deploymentName: "deployment name",
+                    'models': "model configuration",
+                    'azureOpenAI.apiKey': "API key"
+                };
+
+                for (const [field, label] of Object.entries(requiredFields)) {
+                    const value = field.split('.').reduce((obj, key) => obj?.[key], config);
+                    if (!value) {
+                        throw new Error(`Missing ${label} in configuration`);
+                    }
+                }
+
+               if (!config.models?.[config.deploymentName]) {
+                    throw new Error(`No model configuration found for deployment: ${config.deploymentName}`);
+                }
+
+                const modelConfig = config.models[config.deploymentName];
+                
+                window.azureOpenAIConfig = {
+                    endpoint: modelConfig.endpoint || "https://o1models.openai.azure.com",
+                    apiKey: config.azureOpenAI.apiKey,
+                    deploymentName: config.deploymentName
+                };
+
+                console.log("[initializeAzureConfig] Successfully initialized with deployment:", config.deploymentName);
+                return true;
+                
+            } catch (error) {
+                lastError = error;
+                console.warn(`[initializeAzureConfig] Attempt ${attempt}/${retryCount} failed:`, error);
+                
+                if (error.message.includes('validation failed') || error.message.includes('422')) {
+                    // Don't retry validation errors
+                    break;
+                }
+                
+                if (attempt < retryCount) {
+                    await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+                }
+            }
         }
-
-        if (!config.models?.[config.deploymentName]) {
-            throw new Error(`No model configuration found for deployment: ${config.deploymentName}`);
-        }
-
-        const modelConfig = config.models[config.deploymentName];
-        if (!modelConfig.api_key) {
-            throw new Error(`No API key found for deployment: ${config.deploymentName}`);
-        }
-
-        window.azureOpenAIConfig = {
-            endpoint: modelConfig.endpoint || "https://o1models.openai.azure.com",
-            apiKey: modelConfig.api_key
-        };
-
-        console.log("[initializeAzureConfig] Successfully initialized with deployment:", config.deploymentName);
+        
+        // If we get here, all attempts failed
+        throw lastError || new Error('Failed to initialize Azure configuration');
     } catch (error) {
-        console.error("[initializeAzureConfig] Failed to initialize:", error);
-        showNotification(`Azure OpenAI configuration error: ${error.message}`, "error", 10000);
-        throw error;
+        handleInitializationError(error);
     }
 }
 
@@ -64,15 +106,26 @@ async function initializeMarkdownSupport() {
 }
 
 function handleInitializationError(error) {
-    console.error("Critical initialization error:", error);
-    showNotification(
-        `Failed to initialize application: ${error.message}`,
-        "error",
-        10000
-    );
+    console.error("[handleInitializationError] Critical error:", error);
+
+    let errorMessage = "Failed to initialize application";
+    
+    if (error.message.includes('validation failed')) {
+        errorMessage = error.message;
+    } else if (error.message.includes('API key')) {
+        errorMessage = "Azure OpenAI API key is missing or invalid. Please check your configuration.";
+    } else {
+        errorMessage = `${errorMessage}: ${error.message}`;
+    }
+
     const chatInterface = document.getElementById('chat-interface');
     const errorDisplay = document.getElementById('error-display');
     
+    showNotification(errorMessage, "error", 10000);
+    
     if (chatInterface) chatInterface.style.display = 'none';
-    if (errorDisplay) errorDisplay.style.display = 'block';
+    if (errorDisplay) {
+        errorDisplay.style.display = 'block';
+        errorDisplay.textContent = errorMessage;
+    }
 }

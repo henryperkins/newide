@@ -4,6 +4,7 @@ from fastapi import Depends
 from typing import Any, Dict
 import json
 from sqlalchemy import text
+import os
 
 class ConfigService:
     def __init__(self, db: AsyncSession = Depends(get_db_session)):
@@ -27,7 +28,7 @@ class ConfigService:
                 try:
                     # Add API version to configs
                     if row.key == "azure_openai_api_version":
-                        configs[row.key] = config.AZURE_OPENAI_API_VERSION
+                        configs[row.key] = os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
                     # Ensure value is properly serialized
                     value = row.value
                     if isinstance(value, str):
@@ -38,8 +39,7 @@ class ConfigService:
                     configs[row.key] = row.value
             return configs
         except Exception as e:
-            print(f"Error fetching configs: {str(e)}")
-            return {}
+            raise Exception(f"Error fetching configs: {str(e)}")
 
     async def set_config(self, key: str, value: Any, description: str = "", is_secret: bool = False):
         # Ensure value is JSON serializable
