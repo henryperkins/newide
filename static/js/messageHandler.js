@@ -36,7 +36,21 @@ import { getFilesForChat } from '/static/js/fileManager.js';
 export async function sendMessage() {
     const userInput = document.getElementById('user-input');
     const message = userInput.value.trim();
-    const modelSettings = getModelSettings() || {};
+    const modelConfig = await getModelSettings();
+    
+    // Validate o-series requirements
+    if (modelConfig.name.includes('o1')) {
+        if (document.getElementById('streaming-toggle').checked) {
+            showNotification('o-series models do not support streaming', 'error');
+            return;
+        }
+        
+        const tempValue = parseFloat(document.getElementById('temperature-value').textContent);
+        if (tempValue !== 1.0) {
+            showNotification('o-series requires temperature=1.0', 'error');
+            return;
+        }
+    }
     
     console.log('[MessageHandler] Initiated sendMessage:', {
         messagePreview: message.slice(0, 50) + (message.length > 50 ? '...' : ''),
@@ -147,7 +161,7 @@ async function handleChatRequest({
         }
     }
 
-    // Build minimal payload
+    // Build minimal payload with o-series specific parameters
     const requestBody = {
         model: deploymentName,
         messages: [{
@@ -157,8 +171,20 @@ async function handleChatRequest({
                 : JSON.stringify(messageContent)
         }],
         session_id: sessionId,
-        reasoning_effort: reasoningEffort
+        reasoning_effort: reasoningEffort,
+        ...(modelConfig.name.includes('o1') && {
+            max_completion_tokens: modelConfig.capabilities.max_completion_tokens,
+            temperature: modelConfig.capabilities.fixed_temperature
+        })
     };
+
+    // Add developer message if configured
+    if (modelConfig.developer_message) {
+        requestBody.messages.unshift({
+            role: "developer",
+            content: modelConfig.developer_message
+        });
+    }
 
     // Optionally add dev config
     if (developerConfig) {

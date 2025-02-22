@@ -1,16 +1,16 @@
 export const MODEL_CONFIG = {
     "o1": {
         name: "Azure o1",
-        api_version: "2024-05-01-preview",
+        api_version: "2024-12-01-preview",
         capabilities: {
             supports_streaming: false,
             supports_vision: false,
             requires_reasoning_effort: true,
-            max_tokens: 40000,
-            default_temperature: 1.0,
+            max_completion_tokens: 40000,
+            fixed_temperature: 1.0,
             token_cost_multiplier: 1.5
         },
-        system_message: "You are an AI assistant that uses step-by-step reasoning",
+        developer_message: "Formatting re-enabled - use markdown code blocks",
         response_format: {
             reasoning_tag_open: ""
         }

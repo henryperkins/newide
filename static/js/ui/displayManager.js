@@ -10,6 +10,12 @@ export function displayMessage(content, role) {
         const isFormattingMessage = content.startsWith('Formatting re-enabled');
         const messageDiv = createDeveloperMessage(content, isFormattingMessage);
         chatHistory.appendChild(messageDiv);
+        
+        // Add accessibility announcement
+        const liveRegion = document.getElementById('a11y-announcements');
+        if (liveRegion) {
+            liveRegion.textContent = `System message: ${content}`;
+        }
         return;
     }
 

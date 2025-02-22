@@ -5,11 +5,13 @@ let _lastUserMessage = '';
 
 export async function initializeSession() {
     try {
-        const response = await fetch('/api/session/create', {
+        const modelConfig = await getModelSettings();
+        const response = await fetch(`/api/session/create?api-version=${modelConfig.api_version}`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-Model-Type': modelConfig.name
             }
         });
         

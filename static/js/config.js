@@ -213,6 +213,8 @@ export async function getModelSettings() {
             ...modelConfig,
             capabilities: {
                 requires_reasoning_effort: true,
+                max_completion_tokens: modelConfig.capabilities.max_completion_tokens,
+                fixed_temperature: modelConfig.capabilities.fixed_temperature,
                 ...(modelConfig?.capabilities || {})
             }
         };
