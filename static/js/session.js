@@ -6,7 +6,9 @@ let _lastUserMessage = '';
 export async function initializeSession() {
     try {
         const modelConfig = await getModelSettings();
-        const response = await fetch(`/api/session/create?api-version=${modelConfig.api_version}`, {
+        const response = await fetch(`/api/session/create`, {
+            headers: {
+                'x-api-version': modelConfig.api_version,
             method: 'GET',
             headers: {
                 'Accept': 'application/json',

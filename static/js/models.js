@@ -11,6 +11,11 @@ export const MODEL_CONFIG = {
             token_cost_multiplier: 1.5
         },
         developer_message: "Formatting re-enabled - use markdown code blocks",
+        safety_config: {
+            content_filter: true,
+            max_retries: 3,
+            jailbreak_protection: true
+        },
         response_format: {
             reasoning_tag_open: ""
         }

@@ -7,7 +7,7 @@ export function displayMessage(content, role) {
 
     // Handle developer messages
     if (role === 'developer') {
-        const isFormattingMessage = content.startsWith('Formatting re-enabled');
+        const isFormattingMessage = content.toLowerCase().includes('formatting re-enabled');
         const messageDiv = createDeveloperMessage(content, isFormattingMessage);
         chatHistory.appendChild(messageDiv);
         

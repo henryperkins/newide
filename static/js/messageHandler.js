@@ -50,6 +50,11 @@ export async function sendMessage() {
             showNotification('o-series requires temperature=1.0', 'error');
             return;
         }
+        
+        // Ensure we're using max_completion_tokens instead of max_tokens
+        if (modelConfig.capabilities?.max_completion_tokens) {
+            delete requestBody.max_tokens;
+        }
     }
     
     console.log('[MessageHandler] Initiated sendMessage:', {
@@ -147,8 +152,8 @@ async function handleChatRequest({
     reasoningEffort
 }) {
     const config = await getCurrentConfig();
-    // Replace process.env with hardcoded version or config value
-    const apiVersion = '2025-01-01-preview';  // Remove process.env reference
+    const modelConfig = await getModelSettings();
+    const apiVersion = modelConfig.api_version;
 
     // Example: the actual name of your Azure OpenAI deployment
     const deploymentName = config.selectedModel || 'o1model-east2';
