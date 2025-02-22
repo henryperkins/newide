@@ -135,22 +135,7 @@
     font-display: swap;
 }
 
-/* JetBrains Mono font-face declarations */
-@font-face {
-    font-family: 'JetBrains Mono';
-    font-style: normal;
-    font-weight: 400;
-    src: url('/static/fonts/jetbrains-mono/jetbrains-mono-400.woff2') format('woff2');
-    font-display: swap;
-}
 
-@font-face {
-    font-family: 'JetBrains Mono';
-    font-style: normal;
-    font-weight: 500;
-    src: url('/static/fonts/jetbrains-mono/jetbrains-mono-500.woff2') format('woff2');
-    font-display: swap;
-}
 
 /* base.css */
 /* Base Styles */
