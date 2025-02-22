@@ -1,9 +1,12 @@
 export function buildAzureOpenAIUrl(deploymentName, apiVersion) {
-  const baseUrl = window.azureOpenAIConfig?.endpoint || "https://o1models.openai.azure.com";
-  if (!baseUrl) {
-    throw new Error("Azure OpenAI endpoint not configured");
-  }
-  return `${baseUrl.replace(/\/$/, "")}/openai/deployments/${encodeURIComponent(deploymentName)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+  // Hardcode the Azure OpenAI endpoint since config sync is unreliable
+  const baseUrl = new URL("https://api.openai.azure.com");
+  const apiUrl = new URL(
+    `openai/deployments/${deploymentName}/chat/completions`, 
+    baseUrl
+  );
+  apiUrl.searchParams.append('api-version', apiVersion);
+  return apiUrl.toString();
 }
 export function formatFileSize(bytes) {
     if (typeof bytes !== 'number' || bytes < 0) return '0 B';

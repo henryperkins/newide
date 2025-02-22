@@ -338,7 +338,10 @@ async function handleChatRequest({ messageContent, controller, reasoningEffort }
   }
 
   // Build the Azure OpenAI endpoint
-  const url = buildAzureOpenAIUrl(deploymentName, apiVersion);
+  const url = buildAzureOpenAIUrl(
+    deploymentName || "o1hp",
+    apiVersion || "2025-01-01-preview"
+  );
 
   const init = {
     method: "POST",
