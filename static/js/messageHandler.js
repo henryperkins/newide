@@ -18,7 +18,7 @@ import {
   removeTypingIndicator
 } from "/static/js/ui/notificationManager.js";
 
-import { displayMessage } from "/static/js/ui/displayManager.js";
+import { displayMessage, processCitations } from "/static/js/ui/displayManager.js";
 import { safeMarkdownParse } from "/static/js/ui/markdownParser.js";
 import { updateTokenUsage, buildAzureOpenAIUrl } from "/static/js/utils/helpers.js";
 
@@ -112,9 +112,19 @@ async function handleStandardResponse(response) {
 async function handleStreamingResponse(response, controller) {
   console.log("[handleStreamingResponse] Starting SSE streaming...");
 
+  const config = await getCurrentConfig();
+  const modelConfig = await getModelSettings();
+
+  // Always use the deployment name from config
+  const deploymentName = config.deploymentName;
+  if (!deploymentName) {
+    console.error("[handleStreamingResponse] Config:", config);
+    throw new Error("No valid deployment name found in configuration.");
+  }
   const streamUrl = buildAzureOpenAIUrl(deploymentName, modelConfig.api_version)
     .replace('/chat/completions', '/chat/completions/stream')
     + `&session_id=${sessionId}`;
+  console.log("[handleStreamingResponse] Using deployment name:", deploymentName);
   const eventSource = new EventSource(streamUrl);
 
   let messageContainer = null;
@@ -249,68 +259,24 @@ function processResponseData(data) {
  * Parse annotated content/ citations
  */
 function processAnnotatedContent(responseData) {
-  if (!responseData?.content) {
-    return safeMarkdownParse(JSON.stringify(responseData));
-  }
-
-  let content = responseData.content;
-  const citations = [];
-
-  // Possibly new or old format for citations
-  if (responseData.context?.citations) {
-    responseData.context.citations.forEach((citation, index) => {
-      const ref = `[doc${index + 1}]`;
-      content = content.replace(ref, `[${index + 1}]`);
-      citations.push(
-        createCitationElement(index + 1, {
-          file_name: citation.document_name,
-          quote: citation.content
-        })
-      );
-    });
-  } else if (Array.isArray(responseData.content)) {
-    const firstBlock = responseData.content[0];
-    if (firstBlock?.text?.annotations) {
-      content = firstBlock.text.value;
-      firstBlock.text.annotations.forEach((annotation, index) => {
-        if (annotation.file_citation) {
-          content = content.replace(annotation.text, `[${index + 1}]`);
-          citations.push(createCitationElement(index + 1, annotation.file_citation));
-        }
-      });
+    if (!responseData?.content) {
+        return safeMarkdownParse(JSON.stringify(responseData));
     }
-  }
 
-  const finalHtml = `
-    <div class="message-text">${safeMarkdownParse(content)}</div>
-    ${
-      citations.length
-        ? `
-          <div class="citations-container">
-            <div class="citations-header">
-              <span class="citations-icon">📚</span>
-              <span>Sources</span>
+    const { content, citationsHtml } = processCitations(responseData);
+    
+    return `
+        <div class="message-text">${safeMarkdownParse(content)}</div>
+        ${citationsHtml ? `
+            <div class="citations-container">
+                <div class="citations-header">
+                    <span class="citations-icon">📚</span>
+                    <span>Sources</span>
+                </div>
+                ${citationsHtml}
             </div>
-            ${citations.join("")}
-          </div>
-        `
-        : ""
-    }
-  `;
-
-  return finalHtml;
-}
-
-function createCitationElement(index, citation) {
-  return `
-    <div class="file-citation">
-      <div class="citation-header">
-        <span class="citation-number">[${index}]</span>
-        <span class="citation-file">${citation.file_name}</span>
-      </div>
-      <div class="citation-quote">${citation.quote}</div>
-    </div>
-  `;
+        ` : ''}
+    `;
 }
 
 /**
@@ -381,15 +347,22 @@ async function handleMessageError(error) {
 }
 
 /**
+ * Helper function to check if the model is o1 series
+ */
+function isO1Model(modelConfig) {
+  return modelConfig.name.includes("o1model");
+}
+
+/**
  * Main request logic for chat
  */
 export async function sendMessage() {
   const userInput = document.getElementById("user-input");
   const message = userInput.value.trim();
-    const modelConfig = await getModelSettings();
+  const modelConfig = await getModelSettings();
 
   // Basic checks for o-series
-  if (modelConfig.name.includes("o1")) {
+  if (isO1Model(modelConfig)) {
     if (document.getElementById("streaming-toggle").checked) {
       showNotification("o-series models do not support streaming", "error");
       return;
@@ -406,11 +379,15 @@ export async function sendMessage() {
   if (!message) return;
 
   try {
-    if (!sessionId && !(await initializeSession())) {
-      throw new Error("Failed to initialize session");
+    if (!sessionId) {
+      const initialized = await initializeSession();
+      if (!initialized) {
+        throw new Error("Failed to initialize session");
+      }
+      sessionId = initialized;
     }
 
-    if (modelConfig?.name?.includes?.("o1") && modelConfig.supportsVision) {
+    if (isO1Model(modelConfig) && modelConfig.supportsVision) {
       displayMessage("Formatting re-enabled: Markdown processing activated", "developer");
       if (document.getElementById("streaming-toggle").checked) {
         showNotification("o1 models do not support streaming", "warning");
@@ -423,7 +400,7 @@ export async function sendMessage() {
     displayMessage(message, "user");
     userInput.value = "";
 
-    const config = getCurrentConfig();
+    const config = await getCurrentConfig();
     const effortLevel = config?.reasoningEffort || "medium";
     const timeout = getTimeoutDurations()[effortLevel] || 30000;
     console.log("[Config] Current settings:", { effort: effortLevel, timeout, modelSettings });
@@ -465,13 +442,27 @@ export async function regenerateResponse() {
 /**
  * Main function to handle sending request to server
  */
+/**
+ * Main function to handle sending request to server
+ * @param {Object} params - The parameters for the request
+ * @param {string|Object} params.messageContent - The content of the message to send
+ * @param {AbortController} params.controller - The AbortController to handle request timeout
+ * @param {Object} [params.developerConfig] - Optional developer configuration
+ * @param {string} params.reasoningEffort - The reasoning effort level for the request
+ * @returns {Promise<Response>} - The server response
+ */
 async function handleChatRequest({ messageContent, controller, developerConfig, reasoningEffort }) {
-  const config = getCurrentConfig();
+  const config = await getCurrentConfig();
   const modelConfig = await getModelSettings();
   const apiVersion = modelConfig.api_version;
 
-  const deploymentName = config.selectedModel || "o1model-east2";
-  console.log("[handleChatRequest] Deployment Name:", deploymentName); // Log deploymentName
+  // Always use the deployment name from config
+  const deploymentName = config.deploymentName;
+  if (!deploymentName) {
+    console.error("[handleChatRequest] Config:", config);
+    throw new Error("No valid deployment name found in configuration.");
+  }
+  console.log("[handleChatRequest] Using deployment name:", deploymentName);
 
   if (!sessionId) {
     await initializeSession();
@@ -481,7 +472,7 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
   }
 
   const requestBody = {
-    model: deploymentName,
+    model: deploymentName,  // Include deployment name in request
     messages: [
       {
         role: "user",
@@ -492,7 +483,7 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
     reasoning_effort: reasoningEffort
   };
 
-  if (modelConfig.name.includes("o1")) {
+  if (modelConfig.name.includes("o1model")) {
     if (modelConfig.capabilities?.max_completion_tokens) {
       requestBody.max_completion_tokens = modelConfig.capabilities.max_completion_tokens;
     }
@@ -514,13 +505,19 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
 
   console.log("[handleChatRequest] Sending payload:", JSON.stringify(requestBody, null, 2));
 
+  const configData = await getCurrentConfig();
+  const apiKey = configData.azureOpenAI?.apiKey;
+  if (!apiKey) {
+    throw new Error("Azure OpenAI API key not configured");
+  }
+
   const url = buildAzureOpenAIUrl(deploymentName, modelConfig.api_version);
   const init = {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
-      "api-key": config.AZURE_OPENAI_API_KEY, || "YOUR_AZURE_OPENAI_KEY"
+      "api-key": apiKey,
     },
     signal: controller.signal,
     body: JSON.stringify(requestBody)
@@ -529,6 +526,9 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
   const requestStartTime = Date.now();
   const response = await fetch(url, init);
   response.requestStartTime = requestStartTime;
+
+  // The response contains the server's reply to the chat request, including status and data.
+  // It will be used to handle the chat response, either standard or streaming.
   return response;
 }
 

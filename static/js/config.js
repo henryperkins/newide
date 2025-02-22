@@ -4,7 +4,14 @@ const fallbackConfig = {
     reasoningEffort: "medium",
     developerConfig: "Formatting re-enabled - use markdown code blocks",
     includeFiles: false,
-    selectedModel: "o1"
+    selectedModel: "o1model-east2",
+    deploymentName: "o1model-east2",
+    azureOpenAI: {
+        apiKey: window.azureOpenAIConfig?.apiKey || "",
+        endpoint: window.azureOpenAIConfig?.endpoint || "",
+        deploymentName: window.azureOpenAIConfig?.deploymentName || "",
+        apiVersion: window.azureOpenAIConfig?.apiVersion || "2025-01-01-preview"
+    }
 };
 
 /**
@@ -52,9 +59,11 @@ function getValidatedElement(elementId) {
 /**
  * Initialize configuration-dependent UI elements and tab switching.
  */
-export function initializeConfig() {
+export async function initializeConfig() {
     try {
+        const config = await getCurrentConfig();
         updateReasoningEffortDisplay();
+        await updateModelSpecificUI(config.selectedModel);
     } catch (error) {
         console.error('Failed to initialize UI elements:', error);
     }
@@ -125,24 +134,15 @@ export async function getCurrentConfig() {
                     
                     if (response.status >= 500) { // Server errors
                         console.warn(`Server error (${response.status}), using fallback config`);
-                        return {
-                            ...fallbackConfig,
-                            selectedModel: fallbackConfig.selectedModel || "deepseek-r1",
-                            reasoningEffort: fallbackConfig.reasoningEffort || "medium",
-                            capabilities: {
-                                requires_reasoning_effort: true,
-                                supports_streaming: false,
-                                ...fallbackConfig.capabilities
-                            }
-                        };
+                        throw new Error("Server error: Unable to fetch configuration");
                     }
                     
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     
                     responseData = await response.json();
                     // Validate minimum required config
-                    if (!responseData.selectedModel || !responseData.reasoningEffort) {
-                        throw new Error('Invalid config structure');
+                    if (!responseData.selectedModel || !responseData.reasoningEffort || !responseData.deploymentName) {
+                        throw new Error('Invalid config structure: missing required fields (selectedModel, reasoningEffort, or deploymentName)');
                     }
                     break;
                     
@@ -162,6 +162,7 @@ export async function getCurrentConfig() {
             error: error.message,
             stack: error.stack
         });
+        // Return fallback config instead of throwing error
         return fallbackConfig;
     }
 }
@@ -173,6 +174,11 @@ export async function getCurrentConfig() {
  * @returns {Promise<boolean>} True if update was successful.
  */
 export async function updateConfig(key, value) {
+    // Ensure key is a valid non-empty string and not the string "[object Object]"
+    if (typeof key !== 'string' || key.trim() === "" || key === "[object Object]") {
+        console.error('updateConfig: Invalid configuration key. Expected a valid string key but received:', key);
+        return false;
+    }
     try {
         const response = await fetch(`/api/config/${key}`, {
             method: 'PUT',
@@ -207,9 +213,9 @@ import { MODEL_CONFIG } from './models.js';
 export async function getModelSettings() {
     try {
         const config = await getCurrentConfig();
-        const modelConfig = MODEL_CONFIG[config.selectedModel] || MODEL_CONFIG["deepseek-r1"];
+        const modelConfig = MODEL_CONFIG[config.selectedModel] || MODEL_CONFIG["o1model-east2"];
         return {
-            name: config.selectedModel || "deepseek-r1",
+            name: config.selectedModel || "o1model-east2",
             ...modelConfig,
             capabilities: {
                 requires_reasoning_effort: true,
@@ -221,10 +227,10 @@ export async function getModelSettings() {
     } catch (error) {
         console.error('Failed to get model settings:', error);
         return {
-            ...MODEL_CONFIG["deepseek-r1"],
+            ...MODEL_CONFIG["o1model-east2"],
             capabilities: {
                 requires_reasoning_effort: true,
-                ...(MODEL_CONFIG["deepseek-r1"]?.capabilities || {})
+                ...(MODEL_CONFIG["o1model-east2"]?.capabilities || {})
             }
         };
     }
@@ -296,4 +302,85 @@ export function updateReasoningEffortDisplay() {
     // Update slider accessibility attributes
     slider.setAttribute('aria-valuenow', slider.value);
     slider.setAttribute('aria-valuetext', selectedLabel);
+}
+
+/**
+ * Updates UI elements based on selected model capabilities
+ * @param {string} model - The selected model identifier
+ */
+export async function updateModelSpecificUI(model) {
+    const modelConfig = await getModelSettings();
+    const reasoningControls = document.getElementById('reasoning-controls');
+    const streamingToggle = document.getElementById('streaming-toggle');
+
+    // Toggle reasoning controls with null safety
+    const requiresEffort = modelConfig.capabilities?.requires_reasoning_effort ?? true;
+    if (reasoningControls) {
+        reasoningControls.style.display = requiresEffort ? 'block' : 'none';
+    }
+        
+    // Toggle streaming availability with null safety
+    if (streamingToggle) {
+        streamingToggle.disabled = !(modelConfig.capabilities?.supports_streaming ?? false);
+    }
+    
+    // Update temperature display
+    const tempElement = document.getElementById('temperature-value');
+    if (tempElement && modelConfig.capabilities?.default_temperature !== undefined) {
+        tempElement.textContent = modelConfig.capabilities.default_temperature;
+    }
+        
+    // Update token counter limits
+    const maxTokensElement = document.getElementById('max-tokens');
+    if (maxTokensElement && modelConfig.capabilities?.max_tokens) {
+        maxTokensElement.dataset.max = modelConfig.capabilities.max_tokens;
+    }
+}
+
+/**
+ * Switches between tabs in the UI
+ * @param {string} tabId - The ID of the tab to switch to
+ */
+export function switchTab(tabId) {
+    // Hide all tab content first
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+        content.setAttribute('aria-hidden', 'true');
+    });
+    
+    // Deactivate all tab buttons
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('active');
+        button.setAttribute('aria-selected', 'false');
+    });
+    
+    // Activate selected tab and its content
+    const selectedContent = document.getElementById(tabId);
+    const selectedTab = document.querySelector(`[data-target-tab="${tabId}"]`);
+    
+    if (selectedContent) {
+        selectedContent.classList.add('active');
+        selectedContent.setAttribute('aria-hidden', 'false');
+    }
+    
+    if (selectedTab) {
+        selectedTab.classList.add('active');
+        selectedTab.setAttribute('aria-selected', 'true');
+    }
+}
+
+/**
+ * Checks and returns model capabilities with safe defaults
+ * @param {Object} modelConfig - The model configuration object
+ * @returns {Object} Object containing model capabilities with safe defaults
+ */
+export function checkModelCapabilities(modelConfig) {
+    return {
+        supportsStreaming: modelConfig.capabilities?.supports_streaming ?? false,
+        supportsVision: modelConfig.capabilities?.supports_vision ?? false,
+        requiresReasoning: modelConfig.capabilities?.requires_reasoning_effort ?? true,
+        maxTokens: modelConfig.capabilities?.max_tokens ?? 4096,
+        temperature: modelConfig.capabilities?.fixed_temperature,
+        isO1Series: modelConfig.name.includes('o1')
+    };
 }

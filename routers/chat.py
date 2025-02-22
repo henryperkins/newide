@@ -40,6 +40,10 @@ async def create_chat_completion(
             message="Invalid deployment ID",
             error_type="invalid_request_error"
         )
+    # Override the model with the deployment name from environment
+    if request.model != config.AZURE_OPENAI_DEPLOYMENT_NAME:
+        logger.warning(f"Model name mismatch: {request.model} vs {config.AZURE_OPENAI_DEPLOYMENT_NAME}")
+        
     # Transform flat request into message format expected by processing
     chat_message = ChatMessage(
         message=request.messages[-1]['content'],

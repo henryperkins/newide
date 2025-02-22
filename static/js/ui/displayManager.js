@@ -1,7 +1,9 @@
 import { safeMarkdownParse } from '/static/js/ui/markdownParser.js';
 import { copyToClipboard } from '/static/js/utils/helpers.js';
 
-export function displayMessage(content, role) {
+export { displayMessage, processCitations };
+
+function displayMessage(content, role) {
     const chatHistory = document.getElementById('chat-history');
     if (!chatHistory) return;
 

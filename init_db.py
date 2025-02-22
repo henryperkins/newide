@@ -8,43 +8,59 @@ from datetime import datetime
 async def initialize_default_configs(conn):
     """Initialize default configurations in database"""
     
-    # Construct model settings from config and env vars
-    model_config = {
-        "selectedModel": config.AZURE_OPENAI_DEPLOYMENT_NAME,
-        "models": {
-            config.AZURE_OPENAI_DEPLOYMENT_NAME: {
-                "max_tokens": 40000,
-                "temperature": 1.0,
-                "endpoint": config.AZURE_OPENAI_ENDPOINT,
-                "api_version": config.AZURE_OPENAI_API_VERSION,
-                "deployment_name": config.AZURE_OPENAI_DEPLOYMENT_NAME
-            },
-            "deepseek-r1": {
-                "max_tokens": 4096,
-                "temperature": 0.7
-            }
+    # Insert default configurations
+    deployment_name = config.AZURE_OPENAI_DEPLOYMENT_NAME
+    default_configs = [
+        {
+            "key": "selectedModel",
+            "value": json.dumps(deployment_name),
+            "description": "Currently selected model"
         },
-        "reasoningEffort": "medium",
-        "includeFiles": False,
-        "lastUpdated": datetime.utcnow().isoformat()
-    }
-
-    # Insert or update model configuration
-    await conn.execute(
-        text("""
-            INSERT INTO app_configurations (key, value, description, updated_at)
-            VALUES (:key, :value, :description, NOW())
-            ON CONFLICT (key) DO UPDATE
-            SET value = EXCLUDED.value,
-                description = EXCLUDED.description,
-                updated_at = NOW()
-        """),
         {
             "key": "models",
-            "value": json.dumps(model_config),
+            "value": json.dumps({
+                deployment_name: {
+                    "max_tokens": 40000,
+                    "temperature": 1.0,
+                    "endpoint": config.AZURE_OPENAI_ENDPOINT,
+                    "api_version": config.AZURE_OPENAI_API_VERSION,
+                    "deployment_name": deployment_name,
+                    "capabilities": {
+                        "supports_streaming": False,
+                        "supports_vision": False,
+                        "requires_reasoning_effort": True,
+                        "max_completion_tokens": 40000,
+                        "fixed_temperature": 1.0
+                    }
+                }
+            }),
             "description": "Model configurations including Azure OpenAI settings"
+        },
+        {
+            "key": "reasoningEffort",
+            "value": json.dumps("medium"),
+            "description": "Default reasoning effort level"
+        },
+        {
+            "key": "includeFiles",
+            "value": json.dumps(False),
+            "description": "Whether to include files in chat context"
         }
-    )
+    ]
+
+    # Insert or update configurations
+    for config_item in default_configs:
+        await conn.execute(
+            text("""
+                INSERT INTO app_configurations (key, value, description, updated_at)
+                VALUES (:key, :value, :description, NOW())
+                ON CONFLICT (key) DO UPDATE
+                SET value = EXCLUDED.value,
+                    description = EXCLUDED.description,
+                    updated_at = NOW()
+            """),
+            config_item
+        )
 
 async def init_database():
     """Initialize the database and create tables"""

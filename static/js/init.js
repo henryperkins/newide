@@ -1,6 +1,6 @@
 import { initializeSession } from '/static/js/session.js';
 import { initializeFileManager } from '/static/js/fileManager.js';
-import { initializeConfig, updateReasoningEffortDisplay, getCurrentConfig, getModelSettings } from '/static/js/config.js';
+import { initializeConfig, updateReasoningEffortDisplay, getCurrentConfig, getModelSettings, updateModelSpecificUI, switchTab, updateConfig } from '/static/js/config.js';
 import { showNotification } from '/static/js/ui/notificationManager.js';
 import { sendMessage, regenerateResponse } from '/static/js/messageHandler.js';
 import { configureMarkdown, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
@@ -11,9 +11,10 @@ window.addEventListener('DOMContentLoaded', async () => {
         // Initialize core components first
         await initializeMarkdownSupport();
         await initializeSessionHandling();
+        await initializeConfig();
         
         // Initialize UI components
-        initializeUIEventHandlers();
+        await initializeUIEventHandlers();
         await initializeFileHandling();
 
         console.log(`Application initialized successfully at ${new Date().toISOString()}`);
@@ -33,65 +34,112 @@ async function initializeMarkdownSupport() {
     injectMarkdownStyles();
 }
 
-function initializeUIEventHandlers() {
-    // Add configuration sync
-    const syncConfigToStorage = () => {
+async function initializeUIEventHandlers() {
+    // Configuration sync helper
+    const syncConfigToStorage = async () => {
         const config = {
-            developerConfig: document.getElementById('developer-config').value,
-            reasoningEffort: ['low', 'medium', 'high'][document.getElementById('reasoning-effort-slider').value - 1],
-            includeFiles: document.getElementById('use-file-search').checked,
-            selectedModel: document.getElementById('model-selector').value
+            developerConfig: document.getElementById('developer-config')?.value || '',
+            reasoningEffort: ['low', 'medium', 'high'][
+                (document.getElementById('reasoning-effort-slider')?.value || 2) - 1
+            ],
+            includeFiles: document.getElementById('use-file-search')?.checked || false,
+            selectedModel: document.getElementById('model-selector')?.value || 'o1model-east2'
         };
         localStorage.setItem('appConfig', JSON.stringify(config));
+        await updateConfig(config);
     };
 
-    // Model selector handler
-    document.getElementById('model-selector').addEventListener('change', (e) => {
-        syncConfigToStorage();
-        showNotification(`Switched to ${e.target.value} model`, 'info', 2000);
-        updateModelSpecificUI(e.target.value);
-    });
+    // Model selector handler with error handling
+    const modelSelector = document.getElementById('model-selector');
+    if (modelSelector) {
+        modelSelector.addEventListener('change', async (e) => {
+            try {
+                await syncConfigToStorage();
+                showNotification(`Switched to ${e.target.value} model`, 'info', 2000);
+                await updateModelSpecificUI(e.target.value);
+            } catch (error) {
+                console.error('Model switch error:', error);
+                showNotification('Failed to switch model', 'error');
+            }
+        });
 
-    // Initialize model-specific UI
-    const initialModel = getCurrentConfig().selectedModel;
-    updateModelSpecificUI(initialModel);
+        // Initialize model-specific UI
+        try {
+            const config = await getCurrentConfig();
+            await updateModelSpecificUI(config.selectedModel);
+        } catch (error) {
+            console.error('Failed to initialize model UI:', error);
+            showNotification('Failed to initialize model UI', 'error');
+        }
+    }
 
-    // Send button handler
-    document.getElementById('send-button')?.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        syncConfigToStorage();
-        await sendMessage();
-    });
+    // Message sending handlers
+    const sendButton = document.getElementById('send-button');
+    const userInput = document.getElementById('user-input');
 
-    // Enter key handler
-    document.getElementById('user-input')?.addEventListener('keypress', async (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+    if (sendButton) {
+        sendButton.addEventListener('click', async (e) => {
             e.preventDefault();
             e.stopPropagation();
-            syncConfigToStorage();
+            await syncConfigToStorage();
             await sendMessage();
-        }
-    });
+        });
+    }
 
-    // Reasoning effort slider
+    if (userInput) {
+        userInput.addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                await syncConfigToStorage();
+                await sendMessage();
+            }
+        });
+    }
+
+    // Reasoning effort slider with validation
     const slider = document.getElementById('reasoning-effort-slider');
     if (slider) {
         slider.addEventListener('input', updateReasoningEffortDisplay);
-        slider.value = 1; // Default to medium effort
+        // Ensure valid initial value
+        slider.value = Math.max(1, Math.min(3, parseInt(slider.value) || 2));
         updateReasoningEffortDisplay();
     }
 
     // Regeneration handler
-    document.getElementById('regenerate-button')?.addEventListener('click', regenerateResponse);
+    const regenerateButton = document.getElementById('regenerate-button');
+    if (regenerateButton) {
+        regenerateButton.addEventListener('click', regenerateResponse);
+    }
 
-    // Tab switching
+    // Tab switching with accessibility support
     document.querySelectorAll('.tab-button').forEach(button => {
         button.addEventListener('click', () => {
             const tabId = button.dataset.targetTab;
-            if (tabId) switchTab(tabId);
+            if (tabId) {
+                switchTab(tabId);
+                // Update URL hash for deep linking
+                window.location.hash = tabId;
+            }
+        });
+
+        // Keyboard navigation
+        button.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                button.click();
+            }
         });
     });
+
+    // Handle deep linking on page load
+    if (window.location.hash) {
+        const tabId = window.location.hash.slice(1);
+        const tabButton = document.querySelector(`[data-target-tab="${tabId}"]`);
+        if (tabButton) {
+            tabButton.click();
+        }
+    }
 }
 
 async function initializeSessionHandling() {
@@ -101,36 +149,13 @@ async function initializeSessionHandling() {
     }
 }
 
-function initializeFileHandling() {
+async function initializeFileHandling() {
     setupDragAndDrop();
-    loadFilesList().catch(error => {
+    try {
+        await loadFilesList();
+    } catch (error) {
         console.error("File list load failed:", error);
         showNotification("Failed to load file list", "error");
-    });
-}
-
-function updateModelSpecificUI(model) {
-    const modelConfig = getModelSettings();
-    const reasoningControls = document.getElementById('reasoning-controls');
-    const streamingToggle = document.getElementById('streaming-toggle');
-
-    // Toggle reasoning controls with null safety
-    const requiresEffort = modelConfig.capabilities?.requires_reasoning_effort ?? true;
-    reasoningControls.style.display = requiresEffort ? 'block' : 'none';
-        
-    // Toggle streaming availability with null safety
-    streamingToggle.disabled = !(modelConfig.capabilities?.supports_streaming ?? false);
-    
-    // Update temperature display
-    const tempElement = document.getElementById('temperature-value');
-    if (tempElement) {
-        tempElement.textContent = modelConfig.capabilities.default_temperature;
-    }
-        
-    // Update token counter limits
-    const maxTokensElement = document.getElementById('max-tokens');
-    if (maxTokensElement) {
-        maxTokensElement.dataset.max = modelConfig.capabilities.max_tokens;
     }
 }
 
@@ -146,32 +171,4 @@ function handleInitializationError(error) {
     
     if (chatInterface) chatInterface.style.display = 'none';
     if (errorDisplay) errorDisplay.style.display = 'block';
-}
-
-function switchTab(tabId) {
-    // Hide all tab content first
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.remove('active');
-        content.setAttribute('aria-hidden', 'true');
-    });
-    
-    // Deactivate all tab buttons
-    document.querySelectorAll('.tab-button').forEach(button => {
-        button.classList.remove('active');
-        button.setAttribute('aria-selected', 'false');
-    });
-    
-    // Activate selected tab and its content
-    const selectedContent = document.getElementById(tabId);
-    const selectedTab = document.querySelector(`[data-target-tab="${tabId}"]`);
-    
-    if (selectedContent) {
-        selectedContent.classList.add('active');
-        selectedContent.setAttribute('aria-hidden', 'false');
-    }
-    
-    if (selectedTab) {
-        selectedTab.classList.add('active');
-        selectedTab.setAttribute('aria-selected', 'true');
-    }
 }

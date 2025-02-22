@@ -1,6 +1,6 @@
 export const MODEL_CONFIG = {
-    "o1": {
-        name: "Azure o1",
+    "o1model-east2": {
+        name: "o1model-east2",
         api_version: "2025-01-01-preview",
         capabilities: {
             supports_streaming: false,
@@ -10,6 +10,8 @@ export const MODEL_CONFIG = {
             fixed_temperature: 1.0,
             token_cost_multiplier: 1.5
         },
+        endpoint: "https://o1models.openai.azure.com",
+        deployment_name: "o1model-east2",
         developer_message: "Formatting re-enabled - use markdown code blocks",
         safety_config: {
             content_filter: true,
@@ -21,7 +23,7 @@ export const MODEL_CONFIG = {
         }
     },
     "deepseek-r1": {
-        name: "DeepSeek-R1",
+        name: "deepseek-r1",
         api_version: "2024-05-01-preview",
         capabilities: {
             supports_streaming: true,

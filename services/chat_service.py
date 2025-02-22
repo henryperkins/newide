@@ -205,10 +205,11 @@ async def build_api_params_with_search(
         A dictionary of parameters to pass to azure_client.chat.completions.create().
     """
     # 1) Base parameters that apply to all models
+    deployment_name = config.AZURE_OPENAI_DEPLOYMENT_NAME
     params: Dict[str, Any] = {
-        "model": model_name,
+        "model": deployment_name,  # Always use deployment name from environment
         "messages": formatted_messages,
-        "stream": validate_streaming(model_name),
+        "stream": validate_streaming(deployment_name),
         "azure_endpoint": config.build_azure_openai_url()  # Centralized URL builder with resolved version
     }
 

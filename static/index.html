@@ -10,12 +10,22 @@
     <link rel="stylesheet" href="/static/index.css">
 
     <!-- Libraries -->
-    <script src="/static/lib/purify.min.js"></script>
     <script src="/static/lib/markdown-it.min.js"></script>
     <script>
-        // Initialize DOMPurify once
-        window.DOMPurify = DOMPurify;
+        // Azure OpenAI Configuration loaded from server
+        window.azureOpenAIConfig = {
+            apiKey: "${AZURE_OPENAI_API_KEY}",
+            endpoint: "${AZURE_OPENAI_ENDPOINT}",
+            deploymentName: "${AZURE_OPENAI_DEPLOYMENT_NAME}",
+            apiVersion: "${AZURE_OPENAI_API_VERSION}"
+        };
     </script>
+    <script src="/static/lib/purify.min.js"></script>
+
+    <!-- Favicon and touch icons -->
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/img/apple-touch-icon.png">
+    <link rel="manifest" href="/static/site.webmanifest">
 
     <!-- Core Modules -->
     <script type="module" src="/static/js/session.js"></script>
@@ -228,10 +238,5 @@
 
     <!-- Initialization -->
     <script type="module" src="/static/js/init.js"></script>
-    
-    <!-- Favicon and touch icons -->
-    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
-    <link rel="apple-touch-icon" sizes="180x180" href="/static/img/apple-touch-icon.png">
-    <link rel="manifest" href="/static/site.webmanifest">
 </body>
 </html>

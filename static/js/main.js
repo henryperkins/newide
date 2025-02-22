@@ -1,16 +1,50 @@
 import { initializeSession } from '/static/js/session.js';
-import { initializeConfig, updateReasoningEffortDisplay } from '/static/js/config.js';
-import { setupDragAndDrop, loadFilesList } from '/static/js/fileManager.js';
-import { configureMarkdown, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
+import { initializeConfig } from '/static/js/config.js';
+import { initializeFileManager } from '/static/js/fileManager.js';
 import { showNotification } from '/static/js/ui/notificationManager.js';
+import { configureMarkdown, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
 
-const API_VERSION = '2025-01-01-preview';
+// Main application entry point
+async function initializeAzureConfig() {
+    try {
+        const response = await fetch('/api/config/');
+        const config = await response.json();
+        console.log("[initializeAzureConfig] Config response:", config);
+
+        if (!config.deploymentName) {
+            throw new Error("No deployment name found in config");
+        }
+
+        if (!config.models?.[config.deploymentName]) {
+            throw new Error(`No model configuration found for deployment: ${config.deploymentName}`);
+        }
+
+        const modelConfig = config.models[config.deploymentName];
+        if (!modelConfig.api_key) {
+            throw new Error(`No API key found for deployment: ${config.deploymentName}`);
+        }
+
+        window.azureOpenAIConfig = {
+            endpoint: modelConfig.endpoint || "https://o1models.openai.azure.com",
+            apiKey: modelConfig.api_key
+        };
+
+        console.log("[initializeAzureConfig] Successfully initialized with deployment:", config.deploymentName);
+    } catch (error) {
+        console.error("[initializeAzureConfig] Failed to initialize:", error);
+        showNotification(`Azure OpenAI configuration error: ${error.message}`, "error", 10000);
+        throw error;
+    }
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        // Initialize core components
         await initializeMarkdownSupport();
-        await initializeSessionHandling();
-        await initializeFileHandling();
+        await initializeAzureConfig();
+        await initializeConfig();
+        await initializeSession();
+        await initializeFileManager();
 
         console.log(`Application initialized successfully at ${new Date().toISOString()}`);
     } catch (error) {
@@ -27,78 +61,6 @@ async function initializeMarkdownSupport() {
         );
     }
     injectMarkdownStyles();
-}
-
-async function initializeUIEventHandlers() {
-
-    // Enter key handler
-    document.getElementById('user-input')?.addEventListener('keypress', async (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            await sendMessage();
-        }
-    });
-
-    // Reasoning effort slider
-    const slider = document.getElementById('reasoning-effort-slider');
-    if (slider) {
-        slider.addEventListener('input', updateReasoningEffortDisplay);
-        slider.value = 1; // Default to medium effort
-        updateReasoningEffortDisplay();
-    }
-
-    // Regeneration handler
-    document.getElementById('regenerate-button')?.addEventListener('click', regenerateResponse);
-
-    // Tab switching
-    document.querySelectorAll('.tab-button').forEach(button => {
-        button.addEventListener('click', () => {
-            const tabId = button.dataset.targetTab;
-            if (tabId) switchTab(tabId);
-        });
-    });
-}
-
-async function initializeSessionHandling() {
-    if (!await initializeSession()) {
-        throw new Error("Failed to initialize session");
-    }
-}
-
-function initializeFileHandling() {
-    setupDragAndDrop();
-    loadFilesList().catch(error => {
-        console.error("File list load failed:", error);
-        showNotification("Failed to load file list", "error");
-    });
-}
-
-function switchTab(tabId) {
-    // Hide all tab content first
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.remove('active');
-        content.setAttribute('aria-hidden', 'true');
-    });
-    
-    // Deactivate all tab buttons
-    document.querySelectorAll('.tab-button').forEach(button => {
-        button.classList.remove('active');
-        button.setAttribute('aria-selected', 'false');
-    });
-    
-    // Activate selected tab and its content
-    const selectedContent = document.getElementById(tabId);
-    const selectedTab = document.querySelector(`[data-target-tab="${tabId}"]`);
-    
-    if (selectedContent) {
-        selectedContent.classList.add('active');
-        selectedContent.setAttribute('aria-hidden', 'false');
-    }
-    
-    if (selectedTab) {
-        selectedTab.classList.add('active');
-        selectedTab.setAttribute('aria-selected', 'true');
-    }
 }
 
 function handleInitializationError(error) {
