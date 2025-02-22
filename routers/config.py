@@ -29,16 +29,6 @@ async def get_all_configs(config_service: ConfigService = Depends()):
     try:
         configs = await config_service.get_all_configs() or {}
         
-        # Parse JSON values from database
-        def parse_config(key, default):
-            value = configs.get(key, default)
-            if isinstance(value, str):
-                try:
-                    return json.loads(value)
-                except json.JSONDecodeError:
-                    return value
-            return value
-
         # Get deployment name from environment variable
         deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "o1model-east2")
 
@@ -48,7 +38,7 @@ async def get_all_configs(config_service: ConfigService = Depends()):
                 "max_tokens": 40000,
                 "temperature": 1.0,
                 "endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
-                "api_key": os.getenv("AZURE_OPENAI_API_KEY"),
+                "api_key": os.getenv("AZURE_OPENAI_API_KEY"),  # Important: securely pass API key
                 "api_version": os.getenv("AZURE_OPENAI_API_VERSION"),
                 "deployment_name": deployment_name
             }
@@ -59,10 +49,13 @@ async def get_all_configs(config_service: ConfigService = Depends()):
             "reasoningEffort": parse_config("reasoningEffort", "medium"),
             "includeFiles": parse_config("includeFiles", False),
             "models": models,
-            "deploymentName": deployment_name
+            "deploymentName": deployment_name,
+            "azureOpenAI": {
+                "apiKey": os.getenv("AZURE_OPENAI_API_KEY"),
+                "endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
+                "deploymentName": deployment_name,
+                "apiVersion": os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
+            }
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=500, 
-            detail=str(e)
-        )
+        raise HTTPException(status_code=500, detail=str(e))

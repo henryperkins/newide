@@ -8,13 +8,13 @@ const fallbackConfig = {
   reasoningEffort: "medium",
   developerConfig: "Formatting re-enabled - use markdown code blocks",
   includeFiles: false,
-  selectedModel: "o1model-east2",
+  selectedModel: "o1model-east2", 
   deploymentName: "o1model-east2",
   azureOpenAI: {
-    apiKey: window.azureOpenAIConfig?.apiKey || "",
-    endpoint: window.azureOpenAIConfig?.endpoint || "https://api.openai.azure.com",
-    deploymentName: window.azureOpenAIConfig?.deploymentName || "o1hp",
-    apiVersion: window.azureOpenAIConfig?.apiVersion || "2025-01-01-preview"
+    apiKey: "",  // Will be populated from server response
+    endpoint: "https://api.openai.azure.com",
+    deploymentName: "o1hp",
+    apiVersion: "2025-01-01-preview"
   }
 };
 
@@ -219,34 +219,35 @@ export function getTimeoutDurations() {
   };
 }
 
-import { MODEL_CONFIG } from './models.js';
-
 /**
- * Retrieve model settings from the global MODEL_CONFIG, fallback to "o1model-east2"
+ * Retrieve model settings from the backend configuration
  */
 export async function getModelSettings() {
   try {
     const current = await getCurrentConfig();
-    const chosenModelConfig = MODEL_CONFIG[current.selectedModel] || MODEL_CONFIG["o1model-east2"];
     return {
-      name: current.selectedModel || "o1model-east2",
-      ...chosenModelConfig,
+      name: current.selectedModel,
+      api_version: current.azureOpenAI.apiVersion,
       capabilities: {
-        // Reasoning models often need reasoning_effort
         requires_reasoning_effort: true,
-        max_completion_tokens: chosenModelConfig.capabilities.max_completion_tokens,
-        fixed_temperature: chosenModelConfig.capabilities.fixed_temperature,
-        ...(chosenModelConfig?.capabilities || {})
+        supports_streaming: current.supportsStreaming,
+        supports_vision: current.supportsVision,
+        max_completion_tokens: current.maxCompletionTokens,
+        fixed_temperature: current.fixedTemperature
       }
     };
   } catch (error) {
     console.error('Failed to get model settings:', error);
     // fallback
     return {
-      ...MODEL_CONFIG["o1model-east2"],
+      name: "o1model-east2",
+      api_version: "2025-01-01-preview",
       capabilities: {
         requires_reasoning_effort: true,
-        ...(MODEL_CONFIG["o1model-east2"]?.capabilities || {})
+        supports_streaming: false,
+        supports_vision: false,
+        max_completion_tokens: 4096,
+        fixed_temperature: 0.7
       }
     };
   }
@@ -381,10 +382,10 @@ export function checkModelCapabilities(modelConfig) {
    -------------------------------------------------------------------------------- */
 export const config = {
   azureOpenAI: {
-    apiKey: import.meta.env.VITE_AZURE_OPENAI_API_KEY,
-    endpoint: import.meta.env.VITE_AZURE_OPENAI_ENDPOINT,
-    deploymentName: import.meta.env.VITE_AZURE_OPENAI_DEPLOYMENT_NAME,
-    apiVersion: import.meta.env.VITE_AZURE_OPENAI_API_VERSION
+    apiKey: "",
+    endpoint: "https://api.openai.azure.com",
+    deploymentName: "o1hp", 
+    apiVersion: "2025-01-01-preview"
   },
   appSettings: {
     maxTokenLimit: 4096,
@@ -426,6 +427,3 @@ try {
 
 // Configuration version check
 export const CONFIG_VERSION = '1.0.0';
-if (import.meta.env.VITE_CONFIG_VERSION !== CONFIG_VERSION) {
-  console.warn('Configuration version mismatch detected');
-}

@@ -24,17 +24,20 @@ class DataSourceConfig(BaseModel):
 # -----------------------------------------------
 # Main Settings Class
 # -----------------------------------------------
+from typing import ClassVar, Dict, Literal, Any, Optional
+import os  # Add this import
+from pydantic import BaseModel, Field, validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 class Settings(BaseSettings):
     """
-    Loads environment variables for DB credentials,
-    file size limits, Azure OpenAI settings, timeouts, etc.
+    Loads environment variables for DB credentials
     """
-    # PostgreSQL
-    POSTGRES_HOST: str = Field(..., description="PostgreSQL host address")
-    POSTGRES_USER: str = Field(..., description="PostgreSQL username")
-    POSTGRES_PASSWORD: str = Field(..., description="PostgreSQL password")
-    POSTGRES_DB: str = Field(..., description="PostgreSQL database name")
-    POSTGRES_PORT: int = Field(default=5432, description="PostgreSQL port number")
+    POSTGRES_HOST: str = "chatterpostgres.postgres.database.azure.com"
+    POSTGRES_USER: str = "hperkins@chatterpostgres"  # Add server name to username
+    POSTGRES_PASSWORD: str = "Twiohmld1234!"
+    POSTGRES_DB: str = "chatterdb"
+    POSTGRES_PORT: int = 5432
 
     # File size limits
     MAX_FILE_SIZE: int = 512 * 1024 * 1024   # 512MB
@@ -99,7 +102,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"  # ignore unrecognized env variables
+        case_sensitive=True,  # Add this to ensure exact variable name matching
+        extra="ignore"
     )
 
     @validator("AZURE_OPENAI_DEPLOYMENT_NAME")

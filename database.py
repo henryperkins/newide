@@ -1,3 +1,4 @@
+import ssl
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Integer, BigInteger, Index
@@ -6,12 +7,34 @@ from sqlalchemy import text
 from fastapi import Depends
 import config
 
-# Create the async database engine
+# Create an SSL context for Azure Database for PostgreSQL
+ssl_context = ssl.create_default_context()
+ssl_context.verify_mode = ssl.CERT_REQUIRED
+
+# Get the root certificate for Azure Database for PostgreSQL
+ROOT_CERT_PATH = "DigiCertGlobalRootCA.crt.pem"
+
+try:
+    ssl_context.load_verify_locations(ROOT_CERT_PATH)
+except Exception as e:
+    print(f"Warning: Could not load root certificate: {e}")
+
+# Construct PostgreSQL connection URL with proper SSL mode
+POSTGRES_URL = (
+    f"postgresql+asyncpg://{config.settings.POSTGRES_USER}:{config.settings.POSTGRES_PASSWORD}"
+    f"@{config.settings.POSTGRES_HOST}:{config.settings.POSTGRES_PORT}/{config.settings.POSTGRES_DB}"
+)
+
+# Create async engine with SSL context
 engine = create_async_engine(
-    config.POSTGRES_URL,
+    POSTGRES_URL,
     pool_size=20,
     max_overflow=10,
-    pool_recycle=3600
+    pool_recycle=3600,
+    connect_args={
+        "ssl": ssl_context,
+        "server_hostname": config.settings.POSTGRES_HOST
+    }
 )
 
 # Create a session maker for async sessions

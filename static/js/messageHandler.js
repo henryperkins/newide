@@ -1,6 +1,5 @@
 //////////////////////////////////////////////////////////////
-// messageHandler.js - updated to support o1 model restrictions
-// and Azure OpenAI API reference
+// messageHandler.js
 //////////////////////////////////////////////////////////////
 
 import {
@@ -28,9 +27,8 @@ import {
 
 import { getFilesForChat } from "/static/js/fileManager.js";
 
-
 /**
- * Creates an AbortController with a dynamic or default timeout
+ * Creates an AbortController with a dynamic or default timeout.
  */
 function createAbortController(timeoutDuration) {
   const controller = new AbortController();
@@ -44,7 +42,7 @@ function createAbortController(timeoutDuration) {
 }
 
 /**
- * Processes user's message content, removing or transforming images if needed
+ * Processes user's message content, removing or transforming images if needed.
  */
 function processMessageContent(message, supportsVision) {
   const IMAGE_REGEX = /!\[.*?\]\((https?:\/\/[^\s)]+)\)/g;
@@ -75,7 +73,7 @@ function createImageContent(match) {
 }
 
 /**
- * Handle the normal (non-streaming) HTTP response
+ * Handle the normal (non-streaming) HTTP response.
  */
 async function handleStandardResponse(response) {
   const requestDuration = Date.now() - response.requestStartTime;
@@ -106,27 +104,141 @@ async function handleStandardResponse(response) {
 }
 
 /**
- * Process the final server response data
+ * Handle streaming responses, e.g. SSE.
+ */
+async function handleStreamingResponse(response, controller) {
+  console.log("[handleStreamingResponse] Starting SSE streaming...");
+
+  const config = await getCurrentConfig();
+  const modelConfig = await getModelSettings();
+
+  // Always use the deployment name from config.
+  const deploymentName = config.deploymentName;
+  if (!deploymentName) {
+    console.error("[handleStreamingResponse] Config:", config);
+    throw new Error("No valid deployment name found in configuration.");
+  }
+  const streamUrl = buildAzureOpenAIUrl(deploymentName, modelConfig.api_version)
+    .replace('/chat/completions', '/chat/completions/stream')
+    + `&session_id=${sessionId}`;
+  console.log("[handleStreamingResponse] Using deployment name:", deploymentName);
+  const eventSource = new EventSource(streamUrl);
+
+  let messageContainer = null;
+
+  eventSource.onmessage = (event) => {
+    try {
+      const responseData = JSON.parse(event.data);
+
+      if (responseData.error) {
+        displayMessage(`Error: ${responseData.error}`, "error");
+        eventSource.close();
+        return;
+      }
+
+      if (!messageContainer) {
+        messageContainer = createMessageContainer();
+        injectStreamingStyles();
+      }
+
+      updateStreamingUI(responseData, messageContainer);
+
+      if (responseData.choices && responseData.choices[0].finish_reason === "stop") {
+        finalizeStreamingResponse(JSON.stringify(responseData), messageContainer);
+        eventSource.close();
+      }
+    } catch (err) {
+      console.error("[handleStreamingResponse] SSE parsing error:", err);
+      eventSource.close();
+    }
+  };
+
+  eventSource.onerror = (err) => {
+    console.error("[handleStreamingResponse] SSE failed:", err);
+    eventSource.close();
+    removeTypingIndicator();
+  };
+}
+
+/**
+ * Create container for streaming messages.
+ */
+function createMessageContainer() {
+  const container = document.createElement("div");
+  container.className = "message assistant-message streaming";
+  document.getElementById("chat-history").appendChild(container);
+  return container;
+}
+
+/**
+ * Add "streaming" styles.
+ */
+function injectStreamingStyles() {
+  const style = document.createElement("style");
+  style.textContent = `
+    .streaming {
+      position: relative;
+      padding-right: 1.5em;
+    }
+    .streaming::after {
+      content: '▋';
+      position: absolute;
+      right: 0.5em;
+      bottom: 0.5em;
+      animation: blink 1s steps(2) infinite;
+      color: #3b82f6;
+    }
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+/**
+ * Update streaming UI with next chunk.
+ */
+function updateStreamingUI(responseData, container) {
+  try {
+    container.innerHTML = processAnnotatedContent(responseData);
+  } catch {
+    container.innerHTML = safeMarkdownParse(JSON.stringify(responseData));
+  }
+
+  highlightCodeBlocks(container);
+  container.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+/**
+ * Finalize streaming response once it's done.
+ */
+function finalizeStreamingResponse(content, container) {
+  if (!container) return;
+
+  container.classList.remove("streaming");
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed.usage) {
+      updateTokenUsage(parsed.usage);
+    }
+  } catch (error) {
+    console.warn("[finalizeStreamingResponse] Could not parse streaming usage data:", error);
+  }
+
+  addCopyButton(container, content);
+}
+
+/**
+ * Process the final server response data.
  */
 function processResponseData(data) {
   if (data.calculated_timeout) {
     window.serverCalculatedTimeout = data.calculated_timeout;
   }
 
-  // The top-level response might have a 'response' field containing
-  // the assistant's message. This depends on your server format.
-  // If your server returns the standard AzureOpenAI shape, you'll need
-  // to parse out data.choices[0].message.content, for example. Adjust accordingly.
-  if (data.response) {
-    displayMessage(data.response, "assistant");
-  } else if (data.choices && data.choices[0]?.message?.content) {
-    displayMessage(data.choices[0].message.content, "assistant");
-  } else {
-    console.warn("[processResponseData] No recognized content in response. Raw data:", data);
-  }
+  displayMessage(data.response, "assistant");
 
-  // Usage keys may differ. Adjust if your server returns
-  // usage.completion_tokens or usage.prompt_tokens, etc.
   if (data.usage) {
     updateTokenUsage({
       ...data.usage,
@@ -141,7 +253,58 @@ function processResponseData(data) {
 }
 
 /**
- * Generic error handler
+ * Parse annotated content/ citations.
+ */
+function processAnnotatedContent(responseData) {
+  if (!responseData?.content) {
+    return safeMarkdownParse(JSON.stringify(responseData));
+  }
+
+  const { content, citationsHtml } = processCitations(responseData);
+  
+  return `
+    <div class="message-text">${safeMarkdownParse(content)}</div>
+    ${citationsHtml ? `
+      <div class="citations-container">
+        <div class="citations-header">
+          <span class="citations-icon">📚</span>
+          <span>Sources</span>
+        </div>
+        ${citationsHtml}
+      </div>
+    ` : ''}
+  `;
+}
+
+/**
+ * Highlight code blocks after DOM insert.
+ */
+function highlightCodeBlocks(container) {
+  if (typeof Prism === "undefined") return;
+
+  container.querySelectorAll("pre code").forEach((block) => {
+    block.style.opacity = "0";
+    Prism.highlightElement(block);
+    setTimeout(() => {
+      block.style.opacity = "1";
+    }, 100);
+  });
+}
+
+/**
+ * Add "copy to clipboard" to streaming container.
+ */
+function addCopyButton(container, content) {
+  const button = document.createElement("button");
+  button.className = "copy-button";
+  button.innerHTML = "📋";
+  button.title = "Copy to clipboard";
+  button.onclick = () => navigator.clipboard.writeText(content);
+  container.prepend(button);
+}
+
+/**
+ * Generic error handler.
  */
 async function handleMessageError(error) {
   console.error("[handleMessageError]", error);
@@ -181,30 +344,34 @@ async function handleMessageError(error) {
 }
 
 /**
- * Helper function to check if the model is o1 series
+ * Helper function to check if the model is o1 series.
  */
 function isO1Model(modelConfig) {
-  // Adjust the detection as appropriate
-  return modelConfig?.name?.includes("o1");
+  return modelConfig.name.includes("o1model");
 }
 
 /**
- * Main request logic for chat
+ * Main request logic for chat.
  */
 export async function sendMessage() {
   const userInput = document.getElementById("user-input");
   const message = userInput.value.trim();
   const modelConfig = await getModelSettings();
 
-  // If the model is an o1, streaming is not supported
-  const streamingEnabled = document.getElementById("streaming-toggle")
-    && document.getElementById("streaming-toggle").checked;
-  if (isO1Model(modelConfig) && streamingEnabled) {
-    showNotification("o1 models do not support streaming", "warning");
-    return;
+  // Basic checks for o-series.
+  if (isO1Model(modelConfig)) {
+    if (document.getElementById("streaming-toggle").checked) {
+      showNotification("o-series models do not support streaming", "error");
+      return;
+    }
   }
 
-  console.log("[sendMessage] Attempting to send message:", message);
+  console.log("[MessageHandler] Initiated sendMessage:", {
+    messagePreview: message.slice(0, 50) + (message.length > 50 ? "..." : ""),
+    messageLength: message.length,
+    modelConfig
+  });
+
   if (!message) return;
 
   try {
@@ -212,6 +379,15 @@ export async function sendMessage() {
       const initialized = await initializeSession();
       if (!initialized) {
         throw new Error("Failed to initialize session");
+      }
+      sessionId = initialized;
+    }
+
+    if (isO1Model(modelConfig) && modelConfig.supportsVision) {
+      displayMessage("Formatting re-enabled: Markdown processing activated", "developer");
+      if (document.getElementById("streaming-toggle").checked) {
+        showNotification("o1 models do not support streaming", "warning");
+        return;
       }
     }
 
@@ -223,31 +399,23 @@ export async function sendMessage() {
     const config = await getCurrentConfig();
     const effortLevel = config?.reasoningEffort || "medium";
     const timeout = getTimeoutDurations()[effortLevel] || 30000;
-    console.log("[Config] Current settings:", { effortLevel, timeout, modelConfig });
+    console.log("[Config] Current settings:", { effort: effortLevel, timeout, modelSettings: modelConfig });
 
     const { controller } = createAbortController(timeout);
-
-    // If the model supports vision, we can pass images; otherwise, remove them
     const processedContent = processMessageContent(message, modelConfig.supportsVision);
 
-    // Send the request
     const response = await handleChatRequest({
       messageContent: processedContent,
       controller,
+      developerConfig: config.developerConfig,
       reasoningEffort: config.reasoningEffort
     });
 
-    // If model supports streaming, handle it, else handle standard
-    if (!isO1Model(modelConfig) && modelConfig.supportsStreaming && streamingEnabled) {
-      // If your server actually supports SSE streaming, you'd handle it here.
-      // For brevity, we’ll just do standard handling if not an o1 model.
-      const data = await response.json();
-      processResponseData(data);
+    if (modelConfig.supportsStreaming) {
+      await handleStreamingResponse(response, controller);
     } else {
-      // Always do standard handling for o1 or if streaming is off
       await handleStandardResponse(response);
     }
-
   } catch (err) {
     handleMessageError(err);
   } finally {
@@ -257,7 +425,7 @@ export async function sendMessage() {
 }
 
 /**
- * If user clicks a "Regenerate" button, re-send last user message
+ * If user clicks a "Regenerate" button, re-send last user message.
  */
 export async function regenerateResponse() {
   const lastMessage = getLastUserMessage();
@@ -268,24 +436,26 @@ export async function regenerateResponse() {
 }
 
 /**
- * Main function to handle sending request to server
+ * Main function to handle sending request to server.
  * @param {Object} params - The parameters for the request
  * @param {string|Object} params.messageContent - The content of the message to send
  * @param {AbortController} params.controller - The AbortController to handle request timeout
+ * @param {Object} [params.developerConfig] - Optional developer configuration
  * @param {string} params.reasoningEffort - The reasoning effort level for the request
  * @returns {Promise<Response>} - The server response
  */
-async function handleChatRequest({ messageContent, controller, reasoningEffort }) {
+async function handleChatRequest({ messageContent, controller, developerConfig, reasoningEffort }) {
   const config = await getCurrentConfig();
   const modelConfig = await getModelSettings();
   const apiVersion = modelConfig.api_version;
 
-  // The deployment name is the {deployment-id} from Azure
+  // Always use the deployment name from config.
   const deploymentName = config.deploymentName;
   if (!deploymentName) {
-    console.error("[handleChatRequest] Invalid config:", config);
+    console.error("[handleChatRequest] Config:", config);
     throw new Error("No valid deployment name found in configuration.");
   }
+  console.log("[handleChatRequest] Using deployment name:", deploymentName);
 
   if (!sessionId) {
     await initializeSession();
@@ -294,39 +464,36 @@ async function handleChatRequest({ messageContent, controller, reasoningEffort }
     }
   }
 
-  // Build the standard chat completion request body
-  // Because we're calling /deployments/{deploymentName}/chat/completions
-  // we do NOT pass model = ...
   const requestBody = {
+    model: deploymentName,  // Include deployment name in request.
     messages: [
-      // You can add a developer message if needed:
-      // { role: "developer", content: "Formatting re-enabled" },
       {
         role: "user",
-        content: typeof messageContent === "string"
-          ? messageContent
-          : JSON.stringify(messageContent)
+        content: typeof messageContent === "string" ? messageContent : JSON.stringify(messageContent)
       }
-    ]
+    ],
+    session_id: sessionId,
+    reasoning_effort: reasoningEffort
   };
 
-  // If the model is an o1 or o3-mini, we can optionally pass reasoning_effort
-  if (isO1Model(modelConfig) && reasoningEffort) {
-    requestBody.reasoning_effort = reasoningEffort; 
-  }
-
-  // For o1, we use `max_completion_tokens` but do NOT pass temperature, top_p, etc.
-  // If your config defines a recommended max_completion_tokens for an o1 model, set it here:
-  if (isO1Model(modelConfig)) {
+  if (modelConfig.name.includes("o1model")) {
     if (modelConfig.capabilities?.max_completion_tokens) {
       requestBody.max_completion_tokens = modelConfig.capabilities.max_completion_tokens;
     }
-  } else {
-    // For non-o1 models, you might pass normal chat parameters (temperature, top_p, etc.) 
-    // if you have them. Just an example:
-    if (modelConfig.temperature !== undefined) {
-      requestBody.temperature = modelConfig.temperature;
+    if (modelConfig.capabilities?.fixed_temperature !== undefined) {
+      requestBody.temperature = modelConfig.capabilities.fixed_temperature;
     }
+  }
+
+  if (modelConfig.developer_message) {
+    requestBody.messages.unshift({
+      role: "developer",
+      content: modelConfig.developer_message
+    });
+  }
+
+  if (developerConfig) {
+    requestBody.developer_config = developerConfig;
   }
 
   console.log("[handleChatRequest] Sending payload:", JSON.stringify(requestBody, null, 2));
@@ -337,18 +504,13 @@ async function handleChatRequest({ messageContent, controller, reasoningEffort }
     throw new Error("Azure OpenAI API key not configured");
   }
 
-  // Build the Azure OpenAI endpoint
-  const url = buildAzureOpenAIUrl(
-    deploymentName || "o1hp",
-    apiVersion || "2025-01-01-preview"
-  );
-
+  const url = buildAzureOpenAIUrl(deploymentName, modelConfig.api_version);
   const init = {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
-      "api-key": apiKey
+      "api-key": apiKey,
     },
     signal: controller.signal,
     body: JSON.stringify(requestBody)
@@ -358,5 +520,8 @@ async function handleChatRequest({ messageContent, controller, reasoningEffort }
   const response = await fetch(url, init);
   response.requestStartTime = requestStartTime;
 
+  // The response contains the server's reply to the chat request, including status and data.
   return response;
 }
+
+// End of messageHandler.js
