@@ -7,10 +7,9 @@ export async function initializeSession() {
     try {
         const modelConfig = await getModelSettings();
         const response = await fetch(`/api/session/create`, {
-            headers: {
-                'x-api-version': modelConfig.api_version,
             method: 'GET',
             headers: {
+                'x-api-version': modelConfig.api_version,
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
                 'X-Model-Type': modelConfig.name
