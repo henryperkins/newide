@@ -11,6 +11,13 @@ from routers.chat import router as chat_router
 from routers.files import router as files_router
 from routers.config import router as config_router
 
+def lifespan(app: FastAPI):
+    async def startup_event():
+        await init_database()
+        from clients import init_client_pool
+        await init_client_pool()
+    yield
+
 # Resolve absolute path to the static directory
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -18,7 +25,8 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
-    debug=True
+    debug=True,
+    lifespan=lifespan
 )
 
 # Add middleware
@@ -64,11 +72,6 @@ def favicon():
 async def get_apple_touch_icon():
     return FileResponse(STATIC_DIR / "img/apple-touch-icon.png")
 
-@app.on_event("startup")
-async def startup():
-    await init_database()
-    from clients import init_client_pool
-    await init_client_pool()
 
 @app.get("/health")
 async def health_check():

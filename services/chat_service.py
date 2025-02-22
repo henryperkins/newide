@@ -209,7 +209,7 @@ async def build_api_params_with_search(
         "model": model_name,
         "messages": formatted_messages,
         "stream": validate_streaming(model_name),
-        "api_version": config.AZURE_OPENAI_API_VERSION  # Ensure correct API version from config
+        "azure_endpoint": config.build_azure_openai_url()  # Centralized URL builder with resolved version
     }
 
     # 2) Model-specific handling

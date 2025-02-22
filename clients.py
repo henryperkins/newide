@@ -37,7 +37,7 @@ async def init_client_pool():
                 client = AsyncAzureOpenAI(
                     azure_ad_token_provider=token_provider,
                     api_version=config.AZURE_OPENAI_API_VERSION,
-                    azure_endpoint=config.AZURE_OPENAI_ENDPOINT
+                    azure_endpoint=config.build_azure_openai_url()
                 )
             else:  # Use API key
                 # Determine API version based on model
@@ -53,7 +53,7 @@ async def init_client_pool():
                 client = AsyncAzureOpenAI(
                     azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
                     api_key=config.AZURE_OPENAI_API_KEY,
-                    api_version=config.MODEL_API_VERSIONS["default"],  # Force default version
+                    api_version=api_version,
                     azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
                     default_headers={
                         "OData-MaxVersion": "4.0",

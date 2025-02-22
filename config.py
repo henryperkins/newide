@@ -150,11 +150,11 @@ REASONING_EFFORT_MULTIPLIERS = {
 # Model-level fallback API versions
 # -----------------------------------------------
 MODEL_API_VERSIONS: Dict[str, str] = {
-    "o1":         "2024-05-01-preview",
-    "o3-mini":    "2024-05-01-preview",
-    "o1-preview": "2024-05-01-preview",
-    "o1-mini":    "2024-05-01-preview",
-    "default":    "2024-05-01-preview"
+    "o1":         "2025-01-01-preview",
+    "o3-mini":    "2025-01-01-preview",
+    "o1-preview": "2025-01-01-preview",
+    "o1-mini":    "2025-01-01-preview",
+    "default":    "2025-01-01-preview"
 }
 
 
@@ -175,6 +175,12 @@ async def get_db_config(key: str, default: Any = None) -> Any:
         return value if value is not None else default
 
 
+def build_azure_openai_url(deployment_name: str = None, api_version: str = None) -> str:
+    """Build Azure OpenAI endpoint URL using configuration values"""
+    deployment = deployment_name or AZURE_OPENAI_DEPLOYMENT_NAME
+    version = api_version or AZURE_OPENAI_API_VERSION
+    return f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{deployment}/chat/completions?api-version={version}"
+
 async def azure_openai_settings() -> dict:
     """
     Example function that tries to load 'azure_openai' from DB,
@@ -182,7 +188,7 @@ async def azure_openai_settings() -> dict:
     """
     return await get_db_config("azure_openai", {
         "endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
-        "api_version": "2024-05-01-preview"
+        "api_version": "2025-01-01-preview"
     })
 
 
@@ -208,7 +214,7 @@ async def model_settings() -> dict:
 # -----------------------------------------------
 POSTGRES_URL = (
     f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}"
-    f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
 )
 
 

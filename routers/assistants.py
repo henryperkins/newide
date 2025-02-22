@@ -21,6 +21,14 @@ async def list_assistants(
     before: Optional[str] = None,
     api_version: str = Query(..., alias="api-version")
 ):
+    # Validate API version first
+    if api_version != config.AZURE_OPENAI_API_VERSION:
+        raise create_error_response(
+            status_code=400,
+            code="invalid_api_version",
+            message=f"Invalid API version. Expected {config.AZURE_OPENAI_API_VERSION}",
+            param="api-version"
+        )
     # Implementation here
     pass
 

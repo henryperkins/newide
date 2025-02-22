@@ -6,6 +6,7 @@ import os
 import asyncio
 from datetime import datetime
 import logging
+from config import build_azure_openai_url
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class AzureFileService:
     def __init__(self, client):
         self.client = client
         self.endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
-        self.api_version = os.getenv('AZURE_OPENAI_API_VERSION', '2025-01-01-preview')
+        self.api_version = os.getenv('AZURE_OPENAI_API_VERSION', '2025-01-01-preview')  # Verified compatible version
     
     async def create_azure_file(self, file_content: str, filename: str) -> str:
         """Create a file in Azure OpenAI for use with the API"""

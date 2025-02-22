@@ -1,4 +1,5 @@
 import { showNotification } from '/static/js/ui/notificationManager.js';
+import { getModelSettings } from '/static/js/config.js';
 
 export let sessionId = null;
 let _lastUserMessage = '';

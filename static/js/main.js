@@ -9,7 +9,6 @@ const API_VERSION = '2025-01-01-preview';
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         await initializeMarkdownSupport();
-        await initializeUIEventHandlers();
         await initializeSessionHandling();
         await initializeFileHandling();
 
@@ -31,11 +30,6 @@ async function initializeMarkdownSupport() {
 }
 
 async function initializeUIEventHandlers() {
-    // Send button handler
-    document.getElementById('send-button')?.addEventListener('click', async (e) => {
-        e.preventDefault();
-        await sendMessage();
-    });
 
     // Enter key handler
     document.getElementById('user-input')?.addEventListener('keypress', async (e) => {

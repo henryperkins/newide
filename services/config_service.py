@@ -25,6 +25,9 @@ class ConfigService:
             configs = {}
             for row in result.fetchall():
                 try:
+                    # Add API version to configs
+                    if row.key == "azure_openai_api_version":
+                        configs[row.key] = config.AZURE_OPENAI_API_VERSION
                     # Ensure value is properly serialized
                     value = row.value
                     if isinstance(value, str):

@@ -1,7 +1,7 @@
 export const MODEL_CONFIG = {
     "o1": {
         name: "Azure o1",
-        api_version: "2024-12-01-preview",
+        api_version: "2025-01-01-preview",
         capabilities: {
             supports_streaming: false,
             supports_vision: false,

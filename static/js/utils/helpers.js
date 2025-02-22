@@ -1,3 +1,7 @@
+export function buildAzureOpenAIUrl(deploymentName, apiVersion) {
+  const baseUrl = window.azureOpenAIConfig?.endpoint || "https://o1models.openai.azure.com";
+  return `${baseUrl}/openai/deployments/${encodeURIComponent(deploymentName)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+}
 export function formatFileSize(bytes) {
     if (typeof bytes !== 'number' || bytes < 0) return '0 B';
     

@@ -92,7 +92,7 @@ token_provider = get_bearer_token_provider(
 client = AzureOpenAI(
   azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT"), 
   azure_ad_token_provider=token_provider,
-  api_version="2024-12-01-preview"
+  api_version="2025-01-01-preview"
 )
 
 response = client.chat.completions.create(
