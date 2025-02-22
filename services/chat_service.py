@@ -1,4 +1,4 @@
-# chat_service.py - Complete module with Azure AI Search integration (remediated)
+# chat_service.py
 
 import os
 import json
@@ -33,17 +33,8 @@ async def get_file_context(
 ) -> List[Dict[str, Any]]:
     """
     Retrieve file content and metadata for use in the chat context.
-
-    Args:
-        session_id: Current session ID.
-        file_ids: List of file IDs to include (empty means all).
-        db_session: Async database session.
-
-    Returns:
-        A list of file objects with content and metadata.
     """
     file_context = []
-
     try:
         # If no specific files requested, include all "ready" session files.
         if not file_ids:
@@ -51,8 +42,9 @@ async def get_file_context(
                 text("""
                     SELECT id FROM uploaded_files 
                     WHERE session_id = :session_id 
-                    AND (status = 'ready' OR status IS NULL)
-                    AND (metadata IS NULL OR metadata->>'azure_processing' != 'failed')
+                      AND (status = 'ready' OR status IS NULL)
+                      AND (metadata IS NULL 
+                           OR metadata->>'azure_processing' != 'failed')
                 """),
                 {"session_id": session_id}
             )
@@ -69,10 +61,8 @@ async def get_file_context(
                 {"file_id": file_id}
             )
             file_info = result.fetchone()
-
             if not file_info:
-                # If the file wasn't found in the DB, skip it
-                continue
+                continue  # If the file wasn't found, skip
 
             chunk_count, filename = file_info
             if chunk_count and chunk_count > 1:
@@ -82,7 +72,7 @@ async def get_file_context(
                         SELECT uf.content, uf.filename, uf.metadata
                         FROM uploaded_files uf
                         WHERE uf.status = 'chunk'
-                        AND uf.metadata->>'parent_file_id' = :parent_id
+                          AND uf.metadata->>'parent_file_id' = :parent_id
                         ORDER BY (uf.metadata->>'chunk_index')::int
                     """),
                     {"parent_id": file_id}
@@ -121,7 +111,6 @@ async def get_file_context(
                             metadata = json.loads(metadata)
                         except Exception:
                             metadata = {}
-
                     file_context.append({
                         "filename": single_filename,
                         "content": content,
@@ -142,13 +131,6 @@ async def get_file_context(
 def format_messages(chat_message: ChatMessage, history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Build the list of formatted messages for the Azure OpenAI API.
-
-    Args:
-        chat_message: The current chat message (from the user).
-        history: List of previous messages (each with role and content).
-
-    Returns:
-        A list of formatted message dictionaries suitable for the OpenAI API.
     """
     formatted = []
 
@@ -191,60 +173,49 @@ async def build_api_params_with_search(
     """
     Build the parameters for the Azure OpenAI Chat Completion API call,
     optionally integrating Azure AI Search if requested.
-
-    Args:
-        formatted_messages: The conversation messages formatted for the API.
-        chat_message: The current ChatMessage object (includes user specs).
-        model_name: The Azure deployment name (from config).
-        is_o_series: Whether this model is part of the 'o-series' that needs special handling.
-        file_ids: Optional file IDs for filtering in Azure AI Search.
-        session_id: The session ID for scoping searches.
-        use_file_search: Flag indicating whether to apply Azure AI Search.
-
-    Returns:
-        A dictionary of parameters to pass to azure_client.chat.completions.create().
     """
-    # 1) Base parameters that apply to all models
+
     deployment_name = config.AZURE_OPENAI_DEPLOYMENT_NAME
+
+    # 1) Basic parameters
+    # The library expects 'model' to be your deployment name for Azure
     params: Dict[str, Any] = {
-        "model": deployment_name,  # Always use deployment name from environment
+        "model": deployment_name,
+        # Our format_messages() used the new "multi-part content" style:
         "messages": formatted_messages,
-        "stream": validate_streaming(deployment_name),
-        "azure_endpoint": config.build_azure_openai_url()  # Centralized URL builder with resolved version
     }
 
-    # 2) Model-specific handling
+    # For streaming or not
+    # If it's an o-series (o1), streaming is generally not supported,
+    # so we forcibly disable. Otherwise, use validate_streaming logic.
     if is_o_series:
-        # For o-series models, 'reasoning_effort' is required, temperature = 1.0
+        params["stream"] = False
+    else:
+        params["stream"] = validate_streaming(deployment_name)
+
+    # 2) Model-specific checks
+    if is_o_series:
+        # For o-series, we can’t pass temperature, top_p, presence_penalty, or frequency_penalty
+        # The doc also says we must pass "reasoning_effort" and "max_completion_tokens".
+        # If the user omitted a reasoning_effort, error out:
         if not chat_message.reasoning_effort:
             raise HTTPException(
                 status_code=400,
                 detail="reasoning_effort is required for o-series models"
             )
-        # Set required parameters for o-series
-        params["temperature"] = 1.0
-        params["reasoning_effort"] = chat_message.reasoning_effort.value
-        # If user didn’t specify max_completion_tokens, default to 40000
+
+        params["reasoning_effort"] = chat_message.reasoning_effort
         params["max_completion_tokens"] = chat_message.max_completion_tokens or 40000
 
-        # o-series disallows top_p, frequency_penalty, presence_penalty
-        disallowed = ["top_p", "frequency_penalty", "presence_penalty"]
-        for d in disallowed:
-            if getattr(chat_message, d, None) is not None:
-                raise ValueError(f"o-series models don't support {d}")
-
     else:
-        # For non-o-series models, fallback logic (e.g., 4096 tokens)
-        # Adjust as needed for your model’s constraints:
+        # For non-o-series, default to max_tokens=4096
         params["max_tokens"] = 4096
-        # You can optionally allow chat_message to specify these:
+        # If your model supports these, pass them along if set
         if getattr(chat_message, 'temperature', None) is not None:
             params["temperature"] = chat_message.temperature
         else:
-            # A default temperature
             params["temperature"] = 0.7
 
-        # If your model supports top_p, freq_penalty, presence_penalty, you can pass them:
         if getattr(chat_message, 'top_p', None) is not None:
             params["top_p"] = chat_message.top_p
         if getattr(chat_message, 'frequency_penalty', None) is not None:
@@ -252,62 +223,50 @@ async def build_api_params_with_search(
         if getattr(chat_message, 'presence_penalty', None) is not None:
             params["presence_penalty"] = chat_message.presence_penalty
 
-    # 3) If the user wants a specific response format:
+    # 3) Optional "structured outputs" or "json_schema" usage
     if getattr(chat_message, 'response_format', None):
         params["response_format"] = {"type": chat_message.response_format}
 
-    # 4) Azure AI Search Integration
+    # 4) Azure Search Integration if requested
+    #    The new "data_sources" param is recognized by Azure chat extension
     if use_file_search and session_id:
-        try:
-            azure_search_endpoint = os.getenv("AZURE_SEARCH_ENDPOINT")
-            azure_search_key = os.getenv("AZURE_SEARCH_KEY")
-            if not azure_search_endpoint or not azure_search_key:
-                logger.error(
-                    "Azure Search credentials missing. "
-                    "Set AZURE_SEARCH_ENDPOINT and AZURE_SEARCH_KEY."
-                )
-                raise ValueError("Azure Search configuration incomplete")
-
-            azure_search_index = f"index-{session_id}"
-            file_filter = (
-                f"search.in(id, '{','.join(file_ids)}')"
-                if file_ids else None
+        azure_search_endpoint = os.getenv("AZURE_SEARCH_ENDPOINT")
+        azure_search_key = os.getenv("AZURE_SEARCH_KEY")
+        if not azure_search_endpoint or not azure_search_key:
+            logger.error(
+                "Azure Search credentials missing. "
+                "Set AZURE_SEARCH_ENDPOINT and AZURE_SEARCH_KEY."
             )
+            raise ValueError("Azure Search configuration incomplete")
 
-            params["data_sources"] = [{
-                "type": "azure_search",
-                "parameters": {
-                    "endpoint": azure_search_endpoint,
-                    "index_name": azure_search_index,
-                    "authentication": {
-                        # Using api_key approach here; adjust if you prefer system-assigned identity
-                        "type": "api_key",
-                        "key": azure_search_key
-                    },
-                    "query_type": "vector_semantic_hybrid",
-                    "fields_mapping": {
-                        "content_fields": ["content"],
-                        "title_field": "filename",
-                        "url_field": "filepath"
-                    },
-                    "strictness": 3,
-                    "top_n_documents": 5,
-                    "filter": quote(file_filter) if file_filter else None
-                }
-            }]
-            logger.info(
-                f"Added Azure AI Search integration with index {azure_search_index}"
-            )
+        azure_search_index = f"index-{session_id}"  # Example index naming
+        file_filter = None
+        if file_ids:
+            # Build a simple search filter for the requested file IDs
+            file_filter = f"search.in(id, '{','.join(file_ids)}')"
 
-        except Exception as e:
-            logger.error(f"Error setting up Azure AI Search: {e}")
-            # Decide if you want to raise an error or ignore. Here we raise:
-            raise create_error_response(
-                status_code=500,
-                code="search_integration_error",
-                message=str(e),
-                error_type="AzureSearchSetup"
-            )
+        # Data source config
+        params["data_sources"] = [{
+            "type": "azure_search",
+            "parameters": {
+                "endpoint": azure_search_endpoint,
+                "index_name": azure_search_index,
+                "authentication": {
+                    "type": "api_key",
+                    "key": azure_search_key
+                },
+                "query_type": "vector_semantic_hybrid",
+                "fields_mapping": {
+                    "content_fields": ["content"],
+                    "title_field": "filename",
+                    "url_field": "filepath"
+                },
+                "strictness": 3,
+                "top_n_documents": 5,
+                "filter": quote(file_filter) if file_filter else None
+            }
+        }]
+        logger.info(f"Added Azure AI Search integration for index: {azure_search_index}")
 
     return params
 
@@ -323,14 +282,8 @@ async def process_chat_message(
 ) -> dict:
     """
     Process a chat message with optional Azure AI Search integration.
-
-    This function:
-      1. Retrieves conversation history.
-      2. Formats the messages for the API.
-      3. Optionally retrieves file content or sets up Azure AI Search.
-      4. Builds the API parameters and calls the Azure OpenAI API.
-      5. Saves the conversation to the database and returns the API-like response.
     """
+
     start_time = perf_counter()
     session_id = chat_message.session_id
     logger.info(f"[session {session_id}] Chat request received")
@@ -339,9 +292,14 @@ async def process_chat_message(
         f"[session {session_id}] Message received. Length: {len(chat_message.message)} chars"
     )
 
-    # 1) Retrieve conversation history from the DB
+    # 1) Retrieve conversation history
     result = await db_session.execute(
-        text("SELECT role, content FROM conversations WHERE session_id = :session_id ORDER BY timestamp ASC"),
+        text("""
+            SELECT role, content
+            FROM conversations
+            WHERE session_id = :session_id
+            ORDER BY timestamp ASC
+        """),
         {"session_id": session_id},
     )
     history = result.mappings().all()
@@ -349,14 +307,14 @@ async def process_chat_message(
     # 2) Format messages for the API
     formatted_messages = format_messages(chat_message, history)
 
-    # 3) Determine model type
+    # 3) Determine if it’s an o-series
     model_name = config.AZURE_OPENAI_DEPLOYMENT_NAME
     is_o_series = (
         any(m in model_name.lower() for m in ["o1-", "o3-"])
         and "preview" not in model_name.lower()
     )
 
-    # 4) Handle file context if requested and not using search
+    # 4) Possibly inject file context or set up file search
     file_context = []
     file_ids: List[str] = []
     use_file_search = False
@@ -365,44 +323,51 @@ async def process_chat_message(
         file_ids = getattr(chat_message, 'file_ids', []) or []
         use_file_search = getattr(chat_message, 'use_file_search', False)
 
-        # If not using Azure Search, retrieve and inject file content into the prompt
         if not use_file_search:
             file_context = await get_file_context(session_id, file_ids, db_session)
             if file_context:
-                # Find or create a system/developer message for referencing files
+                # Insert or update dev/system message about the files
                 system_message = next(
                     (m for m in formatted_messages if m["role"] in ["developer", "system"]),
                     None
                 )
                 if not system_message:
-                    system_message = {"role": "developer", "content": ""}
+                    system_message = {"role": "developer", "content": []}
                     formatted_messages.insert(0, system_message)
 
-                # Build a short note listing the files
                 file_instruction = "\n\nYou have access to the following files:\n"
                 for i, file in enumerate(file_context):
                     file_instruction += f"{i+1}. {file['filename']}\n"
                 file_instruction += "\nRefer to these files when answering questions."
 
-                # Append instructions to system/developer message
-                if isinstance(system_message["content"], str):
-                    system_message["content"] += file_instruction
-                elif isinstance(system_message["content"], list):
+                # If content is list-based, add a text part
+                if isinstance(system_message.get("content"), list):
                     system_message["content"].append({"type": "text", "text": file_instruction})
+                else:
+                    # Convert to list if needed
+                    existing = system_message.get("content") or ""
+                    system_message["content"] = [
+                        {"type": "text", "text": existing + file_instruction}
+                    ]
 
-                # Append actual file content to the last user message
+                # Append actual file content to user’s message
                 user_message = formatted_messages[-1]
                 if user_message["role"] == "user":
                     file_content_text = "\n\nHere are the contents of the files:\n\n"
                     for i, file in enumerate(file_context):
-                        file_content_text += f"[File {i+1}: {file['filename']}]\n{file['content']}\n\n"
-
-                    if isinstance(user_message["content"], str):
-                        user_message["content"] += file_content_text
-                    elif isinstance(user_message["content"], list):
+                        file_content_text += (
+                            f"[File {i+1}: {file['filename']}]\n{file['content']}\n\n"
+                        )
+                    # If user_message content is list
+                    if isinstance(user_message["content"], list):
                         user_message["content"].append({"type": "text", "text": file_content_text})
+                    else:
+                        existing_text = user_message.get("content") or ""
+                        user_message["content"] = [
+                            {"type": "text", "text": existing_text + file_content_text}
+                        ]
 
-    # 5) Build API parameters (consolidated logic)
+    # 5) Build API parameters
     try:
         params = await build_api_params_with_search(
             formatted_messages=formatted_messages,
@@ -414,7 +379,6 @@ async def process_chat_message(
             use_file_search=use_file_search
         )
     except Exception as e:
-        # If we hit an error building params (including search integration errors), raise
         logger.error(f"Error building API params: {e}")
         raise create_error_response(
             status_code=503,
@@ -443,7 +407,7 @@ async def process_chat_message(
         f"[session {session_id}] Response generated. Length: {len(response.choices[0].message.content)} chars"
     )
 
-    # 7) Save conversation in the database
+    # 7) Save the conversation to the DB
     assistant_msg = response.choices[0].message.content
     user_msg_entry = Conversation(session_id=session_id, role="user", content=chat_message.message)
     assistant_msg_entry = Conversation(session_id=session_id, role="assistant", content=assistant_msg)
@@ -456,7 +420,7 @@ async def process_chat_message(
     )
     await db_session.commit()
 
-    # 8) Build final response resembling the Azure OpenAI schema
+    # 8) Build final response in an AzureOpenAI-like shape
     final_response = {
         "id": f"chatcmpl-{uuid.uuid4()}",
         "created": int(time.time()),
