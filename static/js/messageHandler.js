@@ -1,29 +1,42 @@
+/**********************************************
+ * messageHandler.js
+ **********************************************/
+
 import { 
     sessionId, 
     initializeSession,
     getLastUserMessage,
     setLastUserMessage
 } from '/static/js/session.js';
+
 import { 
     NotificationManager,
     showNotification,
     showTypingIndicator,
     removeTypingIndicator
 } from '/static/js/ui/notificationManager.js';
+
 import { displayMessage } from '/static/js/ui/displayManager.js';
 import { safeMarkdownParse } from '/static/js/ui/markdownParser.js';
 import { updateTokenUsage } from '/static/js/utils/helpers.js';
+
 import { 
     getCurrentConfig,
     getTimeoutDurations,
     getModelSettings
 } from '/static/js/config.js';
+
 import { getFilesForChat } from '/static/js/fileManager.js';
 
+
+/**
+ * Main function to send user message to the server
+ * and handle the response (standard or streaming).
+ */
 export async function sendMessage() {
     const userInput = document.getElementById('user-input');
     const message = userInput.value.trim();
-    let modelSettings = getModelSettings() || {};
+    const modelSettings = getModelSettings() || {};
     
     console.log('[MessageHandler] Initiated sendMessage:', {
         messagePreview: message.slice(0, 50) + (message.length > 50 ? '...' : ''),
@@ -34,56 +47,54 @@ export async function sendMessage() {
     if (!message) return;
 
     try {
-        // Session management
+        // Ensure session is set up
         if (!sessionId && !(await initializeSession())) {
             throw new Error('Failed to initialize session');
         }
 
-        // Handle o1 model requirements
+        // If "o1" model logic, ensure no streaming is used, etc.
         if (modelSettings?.name?.includes?.('o1') && modelSettings.supportsVision) {
-            if (modelSettings.supportsVision) {
-                displayMessage('Formatting re-enabled: Markdown processing activated', 'developer');
-            }
+            displayMessage('Formatting re-enabled: Markdown processing activated', 'developer');
             if (document.getElementById('streaming-toggle').checked) {
                 showNotification('o1 models do not support streaming', 'warning');
                 return;
             }
         }
 
-        // UI state management
+        // Disable user input while request in flight
         userInput.disabled = true;
         setLastUserMessage(message);
+
+        // Show the user message in chat
         displayMessage(message, 'user');
         userInput.value = '';
 
-
-        // Prepare request components
-        // Get configuration with safe defaults
+        // Prepare request
         const config = getCurrentConfig();
         const effortLevel = config?.reasoningEffort || 'medium';
-        const timeout = getTimeoutDurations()[effortLevel] || 30000; // 30s default
+        const timeout = getTimeoutDurations()[effortLevel] || 30000;
 
         console.log('[Config] Current settings:', {
             effort: effortLevel,
             timeout: timeout,
-            model: getModelSettings()
+            modelSettings
         });
 
-        const { controller, timeoutId } = createAbortController(timeout);
-        const messageContent = processMessageContent(message, modelSettings.supportsVision);
-        const vectorStores = await fetch(`/api/files/${sessionId}`).then(r => r.ok ? r.json() : { vector_store_ids: [] });
+        // Create an abort controller with a dynamic or default timeout
+        const { controller } = createAbortController(timeout);
 
-        // Execute request
-        const requestConfig = await getCurrentConfig();
+        // Preprocess message content if there's any special formatting
+        const messageContent = processMessageContent(message, modelSettings.supportsVision);
+
+        // Send request
         const response = await handleChatRequest({
             messageContent,
             controller,
             developerConfig: config.developerConfig,
-            reasoningEffort: config.reasoningEffort,
-            vectorStores
+            reasoningEffort: config.reasoningEffort
         });
 
-        // Process response
+        // Decide if we handle streaming or standard response
         if (modelSettings.supportsStreaming) {
             await handleStreamingResponse(response, controller);
         } else {
@@ -97,6 +108,10 @@ export async function sendMessage() {
     }
 }
 
+
+/**
+ * If the user clicks a "Regenerate" button, resend the last user message.
+ */
 export async function regenerateResponse() {
     const lastMessage = getLastUserMessage();
     if (lastMessage) {
@@ -105,36 +120,215 @@ export async function regenerateResponse() {
     }
 }
 
-// Helper functions
-function handleReasoningEffortNotifications(effort) {
-    const messages = {
-        high: {
-            text: "Using high reasoning effort - responses may take several minutes. Consider medium for faster responses.",
-            duration: 8000
+
+/**********************************************
+ * handleChatRequest
+ * - Minimal request payload
+ * - `api-version` as query param
+ **********************************************/
+async function handleChatRequest({
+    messageContent,
+    controller,
+    developerConfig,
+    reasoningEffort
+}) {
+    const config = await getCurrentConfig();
+    // Replace process.env with hardcoded version or config value
+    const apiVersion = '2025-01-01-preview';  // Remove process.env reference
+
+    // Example: the actual name of your Azure OpenAI deployment
+    const deploymentName = config.selectedModel || 'o1model-east2';
+
+    // Ensure session is valid
+    if (!sessionId) {
+        await initializeSession();
+        if (!sessionId) {
+            throw new Error('Could not initialize session');
+        }
+    }
+
+    // Build minimal payload
+    const requestBody = {
+        model: deploymentName,
+        messages: [{
+            role: 'user',
+            content: typeof messageContent === 'string'
+                ? messageContent
+                : JSON.stringify(messageContent)
+        }],
+        session_id: sessionId,
+        reasoning_effort: reasoningEffort
+    };
+
+    // Optionally add dev config
+    if (developerConfig) {
+        requestBody.developer_config = developerConfig;
+    }
+
+    // Example: If you want to include local files
+    /*
+    if (config.includeFiles) {
+        requestBody.include_files = true;
+        const fileInfo = getFilesForChat();
+        if (fileInfo && fileInfo.file_ids?.length) {
+            requestBody.file_ids = fileInfo.file_ids;
+        }
+    }
+    */
+
+    console.log('[handleChatRequest] Sending payload:', JSON.stringify(requestBody, null, 2));
+
+    const url = `/api/chat/?api-version=${apiVersion}`;
+    const init = {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
         },
-        medium: {
-            text: "Using medium reasoning effort - responses may take 1-3 minutes for complex queries.",
-            duration: 6000
+        signal: controller.signal,
+        body: JSON.stringify(requestBody)
+    };
+
+    const requestStartTime = Date.now();
+    const response = await fetch(url, init);
+    response.requestStartTime = requestStartTime;
+    return response;
+}
+
+
+/**********************************************
+ * handleStandardResponse
+ * - Reads the JSON if 2xx
+ * - Otherwise logs full error
+ **********************************************/
+async function handleStandardResponse(response) {
+    const requestDuration = Date.now() - response.requestStartTime;
+    console.log('[handleStandardResponse] Response after', requestDuration, 'ms', 'Status:', response.status);
+
+    // If response is not ok, parse error details
+    if (!response.ok) {
+        try {
+            const errorData = await response.json();
+            console.error('[handleStandardResponse] API Error details:', errorData);
+            const errorDetails = JSON.stringify(errorData);
+            throw new Error(`HTTP error! status: ${response.status}, details: ${errorDetails}`);
+        } catch (jsonParseErr) {
+            // If JSON parse fails, rethrow whatever we got
+            console.error('[handleStandardResponse] Non-JSON error response:', jsonParseErr);
+            throw jsonParseErr;
+        }
+    }
+
+    // If OK, parse JSON data
+    const data = await response.json();
+    processResponseData(data);
+}
+
+
+/**********************************************
+ * handleStreamingResponse
+ * - Example SSE approach for streaming
+ **********************************************/
+async function handleStreamingResponse(response, controller) {
+    // If your server uses an EventSource endpoint for streaming,
+    // you'd close the initial POST response and open SSE here.
+    // 
+    // If your server supports streaming directly from the POST,
+    // you'd do something else (e.g. "fetch and read the body as a stream").
+    // 
+    // This is just an example of how you'd handle SSE.
+
+    console.log('[handleStreamingResponse] Starting SSE streaming...');
+
+    // For demonstration, we might do:
+    const eventSource = new EventSource(`/api/chat/stream?session_id=${sessionId}`);
+
+    let messageContainer = null;
+
+    eventSource.onmessage = (event) => {
+        try {
+            const responseData = JSON.parse(event.data);
+
+            // If there's an error in the SSE data
+            if (responseData.error) {
+                displayMessage(`Error: ${responseData.error}`, 'error');
+                eventSource.close();
+                return;
+            }
+
+            // If first chunk, create a new container
+            if (!messageContainer) {
+                messageContainer = createMessageContainer();
+                injectStreamingStyles();
+            }
+
+            updateStreamingUI(responseData, messageContainer);
+
+            // Check if stream has completed
+            if (responseData.choices && responseData.choices[0].finish_reason === 'stop') {
+                finalizeStreamingResponse(JSON.stringify(responseData), messageContainer);
+                eventSource.close();
+            }
+        } catch (err) {
+            console.error('[handleStreamingResponse] SSE parsing error:', err);
+            eventSource.close();
         }
     };
 
-    if (messages[effort]) {
-        showNotification(messages[effort].text, "info", messages[effort].duration);
-    }
-    showTypingIndicator(effort);
+    eventSource.onerror = (err) => {
+        console.error('[handleStreamingResponse] SSE failed:', err);
+        eventSource.close();
+        removeTypingIndicator();
+    };
 }
 
+
+/**********************************************
+ * processResponseData
+ * - Display final response from server
+ * - Update usage info
+ **********************************************/
+function processResponseData(data) {
+    if (data.calculated_timeout) {
+        window.serverCalculatedTimeout = data.calculated_timeout;
+    }
+
+    // Display the assistant's message
+    displayMessage(data.response, 'assistant');
+
+    // If usage data is included, update token usage
+    if (data.usage) {
+        updateTokenUsage({
+            ...data.usage,
+            ...(data.usage.completion_details?.reasoning_tokens && {
+                reasoning_tokens: data.usage.completion_details.reasoning_tokens
+            }),
+            ...(data.usage.prompt_details?.cached_tokens && {
+                cached_tokens: data.usage.prompt_details.cached_tokens
+            })
+        });
+    }
+}
+
+
+/**********************************************
+ * Helper: Create an AbortController with Timeout
+ **********************************************/
 function createAbortController(timeoutDuration) {
     const controller = new AbortController();
     const timeoutId = setTimeout(
         () => controller.abort(),
-        window.serverCalculatedTimeout ? 
-            window.serverCalculatedTimeout * 1000 : 
-            timeoutDuration
+        window.serverCalculatedTimeout 
+            ? window.serverCalculatedTimeout * 1000
+            : timeoutDuration
     );
     return { controller, timeoutId };
 }
 
+
+/**********************************************
+ * Helper: Process user’s message for images, etc.
+ **********************************************/
 function processMessageContent(message, supportsVision) {
     const imageMatches = message.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/g);
     
@@ -142,9 +336,11 @@ function processMessageContent(message, supportsVision) {
         throw new Error('Vision features require o1 model');
     }
 
-    return imageMatches ? 
-        imageMatches.map(createImageContent) : 
-        message;
+    // If matches exist, return an array describing images
+    // If none, just return the raw string
+    return imageMatches 
+        ? imageMatches.map(createImageContent) 
+        : message;
 }
 
 function createImageContent(match) {
@@ -155,219 +351,15 @@ function createImageContent(match) {
     };
 }
 
-async function fetchVectorStores() {
-    try {
-        const response = await fetch(`/api/vector_stores/${sessionId}`);
-        return response.ok ? 
-            await response.json() : 
-            { vector_store_ids: [] };
-    } catch (error) {
-        console.error('Vector store fetch error:', error);
-        return { vector_store_ids: [] };
-    }
-}
 
-async function handleChatRequest({
-    messageContent,
-    controller,
-    developerConfig,
-    reasoningEffort,
-    vectorStores
-}) {
-    const config = getCurrentConfig();
-
-    const init = {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-            model: config.selectedModel, // Send selected model to backend
-            message: messageContent,
-            session_id: sessionId,
-            developer_config: developerConfig,
-            reasoning_effort: reasoningEffort,
-            include_usage_metrics: config.include_usage_metrics,
-            tools: [{ type: "file_search" }],
-            tool_resources: (vectorStores.vector_store_ids?.length || 0) > 0 ? {
-                file_search: {
-                    vector_store_ids: vectorStores.vector_store_ids
-                }
-            } : undefined
-        })
-    };
-
-    const requestStartTime = Date.now();
-    return await fetch('/api/chat', {
-        ...init,
-        headers: {
-            ...init.headers,
-            'Accept': 'application/json',
-            'X-API-Version': '2024-12-01-preview'
-        }
-    }).then(response => {
-        response.requestStartTime = requestStartTime;
-        return response;
-    });
-}
-
-async function handleStandardResponse(response) {
-        const requestDuration = Date.now() - response.requestStartTime;
-        console.log('[MessageHandler] Received response after', 
-            requestDuration, 'ms', 
-            'Status:', response.status
-        );
-        
-        if (!response.ok) {
-            const errorDetails = await getErrorDetails(response);
-            console.error('[MessageHandler] API Error:', {
-                status: response.status,
-                details: errorDetails
-            });
-            throw new Error(errorDetails);
-        }
-    
-    const data = await response.json();
-    processResponseData(data);
-}
-
-async function handleTrueStreaming() {
-    const eventSource = new EventSource(`/api/chat/stream?session_id=${sessionId}`);
-    let messageContainer = null;
-    
-    eventSource.onmessage = (event) => {
-        try {
-            const response = JSON.parse(event.data);
-            
-            if (response.error) {
-                displayMessage(`Error: ${response.error}`, 'error');
-                eventSource.close();
-                return;
-            }
-            
-            if (!messageContainer) {
-                messageContainer = createMessageContainer();
-                injectStreamingStyles();
-            }
-            
-            updateStreamingUI(response, messageContainer);
-            
-            if (response.choices[0].finish_reason === 'stop') {
-                finalizeStreaming(messageContainer);
-                eventSource.close();
-            }
-            
-        } catch (error) {
-            console.error('Stream error:', error);
-            eventSource.close();
-        }
-    };
-
-    eventSource.onerror = (error) => {
-        console.error('EventSource failed:', error);
-        eventSource.close();
-        removeTypingIndicator();
-    };
-}
-
-// Helper functions
+/**********************************************
+ * Helper: handle streaming SSE UI
+ **********************************************/
 function createMessageContainer() {
     const container = document.createElement('div');
     container.className = 'message assistant-message streaming';
     document.getElementById('chat-history').appendChild(container);
     return container;
-}
-
-function updateStreamingUI(content, container) {
-    if (!container) {
-        container = document.createElement('div');
-        container.className = 'message assistant-message streaming';
-        document.getElementById('chat-history').appendChild(container);
-        injectStreamingStyles();
-    }
-
-    try {
-        const parsed = JSON.parse(content);
-        container.innerHTML = processAnnotatedContent(parsed);
-    } catch {
-        container.innerHTML = safeMarkdownParse(content);
-    }
-
-    highlightCodeBlocks(container);
-    container.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    
-    return container;
-}
-
-function processAnnotatedContent(responseData) {
-    if (!responseData?.content) {
-        return safeMarkdownParse(responseData);
-    }
-
-    let content = responseData.content;
-    const citations = [];
-
-    // Handle both old and new citation formats
-    if (responseData.context?.citations) {
-        responseData.context.citations.forEach((citation, index) => {
-            const ref = `[doc${index + 1}]`;
-            content = content.replace(ref, `[${index + 1}]`);
-            citations.push(createCitationElement(index + 1, {
-                file_name: citation.document_name,
-                quote: citation.content
-            }));
-        });
-    } else if (responseData.content?.[0]?.text?.annotations) {
-        const { text, annotations } = responseData.content[0].text;
-        content = text.value;
-        annotations.forEach((annotation, index) => {
-            if (annotation.file_citation) {
-                content = content.replace(annotation.text, `[${index + 1}]`);
-                citations.push(createCitationElement(index + 1, annotation.file_citation));
-            }
-        });
-    }
-
-    return `
-        <div class="message-text">${safeMarkdownParse(content)}</div>
-        ${citations.length ? `
-            <div class="citations-container">
-                <div class="citations-header">
-                    <span class="citations-icon">📚</span>
-                    <span>Sources</span>
-                </div>
-                ${citations.join('')}
-            </div>
-        ` : ''}
-    `;
-}
-
-function createCitationElement(index, citation) {
-    return `
-        <div class="file-citation">
-            <div class="citation-header">
-                <span class="citation-number">[${index}]</span>
-                <span class="citation-file">${citation.file_name}</span>
-            </div>
-            <div class="citation-quote">${citation.quote}</div>
-        </div>
-    `;
-}
-
-function finalizeStreamingResponse(content, container) {
-    if (!container) return;
-
-    container.classList.remove('streaming');
-    
-    try {
-        const parsed = JSON.parse(content);
-        if (parsed.usage) {
-            updateTokenUsage(parsed.usage);
-        }
-    } catch (error) {
-        console.warn('Could not parse streaming usage data:', error);
-    }
-
-    addCopyButton(container, content);
 }
 
 function injectStreamingStyles() {
@@ -393,16 +385,121 @@ function injectStreamingStyles() {
     document.head.appendChild(style);
 }
 
+function updateStreamingUI(responseData, container) {
+    // Convert "content" to HTML
+    try {
+        container.innerHTML = processAnnotatedContent(responseData);
+    } catch {
+        // If it fails, just put raw JSON
+        container.innerHTML = safeMarkdownParse(JSON.stringify(responseData));
+    }
+
+    highlightCodeBlocks(container);
+    container.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+function finalizeStreamingResponse(content, container) {
+    if (!container) return;
+
+    container.classList.remove('streaming');
+    try {
+        const parsed = JSON.parse(content);
+        if (parsed.usage) {
+            updateTokenUsage(parsed.usage);
+        }
+    } catch (error) {
+        console.warn('[finalizeStreamingResponse] Could not parse streaming usage data:', error);
+    }
+
+    addCopyButton(container, content);
+}
+
+
+/**********************************************
+ * Helper: parse annotated content (citations)
+ **********************************************/
+function processAnnotatedContent(responseData) {
+    // If there's no .content, just parse as JSON or fallback
+    if (!responseData?.content) {
+        return safeMarkdownParse(JSON.stringify(responseData));
+    }
+
+    let content = responseData.content;
+    const citations = [];
+
+    // Look for new or old citation formats
+    if (responseData.context?.citations) {
+        // Possibly old format
+        responseData.context.citations.forEach((citation, index) => {
+            const ref = `[doc${index + 1}]`;
+            content = content.replace(ref, `[${index + 1}]`);
+            citations.push(createCitationElement(index + 1, {
+                file_name: citation.document_name,
+                quote: citation.content
+            }));
+        });
+    } else if (Array.isArray(responseData.content)) {
+        // Possibly new format with annotations
+        const firstBlock = responseData.content[0];
+        if (firstBlock?.text?.annotations) {
+            content = firstBlock.text.value;
+            firstBlock.text.annotations.forEach((annotation, index) => {
+                if (annotation.file_citation) {
+                    content = content.replace(annotation.text, `[${index + 1}]`);
+                    citations.push(createCitationElement(index + 1, annotation.file_citation));
+                }
+            });
+        }
+    }
+
+    return `
+        <div class="message-text">${safeMarkdownParse(content)}</div>
+        ${
+            citations.length
+                ? `<div class="citations-container">
+                        <div class="citations-header">
+                            <span class="citations-icon">📚</span>
+                            <span>Sources</span>
+                        </div>
+                        ${citations.join('')}
+                   </div>`
+                : ''
+        }
+    `;
+}
+
+function createCitationElement(index, citation) {
+    return `
+        <div class="file-citation">
+            <div class="citation-header">
+                <span class="citation-number">[${index}]</span>
+                <span class="citation-file">${citation.file_name}</span>
+            </div>
+            <div class="citation-quote">${citation.quote}</div>
+        </div>
+    `;
+}
+
+
+/**********************************************
+ * Helper: highlight code blocks
+ **********************************************/
 function highlightCodeBlocks(container) {
     if (typeof Prism === 'undefined') return;
-    
+
     container.querySelectorAll('pre code').forEach(block => {
         block.style.opacity = '0';
         Prism.highlightElement(block);
-        setTimeout(() => block.style.opacity = '1', 100);
+        setTimeout(() => {
+            block.style.opacity = '1';
+        }, 100);
     });
 }
 
+
+/**********************************************
+ * Helper: add "copy to clipboard" button
+ **********************************************/
 function addCopyButton(container, content) {
     const button = document.createElement('button');
     button.className = 'copy-button';
@@ -412,98 +509,24 @@ function addCopyButton(container, content) {
     container.prepend(button);
 }
 
-function processResponseData(data) {
-    if (data.calculated_timeout) {
-        window.serverCalculatedTimeout = data.calculated_timeout;
-    }
 
-    displayMessage(data.response, 'assistant');
-    
-    if (data.usage) {
-        updateTokenUsage({
-            ...data.usage,
-            ...(data.usage.completion_details?.reasoning_tokens && {
-                reasoning_tokens: data.usage.completion_details.reasoning_tokens
-            }),
-            ...(data.usage.prompt_details?.cached_tokens && {
-                cached_tokens: data.usage.prompt_details.cached_tokens
-            })
-        });
-    }
-}
-
-async function getErrorDetails(response) {
-    if (response.status === 400) {
-        const data = await response.json();
-        return data.detail || 'Invalid request';
-    }
-    if (response.status === 503) {
-        const data = await response.json();
-        return data.error?.type === 'timeout' ?
-            `Request timed out. Try lower reasoning effort (current: ${getCurrentConfig().reasoningEffort})` :
-            'Service unavailable';
-    }
-    return `HTTP error! status: ${response.status}`;
-}
-
-// Display file citations in a special UI element
-function displayFileCitations(citations) {
-    // Create citations container
-    const citationsContainer = document.createElement('div');
-    citationsContainer.className = 'file-citations';
-    
-    // Add header
-    const header = document.createElement('div');
-    header.className = 'citations-header';
-    header.innerHTML = '<span class="citation-icon">📚</span> Citations from Files';
-    citationsContainer.appendChild(header);
-    
-    // Add each citation
-    citations.forEach((citation, index) => {
-        const citationElement = document.createElement('div');
-        citationElement.className = 'citation-item';
-        
-        const citationHeader = document.createElement('div');
-        citationHeader.className = 'citation-item-header';
-        citationHeader.innerHTML = `
-            <span class="citation-number">[${index + 1}]</span>
-            <span class="citation-filename">${citation.filename}</span>
-        `;
-        
-        const citationContent = document.createElement('div');
-        citationContent.className = 'citation-content';
-        citationContent.textContent = citation.text;
-        
-        citationElement.appendChild(citationHeader);
-        citationContent.textContent = citation.text;
-        
-        citationElement.appendChild(citationHeader);
-        citationElement.appendChild(citationContent);
-        citationsContainer.appendChild(citationElement);
-    });
-    
-    // Add to the chat history
-    const chatHistory = document.getElementById('chat-history');
-    if (chatHistory) {
-        chatHistory.appendChild(citationsContainer);
-    }
-}
-
+/**********************************************
+ * handleMessageError
+ * - Generic catch block handling
+ **********************************************/
 function handleMessageError(error) {
-    console.error('Message handling error:', error);
-    
+    console.error('[handleMessageError]', error);
+
     let errorMessage = 'An unexpected error occurred';
     let errorDetails = [];
-    
+
     if (error.name === 'AbortError') {
         errorMessage = 'Request timed out. Consider using lower reasoning effort.';
     } else if (error.response) {
-        // Handle structured error response from API
+        // If there’s a structured error from API, parse it
         try {
             const apiError = error.response.data?.error || {};
             errorMessage = apiError.message || error.message;
-            
-            // Parse validation errors
             if (apiError.type === 'validation_error') {
                 if (apiError.fields) {
                     errorDetails = apiError.fields.map(f => `${f} parameter`);
@@ -513,14 +536,14 @@ function handleMessageError(error) {
                 }
             }
         } catch (parseError) {
-            console.error('Error parsing error response:', parseError);
+            console.error('[handleMessageError] Error parsing error response:', parseError);
         }
     } else if (error.message) {
         errorMessage = error.message;
     }
-    
+
     const fullErrorText = [errorMessage, ...errorDetails].filter(Boolean).join('\n');
-    
+
     displayMessage(`Error: ${errorMessage}`, 'error');
     showNotification(fullErrorText, 'error');
 }

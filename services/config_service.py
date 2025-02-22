@@ -16,8 +16,31 @@ class ConfigService:
         )
         row = result.fetchone()
         return json.loads(row[0]) if row else None
+        
+    async def get_all_configs(self) -> Dict[str, Any]:
+        try:
+            result = await self.db.execute(
+                text("SELECT key, value FROM app_configurations WHERE is_secret = false")
+            )
+            configs = {}
+            for row in result.fetchall():
+                try:
+                    # Ensure value is properly serialized
+                    value = row.value
+                    if isinstance(value, str):
+                        configs[row.key] = json.loads(value)
+                    else:
+                        configs[row.key] = json.loads(json.dumps(value))
+                except json.JSONDecodeError:
+                    configs[row.key] = row.value
+            return configs
+        except Exception as e:
+            print(f"Error fetching configs: {str(e)}")
+            return {}
 
     async def set_config(self, key: str, value: Any, description: str = "", is_secret: bool = False):
+        # Ensure value is JSON serializable
+        value_json = json.dumps(value)
         await self.db.execute(
             text("""
                 INSERT INTO app_configurations (key, value, description, is_secret)
@@ -30,37 +53,9 @@ class ConfigService:
             """),
             {
                 "key": key,
-                "value": json.dumps(value),
+                "value": value_json,
                 "description": description,
                 "is_secret": is_secret
             }
         )
         await self.db.commit()
-
-    async def get_all_configs(self) -> Dict[str, Any]:
-        try:
-            # Check if table exists first
-            table_exists = await self.db.execute(
-                text("""
-                    SELECT EXISTS (
-                        SELECT FROM information_schema.tables 
-                        WHERE table_name = 'app_configurations'
-                    )
-                """)
-            )
-            if not table_exists.scalar():
-                return {}
-
-            result = await self.db.execute(
-                text("SELECT key, value FROM app_configurations WHERE is_secret = false")
-            )
-            configs = {}
-            for row in result.fetchall():
-                try:
-                    configs[row.key] = json.loads(row.value)
-                except json.JSONDecodeError:
-                    configs[row.key] = row.value
-            return configs
-        except Exception as e:
-            print(f"Error fetching configs: {str(e)}")
-            return {}

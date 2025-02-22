@@ -42,7 +42,7 @@ async def create_chat_completion(
         )
     # Transform flat request into message format expected by processing
     chat_message = ChatMessage(
-        message=request.message,
+        message=request.messages[-1]['content'],
         session_id=request.session_id,
         developer_config=request.developer_config,
         reasoning_effort=request.reasoning_effort,
@@ -116,18 +116,20 @@ async def generate(message, client, reasoning_effort="medium"):
             # Add o-series specific parameters
             if is_o_series:
                 params.update({
-                    "temperature": 1,  # Mandatory for o-series
                     "max_completion_tokens": 40000,
                     "reasoning_effort": reasoning_effort
                 })
             else:
                 params["max_tokens"] = 4096
             
-            # Check again right before making the call
-            if any(m in deployment_name for m in ["o1-", "o3-"]) and "preview" not in deployment_name:
-                raise HTTPException(400, "o-series models don't support streaming")
+            # Validate streaming compatibility for o-series
+            if "o3-mini" not in deployment_name and any(m in deployment_name for m in ["o1-", "o3-"]):
+                raise HTTPException(400, "Streaming only supported for o3-mini models")
             
-            response = await client.chat.completions.create(**params)
+            # Create the completion with validated parameters (api_version is set at client initialization)
+            response = await client.chat.completions.create(
+                **{k: v for k, v in params.items() if k != 'api_version'}
+            )
             
             async for chunk in response:
                 response_data = {
@@ -159,9 +161,9 @@ async def get_model_capabilities():
     return {
         "model": deployment_name,
         "capabilities": {
-            "supports_streaming": "preview" not in deployment_name and any(m in deployment_name for m in ["o3-mini"]),
+            "supports_streaming": "o3-mini" in deployment_name,
             "supports_vision": "o1" in deployment_name,
             "max_tokens": 40000 if "o" in deployment_name else 4096,
-            "api_version": "2024-12-01-preview"
+            "api_version": "2025-01-01-preview"
         }
     }

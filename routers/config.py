@@ -26,15 +26,14 @@ async def update_config(key: str, update: ConfigUpdate, config_service: ConfigSe
 async def get_all_configs(config_service: ConfigService = Depends()):
     try:
         configs = await config_service.get_all_configs() or {}
-        # Ensure required fields with type safety
         return {
             "selectedModel": configs.get("selectedModel", "o1"),
             "reasoningEffort": configs.get("reasoningEffort", "medium"),
             "includeFiles": configs.get("includeFiles", False),
-            **configs
+            "models": configs.get("models", {})
         }
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Config load failed: {str(e)}"
+            detail=str(e)
         )

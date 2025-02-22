@@ -55,12 +55,14 @@ def create_error_response(
         ) if content_filter_results or inner_error else None
     )
     
+    headers_dict = {
+        "x-ms-error-code": code.upper().replace("_", "-"),
+        "x-ms-error-message": message
+    }
+    if content_filter_results:
+        headers_dict["x-ms-error-details"] = json.dumps(content_filter_results)
     return HTTPException(
         status_code=status_code,
         detail=APIErrorResponse(error=error).model_dump(),
-        headers={
-            "x-ms-error-code": code.upper().replace("_", "-"),
-            "x-ms-error-message": message,
-            "x-ms-error-details": json.dumps(content_filter_results) if content_filter_results else None
-        }
+        headers=headers_dict
     )

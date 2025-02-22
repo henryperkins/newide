@@ -42,7 +42,7 @@ class ChatMessageContent(BaseModel):
 
 class CreateChatCompletionRequest(BaseModel):
     model: str = Field(..., description="Azure OpenAI deployment name")
-    message: str = Field(..., description="User message content")
+    messages: List[Dict[str, Any]] = Field(..., description="User messages in an array, e.g. [{'role': 'user', 'content': '...'}]")
     session_id: str = Field(..., description="Session ID for conversation history")
     reasoning_effort: ReasoningEffort = Field(
         default=ReasoningEffort.medium,
@@ -53,12 +53,6 @@ class CreateChatCompletionRequest(BaseModel):
         ge=100,
         le=100000,
         description="Maximum tokens for response (required for o-series)"
-    )
-    temperature: float = Field(
-        default=1.0, 
-        ge=0.0, 
-        le=2.0,
-        description="Temperature setting (fixed for o-series)"
     )
     stream: bool = Field(
         default=False,
@@ -73,22 +67,33 @@ class CreateChatCompletionRequest(BaseModel):
         description="Whether to include file context in the request"
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def transform_legacy_message(cls, data):
+        if isinstance(data, dict) and "messages" not in data and "message" in data:
+            data["messages"] = [{"role": "user", "content": data.pop("message")}]
+        return data
+
     @model_validator(mode='after')
     @classmethod
     def validate_o_series_params(cls, values):
         model_name = values.model.lower()
         if "o" in model_name:
-            forbidden_params = ["max_tokens", "top_p", "frequency_penalty", "presence_penalty"]
+            forbidden_params = ["temperature", "top_p", "frequency_penalty", "presence_penalty", "logit_bias"]
             if any(getattr(values, param, None) for param in forbidden_params):
                 raise ValueError(f"Parameters {forbidden_params} not supported for o-series models")
+
+            # Validate streaming compatibility
+            if values.stream and "o3-mini" not in model_name:
+                raise ValueError("Streaming only supported for o3-mini models")
         return values
 
 class ChatCompletionResponseChoice(BaseModel):
-    finish_reason: str = Field(..., alias="finish_reason")
+    finish_reason: Optional[str] = Field(None, alias="finish_reason")
     index: int
-    message: Dict[str, Any] = Field(..., description="Message content with citations")
-    content_filter_results: Dict[str, Any] = Field(
-        ..., 
+    message: Optional[Dict[str, Any]] = Field(None, description="Message content with citations")
+    content_filter_results: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
         alias="content_filter_results",
         description="Azure content filtering results"
     )
@@ -144,10 +149,6 @@ class ChatCompletionResponse(BaseModel):
     tool_resources: Optional[Dict] = Field(
         default=None,
         description="Resource references for tools"
-    )
-    include_usage_metrics: Optional[bool] = Field(
-        default=False,
-        description="Include detailed token metrics"
     )
 
 

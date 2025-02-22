@@ -2,6 +2,49 @@ import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 import config
+import json
+from datetime import datetime
+
+async def initialize_default_configs(conn):
+    """Initialize default configurations in database"""
+    
+    # Construct model settings from config and env vars
+    model_config = {
+        "selectedModel": config.AZURE_OPENAI_DEPLOYMENT_NAME,
+        "models": {
+            config.AZURE_OPENAI_DEPLOYMENT_NAME: {
+                "max_tokens": 40000,
+                "temperature": 1.0,
+                "endpoint": config.AZURE_OPENAI_ENDPOINT,
+                "api_version": config.AZURE_OPENAI_API_VERSION,
+                "deployment_name": config.AZURE_OPENAI_DEPLOYMENT_NAME
+            },
+            "deepseek-r1": {
+                "max_tokens": 4096,
+                "temperature": 0.7
+            }
+        },
+        "reasoningEffort": "medium",
+        "includeFiles": False,
+        "lastUpdated": datetime.utcnow().isoformat()
+    }
+
+    # Insert or update model configuration
+    await conn.execute(
+        text("""
+            INSERT INTO app_configurations (key, value, description, updated_at)
+            VALUES (:key, :value, :description, NOW())
+            ON CONFLICT (key) DO UPDATE
+            SET value = EXCLUDED.value,
+                description = EXCLUDED.description,
+                updated_at = NOW()
+        """),
+        {
+            "key": "models",
+            "value": json.dumps(model_config),
+            "description": "Model configurations including Azure OpenAI settings"
+        }
+    )
 
 async def init_database():
     """Initialize the database and create tables"""
@@ -96,7 +139,10 @@ async def init_database():
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 );"""))
 
-        print("✅ Database tables created successfully!")
+            # Initialize default configurations
+            await initialize_default_configs(conn)
+
+        print("✅ Database tables and configurations created successfully!")
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
     finally:

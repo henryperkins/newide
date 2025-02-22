@@ -4,6 +4,8 @@ import { setupDragAndDrop, loadFilesList } from '/static/js/fileManager.js';
 import { configureMarkdown, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
 import { showNotification } from '/static/js/ui/notificationManager.js';
 
+const API_VERSION = '2025-01-01-preview';
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         await initializeMarkdownSupport();
