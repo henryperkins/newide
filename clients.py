@@ -1,74 +1,98 @@
 # clients.py
 import asyncio
+import os
 import time
+from typing import List, Optional
+
 from openai import AsyncAzureOpenAI
 from azure.core.exceptions import HttpResponseError
+
 import config
-from typing import List, Optional
-import os
 
 _client_pool: List[AsyncAzureOpenAI] = []
 _pool_size = 5
 
 async def init_client_pool():
-    """Initialize Azure OpenAI client pool with proper authentication"""
+    """
+    Initialize Azure OpenAI client pool with proper authentication.
+    We'll create multiple clients (defined by _pool_size) so we can
+    rotate among them for concurrent requests.
+    """
     global _client_pool
-    
-    if not _client_pool:
-        auth_method = os.getenv("AZURE_AUTH_METHOD", "key")
-    
-        if auth_method == "entra":
-            if not os.getenv("AZURE_CLIENT_ID"):
-                raise ValueError("Entra ID authentication requires AZURE_CLIENT_ID environment variable")
-        
-        # Pre-warm connections for all model families
-        model_families = ["o1", "o3-mini", "deepseek-r1"]
-        
-        for _ in range(_pool_size):
-            if auth_method == "entra":
-                from azure.identity.aio import DefaultAzureCredential
-                from azure.identity import get_bearer_token_provider
-                
-                credential = DefaultAzureCredential()
-                token_provider = get_bearer_token_provider(
-                    credential, "https://cognitiveservices.azure.com/.default"
-                )
-                
-                client = AsyncAzureOpenAI(
-                    azure_ad_token_provider=token_provider,
-                    api_version=config.AZURE_OPENAI_API_VERSION,
-                    azure_endpoint=config.build_azure_openai_url()
-                )
-            else:  # Use API key
-                # Determine API version based on model
-                api_version = config.MODEL_API_VERSIONS["default"]
-                if model_name := os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"):
-                    model_family = next(
-                        (key for key in ["o3-mini", "o1", "o1-preview"] 
-                         if model_name.lower().startswith(key)),
-                        None
-                    )
-                    api_version = config.MODEL_API_VERSIONS.get(model_family, api_version)
 
-                client = AsyncAzureOpenAI(
-                    azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
-                    api_key=config.AZURE_OPENAI_API_KEY,
-                    api_version=api_version,
-                    azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-                    default_headers={
-                        "OData-MaxVersion": "4.0",
-                        "OData-Version": "4.0"
-                    }
-                )
-            
-            _client_pool.append(client)
+    if _client_pool:
+        return  # Already initialized
+
+    auth_method = os.getenv("AZURE_AUTH_METHOD", "key")
+
+    # If using Microsoft Entra ID, ensure environment variables are set
+    if auth_method.lower() == "entra":
+        if not os.getenv("AZURE_CLIENT_ID"):
+            raise ValueError("Entra ID authentication requires AZURE_CLIENT_ID environment variable")
+
+    # Gather from either environment or config
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT") or config.AZURE_OPENAI_ENDPOINT
+    azure_api_key = os.getenv("AZURE_OPENAI_API_KEY") or config.AZURE_OPENAI_API_KEY
+    azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION") or config.AZURE_OPENAI_API_VERSION
+    azure_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME") or config.AZURE_OPENAI_DEPLOYMENT_NAME
+
+    if not azure_endpoint:
+        raise ValueError("Azure OpenAI endpoint is not defined (AZURE_OPENAI_ENDPOINT).")
+    if not azure_api_version:
+        raise ValueError("Azure OpenAI API version is not defined (AZURE_OPENAI_API_VERSION).")
+    if not azure_deployment:
+        raise ValueError("Azure OpenAI deployment name is not defined (AZURE_OPENAI_DEPLOYMENT_NAME).")
+
+    for _ in range(_pool_size):
+        if auth_method.lower() == "entra":
+            # Managed identity or service principal approach
+            from azure.identity.aio import DefaultAzureCredential
+            from azure.identity import get_bearer_token_provider
+
+            credential = DefaultAzureCredential()
+            token_provider = get_bearer_token_provider(
+                credential, "https://cognitiveservices.azure.com/.default"
+            )
+
+            # Construct AsyncAzureOpenAI with a token-based approach
+            client = AsyncAzureOpenAI(
+                azure_ad_token_provider=token_provider,
+                # Endpoint/Version must also be passed
+                azure_endpoint=azure_endpoint,
+                api_version=azure_api_version,
+                # The 'azure_deployment' field can be set if you want
+                # to default to a specific deployment.
+                azure_deployment=azure_deployment,
+                default_headers={
+                    "OData-MaxVersion": "4.0",
+                    "OData-Version": "4.0"
+                }
+            )
+        else:
+            # API Key approach
+            client = AsyncAzureOpenAI(
+                azure_endpoint=azure_endpoint,
+                api_key=azure_api_key,
+                api_version=azure_api_version,
+                azure_deployment=azure_deployment,
+                default_headers={
+                    "OData-MaxVersion": "4.0",
+                    "OData-Version": "4.0"
+                }
+            )
+
+        _client_pool.append(client)
 
 class SecureTokenProvider:
+    """
+    Demonstrates a reusable token provider that caches tokens
+    and refreshes them only on an expiring schedule.
+    """
     def __init__(self, credential):
         self._credential = credential
         self._token_cache = None
         self._refresh_lock = asyncio.Lock()
-    
+
     async def get_token(self):
         async with self._refresh_lock:
             if not self._token_cache or self._token_cache.expires_on < time.time():
@@ -78,15 +102,19 @@ class SecureTokenProvider:
         return self._token_cache.token
 
 async def get_azure_client() -> AsyncAzureOpenAI:
-    """Get an authenticated client from the pool"""
+    """
+    Retrieve an authenticated AzureOpenAI client from the pool.
+    Rotate through clients with minimal retry logic on token fetch failure.
+    """
     if not _client_pool:
         await init_client_pool()
-    
-    # Rotate clients with retry logic
+
     max_retries = 3
     for attempt in range(max_retries):
-        client = _client_pool[(len(_client_pool) + attempt) % _pool_size]
+        idx = (attempt % _pool_size)
+        client = _client_pool[idx]
         try:
+            # If using a custom SecureTokenProvider, ensure it's valid by fetching a token
             if hasattr(client, '_token_provider') and isinstance(client._token_provider, SecureTokenProvider):
                 await client._token_provider.get_token()
             return client
@@ -94,9 +122,6 @@ async def get_azure_client() -> AsyncAzureOpenAI:
             if attempt == max_retries - 1:
                 raise
             await asyncio.sleep(0.5 * (attempt + 1))
-    
-    # Refresh token if needed
-    if hasattr(client, '_token_provider') and isinstance(client._token_provider, SecureTokenProvider):
-        await client._token_provider.get_token()
-        
-    return client
+
+    # If we somehow exit the loop, try raising an error
+    raise HttpResponseError("Failed to provide a valid AzureOpenAI client from the pool.")
