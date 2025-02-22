@@ -157,7 +157,20 @@ export async function updateConfig(key, value) {
     }
 }
 
-export function getTimeoutDurations() {
+export async function getTimeoutDurations() {
+    const modelConfig = await getModelSettings();
+    const isDeepSeek = modelConfig.name.includes('DeepSeek');
+
+    // DeepSeek models need longer timeouts due to reasoning complexity
+    if (isDeepSeek) {
+        return {
+            low: 30000,     // 30s
+            medium: 60000,  // 60s
+            high: 120000    // 120s
+        };
+    }
+
+    // Standard timeouts for other models
     return {
         low: 15000,    // 15s
         medium: 30000, // 30s

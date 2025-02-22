@@ -6,7 +6,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from logging_config import logger
 
-
 # -----------------------------------------------
 # Data Source Config
 # -----------------------------------------------
@@ -20,21 +19,15 @@ class DataSourceConfig(BaseModel):
     type: Literal["azure_search", "pinecone", "elasticsearch"]
     parameters: dict
 
-
 # -----------------------------------------------
 # Main Settings Class
 # -----------------------------------------------
-from typing import ClassVar, Dict, Literal, Any, Optional
-import os  # Add this import
-from pydantic import BaseModel, Field, validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
 class Settings(BaseSettings):
     """
     Loads environment variables for DB credentials
     """
     POSTGRES_HOST: str = "chatterpostgres.postgres.database.azure.com"
-    POSTGRES_USER: str = "hperkins@chatterpostgres"  # Add server name to username
+    POSTGRES_USER: str = "hperkins@chatterpostgres"
     POSTGRES_PASSWORD: str = "Twiohmld1234!"
     POSTGRES_DB: str = "chatterdb"
     POSTGRES_PORT: int = 5432
@@ -44,18 +37,14 @@ class Settings(BaseSettings):
     WARNING_FILE_SIZE: int = 256 * 1024 * 1024
     MAX_FILE_SIZE_HUMAN: str = "512MB"
 
-    # Azure OpenAI
-    AZURE_OPENAI_ENDPOINT: str = Field(..., description="Azure OpenAI endpoint URL")
-    AZURE_OPENAI_API_KEY: str = Field(..., description="Azure OpenAI API key")
-    AZURE_OPENAI_DEPLOYMENT_NAME: str = Field(..., description="Azure OpenAI deployment name")
+    # Azure OpenAI Configuration
+    AZURE_OPENAI_ENDPOINT: str = "https://DeepSeek-R1HP.eastus2.models.ai.azure.com"
+    AZURE_OPENAI_API_KEY: str = "qmrlPygVEipb2JZ8XyNayytLL6PphKVW"
+    AZURE_OPENAI_DEPLOYMENT_NAME: str = "DeepSeek-R1"
+    AZURE_OPENAI_API_VERSION: str = "2025-01-01-preview"
 
-    # By default, accept a year of 2024 or 2025, a month 01..12, always appended with -01-preview
-    AZURE_OPENAI_API_VERSION: str = Field(
-        default="2025-01-01-preview",
-        description="Azure OpenAI API version",
-        pattern=r"202[45]-(0[1-9]|1[0-2])-01-preview",
-        json_schema_extra={"example": "2025-01-01-preview"}
-    )
+    # Model configuration
+    MODEL_REGISTRY_PATH: str = "azureml://registries/azureml-deepseek/models/DeepSeek-R1"
 
     # Timeouts and retries for "o-series" models
     O_SERIES_BASE_TIMEOUT: float = Field(
@@ -102,7 +91,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=True,  # Add this to ensure exact variable name matching
+        case_sensitive=True,
         extra="ignore"
     )
 
@@ -116,7 +105,6 @@ class Settings(BaseSettings):
             raise ValueError("Deployment name cannot be empty or just spaces")
         return trimmed
 
-
 # Initialize pydantic settings
 settings = Settings()
 
@@ -127,6 +115,30 @@ AZURE_OPENAI_ENDPOINT = settings.AZURE_OPENAI_ENDPOINT
 AZURE_OPENAI_API_KEY = settings.AZURE_OPENAI_API_KEY
 AZURE_OPENAI_DEPLOYMENT_NAME = settings.AZURE_OPENAI_DEPLOYMENT_NAME
 AZURE_OPENAI_API_VERSION = settings.AZURE_OPENAI_API_VERSION
+
+# Model-specific configurations
+MODEL_CONFIGS = {
+    "DeepSeek-R1": {
+        "max_tokens": 32000,
+        "supports_temperature": False,
+        "supports_streaming": True,
+        "is_reasoning_model": True,
+        "base_timeout": 120.0,
+        "max_timeout": 300.0,
+        "token_factor": 0.05,
+        "api_version": "2025-01-01-preview",
+        "embeddings_endpoint": f"{settings.AZURE_OPENAI_ENDPOINT}/openai/deployments/DeepSeek-R1-Embeddings/embeddings",
+        "api_key": settings.AZURE_OPENAI_API_KEY
+    },
+    AZURE_OPENAI_DEPLOYMENT_NAME: {
+        "max_tokens": 40000,
+        "supports_streaming": False,
+        "supports_temperature": False,
+        "base_timeout": settings.O_SERIES_BASE_TIMEOUT,
+        "max_timeout": settings.O_SERIES_MAX_TIMEOUT,
+        "token_factor": settings.O_SERIES_TOKEN_FACTOR
+    }
+}
 
 O_SERIES_BASE_TIMEOUT = settings.O_SERIES_BASE_TIMEOUT
 O_SERIES_MAX_TIMEOUT = settings.O_SERIES_MAX_TIMEOUT
@@ -158,63 +170,6 @@ MODEL_API_VERSIONS: Dict[str, str] = {
     "default":    "2025-01-01-preview"
 }
 
-
-# -----------------------------------------------
-# Async Config Access Helpers
-# -----------------------------------------------
-async def get_db_config(key: str, default: Any = None) -> Any:
-    """
-    Retrieves config from database by key. 
-    Returns `default` if config is not found or is None.
-    """
-    from services.config_service import ConfigService
-    from database import get_db_session
-
-    async with get_db_session() as session:
-        config_service = ConfigService(session)
-        value = await config_service.get_config(key)
-        return value if value is not None else default
-
-
-def build_azure_openai_url(deployment_name: str = None, api_version: str = None) -> str:
-    """Build Azure OpenAI endpoint URL using configuration values"""
-    deployment = deployment_name or AZURE_OPENAI_DEPLOYMENT_NAME
-    version = api_version or AZURE_OPENAI_API_VERSION
-    return f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{deployment}/chat/completions?api-version={version}"
-
-
-async def azure_openai_settings() -> dict:
-    """
-    Example function that tries to load 'azure_openai' from DB,
-    otherwise uses environment fallback.
-    """
-    return await get_db_config("azure_openai", {
-        "endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
-        "api_version": "2025-01-01-preview"
-    })
-
-
-async def model_settings() -> dict:
-    """
-    Example function that fetches per-model configs from DB,
-    or returns a fallback dictionary if not found.
-
-    NOTE: We do NOT include 'temperature' for o1 
-    since it's not supported by o-series models.
-    """
-    return await get_db_config("models", {
-        "o1": {
-            # No 'temperature' here to avoid sending it to Azure for o1
-            "max_tokens": 40000
-        },
-        "deepseek-r1": {
-            "max_tokens": 4096,
-            # This standard model can use temperature
-            "temperature": 0.7
-        }
-    })
-
-
 # -----------------------------------------------
 # PostgreSQL Connection String
 # -----------------------------------------------
@@ -222,7 +177,6 @@ POSTGRES_URL = (
     f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}"
     f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
 )
-
 
 # -----------------------------------------------
 # Azure Search Configuration
@@ -243,7 +197,30 @@ AZURE_SEARCH_FIELDS = {
 AZURE_EMBEDDING_DEPLOYMENT = os.getenv("AZURE_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002")
 AZURE_EMBEDDING_DIMENSION = int(os.getenv("AZURE_EMBEDDING_DIMENSION", "1536"))
 
+def build_azure_openai_url(deployment_name: str = None, api_version: str = None) -> str:
+    """Build the Azure OpenAI API URL"""
+    endpoint = os.getenv('AZURE_OPENAI_ENDPOINT', 
+                        'https://aoai-east-2272068338224.cognitiveservices.azure.com')
+    
+    if not endpoint:
+        raise ValueError("AZURE_OPENAI_ENDPOINT environment variable is not set")
+        
+    # Use default API version if none provided
+    if not api_version:
+        api_version = os.getenv('AZURE_OPENAI_API_VERSION', '2025-01-01-preview')
+        
+    # Use default deployment if none provided 
+    if not deployment_name:
+        deployment_name = os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME', 'o1')
 
+    base_url = endpoint.rstrip('/')
+    api_url = f"{base_url}/openai/deployments/{deployment_name}/chat/completions"
+    
+    # Add API version as query parameter
+    final_url = f"{api_url}?api-version={api_version}"
+    
+    return final_url
+    
 def get_azure_search_index_schema(index_name: str) -> dict:
     """
     Build a schema dict for Azure Cognitive Search index creation.

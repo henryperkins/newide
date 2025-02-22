@@ -10,6 +10,7 @@ from routers.session import router as session_router
 from routers.chat import router as chat_router
 from routers.files import router as files_router
 from routers.config import router as config_router
+from routers.model_stats import router as model_stats_router
 
 def lifespan(app: FastAPI):
     async def startup_event():
@@ -19,7 +20,7 @@ def lifespan(app: FastAPI):
     yield
 
 # Resolve absolute path to the static directory
-STATIC_DIR = Path(__file__).resolve().parent / "static"
+STATIC_DIR = Path("/home/azureuser/newide/static")
 
 app = FastAPI(
     docs_url=None,
@@ -55,6 +56,7 @@ app.include_router(session_router, prefix="/api/session")
 app.include_router(files_router, prefix="/api/files")
 app.include_router(chat_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
+app.include_router(model_stats_router)  # Already has prefix="/api/model-stats"
 
 # Mount static files at '/static' instead
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

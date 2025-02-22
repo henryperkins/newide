@@ -368,11 +368,30 @@ async function handleMessageError(error) {
 }
 
 /**
+ * Helper function to identify model types for specific handling.
+ */
+function getModelType(modelConfig) {
+  if (modelConfig.name.includes("o1model") || modelConfig.name.includes("o1-preview")) {
+    return "o1";
+  }
+  if (modelConfig.name.includes("DeepSeek")) {
+    return "deepseek";
+  }
+  return "standard";
+}
+
+/**
  * Helper function to check if the model is an o1 or o1-preview model.
  */
 function isO1Model(modelConfig) {
-  // Adjust this check as needed if your naming includes "o1-preview"
-  return modelConfig.name.includes("o1model") || modelConfig.name.includes("o1-preview");
+  return getModelType(modelConfig) === "o1";
+}
+
+/**
+ * Helper function to check if the model is a DeepSeek model.
+ */
+function isDeepSeekModel(modelConfig) {
+  return getModelType(modelConfig) === "deepseek";
 }
 
 /**
@@ -384,12 +403,18 @@ export async function sendMessage() {
   const modelConfig = await getModelSettings();
   window.isO1Model = isO1Model(modelConfig);
 
-  // Basic checks for o-series:
+  // Basic model-specific checks:
   if (isO1Model(modelConfig)) {
-    // These specialized reasoning models do not support streaming:
+    // o-series models do not support streaming
     if (document.getElementById("streaming-toggle").checked) {
       showNotification("o-series models do not support streaming", "error");
       return;
+    }
+  } else if (isDeepSeekModel(modelConfig)) {
+    // DeepSeek models support streaming but require reasoning effort
+    if (!config.reasoningEffort) {
+      showNotification("DeepSeek models require reasoning effort to be specified", "warning");
+      config.reasoningEffort = "medium"; // Set default
     }
   }
 
@@ -524,19 +549,32 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
   }
 
   /** 
-   * For o1 / o1-preview models, `max_completion_tokens` is mandatory
-   * and we must not set `max_tokens`. Also temperature must be 1 for o1-preview.
+   * Build request body based on model type and requirements
    */
+  const fileContext = getFilesForChat();
+  console.log("[handleChatRequest] File context:", fileContext);
+    
   const requestBody = {
     messages: [
       {
         role: "user",
         content: typeof messageContent === "string" ? messageContent : JSON.stringify(messageContent)
       }
-    ]
+    ],
+    include_files: fileContext.include_files,
+    file_ids: fileContext.file_ids,
+    use_file_search: fileContext.use_file_search
   };
 
-  // If we detect an o1 or o1-preview model, set relevant parameters
+  // Add model-specific parameters
+  if (isDeepSeekModel(modelConfig)) {
+    requestBody.reasoning_effort = reasoningEffort || "medium";
+    if (modelConfig.capabilities?.max_tokens) {
+      requestBody.max_tokens = modelConfig.capabilities.max_tokens;
+    }
+  }
+
+  // Handle model-specific parameters
   if (isO1Model(modelConfig)) {
     // Use max_completion_tokens if the config provides it.
     if (modelConfig.capabilities?.max_completion_tokens) {
@@ -553,11 +591,10 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
     }
   }
 
-  // If the model is not o1, see if there's a developer message to prepend
-  // or a "normal" temperature setting:
+  // Handle non-o1 model parameters
   else {
-    // Non-o1 models can use whatever temperature is in capabilities or config
-    if (modelConfig.capabilities?.temperature !== undefined) {
+    // DeepSeek models don't support temperature
+    if (!isDeepSeekModel(modelConfig) && modelConfig.capabilities?.temperature !== undefined) {
       requestBody.temperature = modelConfig.capabilities.temperature;
     }
   }

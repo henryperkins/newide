@@ -15,8 +15,7 @@ class AzureSearchService:
     def __init__(self, azure_client=None):
         self.endpoint = config.AZURE_SEARCH_ENDPOINT
         self.api_key = config.AZURE_SEARCH_KEY
-        from utils import resolve_api_version
-        self.api_version = resolve_api_version(deployment_name)
+        self.api_version = config.MODEL_API_VERSIONS.get("default", "2025-01-01-preview")
         self.azure_client = azure_client
     
     async def create_search_index(self, session_id: str) -> bool:

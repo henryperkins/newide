@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db_session
-from clients import get_azure_client
+from clients import get_model_client
 from models import ChatMessage, CreateChatCompletionRequest, ChatCompletionResponse
 from services.chat_service import process_chat_message
 from errors import create_error_response
@@ -19,7 +19,6 @@ import config
 
 router = APIRouter(prefix="/chat")
 
-
 class ChatRequest(BaseModel):
     """
     Example: an alternate request body for streaming or custom endpoints,
@@ -27,23 +26,21 @@ class ChatRequest(BaseModel):
     """
     message: str
     session_id: str
+    model: str = None  # Optional model selection
     reasoning_effort: str = "medium"
     include_files: bool = False
-
 
 @router.post("/")
 async def create_chat_completion(
     request: CreateChatCompletionRequest,
     api_version: str = Query(..., alias="api-version"),
-    db: AsyncSession = Depends(get_db_session),
-    client: "AsyncAzureOpenAI" = Depends(get_azure_client)
+    db: AsyncSession = Depends(get_db_session)
 ):
     """
     Receives a CreateChatCompletionRequest from the client, 
     validates the API version, merges any developer_config, etc.
     Returns a ChatCompletionResponse following usual Azure OpenAI style.
     """
-
     # Validate requested API version
     if api_version != config.AZURE_OPENAI_API_VERSION:
         logger.error(f"API version mismatch: {api_version} vs {config.AZURE_OPENAI_API_VERSION}")
@@ -54,45 +51,56 @@ async def create_chat_completion(
             error_type="invalid_request_error"
         )
 
-    # Optionally warn if user provided a different model name than expected
-    if request.model != config.AZURE_OPENAI_DEPLOYMENT_NAME:
-        logger.warning(
-            f"Model name mismatch: {request.model} vs {config.AZURE_OPENAI_DEPLOYMENT_NAME}"
+    # Get model name from request or use default
+    model_name = request.model or config.AZURE_OPENAI_DEPLOYMENT_NAME
+    
+    # Validate model name
+    if model_name not in config.MODEL_CONFIGS:
+        raise create_error_response(
+            status_code=400,
+            code="invalid_request_error",
+            message=f"Unsupported model: {model_name}",
+            error_type="invalid_request_error"
         )
 
+    # Get appropriate client for the model
+    client = await get_azure_client(model_name)
+
     # Build an internal ChatMessage object from the request
-    # (We only take the last message's content to store as 'message', for example)
     chat_message = ChatMessage(
         message=request.messages[-1]["content"],
-        session_id=request.session_id,  # for your internal state tracking
+        session_id=request.session_id,
         developer_config=request.developer_config,
         reasoning_effort=request.reasoning_effort,
         include_files=request.include_files,
-        response_format=None,
-        max_completion_tokens=request.max_completion_tokens
+        response_format=request.response_format if hasattr(request, 'response_format') else None,
+        max_completion_tokens=request.max_completion_tokens if hasattr(request, 'max_completion_tokens') else None,
+        temperature=request.temperature if hasattr(request, 'temperature') else None
     )
 
-    # Delegates the heavy-lifting to process_chat_message
-    response_data = await process_chat_message(chat_message, db, client)
+    # Process the chat message with the specified model
+    response_data = await process_chat_message(
+        chat_message=chat_message,
+        db_session=db,
+        azure_client=client,
+        model_name=model_name
+    )
 
-    # Return the response in a standard shape, e.g. ChatCompletionResponse
     return ChatCompletionResponse(**response_data)
-
 
 @router.post("/stream")
 async def stream_chat_response(
     request: Request,
-    client: "AsyncAzureOpenAI" = Depends(get_azure_client)
+    db: AsyncSession = Depends(get_db_session)
 ):
     """
-    SSE-style streaming endpoint for certain model types.
-    Example scenario: streaming for o3-mini, disallow for o1.
+    SSE-style streaming endpoint for models that support it.
     """
-
     try:
         request_data = await request.json()
         message = request_data.get("message")
-        session_id = request_data.get("session_id", None)
+        session_id = request_data.get("session_id")
+        model_name = request_data.get("model", config.AZURE_OPENAI_DEPLOYMENT_NAME)
 
         if not message or not session_id:
             raise HTTPException(
@@ -105,6 +113,22 @@ async def stream_chat_response(
                     }
                 }
             )
+
+        # Validate model supports streaming
+        model_config = config.MODEL_CONFIGS.get(model_name)
+        if not model_config or not model_config.get("supports_streaming", False):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "message": f"Streaming not supported for model: {model_name}",
+                        "type": "validation_error"
+                    }
+                }
+            )
+
+        # Get appropriate client
+        client = await get_azure_client(model_name)
 
         # Validate reasoning_effort
         reasoning_effort = request_data.get("reasoning_effort", "medium")
@@ -121,7 +145,7 @@ async def stream_chat_response(
             )
 
         return StreamingResponse(
-            generate(message, client, reasoning_effort),
+            generate(message, client, model_name, reasoning_effort, db, session_id),
             media_type="text/event-stream",
             headers={
                 "X-Accel-Buffering": "no",
@@ -130,63 +154,53 @@ async def stream_chat_response(
         )
 
     except Exception as e:
+        logger.error(f"Error in stream endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-async def generate(message: str, client: "AsyncAzureOpenAI", reasoning_effort: str = "medium"):
+async def generate(
+    message: str,
+    client: "AsyncAzureOpenAI",
+    model_name: str,
+    reasoning_effort: str,
+    db: AsyncSession,
+    session_id: str
+):
     """
-    Generator for SSE chunked streaming. Permitted only for 'o3-mini' in this example.
+    Generator for SSE chunked streaming.
     """
-
-    deployment_name = config.AZURE_OPENAI_DEPLOYMENT_NAME.lower()
-
-    # Check if this is an o-series model
-    is_o_series = any(m in deployment_name for m in ["o1-", "o3-"]) and "preview" not in deployment_name
+    model_config = config.MODEL_CONFIGS[model_name]
 
     # Build the minimal parameters needed for AzureOpenAI call
     params = {
-        "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,  # Usually the deployment name
         "messages": [{"role": "user", "content": message}],
-        "stream": True
+        "stream": True,
+        "max_tokens": model_config["max_tokens"]
     }
 
-    if is_o_series:
-        # For o-series, we can only stream if it's o3-mini (per your logic)
-        if "o3-mini" not in deployment_name:
-            raise HTTPException(
-                status_code=400,
-                detail="Streaming only supported for o3-mini models in this deployment."
-            )
-
-        # So for o3-mini, we do max_completion_tokens + reasoning_effort
-        params["max_completion_tokens"] = 40000
-        params["reasoning_effort"] = reasoning_effort
+    # Add model-specific parameters
+    if model_config.get("supports_temperature", True):
+        params["temperature"] = 0.7
     else:
-        # Non-o-series fallback (just an example)
-        # E.g. use normal 'max_tokens'
-        params["max_tokens"] = 4096
+        params["reasoning_effort"] = reasoning_effort
 
     try:
-        # Make the streaming request. The library uses 'model' param 
-        # as the deployment ID in AzureOpenAI vs. the standard OpenAI.
-        response = await client.chat.completions.create(
-            **{k: v for k, v in params.items() if k != "api_version"}
-        )
+        response = await client.chat.completions.create(**params)
 
-        # SSE chunk emission
+        # Track the message content for saving
+        full_content = ""
+
         async for chunk in response:
             response_data = {
                 "id": f"chatcmpl-{uuid.uuid4()}",
                 "object": "chat.completion.chunk",
                 "created": int(time.time()),
-                "model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
+                "model": model_name,
                 "system_fingerprint": getattr(response, "system_fingerprint", ""),
                 "choices": []
             }
 
             chunk_choices = []
             for idx, choice in enumerate(chunk.choices):
-                # Build partial response object
                 partial = {
                     "index": idx,
                     "delta": {},
@@ -194,13 +208,14 @@ async def generate(message: str, client: "AsyncAzureOpenAI", reasoning_effort: s
                 }
 
                 if getattr(choice.delta, "content", None):
-                    partial["delta"]["content"] = choice.delta.content
+                    content = choice.delta.content
+                    full_content += content
+                    partial["delta"]["content"] = content
                 if getattr(choice.delta, "role", None):
                     partial["delta"]["role"] = choice.delta.role
                 if getattr(choice.delta, "tool_calls", None):
                     partial["delta"]["tool_calls"] = choice.delta.tool_calls
 
-                # Optionally attach content_filter_results
                 if hasattr(choice, "content_filter_results"):
                     partial["content_filter_results"] = choice.content_filter_results
 
@@ -209,32 +224,71 @@ async def generate(message: str, client: "AsyncAzureOpenAI", reasoning_effort: s
             response_data["choices"] = chunk_choices
             yield f"data: {json.dumps(response_data)}\n\n"
 
+        # Save the conversation to the database
+        if full_content:
+            user_msg = Conversation(
+                session_id=session_id,
+                role="user",
+                content=message,
+                model=model_name
+            )
+            assistant_msg = Conversation(
+                session_id=session_id,
+                role="assistant",
+                content=full_content,
+                model=model_name
+            )
+            db.add(user_msg)
+            db.add(assistant_msg)
+            
+            await db.execute(
+                text("""
+                    UPDATE sessions 
+                    SET last_activity = NOW(),
+                        last_model = :model_name
+                    WHERE id = :session_id
+                """),
+                {
+                    "session_id": session_id,
+                    "model_name": model_name
+                }
+            )
+            await db.commit()
+
     except Exception as e:
-        # Return an SSE-friendly error
         error_payload = {"error": str(e)}
         yield f"data: {json.dumps(error_payload)}\n\n"
 
-
 @router.get("/model/capabilities")
-async def get_model_capabilities():
+async def get_model_capabilities(
+    model: str = Query(None, description="Model to get capabilities for")
+):
     """
-    Example endpoint to retrieve various model capabilities
-    like streaming, vision, max tokens, etc.
+    Get capabilities for a specific model or all available models.
     """
-    deployment_name = config.AZURE_OPENAI_DEPLOYMENT_NAME.lower()
-    is_o_series = any(m in deployment_name for m in ["o1-", "o3-"])
-
-    return {
-        "model": deployment_name,
-        "capabilities": {
-            # "o3-mini" in the name means we allow streaming
-            "supports_streaming": "o3-mini" in deployment_name,
-            # "o1" in the name means we interpret as vision support in your scenario
-            "supports_vision": "o1" in deployment_name,
-            # For example, 40000 tokens for an o-series big context,
-            # or fallback 4096 for older or standard models
-            "max_tokens": 40000 if is_o_series else 4096,
-            # The selected API version
-            "api_version": config.AZURE_OPENAI_API_VERSION
+    if model:
+        if model not in config.MODEL_CONFIGS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown model: {model}"
+            )
+        model_config = config.MODEL_CONFIGS[model]
+        return {
+            "model": model,
+            "capabilities": {
+                "supports_streaming": model_config.get("supports_streaming", False),
+                "supports_temperature": model_config.get("supports_temperature", True),
+                "max_tokens": model_config.get("max_tokens", 4096),
+                "api_version": config.AZURE_OPENAI_API_VERSION
+            }
         }
-    }
+    else:
+        # Return capabilities for all models
+        return {
+            name: {
+                "supports_streaming": cfg.get("supports_streaming", False),
+                "supports_temperature": cfg.get("supports_temperature", True),
+                "max_tokens": cfg.get("max_tokens", 4096)
+            }
+            for name, cfg in config.MODEL_CONFIGS.items()
+        }

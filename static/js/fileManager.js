@@ -17,7 +17,7 @@ export function initializeFileManager() {
     setupMobileHandlers();
     
     // Initialize file search toggle
-    const fileSearchToggle = document.getElementById('use-file-search');
+    const fileSearchToggle = document.getElementById('azure-search');
     if (fileSearchToggle) {
         fileSearchToggle.addEventListener('change', (e) => {
             useFileSearch = e.target.checked;
@@ -117,7 +117,7 @@ export async function loadFilesList(retryCount = 0, limit = 20, cursor = null) {
 }
 
 export function setupDragAndDrop() {
-    const dropZone = document.getElementById('drop-zone');
+    const dropZone = document.querySelector('.file-drop-area');
     const fileInput = document.getElementById('file-input');
     
     if (!dropZone || !fileInput) {
@@ -320,7 +320,7 @@ async function uploadFileWithProgress(file, sessionId, progressUI) {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('session_id', sessionId);
-        formData.append('process_with_azure', useFileSearch);
+        formData.append('process_with_azure', useFileSearch ? 'true' : 'false');
         
         // Setup progress tracking with XMLHttpRequest
         const xhr = new XMLHttpRequest();

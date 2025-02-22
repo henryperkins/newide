@@ -7,7 +7,8 @@ from errors import create_error_response
 from models import FileResponseModel, FileListResponse, DeleteFileResponse
 from utils import count_tokens
 from services.azure_file_service import AzureFileService
-from clients import get_azure_client
+from services.azure_search_service import AzureSearchService
+from clients import get_model_client  # Changed from get_azure_client
 import uuid
 import config
 import datetime
@@ -25,7 +26,7 @@ async def upload_file(
     session_id: str = Form(...),
     process_with_azure: bool = Form(False),
     db_session: AsyncSession = Depends(get_db_session),
-    azure_client: Optional[Any] = Depends(get_azure_client),
+    azure_client: Optional[Any] = Depends(get_model_client),  # Changed from get_azure_client
 ):
     """Upload a file with enhanced processing options.
 
@@ -81,6 +82,7 @@ async def upload_file(
         metadata = {
             "filename": filename,
             "original_size": size,
+            "azure_enabled": process_with_azure,
             "processed_time": datetime.datetime.now().isoformat(),
             "token_count": processed_data["token_count"],
             "chunk_count": processed_data["chunk_count"],
@@ -248,7 +250,7 @@ async def delete_file(
     session_id: str,
     file_id: str,
     db_session: AsyncSession = Depends(get_db_session),
-    azure_client: Optional[Any] = Depends(get_azure_client)
+    azure_client: Optional[Any] = Depends(get_model_client),  # Changed from get_azure_client
 ):
     """Delete a file and its associated chunks if applicable.
 
@@ -331,7 +333,7 @@ async def process_file_with_azure(
     file_id: str,
     session_id: str,
     chunk_ids: List[str],
-    azure_client: Any
+    azure_client: Any  # This is now a model client
 ):
     """Process file with Azure OpenAI and update status.
 
@@ -343,33 +345,39 @@ async def process_file_with_azure(
     """
     try:
         file_service = AzureFileService(azure_client)
-        if chunk_ids:
-            for chunk_id in chunk_ids:
-                async with AsyncSessionLocal() as db_session:
-                    chunk_data = await db_session.get(UploadedFile, chunk_id)
-                    if chunk_data:
-                        vector_store_id = chunk_data.file_metadata.get("vector_store_id")
-                        azure_file_id = chunk_data.file_metadata.get("azure_file_id")
-                        await file_service.add_file_to_vector_store(vector_store_id, azure_file_id)
-                        processing_success = await file_service.wait_for_file_processing(vector_store_id, azure_file_id)
-                        await update_file_status(
-                            chunk_id,
-                            "ready" if processing_success else "processing_error",
-                            {
-                                "azure_processing": "completed" if processing_success else "failed",
-                                "vector_store_id": vector_store_id,
-                                "azure_file_id": azure_file_id,
-                                "process_complete_time": datetime.datetime.now().isoformat()
-                            }
-                        )
-        else:
+        search_service = AzureSearchService(azure_client)
+        
+        # First, create or ensure search index exists
+        await search_service.create_search_index(session_id)
+        
+        async def process_single_file(file_id: str):
             async with AsyncSessionLocal() as db_session:
                 file_data = await db_session.get(UploadedFile, file_id)
                 if file_data:
-                    vector_store_id = file_data.file_metadata.get("vector_store_id")
-                    azure_file_id = file_data.file_metadata.get("azure_file_id")
+                    # Create Azure file
+                    azure_file_id = await file_service.create_azure_file(
+                        file_data.content,
+                        file_data.filename
+                    )
+                    
+                    # Upload to search index
+                    search_success = await search_service.upload_file_to_index(
+                        session_id=session_id,
+                        file_id=str(file_data.id),
+                        filename=file_data.filename,
+                        content=file_data.content,
+                        file_type=file_data.file_type
+                    )
+                    
+                    # Get or create vector store
+                    vector_store = await file_service.get_vector_store_for_session(session_id)
+                    vector_store_id = vector_store["id"]
+                    
+                    # Add file to vector store
                     await file_service.add_file_to_vector_store(vector_store_id, azure_file_id)
-                    processing_success = await file_service.wait_for_file_processing(vector_store_id, azure_file_id)
+                    vector_success = await file_service.wait_for_file_processing(vector_store_id, azure_file_id)
+                    
+                    processing_success = search_success and vector_success
                     await update_file_status(
                         file_id,
                         "ready" if processing_success else "processing_error",
@@ -377,9 +385,17 @@ async def process_file_with_azure(
                             "azure_processing": "completed" if processing_success else "failed",
                             "vector_store_id": vector_store_id,
                             "azure_file_id": azure_file_id,
+                            "search_index": f"index-{session_id}",
                             "process_complete_time": datetime.datetime.now().isoformat()
                         }
                     )
+        
+        # Process chunks if they exist, otherwise process the main file
+        if chunk_ids:
+            for chunk_id in chunk_ids:
+                await process_single_file(chunk_id)
+        else:
+            await process_single_file(file_id)
 
     except Exception as e:
         logger.exception(f"Error processing file with Azure: {e}")

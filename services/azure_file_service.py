@@ -47,8 +47,7 @@ class AzureFileService:
         payload = {
             "name": name,
             "description": description,
-            "metadata": metadata or {},
-            "index_schema": config.get_azure_search_index_schema(name)
+            "metadata": metadata or {}
         }
         
         # Make API call

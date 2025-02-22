@@ -1,207 +1,225 @@
-import { initializeSession } from '/static/js/session.js';
-import { initializeConfig } from '/static/js/config.js';
-import { initializeFileManager } from '/static/js/fileManager.js';
-import { showNotification } from '/static/js/ui/notificationManager.js';
-import { configureMarkdown, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
-import { initializeTheme } from '/static/js/utils/helpers.js';
+// Main application logic
 
-// Main application entry point
-async function initializeAzureConfig(retryCount = 3, retryDelay = 1000) {
-    try {
-        let lastError = null;
-        
-        for (let attempt = 1; attempt <= retryCount; attempt++) {
-            try {
-                const response = await fetch('/api/config/', {
-                    headers: { 'Accept': 'application/json' }
-                });
-                
-                if (response.status === 422) {
-                    const errorData = await response.json();
-                    console.error("[initializeAzureConfig] Validation error:", errorData);
-                    throw new Error(`Config validation failed: ${errorData.detail || 'Unknown validation error'}`);
-                }
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const config = await response.json();
-                console.log("[initializeAzureConfig] Config response:", config);
+import { modelManager } from './models.js';
+import { displayManager } from './ui/displayManager.js';
+import { notificationManager } from './ui/notificationManager.js';
+import { markdownParser } from './ui/markdownParser.js';
+import { fileManager } from './fileManager.js';
 
-                // Validate required fields
-                const requiredFields = {
-                    deploymentName: "deployment name",
-                    'models': "model configuration",
-                    'azureOpenAI.apiKey': "API key"
-                };
+class ChatApplication {
+    constructor() {
+        this.sessionId = null;
+        this.userInput = document.getElementById('user-input');
+        this.sendButton = document.getElementById('send-button');
+        this.chatHistory = document.getElementById('chat-history');
+        this.isProcessing = false;
 
-                for (const [field, label] of Object.entries(requiredFields)) {
-                    const value = field.split('.').reduce((obj, key) => obj?.[key], config);
-                    if (!value) {
-                        throw new Error(`Missing ${label} in configuration`);
-                    }
-                }
-
-                if (!config.models?.[config.deploymentName]) {
-                    throw new Error(`No model configuration found for deployment: ${config.deploymentName}`);
-                }
-
-                const modelConfig = config.models[config.deploymentName];
-                
-                window.azureOpenAIConfig = {
-                    endpoint: modelConfig.endpoint || "https://o1models.openai.azure.com",
-                    apiKey: config.azureOpenAI.apiKey,
-                    deploymentName: config.deploymentName
-                };
-
-                console.log("[initializeAzureConfig] Successfully initialized with deployment:", config.deploymentName);
-                return true;
-                
-            } catch (error) {
-                lastError = error;
-                console.warn(`[initializeAzureConfig] Attempt ${attempt}/${retryCount} failed:`, error);
-                
-                if (error.message.includes('validation failed') || error.message.includes('422')) {
-                    // Don't retry validation errors
-                    break;
-                }
-                
-                if (attempt < retryCount) {
-                    await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
-                }
-            }
-        }
-        
-        // If we get here, all attempts failed
-        throw lastError || new Error('Failed to initialize Azure configuration');
-    } catch (error) {
-        handleInitializationError(error);
-    }
-}
-
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        // Initialize core components
-        initializeTabSystem();
-        initializeTheme();
-        initializeTokenUsageUI();
-        await initializeMarkdownSupport();
-        await initializeAzureConfig();
-        await initializeConfig();
-        await initializeSession();
-        await initializeFileManager();
-
-        console.log(`Application initialized successfully at ${new Date().toISOString()}`);
-    } catch (error) {
-        handleInitializationError(error);
-    }
-});
-
-/**
- * Initialize token usage UI components
- */
-function initializeTokenUsageUI() {
-    const tokenUsage = document.querySelector('.token-usage-compact');
-    if (!tokenUsage) return;
-
-    // Restore previous visibility state
-    const wasVisible = localStorage.getItem('token-usage-visible') === 'true';
-    if (!wasVisible) {
-        tokenUsage.classList.remove('active');
+        this.init();
     }
 
-    // Create toggle button if it doesn't exist
-    if (!document.querySelector('.token-usage-toggle')) {
-        const toggle = document.createElement('button');
-        toggle.className = 'token-usage-toggle';
-        toggle.innerHTML = '📊';
-        toggle.title = 'Toggle token usage';
-        toggle.onclick = () => {
-            tokenUsage.classList.toggle('active');
-            localStorage.setItem('token-usage-visible', tokenUsage.classList.contains('active'));
-        };
-        tokenUsage.appendChild(toggle);
-    }
-}
-
-/**
- * Initialize tab system with click handlers
- */
-function initializeTabSystem() {
-    const tabs = document.querySelectorAll('[role="tab"]');
-    const panels = document.querySelectorAll('[role="tabpanel"]');
-    
-    // Hide all panels initially except the first one
-    panels.forEach((panel, index) => {
-        if (index !== 0) {
-            panel.style.display = 'none';
-        }
-    });
-    
-    tabs.forEach(tab => {
-        tab.addEventListener('click', (e) => {
-            e.preventDefault();
-            
-            // Deactivate all tabs
-            tabs.forEach(t => {
-                t.setAttribute('aria-selected', 'false');
-                t.classList.remove('active');
+    async init() {
+        try {
+            // Initialize session
+            const response = await fetch('/api/session/create', {
+                method: 'POST'
             });
+            const data = await response.json();
+            this.sessionId = data.session_id;
+
+            // Set up event listeners
+            this.setupEventListeners();
             
-            // Hide all panels
-            panels.forEach(p => {
-                p.style.display = 'none';
-                p.classList.remove('active');
-            });
-            
-            // Activate clicked tab
-            const clickedTab = e.currentTarget;
-            clickedTab.setAttribute('aria-selected', 'true');
-            clickedTab.classList.add('active');
-            
-            // Show corresponding panel
-            const panelId = clickedTab.getAttribute('aria-controls');
-            const panel = document.getElementById(panelId);
-            if (panel) {
-                panel.style.display = 'block';
-                panel.classList.add('active');
+            // Initialize file handling
+            await fileManager.init(this.sessionId);
+
+            // Initial model capabilities check
+            await this.checkModelCapabilities();
+        } catch (error) {
+            console.error('Initialization error:', error);
+            notificationManager.showError('Failed to initialize chat application');
+        }
+    }
+
+    setupEventListeners() {
+        // Send message on button click
+        this.sendButton.addEventListener('click', () => this.sendMessage());
+
+        // Send message on Enter (but new line on Shift+Enter)
+        this.userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.sendMessage();
             }
         });
-    });
-}
 
-async function initializeMarkdownSupport() {
-    if (!configureMarkdown()) {
-        showNotification(
-            "Markdown support limited - required libraries not loaded",
-            "warning",
-            8000
-        );
-    }
-    injectMarkdownStyles();
-}
+        // Auto-resize textarea
+        this.userInput.addEventListener('input', () => {
+            this.userInput.style.height = 'auto';
+            this.userInput.style.height = this.userInput.scrollHeight + 'px';
+        });
 
-function handleInitializationError(error) {
-    console.error("[handleInitializationError] Critical error:", error);
-
-    let errorMessage = "Failed to initialize application";
-    
-    if (error.message.includes('validation failed')) {
-        errorMessage = error.message;
-    } else if (error.message.includes('API key')) {
-        errorMessage = "Azure OpenAI API key is missing or invalid. Please check your configuration.";
-    } else {
-        errorMessage = `${errorMessage}: ${error.message}`;
+        // Handle model changes
+        window.addEventListener('modelChanged', async (e) => {
+            await this.checkModelCapabilities();
+        });
     }
 
-    const chatInterface = document.getElementById('chat-interface');
-    const errorDisplay = document.getElementById('error-display');
-    
-    showNotification(errorMessage, "error", 10000);
-    
-    if (chatInterface) chatInterface.style.display = 'none';
-    if (errorDisplay) {
-        errorDisplay.style.display = 'block';
-        errorDisplay.textContent = errorMessage;
+    async checkModelCapabilities() {
+        const capabilities = await modelManager.getModelCapabilities();
+        if (capabilities) {
+            // Update UI based on model capabilities
+            const streamToggle = document.querySelector('.stream-toggle input');
+            if (streamToggle) {
+                streamToggle.disabled = !capabilities.capabilities.supports_streaming;
+                if (!capabilities.capabilities.supports_streaming) {
+                    streamToggle.checked = false;
+                }
+            }
+        }
+    }
+
+    async sendMessage() {
+        if (this.isProcessing || !this.userInput.value.trim()) return;
+
+        try {
+            this.isProcessing = true;
+            this.sendButton.disabled = true;
+
+            const message = this.userInput.value.trim();
+            this.userInput.value = '';
+            this.userInput.style.height = 'auto';
+
+            // Add user message to display
+            displayManager.addMessage('user', message);
+
+            // Get current model and settings
+            const currentModel = modelManager.currentModel;
+            const useStreaming = document.querySelector('.stream-toggle input')?.checked && 
+                               MODEL_CONFIGS[currentModel].features.streaming;
+            
+            // Prepare request parameters
+            const params = {
+                message,
+                session_id: this.sessionId,
+                model: currentModel,
+                include_files: fileManager.hasFiles(),
+                use_file_search: document.getElementById('azure-search')?.checked || false
+            };
+
+            if (MODEL_CONFIGS[currentModel].features.reasoning) {
+                const reasoningSlider = document.getElementById('reasoning-effort-slider');
+                if (reasoningSlider) {
+                    const efforts = ['low', 'medium', 'high'];
+                    params.reasoning_effort = efforts[reasoningSlider.value - 1];
+                }
+            }
+
+            if (useStreaming) {
+                await this.handleStreamingResponse(params);
+            } else {
+                await this.handleStandardResponse(params);
+            }
+
+        } catch (error) {
+            console.error('Error sending message:', error);
+            notificationManager.showError('Failed to send message');
+        } finally {
+            this.isProcessing = false;
+            this.sendButton.disabled = false;
+        }
+    }
+
+    async handleStreamingResponse(params) {
+        try {
+            const response = await fetch('/api/chat/stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+
+            if (!response.ok) throw new Error('Stream request failed');
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let accumulatedResponse = '';
+            
+            displayManager.startNewMessage('assistant');
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.choices && data.choices[0]?.delta?.content) {
+                                const content = data.choices[0].delta.content;
+                                accumulatedResponse += content;
+                                displayManager.appendToLastMessage(content);
+                            }
+                        } catch (e) {
+                            console.error('Error parsing SSE data:', e);
+                        }
+                    }
+                }
+            }
+
+            // Update token counts if available in the last chunk
+            if (accumulatedResponse) {
+                const lastChunk = JSON.parse(accumulatedResponse);
+                if (lastChunk.usage) {
+                    modelManager.updateTokenCounts(lastChunk.usage);
+                }
+            }
+
+        } catch (error) {
+            console.error('Streaming error:', error);
+            notificationManager.showError('Error during streaming response');
+        }
+    }
+
+    async handleStandardResponse(params) {
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'api-version': '2024-05-01-preview'
+                },
+                body: JSON.stringify({
+                    messages: [{ role: 'user', content: params.message }],
+                    model: params.model,
+                    session_id: params.session_id,
+                    reasoning_effort: params.reasoning_effort,
+                    include_files: params.include_files,
+                    use_file_search: params.use_file_search
+                })
+            });
+
+            if (!response.ok) throw new Error('Request failed');
+
+            const data = await response.json();
+            const content = data.choices[0].message.content;
+
+            displayManager.addMessage('assistant', content);
+            
+            // Update token counts
+            if (data.usage) {
+                modelManager.updateTokenCounts(data.usage);
+            }
+
+        } catch (error) {
+            console.error('Standard response error:', error);
+            notificationManager.showError('Error getting response');
+        }
     }
 }
+
+// Initialize the application when the DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    window.chatApp = new ChatApplication();
+});

@@ -1,168 +1,105 @@
+from sqlalchemy import create_engine, text
 import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy import text
 import config
-import json
-from datetime import datetime
-
-async def initialize_default_configs(conn):
-    """Initialize default configurations in database"""
-    
-    # Insert default configurations
-    deployment_name = config.AZURE_OPENAI_DEPLOYMENT_NAME
-    default_configs = [
-        {
-            "key": "selectedModel",
-            "value": json.dumps(deployment_name),
-            "description": "Currently selected model"
-        },
-        {
-            "key": "models",
-            "value": json.dumps({
-                deployment_name: {
-                    "max_tokens": 40000,
-                    "temperature": 1.0,
-                    "endpoint": config.AZURE_OPENAI_ENDPOINT,
-                    "api_version": config.AZURE_OPENAI_API_VERSION,
-                    "deployment_name": deployment_name,
-                    "capabilities": {
-                        "supports_streaming": False,
-                        "supports_vision": False,
-                        "requires_reasoning_effort": True,
-                        "max_completion_tokens": 40000,
-                        "fixed_temperature": 1.0
-                    }
-                }
-            }),
-            "description": "Model configurations including Azure OpenAI settings"
-        },
-        {
-            "key": "reasoningEffort",
-            "value": json.dumps("medium"),
-            "description": "Default reasoning effort level"
-        },
-        {
-            "key": "includeFiles",
-            "value": json.dumps(False),
-            "description": "Whether to include files in chat context"
-        }
-    ]
-
-    # Insert or update configurations
-    for config_item in default_configs:
-        await conn.execute(
-            text("""
-                INSERT INTO app_configurations (key, value, description, updated_at)
-                VALUES (:key, :value, :description, NOW())
-                ON CONFLICT (key) DO UPDATE
-                SET value = EXCLUDED.value,
-                    description = EXCLUDED.description,
-                    updated_at = NOW()
-            """),
-            config_item
-        )
 
 async def init_database():
-    """Initialize the database and create tables"""
+    """Initialize the database with required tables."""
+    
     engine = create_async_engine(config.POSTGRES_URL)
     
-    try:
-        async with engine.begin() as conn:
-            # Create sessions table
+    async with engine.begin() as conn:
+        # Create sessions table
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                id UUID PRIMARY KEY,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                last_model VARCHAR(50),
+                metadata JSONB
+            )
+        """))
+
+        # Create conversations table with model tracking
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS conversations (
+                id SERIAL PRIMARY KEY,
+                session_id UUID REFERENCES sessions(id),
+                role VARCHAR(50) NOT NULL,
+                content TEXT NOT NULL,
+                model VARCHAR(50),
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                metadata JSONB
+            )
+        """))
+
+        # Create uploaded_files table
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS uploaded_files (
+                id UUID PRIMARY KEY,
+                session_id UUID REFERENCES sessions(id),
+                filename VARCHAR(255) NOT NULL,
+                content TEXT,
+                status VARCHAR(50),
+                chunk_count INTEGER,
+                metadata JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+
+        # Create app_configurations table
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS app_configurations (
+                key VARCHAR(255) PRIMARY KEY,
+                value JSONB NOT NULL,
+                description TEXT,
+                is_secret BOOLEAN DEFAULT false,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+
+        # Create model_usage_stats table
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS model_usage_stats (
+                id SERIAL PRIMARY KEY,
+                model VARCHAR(50) NOT NULL,
+                session_id UUID REFERENCES sessions(id),
+                prompt_tokens INTEGER NOT NULL,
+                completion_tokens INTEGER NOT NULL,
+                total_tokens INTEGER NOT NULL,
+                reasoning_tokens INTEGER,
+                cached_tokens INTEGER,
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                metadata JSONB
+            )
+        """))
+
+        # Create indexes
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_conversations_session_id ON conversations(session_id);
+            CREATE INDEX IF NOT EXISTS idx_conversations_timestamp ON conversations(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_conversations_model ON conversations(model);
+            CREATE INDEX IF NOT EXISTS idx_uploaded_files_session_id ON uploaded_files(session_id);
+            CREATE INDEX IF NOT EXISTS idx_model_usage_stats_model ON model_usage_stats(model);
+            CREATE INDEX IF NOT EXISTS idx_model_usage_stats_session_id ON model_usage_stats(session_id);
+            CREATE INDEX IF NOT EXISTS idx_model_usage_stats_timestamp ON model_usage_stats(timestamp);
+        """))
+
+        # Add any missing columns to existing tables
+        try:
             await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS sessions (
-                    id UUID PRIMARY KEY,
-                    created_at TIMESTAMPTZ DEFAULT NOW(),
-                    last_activity TIMESTAMPTZ DEFAULT NOW(),
-                    expires_at TIMESTAMPTZ NOT NULL
-                );"""))
-
-        async with engine.begin() as conn:
-            # Create conversations table
+                ALTER TABLE conversations 
+                ADD COLUMN IF NOT EXISTS model VARCHAR(50)
+            """))
+            
             await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS conversations (
-                    id SERIAL PRIMARY KEY,
-                    session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
-                    role VARCHAR(20) NOT NULL,
-                    content TEXT NOT NULL,
-                    timestamp TIMESTAMPTZ DEFAULT NOW(),
-                    system_fingerprint VARCHAR(64),
-                    prompt_filter_results JSONB,
-                    content_filter_results JSONB,
-                    model_version VARCHAR(50),
-                    service_tier VARCHAR(50)
-                );"""))
-
-        async with engine.begin() as conn:
-            # Create enhanced uploaded_files table
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS uploaded_files (
-                    id UUID PRIMARY KEY,
-                    session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
-                    filename TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    size BIGINT NOT NULL,
-                    upload_time TIMESTAMPTZ DEFAULT NOW(),
-                    file_type VARCHAR(50),
-                    status VARCHAR(20) DEFAULT 'ready',
-                    chunk_count INTEGER DEFAULT 1,
-                    token_count INTEGER,
-                    embedding_id VARCHAR(255),
-                    file_metadata JSONB,
-                    azure_status VARCHAR(20)
-                );"""))
-
-        async with engine.begin() as conn:
-            # Create vector_stores table
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS vector_stores (
-                    id UUID PRIMARY KEY,
-                    session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
-                    name TEXT NOT NULL,
-                    azure_id VARCHAR(255),
-                    created_at TIMESTAMPTZ DEFAULT NOW(),
-                    status VARCHAR(20) DEFAULT 'active',
-                    file_metadata JSONB
-                );"""))
-
-        async with engine.begin() as conn:
-            # Create file_citations table
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS file_citations (
-                    id UUID PRIMARY KEY,
-                    conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
-                    file_id UUID REFERENCES uploaded_files(id) ON DELETE CASCADE,
-                    citation_text TEXT NOT NULL,
-                    created_at TIMESTAMPTZ DEFAULT NOW()
-                );"""))
-
-        async with engine.begin() as conn:
-            # Create typing_activity table
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS typing_activity (
-                    session_id UUID REFERENCES sessions(id),
-                    user_id UUID NOT NULL,
-                    last_activity TIMESTAMPTZ DEFAULT NOW(),
-                    PRIMARY KEY (session_id, user_id)
-                );"""))
-
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS app_configurations (
-                    key VARCHAR(255) PRIMARY KEY,
-                    value JSONB NOT NULL,
-                    description TEXT,
-                    is_secret BOOLEAN DEFAULT false,
-                    updated_at TIMESTAMPTZ DEFAULT NOW()
-                );"""))
-
-            # Initialize default configurations
-            await initialize_default_configs(conn)
-
-        print("✅ Database tables and configurations created successfully!")
-    except Exception as e:
-        print(f"❌ Database initialization failed: {e}")
-    finally:
-        await engine.dispose()
+                ALTER TABLE sessions 
+                ADD COLUMN IF NOT EXISTS last_model VARCHAR(50)
+            """))
+        except Exception as e:
+            print(f"Error adding columns: {e}")
 
 if __name__ == "__main__":
     asyncio.run(init_database())

@@ -1,0 +1,264 @@
+from typing import Dict, Any, Optional, List
+from datetime import datetime
+import uuid
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models import ModelUsageStats
+
+class ModelStatsService:
+    def __init__(self, db_session: AsyncSession):
+        self.db = db_session
+
+    async def record_usage(
+        self,
+        model: str,
+        session_id: uuid.UUID,
+        usage: Dict[str, Any],
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Record model usage statistics for a chat completion.
+        
+        Args:
+            model: The name of the model used
+            session_id: The session ID for this chat
+            usage: Usage statistics from the model response
+            metadata: Optional additional metadata to store
+        """
+        try:
+            # Extract usage statistics
+            stats = ModelUsageStats(
+                model=model,
+                session_id=session_id,
+                prompt_tokens=usage.get("prompt_tokens", 0),
+                completion_tokens=usage.get("completion_tokens", 0),
+                total_tokens=usage.get("total_tokens", 0),
+                reasoning_tokens=usage.get("completion_tokens_details", {}).get("reasoning_tokens"),
+                cached_tokens=usage.get("prompt_tokens_details", {}).get("cached_tokens", 0),
+                metadata=metadata
+            )
+
+            # Insert into database
+            await self.db.execute(
+                text("""
+                    INSERT INTO model_usage_stats (
+                        model,
+                        session_id,
+                        prompt_tokens,
+                        completion_tokens,
+                        total_tokens,
+                        reasoning_tokens,
+                        cached_tokens,
+                        metadata,
+                        timestamp
+                    ) VALUES (
+                        :model,
+                        :session_id,
+                        :prompt_tokens,
+                        :completion_tokens,
+                        :total_tokens,
+                        :reasoning_tokens,
+                        :cached_tokens,
+                        :metadata::jsonb,
+                        :timestamp
+                    )
+                """),
+                {
+                    "model": stats.model,
+                    "session_id": stats.session_id,
+                    "prompt_tokens": stats.prompt_tokens,
+                    "completion_tokens": stats.completion_tokens,
+                    "total_tokens": stats.total_tokens,
+                    "reasoning_tokens": stats.reasoning_tokens,
+                    "cached_tokens": stats.cached_tokens,
+                    "metadata": metadata,
+                    "timestamp": datetime.utcnow()
+                }
+            )
+            await self.db.commit()
+
+        except Exception as e:
+            await self.db.rollback()
+            raise Exception(f"Failed to record model usage stats: {str(e)}")
+
+    async def get_session_stats(
+        self,
+        session_id: uuid.UUID,
+        model: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Get usage statistics for a specific session.
+        
+        Args:
+            session_id: The session ID to get stats for
+            model: Optional model name to filter by
+        
+        Returns:
+            Dictionary containing aggregated usage statistics
+        """
+        try:
+            query = """
+                SELECT 
+                    model,
+                    SUM(prompt_tokens) as total_prompt_tokens,
+                    SUM(completion_tokens) as total_completion_tokens,
+                    SUM(total_tokens) as total_tokens,
+                    SUM(reasoning_tokens) as total_reasoning_tokens,
+                    SUM(cached_tokens) as total_cached_tokens,
+                    COUNT(*) as request_count
+                FROM model_usage_stats
+                WHERE session_id = :session_id
+            """
+            
+            if model:
+                query += " AND model = :model"
+            
+            query += " GROUP BY model"
+
+            result = await self.db.execute(
+                text(query),
+                {
+                    "session_id": session_id,
+                    "model": model
+                }
+            )
+            
+            stats = {}
+            for row in result.mappings():
+                model_name = row["model"]
+                stats[model_name] = {
+                    "prompt_tokens": row["total_prompt_tokens"],
+                    "completion_tokens": row["total_completion_tokens"],
+                    "total_tokens": row["total_tokens"],
+                    "reasoning_tokens": row["total_reasoning_tokens"],
+                    "cached_tokens": row["total_cached_tokens"],
+                    "request_count": row["request_count"]
+                }
+            
+            return stats
+
+        except Exception as e:
+            raise Exception(f"Failed to get session stats: {str(e)}")
+
+    async def get_model_stats(
+        self,
+        model: str,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None
+    ) -> Dict[str, Any]:
+        """
+        Get usage statistics for a specific model.
+        
+        Args:
+            model: The model name to get stats for
+            start_time: Optional start time for the stats period
+            end_time: Optional end time for the stats period
+        
+        Returns:
+            Dictionary containing aggregated usage statistics
+        """
+        try:
+            params = {"model": model}
+            query = """
+                SELECT 
+                    SUM(prompt_tokens) as total_prompt_tokens,
+                    SUM(completion_tokens) as total_completion_tokens,
+                    SUM(total_tokens) as total_tokens,
+                    SUM(reasoning_tokens) as total_reasoning_tokens,
+                    SUM(cached_tokens) as total_cached_tokens,
+                    COUNT(DISTINCT session_id) as unique_sessions,
+                    COUNT(*) as request_count
+                FROM model_usage_stats
+                WHERE model = :model
+            """
+
+            if start_time:
+                query += " AND timestamp >= :start_time"
+                params["start_time"] = start_time
+
+            if end_time:
+                query += " AND timestamp <= :end_time"
+                params["end_time"] = end_time
+
+            result = await self.db.execute(text(query), params)
+            row = result.mappings().first()
+
+            if not row:
+                return {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                    "reasoning_tokens": 0,
+                    "cached_tokens": 0,
+                    "unique_sessions": 0,
+                    "request_count": 0
+                }
+
+            return {
+                "prompt_tokens": row["total_prompt_tokens"],
+                "completion_tokens": row["total_completion_tokens"],
+                "total_tokens": row["total_tokens"],
+                "reasoning_tokens": row["total_reasoning_tokens"],
+                "cached_tokens": row["total_cached_tokens"],
+                "unique_sessions": row["unique_sessions"],
+                "request_count": row["request_count"]
+            }
+
+        except Exception as e:
+            raise Exception(f"Failed to get model stats: {str(e)}")
+
+    async def get_token_usage_trend(
+        self,
+        model: str,
+        interval: str = '1 hour',
+        limit: int = 24
+    ) -> List[Dict[str, Any]]:
+        """
+        Get token usage trend over time for a specific model.
+        
+        Args:
+            model: The model name to get trends for
+            interval: Time interval for grouping (e.g., '1 hour', '1 day')
+            limit: Number of intervals to return
+        
+        Returns:
+            List of dictionaries containing usage stats per interval
+        """
+        try:
+            result = await self.db.execute(
+                text("""
+                    SELECT 
+                        date_trunc(:interval, timestamp) as time_bucket,
+                        SUM(prompt_tokens) as prompt_tokens,
+                        SUM(completion_tokens) as completion_tokens,
+                        SUM(total_tokens) as total_tokens,
+                        COUNT(*) as request_count
+                    FROM model_usage_stats
+                    WHERE model = :model
+                    GROUP BY time_bucket
+                    ORDER BY time_bucket DESC
+                    LIMIT :limit
+                """),
+                {
+                    "model": model,
+                    "interval": interval,
+                    "limit": limit
+                }
+            )
+
+            trend = []
+            for row in result.mappings():
+                trend.append({
+                    "timestamp": row["time_bucket"],
+                    "prompt_tokens": row["prompt_tokens"],
+                    "completion_tokens": row["completion_tokens"],
+                    "total_tokens": row["total_tokens"],
+                    "request_count": row["request_count"]
+                })
+
+            return trend
+
+        except Exception as e:
+            raise Exception(f"Failed to get token usage trend: {str(e)}")
