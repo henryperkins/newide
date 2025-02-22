@@ -118,9 +118,12 @@ async function handleStreamingResponse(response, controller) {
     console.error("[handleStreamingResponse] Config:", config);
     throw new Error("No valid deployment name found in configuration.");
   }
+
+  // Build the SSE endpoint from the existing chat completions endpoint:
   const streamUrl = await buildAzureOpenAIUrl(deploymentName, modelConfig.api_version)
     .replace('/chat/completions', '/chat/completions/stream')
     + `&session_id=${sessionId}`;
+
   console.log("[handleStreamingResponse] Using deployment name:", deploymentName);
   const eventSource = new EventSource(streamUrl);
 
@@ -261,7 +264,7 @@ function processAnnotatedContent(responseData) {
   }
 
   const { content, citationsHtml } = processCitations(responseData);
-  
+
   return `
     <div class="message-text">${safeMarkdownParse(content)}</div>
     ${citationsHtml ? `
@@ -344,10 +347,11 @@ async function handleMessageError(error) {
 }
 
 /**
- * Helper function to check if the model is o1 series.
+ * Helper function to check if the model is an o1 or o1-preview model.
  */
 function isO1Model(modelConfig) {
-  return modelConfig.name.includes("o1model");
+  // Adjust this check as needed if your naming includes "o1-preview"
+  return modelConfig.name.includes("o1model") || modelConfig.name.includes("o1-preview");
 }
 
 /**
@@ -358,8 +362,9 @@ export async function sendMessage() {
   const message = userInput.value.trim();
   const modelConfig = await getModelSettings();
 
-  // Basic checks for o-series.
+  // Basic checks for o-series:
   if (isO1Model(modelConfig)) {
+    // These specialized reasoning models do not support streaming:
     if (document.getElementById("streaming-toggle").checked) {
       showNotification("o-series models do not support streaming", "error");
       return;
@@ -380,16 +385,11 @@ export async function sendMessage() {
       if (!initialized) {
         throw new Error("Failed to initialize session");
       }
-      sessionId = initialized;
     }
 
-    if (isO1Model(modelConfig) && modelConfig.supportsVision) {
-      displayMessage("Formatting re-enabled: Markdown processing activated", "developer");
-      if (document.getElementById("streaming-toggle").checked) {
-        showNotification("o1 models do not support streaming", "warning");
-        return;
-      }
-    }
+    // If you want to encourage markdown usage with o1, you can add "Formatting re-enabled" 
+    // to a developer message or mention it to the user here. 
+    // e.g., displayMessage("Formatting re-enabled - code output should be wrapped in markdown.", "developer");
 
     userInput.disabled = true;
     setLastUserMessage(message);
@@ -411,7 +411,8 @@ export async function sendMessage() {
       reasoningEffort: config.reasoningEffort
     });
 
-    if (modelConfig.supportsStreaming) {
+    // If model supports streaming, do it; otherwise, standard response:
+    if (modelConfig.supportsStreaming && !isO1Model(modelConfig)) {
       await handleStreamingResponse(response, controller);
     } else {
       await handleStandardResponse(response);
@@ -464,8 +465,12 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
     }
   }
 
+  /** 
+   * For o1 / o1-preview models, `max_completion_tokens` is mandatory
+   * and we must not set `max_tokens`. Also temperature must be 1 for o1-preview.
+   */
   const requestBody = {
-    model: deploymentName,  // Include deployment name in request.
+    model: deploymentName,
     messages: [
       {
         role: "user",
@@ -476,15 +481,33 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
     reasoning_effort: reasoningEffort
   };
 
-  if (modelConfig.name.includes("o1model")) {
+  // If we detect an o1 or o1-preview model, set relevant parameters
+  if (isO1Model(modelConfig)) {
+    // Use max_completion_tokens if the config provides it.
     if (modelConfig.capabilities?.max_completion_tokens) {
       requestBody.max_completion_tokens = modelConfig.capabilities.max_completion_tokens;
     }
+    // If the model is o1-preview, forcibly set temperature=1 to comply with doc requirements.
+    if (modelConfig.name.includes("o1-preview")) {
+      requestBody.temperature = 1;
+    }
+    // If the model's config forcibly sets a certain temperature
+    // (like a 'fixed_temperature') keep that consistent with the doc:
     if (modelConfig.capabilities?.fixed_temperature !== undefined) {
       requestBody.temperature = modelConfig.capabilities.fixed_temperature;
     }
   }
 
+  // If the model is not o1, see if there's a developer message to prepend
+  // or a "normal" temperature setting:
+  else {
+    // Non-o1 models can use whatever temperature is in capabilities or config
+    if (modelConfig.capabilities?.temperature !== undefined) {
+      requestBody.temperature = modelConfig.capabilities.temperature;
+    }
+  }
+
+  // If dev instructions are present in model config, prepend them as a developer message
   if (modelConfig.developer_message) {
     requestBody.messages.unshift({
       role: "developer",
@@ -496,6 +519,7 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
     requestBody.developer_config = developerConfig;
   }
 
+  // Log final request payload before sending
   console.log("[handleChatRequest] Sending payload:", JSON.stringify(requestBody, null, 2));
 
   const configData = await getCurrentConfig();
@@ -504,13 +528,13 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
     throw new Error("Azure OpenAI API key not configured");
   }
 
-  const url = await buildAzureOpenAIUrl(deploymentName, modelConfig.api_version);
+  const url = await buildAzureOpenAIUrl(deploymentName, apiVersion);
   const init = {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
-      "api-key": apiKey,
+      "api-key": apiKey
     },
     signal: controller.signal,
     body: JSON.stringify(requestBody)
@@ -520,8 +544,6 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
   const response = await fetch(url, init);
   response.requestStartTime = requestStartTime;
 
-  // The response contains the server's reply to the chat request, including status and data.
   return response;
 }
-
 // End of messageHandler.js
