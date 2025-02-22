@@ -1,0 +1,7 @@
+{
+    "name": "Azure OpenAI Chat",
+    "short_name": "OAIChat",
+    "theme_color": "#ffffff",
+    "background_color": "#ffffff",
+    "display": "standalone"
+}
