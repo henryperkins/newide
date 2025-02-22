@@ -32,11 +32,22 @@ import { getFilesForChat } from "/static/js/fileManager.js";
  */
 function createAbortController(timeoutDuration) {
   const controller = new AbortController();
+  const minTimeout = window.isO1Model ? 60000 : timeoutDuration;
+  const actualTimeout = window.serverCalculatedTimeout
+    ? Math.max(window.serverCalculatedTimeout * 1000, minTimeout)
+    : minTimeout;
+  
+  console.log(`[createAbortController] Setting timeout: ${actualTimeout}ms`);
+  
   const timeoutId = setTimeout(
-    () => controller.abort(),
-    window.serverCalculatedTimeout
-      ? window.serverCalculatedTimeout * 1000
-      : timeoutDuration
+    () => {
+      console.log(`[createAbortController] Request timed out after ${actualTimeout}ms`);
+      controller.abort(new DOMException(
+        `Request exceeded time limit of ${actualTimeout}ms`, 
+        'TimeoutError'
+      ));
+    },
+    actualTimeout
   );
   return { controller, timeoutId };
 }
@@ -121,8 +132,7 @@ async function handleStreamingResponse(response, controller) {
 
   // Build the SSE endpoint from the existing chat completions endpoint:
   const streamUrl = await buildAzureOpenAIUrl(deploymentName, modelConfig.api_version)
-    .replace('/chat/completions', '/chat/completions/stream')
-    + `&session_id=${sessionId}`;
+    .replace('/chat/completions', '/chat/completions/stream');
 
   console.log("[handleStreamingResponse] Using deployment name:", deploymentName);
   const eventSource = new EventSource(streamUrl);
@@ -315,8 +325,19 @@ async function handleMessageError(error) {
   let errorMessage = "An unexpected error occurred";
   let errorDetails = [];
 
-  if (error.name === "AbortError") {
-    errorMessage = "Request timed out. Consider using lower reasoning effort.";
+  if (error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError")) {
+    const reason = error.message || 'Request exceeded time limit';
+    errorMessage = `Request was aborted: ${reason}. Try:
+1. Reducing reasoning effort
+2. Shortening your message
+3. Breaking your request into smaller parts
+4. The request will automatically retry up to 3 times with exponential backoff`;
+    console.warn("[handleMessageError] Request aborted:", {
+      reason,
+      timeout: window.serverCalculatedTimeout ? `${window.serverCalculatedTimeout}s` : 'default',
+      name: error.name,
+      type: error.constructor.name
+    });
   } else if (error.response) {
     try {
       const contentType = error.response.headers.get("content-type");
@@ -361,6 +382,7 @@ export async function sendMessage() {
   const userInput = document.getElementById("user-input");
   const message = userInput.value.trim();
   const modelConfig = await getModelSettings();
+  window.isO1Model = isO1Model(modelConfig);
 
   // Basic checks for o-series:
   if (isO1Model(modelConfig)) {
@@ -446,6 +468,40 @@ export async function regenerateResponse() {
  * @returns {Promise<Response>} - The server response
  */
 async function handleChatRequest({ messageContent, controller, developerConfig, reasoningEffort }) {
+  const maxRetries = 3;
+  let lastError = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await makeApiRequest({ 
+        messageContent, 
+        controller, 
+        developerConfig, 
+        reasoningEffort 
+      });
+      return response;
+    } catch (error) {
+      lastError = error;
+      
+      // Only retry on timeout/abort errors
+      if (attempt < maxRetries - 1 && 
+          (error instanceof DOMException && 
+           (error.name === "TimeoutError" || error.name === "AbortError"))) {
+        const delay = 60000 * (attempt + 1); // 60s, 120s, 180s
+        console.warn(`[handleChatRequest] Attempt ${attempt + 1} failed, retrying in ${delay}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError;
+}
+
+/**
+ * Helper function to make the actual API request
+ */
+async function makeApiRequest({ messageContent, controller, developerConfig, reasoningEffort }) {
   const config = await getCurrentConfig();
   const modelConfig = await getModelSettings();
   const apiVersion = modelConfig.api_version;
@@ -470,15 +526,12 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
    * and we must not set `max_tokens`. Also temperature must be 1 for o1-preview.
    */
   const requestBody = {
-    model: deploymentName,
     messages: [
       {
         role: "user",
         content: typeof messageContent === "string" ? messageContent : JSON.stringify(messageContent)
       }
-    ],
-    session_id: sessionId,
-    reasoning_effort: reasoningEffort
+    ]
   };
 
   // If we detect an o1 or o1-preview model, set relevant parameters
@@ -506,17 +559,13 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
       requestBody.temperature = modelConfig.capabilities.temperature;
     }
   }
-
+ 
   // If dev instructions are present in model config, prepend them as a developer message
   if (modelConfig.developer_message) {
     requestBody.messages.unshift({
-      role: "developer",
+      role: isO1Model(modelConfig) ? "developer" : "system",
       content: modelConfig.developer_message
     });
-  }
-
-  if (developerConfig) {
-    requestBody.developer_config = developerConfig;
   }
 
   // Log final request payload before sending

@@ -57,12 +57,8 @@ async def init_client_pool():
             # Construct AsyncAzureOpenAI with a token-based approach
             client = AsyncAzureOpenAI(
                 azure_ad_token_provider=token_provider,
-                # Endpoint/Version must also be passed
                 azure_endpoint=azure_endpoint,
                 api_version=azure_api_version,
-                # The 'azure_deployment' field can be set if you want
-                # to default to a specific deployment.
-                azure_deployment=azure_deployment,
                 default_headers={
                     "OData-MaxVersion": "4.0",
                     "OData-Version": "4.0"
@@ -74,7 +70,6 @@ async def init_client_pool():
                 azure_endpoint=azure_endpoint,
                 api_key=azure_api_key,
                 api_version=azure_api_version,
-                azure_deployment=azure_deployment,
                 default_headers={
                     "OData-MaxVersion": "4.0",
                     "OData-Version": "4.0"

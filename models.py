@@ -1,3 +1,4 @@
+import os
 from pydantic import BaseModel, validator, Field, model_validator
 from typing import Optional, List, Dict, Any, Literal
 from enum import Enum
@@ -41,30 +42,12 @@ class ChatMessageContent(BaseModel):
     content: str = Field(..., min_length=1, description="Message content")
 
 class CreateChatCompletionRequest(BaseModel):
-    model: str = Field(..., description="Azure OpenAI deployment name")
     messages: List[Dict[str, Any]] = Field(..., description="User messages in an array, e.g. [{'role': 'user', 'content': '...'}]")
-    session_id: str = Field(..., description="Session ID for conversation history")
-    reasoning_effort: ReasoningEffort = Field(
-        default=ReasoningEffort.medium,
-        description="Reasoning effort level (required for o-series models)"
-    )
     max_completion_tokens: int = Field(
         default=40000,
         ge=100,
         le=100000,
         description="Maximum tokens for response (required for o-series)"
-    )
-    stream: bool = Field(
-        default=False,
-        description="Streaming enabled (only supported for o3-mini)"
-    )
-    developer_config: Optional[str] = Field(
-        default=None,
-        description="Developer instructions with formatting hints"
-    )
-    include_files: Optional[bool] = Field(
-        default=False,
-        description="Whether to include file context in the request"
     )
 
     @model_validator(mode="before")
@@ -77,7 +60,7 @@ class CreateChatCompletionRequest(BaseModel):
     @model_validator(mode='after')
     @classmethod
     def validate_o_series_params(cls, values):
-        model_name = values.model.lower()
+        model_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "").lower()
         if "o" in model_name:
             forbidden_params = ["temperature", "top_p", "frequency_penalty", "presence_penalty", "logit_bias"]
             if any(getattr(values, param, None) for param in forbidden_params):

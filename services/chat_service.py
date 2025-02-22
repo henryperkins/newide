@@ -137,21 +137,21 @@ def format_messages(chat_message: ChatMessage, history: List[Dict[str, Any]]) ->
     # If there's developer_config, prepend it as a "developer" role message
     if getattr(chat_message, 'developer_config', None):
         formatted.append({
-            "role": "developer",
-            "content": [{"type": "text", "text": chat_message.developer_config}],
+            "role": "developer" if is_o_series else "system",
+            "content": chat_message.developer_config
         })
 
     # Add conversation history
     for msg in history:
         formatted.append({
             "role": msg["role"],
-            "content": [{"type": "text", "text": msg["content"]}],
+            "content": msg["content"]
         })
 
     # Finally, add the current user's message
     formatted.append({
         "role": "user",
-        "content": [{"type": "text", "text": chat_message.message}],
+        "content": chat_message.message
     })
 
     return formatted
@@ -180,7 +180,6 @@ async def build_api_params_with_search(
     # 1) Basic parameters
     # The library expects 'model' to be your deployment name for Azure
     params: Dict[str, Any] = {
-        "model": deployment_name,
         # Our format_messages() used the new "multi-part content" style:
         "messages": formatted_messages,
     }
@@ -197,14 +196,6 @@ async def build_api_params_with_search(
     if is_o_series:
         # For o-series, we can’t pass temperature, top_p, presence_penalty, or frequency_penalty
         # The doc also says we must pass "reasoning_effort" and "max_completion_tokens".
-        # If the user omitted a reasoning_effort, error out:
-        if not chat_message.reasoning_effort:
-            raise HTTPException(
-                status_code=400,
-                detail="reasoning_effort is required for o-series models"
-            )
-
-        params["reasoning_effort"] = chat_message.reasoning_effort
         params["max_completion_tokens"] = chat_message.max_completion_tokens or 40000
 
     else:
