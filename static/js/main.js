@@ -82,6 +82,7 @@ async function initializeAzureConfig(retryCount = 3, retryDelay = 1000) {
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         // Initialize core components
+        initializeTabSystem();
         await initializeMarkdownSupport();
         await initializeAzureConfig();
         await initializeConfig();
@@ -93,6 +94,52 @@ document.addEventListener('DOMContentLoaded', async () => {
         handleInitializationError(error);
     }
 });
+
+/**
+ * Initialize tab system with click handlers
+ */
+function initializeTabSystem() {
+    const tabs = document.querySelectorAll('[role="tab"]');
+    const panels = document.querySelectorAll('[role="tabpanel"]');
+    
+    // Hide all panels initially except the first one
+    panels.forEach((panel, index) => {
+        if (index !== 0) {
+            panel.style.display = 'none';
+        }
+    });
+    
+    tabs.forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            // Deactivate all tabs
+            tabs.forEach(t => {
+                t.setAttribute('aria-selected', 'false');
+                t.classList.remove('active');
+            });
+            
+            // Hide all panels
+            panels.forEach(p => {
+                p.style.display = 'none';
+                p.classList.remove('active');
+            });
+            
+            // Activate clicked tab
+            const clickedTab = e.currentTarget;
+            clickedTab.setAttribute('aria-selected', 'true');
+            clickedTab.classList.add('active');
+            
+            // Show corresponding panel
+            const panelId = clickedTab.getAttribute('aria-controls');
+            const panel = document.getElementById(panelId);
+            if (panel) {
+                panel.style.display = 'block';
+                panel.classList.add('active');
+            }
+        });
+    });
+}
 
 async function initializeMarkdownSupport() {
     if (!configureMarkdown()) {

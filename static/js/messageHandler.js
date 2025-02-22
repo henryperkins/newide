@@ -178,7 +178,7 @@ async function handleStreamingResponse(response, controller) {
  */
 function createMessageContainer() {
   const container = document.createElement("div");
-  container.className = "message assistant-message streaming";
+  container.className = "message assistant-message streaming markdown-content";
   document.getElementById("chat-history").appendChild(container);
   return container;
 }
@@ -250,7 +250,7 @@ function processResponseData(data) {
     window.serverCalculatedTimeout = data.calculated_timeout;
   }
 
-  displayMessage(data.response, "assistant");
+  displayMessage(safeMarkdownParse(data.response), "assistant");
 
   if (data.usage) {
     updateTokenUsage({
@@ -415,13 +415,15 @@ export async function sendMessage() {
 
     userInput.disabled = true;
     setLastUserMessage(message);
-    displayMessage(message, "user");
+    displayMessage(safeMarkdownParse(message), "user");
     userInput.value = "";
 
     const config = await getCurrentConfig();
     const effortLevel = config?.reasoningEffort || "medium";
     const timeout = getTimeoutDurations()[effortLevel] || 30000;
     console.log("[Config] Current settings:", { effort: effortLevel, timeout, modelSettings: modelConfig });
+    
+    showTypingIndicator();
 
     const { controller } = createAbortController(timeout);
     const processedContent = processMessageContent(message, modelConfig.supportsVision);

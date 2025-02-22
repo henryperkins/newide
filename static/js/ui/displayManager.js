@@ -34,23 +34,21 @@ function displayMessage(content, role) {
 
 function createDeveloperMessage(content, isFormattingMessage) {
     const messageDiv = document.createElement('div');
-    messageDiv.className = 'message developer-message';
+    messageDiv.className = 'message developer-message markdown-content';
     messageDiv.setAttribute('role', 'alert');
     messageDiv.setAttribute('aria-live', 'assertive');
 
     if (isFormattingMessage) {
-        messageDiv.textContent = ''; // Clear existing content
         const noticeDiv = document.createElement('div');
         noticeDiv.className = 'formatting-notice';
         noticeDiv.innerHTML = `
             <span aria-hidden="true">⚙️</span>
             <strong>System:</strong>
+            ${safeMarkdownParse(content)}
         `;
-        const textNode = document.createTextNode(content);
-        noticeDiv.appendChild(textNode);
         messageDiv.appendChild(noticeDiv);
     } else {
-        messageDiv.textContent = content;
+        messageDiv.innerHTML = safeMarkdownParse(content);
     }
     
     return messageDiv;
@@ -58,11 +56,13 @@ function createDeveloperMessage(content, isFormattingMessage) {
 
 function createMessageElement(role) {
     const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${role}-message`;
+    messageDiv.className = `message ${role}-message markdown-content`;
     
     // Initial animation state
     messageDiv.style.opacity = '0';
     messageDiv.style.transform = 'translateY(20px)';
+    
+    processCodeBlocks(messageDiv);
     
     return messageDiv;
 }
@@ -188,6 +188,13 @@ function addCitationStyles() {
 function processCodeBlocks(container) {
     container.querySelectorAll('pre code').forEach(block => {
         block.style.opacity = '0';
+        // Add language class if not present
+        if (!block.className && block.parentElement.firstChild?.textContent) {
+            const lang = block.parentElement.firstChild.textContent.trim();
+            if (lang && typeof Prism !== 'undefined' && Prism.languages[lang]) {
+                block.className = `language-${lang}`;
+            }
+        }
         if (typeof Prism !== 'undefined') {
             Prism.highlightElement(block);
         }
