@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from logging_config import logger
 
+
 # -----------------------------------------------
 # Data Source Config
 # -----------------------------------------------
@@ -45,8 +46,7 @@ class Settings(BaseSettings):
     AZURE_OPENAI_API_KEY: str = Field(..., description="Azure OpenAI API key")
     AZURE_OPENAI_DEPLOYMENT_NAME: str = Field(..., description="Azure OpenAI deployment name")
 
-    # NOTE: If you want to allow all preview versions in 2024 or 2025,
-    # consider updating or removing the pattern for months 1..12.
+    # By default, accept a year of 2024 or 2025, a month 01..12, always appended with -01-preview
     AZURE_OPENAI_API_VERSION: str = Field(
         default="2025-01-01-preview",
         description="Azure OpenAI API version",
@@ -102,7 +102,6 @@ class Settings(BaseSettings):
         extra="ignore"  # ignore unrecognized env variables
     )
 
-    # Optional example of custom validator usage:
     @validator("AZURE_OPENAI_DEPLOYMENT_NAME")
     def strip_deployment_name(cls, v):
         """
@@ -137,14 +136,12 @@ STANDARD_TOKEN_FACTOR = settings.STANDARD_TOKEN_FACTOR
 
 SESSION_TIMEOUT_MINUTES = settings.SESSION_TIMEOUT_MINUTES
 
-
-# Reasoning effort multipliers (not in Settings to keep it simpler)
+# Reasoning effort multipliers (not in Settings to reduce complexity)
 REASONING_EFFORT_MULTIPLIERS = {
     "low": 1.0,
     "medium": 2.5,
     "high": 5.0
 }
-
 
 # -----------------------------------------------
 # Model-level fallback API versions
@@ -181,6 +178,7 @@ def build_azure_openai_url(deployment_name: str = None, api_version: str = None)
     version = api_version or AZURE_OPENAI_API_VERSION
     return f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{deployment}/chat/completions?api-version={version}"
 
+
 async def azure_openai_settings() -> dict:
     """
     Example function that tries to load 'azure_openai' from DB,
@@ -195,15 +193,19 @@ async def azure_openai_settings() -> dict:
 async def model_settings() -> dict:
     """
     Example function that fetches per-model configs from DB,
-    or returns a default dictionary if not found.
+    or returns a fallback dictionary if not found.
+
+    NOTE: We do NOT include 'temperature' for o1 
+    since it's not supported by o-series models.
     """
     return await get_db_config("models", {
         "o1": {
-            "max_tokens": 40000,
-            "temperature": 1.0
+            # No 'temperature' here to avoid sending it to Azure for o1
+            "max_tokens": 40000
         },
         "deepseek-r1": {
             "max_tokens": 4096,
+            # This standard model can use temperature
             "temperature": 0.7
         }
     })
@@ -214,7 +216,7 @@ async def model_settings() -> dict:
 # -----------------------------------------------
 POSTGRES_URL = (
     f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}"
-f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+    f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
 )
 
 
