@@ -11,6 +11,7 @@ export async function buildAzureOpenAIUrl(deploymentName, apiVersion) {
   apiUrl.searchParams.append('api-version', apiVersion);
   return apiUrl.toString();
 }
+
 export function formatFileSize(bytes) {
     if (typeof bytes !== 'number' || bytes < 0) return '0 B';
     
@@ -40,6 +41,31 @@ export async function copyToClipboard(text) {
 
 export function updateTokenUsage(usage) {
     if (!usage) return;
+
+    const tokenUsage = document.querySelector('.token-usage-compact');
+    if (!tokenUsage) return;
+
+    // Show token usage when there's data
+    tokenUsage.classList.add('active');
+
+    // Create toggle button if it doesn't exist
+    if (!document.querySelector('.token-usage-toggle')) {
+        const toggle = document.createElement('button');
+        toggle.className = 'token-usage-toggle';
+        toggle.innerHTML = '📊';
+        toggle.title = 'Toggle token usage';
+        toggle.onclick = () => {
+            tokenUsage.classList.toggle('active');
+            localStorage.setItem('token-usage-visible', tokenUsage.classList.contains('active'));
+        };
+        tokenUsage.appendChild(toggle);
+
+        // Restore previous state
+        const wasVisible = localStorage.getItem('token-usage-visible') === 'true';
+        if (!wasVisible) {
+            tokenUsage.classList.remove('active');
+        }
+    }
 
     // Update basic token counters
     const setText = (id, value) => {
@@ -138,6 +164,35 @@ function generateMetricsHTML(usage) {
     return html;
 }
 
+export function toggleTheme() {
+    const theme = document.documentElement.getAttribute('data-theme');
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    
+    const toggle = document.querySelector('.theme-toggle');
+    if (toggle) {
+        toggle.setAttribute('data-theme', newTheme);
+    }
+}
+
+// Initialize theme on load
+export function initializeTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    
+    const toggle = document.createElement('button');
+    toggle.className = 'theme-toggle';
+    toggle.setAttribute('data-theme', savedTheme);
+    toggle.setAttribute('aria-label', 'Toggle dark mode');
+    toggle.onclick = toggleTheme;
+    
+    const header = document.querySelector('.chat-header');
+    if (header) {
+        header.appendChild(toggle);
+    }
+}
+
 export function debounce(fn, delay = 300) {
     let timeoutId;
     return (...args) => {
@@ -147,6 +202,7 @@ export function debounce(fn, delay = 300) {
 }
 
 export function throttle(fn, limit = 300) {
+    let timeoutId;
     let lastCall = 0;
     return (...args) => {
         const now = Date.now();

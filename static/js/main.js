@@ -3,6 +3,7 @@ import { initializeConfig } from '/static/js/config.js';
 import { initializeFileManager } from '/static/js/fileManager.js';
 import { showNotification } from '/static/js/ui/notificationManager.js';
 import { configureMarkdown, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
+import { initializeTheme } from '/static/js/utils/helpers.js';
 
 // Main application entry point
 async function initializeAzureConfig(retryCount = 3, retryDelay = 1000) {
@@ -12,7 +13,6 @@ async function initializeAzureConfig(retryCount = 3, retryDelay = 1000) {
         for (let attempt = 1; attempt <= retryCount; attempt++) {
             try {
                 const response = await fetch('/api/config/', {
-                
                     headers: { 'Accept': 'application/json' }
                 });
                 
@@ -28,7 +28,7 @@ async function initializeAzureConfig(retryCount = 3, retryDelay = 1000) {
                 const config = await response.json();
                 console.log("[initializeAzureConfig] Config response:", config);
 
-               // Validate required fields
+                // Validate required fields
                 const requiredFields = {
                     deploymentName: "deployment name",
                     'models': "model configuration",
@@ -42,7 +42,7 @@ async function initializeAzureConfig(retryCount = 3, retryDelay = 1000) {
                     }
                 }
 
-               if (!config.models?.[config.deploymentName]) {
+                if (!config.models?.[config.deploymentName]) {
                     throw new Error(`No model configuration found for deployment: ${config.deploymentName}`);
                 }
 
@@ -83,6 +83,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         // Initialize core components
         initializeTabSystem();
+        initializeTheme();
+        initializeTokenUsageUI();
         await initializeMarkdownSupport();
         await initializeAzureConfig();
         await initializeConfig();
@@ -94,6 +96,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         handleInitializationError(error);
     }
 });
+
+/**
+ * Initialize token usage UI components
+ */
+function initializeTokenUsageUI() {
+    const tokenUsage = document.querySelector('.token-usage-compact');
+    if (!tokenUsage) return;
+
+    // Restore previous visibility state
+    const wasVisible = localStorage.getItem('token-usage-visible') === 'true';
+    if (!wasVisible) {
+        tokenUsage.classList.remove('active');
+    }
+
+    // Create toggle button if it doesn't exist
+    if (!document.querySelector('.token-usage-toggle')) {
+        const toggle = document.createElement('button');
+        toggle.className = 'token-usage-toggle';
+        toggle.innerHTML = '📊';
+        toggle.title = 'Toggle token usage';
+        toggle.onclick = () => {
+            tokenUsage.classList.toggle('active');
+            localStorage.setItem('token-usage-visible', tokenUsage.classList.contains('active'));
+        };
+        tokenUsage.appendChild(toggle);
+    }
+}
 
 /**
  * Initialize tab system with click handlers

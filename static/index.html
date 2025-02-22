@@ -42,6 +42,7 @@
             <div class="model-info">
                 <p><strong>Model Info:</strong> Using Azure OpenAI o1 model (no streaming)</p>
             </div>
+            <!-- Theme toggle will be injected here by JavaScript -->
         </header>
 
         <div class="chat-main">
@@ -56,7 +57,7 @@
                     <textarea id="user-input" 
                               placeholder="Type your message..."
                               aria-label="Your message"
-                              rows="3"></textarea>
+                              rows="1"></textarea>
                     <button id="send-button" class="primary-button">
                         <span aria-hidden="true">↑</span>
                         <span class="sr-only">Send message</span>
@@ -64,8 +65,7 @@
                 </div>
                 
                 <!-- Token Usage -->
-                <div class="token-usage-compact">
-                    <h2 class="stats-heading">Token Usage</h2>
+                <div class="token-usage-compact active" aria-label="Token usage statistics">
                     <div class="token-usage-grid">
                         <div class="stat-item">
                             <span class="stat-label">Prompt</span>
@@ -88,6 +88,7 @@
                             <span id="base-completion-tokens" class="stat-value">0</span>
                         </div>
                     </div>
+                    <!-- Token usage toggle will be injected here by JavaScript -->
                 </div>
             </section>
         </div>
@@ -152,70 +153,43 @@
                     </div>
                 </div>
 
-                <div class="config-section" id="streaming-toggle">
+                <div class="config-section stream-toggle">
                     <label>
                         <input type="checkbox" id="enable-streaming"> Enable Streaming
                     </label>
                 </div>
-
             </div>
 
             <!-- Files Panel -->
             <div id="files-content" class="tab-content" role="tabpanel" aria-hidden="true">
-                <div class="file-upload-area" id="drop-zone" tabindex="0" role="button">
-                    <div class="upload-prompt">
-                        <i class="upload-icon" aria-hidden="true">📁</i>
-                        <p>Drop files or click to upload<br>
-                           <span class="file-limit">(Max 512MB)</span>
-                        </p>
-                        <input type="file" 
-                               id="file-input" 
-                               accept=".txt,.md,.json,.js,.py,.html,.css,.pdf,.docx,.doc" 
-                               multiple 
-                               hidden>
+                <div class="files-panel">
+                    <div class="file-actions">
+                        <button class="upload-button">
+                            <span class="folder-icon">📁</span>
+                            Upload Files
+                        </button>
+                        <div class="search-toggle">
+                            <input type="checkbox" id="azure-search" class="toggle-input">
+                            <label for="azure-search">Azure Search</label>
+                        </div>
                     </div>
-                </div>
-                
-                <!-- File Upload Status -->
-                <div id="file-upload-status" class="file-upload-status">
-                    <div class="upload-loading">
-                        <div class="loading-spinner"></div>
-                        <span class="loading-text">Processing files...</span>
+
+                    <div class="file-stats">
+                        <span>Files: <span id="total-files">0</span></span>
+                        <span>Size: <span id="total-size">0 B</span></span>
+                        <span>Tokens: <span id="estimated-tokens">0</span></span>
                     </div>
-                </div>
-                
-                <!-- File Selection Controls -->
-                <div class="file-controls">
-                    <div class="file-selection-wrapper">
-                        <span id="file-selection-status" class="file-selection-status">No files selected</span>
-                        <button id="select-all-files" class="select-all-button">Select All</button>
+
+                    <div class="file-drop-area">
+                        <p class="drop-message">No files uploaded.</p>
+                        <p class="drop-hint">Drop files above to add context.</p>
                     </div>
-                    
-                    <!-- Azure File Search Toggle -->
-                    <div class="file-search-toggle">
-                        <input type="checkbox" id="use-file-search" class="toggle-input">
-                        <label for="use-file-search" class="toggle-label">Use Azure Search</label>
-                        <span class="help-tooltip" title="Process files with Azure OpenAI for semantic search capability">ⓘ</span>
-                    </div>
-                </div>
-                
-                <!-- File List -->
-                <div class="file-list-header">
-                    <h3>Uploaded Files</h3>
-                    <span class="file-help-text">Click on files to select them as context</span>
-                </div>
-                <div class="file-list" id="file-list"></div>
-                
-                <div class="file-stats">
-                    <h3>Context Statistics</h3>
-                    <dl>
-                        <dt>Files:</dt>
-                        <dd id="total-files">0</dd>
-                        <dt>Total Size:</dt>
-                        <dd id="total-size">0</dd>
-                        <dt>Estimated Tokens:</dt>
-                        <dd id="estimated-tokens">0</dd>
-                    </dl>
+
+                    <input type="file" 
+                           id="file-input" 
+                           accept=".txt,.md,.json,.js,.py,.html,.css,.pdf,.docx,.doc" 
+                           multiple 
+                           hidden>
                 </div>
             </div>
         </aside>
@@ -224,17 +198,12 @@
         <button class="mobile-tab-toggle" aria-label="Open context panel">
             <span class="tab-icon">📁</span>
         </button>
-
-        <!-- Theme Toggle -->
-        <button class="theme-toggle" aria-label="Toggle theme">
-            <span class="theme-icon">🌓</span>
-        </button>
     </main>
 
     <!-- Error Display -->
     <div id="error-display" class="error-message"></div>
 
     <!-- Initialization -->
-    <script type="module" src="/static/js/init.js"></script>
+    <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>

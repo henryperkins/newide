@@ -507,8 +507,8 @@ button:focus,
 .config-section {
   background: var(--surface-secondary);
   border-radius: var(--radius-md);
-  padding: var(--space-md);
-  margin-bottom: var(--space-md);
+  padding: 6px;
+  margin-bottom: 4px;
 }
 
 .config-section h3 {
