@@ -1,18 +1,16 @@
-.config-section {
-    padding: 4px;
-    margin-bottom: 2px;
-    background: var(--surface-secondary);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-  
-  .config-section label {
-    display: block;
-    font-weight: 500;
-    margin-bottom: 1px;
+/* Model Selection */
+.model-selection {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.model-selection h3 {
+    margin-top: 0;
+    margin-bottom: 16px;
     color: var(--text-primary);
     font-size: var(--text-sm);
   }
@@ -35,16 +33,15 @@
   .config-section input[type="text"]:focus {
     border-color: var(--color-primary);
     outline: none;
-    box-shadow: var(--focus-ring);
-  }
-  
-  /* Assistant Settings */
-  .config-section input[type="text"] {
-    font-family: var(--font-sans);
-    font-size: var(--text-sm);
-  }
-  
-  .config-section a {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--accent-color-alpha), 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+.model-info {
+    margin-bottom: 16px;
+}
+
+.model-description {
     color: var(--text-secondary);
     font-size: var(--text-xs);
     text-decoration: none;
@@ -199,20 +196,27 @@
     border-radius: 6px;
 }
 
-.stat-label {
-    font-size: 0.75rem;
-    color: #94a3b8;
-    margin-bottom: 0.25rem;
-}
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+    .model-selection,
+    .model-stats {
+        background: var(--bg-tertiary);
+    }
+    .notification-container {
+        z-index: 9999;
+    }
 
-.stat-value {
-    font-weight: 600;
-    font-size: 1rem;
-    color: #f8fafc;
-    transition: all 0.3s ease;
-}
-
-.stat-update-flash {
-    color: #3b82f6;
-    transform: scale(1.1);
+    #reasoning-controls,
+    .current-session,
+    .period-stats,
+    .usage-chart {
+        background: var(--bg-secondary);
+    }
+    
+    @font-face {
+        font-family: 'Inter';
+        src: url('/static/fonts/inter/inter-400.woff2') format('woff2');
+        font-display: swap;
+        font-weight: 400 700;
+    }
 }
