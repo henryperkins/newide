@@ -1,7 +1,17 @@
 import { safeMarkdownParse } from '/static/js/ui/markdownParser.js';
 import { copyToClipboard } from '/static/js/utils/helpers.js';
+function updateTokenUsage(usage) {
+    const tokenDisplay = document.getElementById('token-usage');
+    if (tokenDisplay) {
+        tokenDisplay.innerHTML = `
+            Prompt: ${usage.prompt_tokens} tokens<br>
+            Completion: ${usage.completion_tokens} tokens<br>
+            Total: ${usage.total_tokens} tokens
+        `;
+    }
+}
 
-export { displayMessage, processCitations };
+export { displayMessage, processCitations, updateTokenUsage };
 
 function displayMessage(content, role) {
     const chatHistory = document.getElementById('chat-history');

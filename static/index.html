@@ -31,7 +31,6 @@
     <script type="module" src="/static/js/ui/notificationManager.js"></script>
     <script type="module" src="/static/js/ui/displayManager.js"></script>
     <script type="module" src="/static/js/fileManager.js"></script>
-    <script type="module" src="/static/js/messageHandler.js"></script>
 </head>
 <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -42,6 +41,11 @@
             <div class="model-info">
                 <p><strong>Model Info:</strong> Using Azure OpenAI o1 model (no streaming)</p>
             </div>
+            <!-- Add this after model-info -->
+            <div class="performance-stats" id="performance-stats">
+            <!-- Stats will be injected here -->
+            </div>
+
             <!-- Theme toggle will be injected here by JavaScript -->
         </header>
 
