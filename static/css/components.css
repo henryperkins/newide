@@ -38,7 +38,7 @@
 .model-selector select:focus {
     outline: none;
     border-color: var(--accent-color);
-    box-shadow: 0 0 0 2px var(--accent-color-alpha);
+    box-shadow: 0 0 0 2px var(--accent-color-alpha), 0 0 0 3px rgba(59, 130, 246, 0.5);
 }
 
 .model-info {
@@ -184,11 +184,21 @@
     .model-stats {
         background: var(--bg-tertiary);
     }
+    .notification-container {
+        z-index: 9999;
+    }
 
     #reasoning-controls,
     .current-session,
     .period-stats,
     .usage-chart {
         background: var(--bg-secondary);
+    }
+    
+    @font-face {
+        font-family: 'Inter';
+        src: url('/static/fonts/inter.woff2') format('woff2');
+        font-display: swap;
+        font-weight: 400 700;
     }
 }
