@@ -26,65 +26,70 @@ class Settings(BaseSettings):
     """
     Loads environment variables for DB credentials
     """
-    POSTGRES_HOST: str = "chatterpostgres.postgres.database.azure.com"
-    POSTGRES_USER: str = "hperkins@chatterpostgres"
-    POSTGRES_PASSWORD: str = "Twiohmld1234!"
-    POSTGRES_DB: str = "chatterdb"
-    POSTGRES_PORT: int = 5432
+    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "chatterpostgres.postgres.database.azure.com")
+    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "hperkins@chatterpostgres")
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "Twiohmld1234!")
+    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "chatterdb")
+    POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", "5432"))
 
     # File size limits
-    MAX_FILE_SIZE: int = 512 * 1024 * 1024   # 512MB
-    WARNING_FILE_SIZE: int = 256 * 1024 * 1024
-    MAX_FILE_SIZE_HUMAN: str = "512MB"
+    MAX_FILE_SIZE: int = int(os.getenv("MAX_FILE_SIZE", "536870912"))   # 512MB
+    WARNING_FILE_SIZE: int = int(os.getenv("WARNING_FILE_SIZE", "268435456"))
+    MAX_FILE_SIZE_HUMAN: str = os.getenv("MAX_FILE_SIZE_HUMAN", "512MB")
 
     # DeepSeek Inference Configuration
     AZURE_INFERENCE_ENDPOINT: str = "https://your-host-name.your-azure-region.inference.ai.azure.com"
     AZURE_INFERENCE_CREDENTIAL: str = "your-32-character-key-here"
     AZURE_INFERENCE_DEPLOYMENT: str = "DeepSeek-R1"
     AZURE_INFERENCE_API_VERSION: str = "2025-01-01-preview"
+    # Azure OpenAI Configuration
+    AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT", "https://DeepSeek-R1HP.eastus2.models.ai.azure.com")
+    AZURE_OPENAI_API_KEY: str = os.getenv("AZURE_OPENAI_API_KEY", "qmrlPygVEipb2JZ8XyNayytLL6PphKVW")
+    AZURE_OPENAI_DEPLOYMENT_NAME: str = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "DeepSeek-R1")
+    AZURE_OPENAI_API_VERSION: str = os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
 
     # Model configuration
-    MODEL_REGISTRY_PATH: str = "azureml://registries/azureml-deepseek/models/DeepSeek-R1"
+    MODEL_REGISTRY_PATH: str = os.getenv("MODEL_REGISTRY_PATH", "azureml://registries/azureml-deepseek/models/DeepSeek-R1")
 
     # Timeouts and retries for "o-series" models
     O_SERIES_BASE_TIMEOUT: float = Field(
-        default=120.0,
+        default=float(os.getenv("O_SERIES_BASE_TIMEOUT", "120.0")),
         description="Base timeout in seconds for o-series model requests"
     )
     O_SERIES_MAX_TIMEOUT: float = Field(
-        default=300.0,
+        default=float(os.getenv("O_SERIES_MAX_TIMEOUT", "300.0")),
         description="Maximum timeout in seconds for o-series model requests"
     )
     O_SERIES_TOKEN_FACTOR: float = Field(
-        default=0.05,
+        default=float(os.getenv("O_SERIES_TOKEN_FACTOR", "0.05")),
         description="Timeout multiplier per token for o-series models"
     )
     O_SERIES_MAX_RETRIES: int = Field(
-        default=3,
+        default=int(os.getenv("O_SERIES_MAX_RETRIES", "3")),
         description="Maximum retry attempts for o-series models"
     )
     O_SERIES_BACKOFF_MULTIPLIER: float = Field(
-        default=1.5,
+        default=float(os.getenv("O_SERIES_BACKOFF_MULTIPLIER", "1.5")),
         description="Exponential backoff multiplier for retries"
     )
 
     # Standard model settings
     STANDARD_BASE_TIMEOUT: float = Field(
-        default=15.0,
+        default=float(os.getenv("STANDARD_BASE_TIMEOUT", "15.0")),
         description="Base timeout in seconds for standard model requests"
     )
     STANDARD_MAX_TIMEOUT: float = Field(
-        default=60.0,
+        default=float(os.getenv("STANDARD_MAX_TIMEOUT", "60.0")),
         description="Maximum timeout in seconds for standard models"
     )
     STANDARD_TOKEN_FACTOR: float = Field(
-        default=0.02,
+        default=float(os.getenv("STANDARD_TOKEN_FACTOR", "0.02")),
         description="Timeout multiplier per token for standard models"
     )
 
     # Session configuration
     SESSION_TIMEOUT_MINUTES: int = Field(
-        default=30,
+        default=int(os.getenv("SESSION_TIMEOUT_MINUTES", "30")),
         description="Session expiration time in minutes"
     )
 
@@ -212,101 +217,3 @@ def build_azure_openai_url(deployment_name: str = None, api_version: str = None)
     final_url = f"{api_url}?api-version={api_version}"
     
     return final_url
-    
-def get_azure_search_index_schema(index_name: str) -> dict:
-    """
-    Build a schema dict for Azure Cognitive Search index creation.
-    This includes vector search configs, semantic configs, etc.
-    """
-    return {
-        "name": index_name,
-        "fields": [
-            {
-                "name": "id",
-                "type": "Edm.String",
-                "key": True,
-                "filterable": True
-            },
-            {
-                "name": "filename",
-                "type": "Edm.String",
-                "searchable": True,
-                "filterable": True,
-                "sortable": True
-            },
-            {
-                "name": "content",
-                "type": "Edm.String",
-                "searchable": True,
-                "analyzer": "standard.lucene"
-            },
-            {
-                "name": "chunk_content",
-                "type": "Edm.String",
-                "searchable": True,
-                "analyzer": "standard.lucene"
-            },
-            {
-                "name": "filepath",
-                "type": "Edm.String",
-                "searchable": True,
-                "filterable": True
-            },
-            {
-                "name": "file_type",
-                "type": "Edm.String",
-                "filterable": True
-            },
-            {
-                "name": "session_id",
-                "type": "Edm.String",
-                "filterable": True
-            },
-            {
-                "name": "chunk_id",
-                "type": "Edm.Int32",
-                "filterable": True,
-                "sortable": True
-            },
-            {
-                "name": "chunk_total",
-                "type": "Edm.Int32"
-            },
-            {
-                "name": "content_vector",
-                "type": "Collection(Edm.Single)",
-                "searchable": True,
-                "dimensions": AZURE_EMBEDDING_DIMENSION,
-                "vectorSearchConfiguration": "vectorConfig"
-            },
-            {
-                "name": "last_updated",
-                "type": "Edm.DateTimeOffset",
-                "filterable": True,
-                "sortable": True
-            }
-        ],
-        "vectorSearch": {
-            "algorithmConfigurations": [
-                {
-                    "name": "vectorConfig",
-                    "kind": "hnsw"
-                }
-            ]
-        },
-        "semantic": {
-            "configurations": [
-                {
-                    "name": "default",
-                    "prioritizedFields": {
-                        "contentFields": [
-                            {"fieldName": "content"},
-                            {"fieldName": "chunk_content"}
-                        ],
-                        "titleField": {"fieldName": "filename"},
-                        "urlField": {"fieldName": "filepath"}
-                    }
-                }
-            ]
-        }
-    }
