@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    // Allow JavaScript files
+    "allowJs": true,
+    // Disable strict type checking in .js files to avoid the TS errors in a JS project
+    "checkJs": false,
+    "skipLibCheck": true,
+    // Use Node module resolution strategy
+    "moduleResolution": "node",
+    // Target modern JavaScript
+    "target": "ES2020",
+    // Allow default imports
+    "allowSyntheticDefaultImports": true,
+    // Not enforcing strict checks
+    "strict": false,
+    // Resolve modules from the current directory
+    "baseUrl": "."
+  },
+  "include": [
+    "static/js/**/*"
+  ]
+}

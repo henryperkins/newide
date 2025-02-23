@@ -7,7 +7,7 @@ import { safeMarkdownParse, configureMarkdown, injectMarkdownStyles } from "/sta
 import { buildAzureOpenAIUrl, updateTokenUsage } from "/static/js/utils/helpers.js";
 import { initializeFileManager, setupDragAndDrop, loadFilesList, getSelectedFileIds, getFilesForChat } from "/static/js/fileManager.js";
 import { getTimeoutDurations } from '/static/js/config.js';
-import StatsDisplay from '/static/js/ui/StatsDisplay.js';  // <-- New StatsDisplay import
+import StatsDisplay from '/static/js/ui/statsDisplay.js';  // <-- New StatsDisplay import
 
 // Global stats display instance
 let statsDisplay;
@@ -21,7 +21,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Initialize core components
         await initializeMarkdownSupport();
         await initializeSessionHandling();
-        await initializeConfig();
         await initializeAzureConfig();
 
         // Initialize UI components
@@ -33,6 +32,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         handleApplicationError(error, 'initialize');
     }
 });
+
+function handleApplicationError(error, context) {
+    console.error("[handleApplicationError - " + context + "]", error);
+    showNotification("Application error in " + context + ": " + error.message, "error");
+}
 
 async function initializeAzureConfig(retryCount = 3, retryDelay = 1000) {
     try {
@@ -214,6 +218,16 @@ async function initializeUIEventHandlers() {
                 await syncConfigToStorage();
                 showNotification(`Switched to ${e.target.value} model`, 'info', 2000);
                 await updateModelSpecificUI(e.target.value);
+                
+                // Update .model-info text when the user changes the model
+                const modelInfoEl = document.querySelector('.model-info p');
+                if (modelInfoEl) {
+                    if (e.target.value === "o1") {
+                        modelInfoEl.innerHTML = "<strong>Model Info:</strong> Using Azure OpenAI o1 model (no streaming)";
+                    } else {
+                        modelInfoEl.innerHTML = "<strong>Model Info:</strong> Using DeepSeek R1 model (streaming available)";
+                    }
+                }
             } catch (error) {
                 console.error('Model switch error:', error);
                 showNotification('Failed to switch model', 'error');
@@ -500,18 +514,38 @@ function processResponseData(data) {
         window.serverCalculatedTimeout = data.calculated_timeout;
     }
 
-    displayMessage(safeMarkdownParse(data.response), "assistant");
+    // If data.choices[0].message.content exists, use that. Otherwise fall back to data.response
+    let assistantContent = data?.choices?.[0]?.message?.content;
+    if (!assistantContent) {
+        assistantContent = data.response || "";
+    }
+    const configData = await getCurrentConfig();
+    const userSelectedModel = configData?.selectedModel || '';
+    let modelName = data.model
+        || (window.azureOpenAIConfig?.deploymentName
+            ? window.azureOpenAIConfig.deploymentName
+            : 'unknown');
+    
+    if (userSelectedModel === 'deepseek-r1') {
+        modelName = 'DeepSeek-R1';
+    } else if (userSelectedModel === 'o1') {
+        modelName = 'o1-2024-12-17';
+    }
+    
+    // Append model label as a small subtext
+    assistantContent += `\n\n<span class="model-subtext" style="font-size: 0.85em; color: #777;">(Using model: ${modelName})</span>`;
+    
+    displayMessage(safeMarkdownParse(assistantContent), "assistant");
 
     if (data.usage) {
-        updateTokenUsage({
-            ...data.usage,
-            ...(data.usage.completion_details?.reasoning_tokens && {
-                reasoning_tokens: data.usage.completion_details.reasoning_tokens
-            }),
-            ...(data.usage.prompt_details?.cached_tokens && {
-                cached_tokens: data.usage.prompt_details.cached_tokens
-            })
-        });
+        let usageUpdate = { ...data.usage };
+        if (data.usage?.completion_details?.reasoning_tokens) {
+            usageUpdate.reasoning_tokens = data.usage.completion_details.reasoning_tokens;
+        }
+        if (data.usage?.prompt_details?.cached_tokens) {
+            usageUpdate.cached_tokens = data.usage.prompt_details.cached_tokens;
+        }
+        updateTokenUsage(usageUpdate);
     }
 }
 
@@ -807,9 +841,6 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
                 content: typeof messageContent === "string" ? messageContent : JSON.stringify(messageContent)
             }
         ],
-        include_files: fileContext.include_files,
-        file_ids: fileContext.file_ids,
-        use_file_search: fileContext.use_file_search
     };
 
     // Add model-specific parameters
@@ -935,25 +966,4 @@ function countTokensInChunk(chunk) {
     return chunk.split(/\s+/).length;
 }
 
-/**
- * Updates UI elements based on the selected model.
- * @param {string} model - The selected model identifier.
- */
-async function updateModelSpecificUI(model) {
-    const modelConfig = await getModelSettings(model);
-    const reasoningControls = document.getElementById('reasoning-controls');
-    const streamingToggle = document.getElementById('enable-streaming');
 
-    reasoningControls.style.display = modelConfig.capabilities.requires_reasoning_effort ? 'block' : 'none';
-    streamingToggle.disabled = !modelConfig.capabilities.supports_streaming;
-}
-
-/**
- * Updates the reasoning effort display based on slider value.
- * @param {string} value - The slider value (1-3).
- */
-function updateReasoningEffortDisplay(value) {
-    const display = document.getElementById('reasoning-effort-display');
-    const labels = ['Low', 'Medium', 'High'];
-    display.textContent = labels[value - 1];
-}

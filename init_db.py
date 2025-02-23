@@ -85,34 +85,46 @@ async def init_database():
             )
         """))
 
-        # Create indexes
-    # Create indexes individually to avoid asyncpg multi-command issue
-    index_statements = [
-        "CREATE INDEX IF NOT EXISTS idx_conversations_session_id ON conversations(session_id)",
-        "CREATE INDEX IF NOT EXISTS idx_conversations_timestamp ON conversations(timestamp)",
-        "CREATE INDEX IF NOT EXISTS idx_conversations_model ON conversations(model)",
-        "CREATE INDEX IF NOT EXISTS idx_uploaded_files_session_id ON uploaded_files(session_id)",
-        "CREATE INDEX IF NOT EXISTS idx_model_usage_stats_model ON model_usage_stats(model)",
-        "CREATE INDEX IF NOT EXISTS idx_model_usage_stats_session_id ON model_usage_stats(session_id)",
-        "CREATE INDEX IF NOT EXISTS idx_model_usage_stats_timestamp ON model_usage_stats(timestamp)"
-    ]
-    
-    for stmt in index_statements:
-        await conn.execute(text(stmt))
-
-    # Add any missing columns to existing tables
-    try:
-        await conn.execute(text("""
-            ALTER TABLE conversations 
-            ADD COLUMN IF NOT EXISTS model VARCHAR(50)
-        """))
+        # First add any missing columns, then create indexes
+        try:
+            await conn.execute(text("""
+                ALTER TABLE conversations
+                ADD COLUMN IF NOT EXISTS model VARCHAR(50)
+            """))
+            
+            await conn.execute(text("""
+                ALTER TABLE sessions
+                ADD COLUMN IF NOT EXISTS last_model VARCHAR(50)
+            """))
+        except Exception as e:
+            print(f"Error adding columns: {e}")
         
+        # Now create indexes
+        index_statements = [
+            "CREATE INDEX IF NOT EXISTS idx_conversations_session_id ON conversations(session_id)",
+            "CREATE INDEX IF NOT EXISTS idx_conversations_timestamp ON conversations(timestamp)",
+            "CREATE INDEX IF NOT EXISTS idx_conversations_model ON conversations(model)",
+            "CREATE INDEX IF NOT EXISTS idx_uploaded_files_session_id ON uploaded_files(session_id)",
+            "CREATE INDEX IF NOT EXISTS idx_model_usage_stats_model ON model_usage_stats(model)",
+            "CREATE INDEX IF NOT EXISTS idx_model_usage_stats_session_id ON model_usage_stats(session_id)",
+            "CREATE INDEX IF NOT EXISTS idx_model_usage_stats_timestamp ON model_usage_stats(timestamp)"
+        ]
+        
+        for stmt in index_statements:
+            await conn.execute(text(stmt))
+        
+        # Finally insert/update config for "o1hp"
         await conn.execute(text("""
-            ALTER TABLE sessions 
-            ADD COLUMN IF NOT EXISTS last_model VARCHAR(50)
+            INSERT INTO app_configurations (key, value, description)
+            VALUES (
+                'model.o1hp',
+                '{"max_tokens": 40000, "supports_streaming": false, "supports_temperature": false, "base_timeout": 120.0, "api_version":"2025-01-01-preview", "api_key": "YOUR-AZURE-KEY-HERE"}',
+                'Azure O1HP model config'
+            )
+            ON CONFLICT (key) DO UPDATE
+            SET value = EXCLUDED.value,
+                description = EXCLUDED.description
         """))
-    except Exception as e:
-        print(f"Error adding columns: {e}")
 
 if __name__ == "__main__":
     asyncio.run(init_database())
