@@ -509,7 +509,7 @@ function finalizeStreamingResponse(content, container) {
 /**
  * Process the final server response data.
  */
-function processResponseData(data) {
+async function processResponseData(data) {
     if (data.calculated_timeout) {
         window.serverCalculatedTimeout = data.calculated_timeout;
     }
@@ -526,9 +526,10 @@ function processResponseData(data) {
             ? window.azureOpenAIConfig.deploymentName
             : 'unknown');
     
-    if (userSelectedModel === 'deepseek-r1') {
+    const slug = userSelectedModel.toLowerCase();
+    if (slug.includes('deepseek-r1')) {
         modelName = 'DeepSeek-R1';
-    } else if (userSelectedModel === 'o1') {
+    } else if (slug.includes('o1')) {
         modelName = 'o1-2024-12-17';
     }
     
@@ -965,5 +966,3 @@ function createImageContent(match) {
 function countTokensInChunk(chunk) {
     return chunk.split(/\s+/).length;
 }
-
-
