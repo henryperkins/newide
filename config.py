@@ -37,11 +37,11 @@ class Settings(BaseSettings):
     WARNING_FILE_SIZE: int = 256 * 1024 * 1024
     MAX_FILE_SIZE_HUMAN: str = "512MB"
 
-    # Azure OpenAI Configuration
-    AZURE_OPENAI_ENDPOINT: str = "https://DeepSeek-R1HP.eastus2.models.ai.azure.com"
-    AZURE_OPENAI_API_KEY: str = "qmrlPygVEipb2JZ8XyNayytLL6PphKVW"
-    AZURE_OPENAI_DEPLOYMENT_NAME: str = "DeepSeek-R1"
-    AZURE_OPENAI_API_VERSION: str = "2025-01-01-preview"
+    # DeepSeek Inference Configuration
+    AZURE_INFERENCE_ENDPOINT: str = "https://your-host-name.your-azure-region.inference.ai.azure.com"
+    AZURE_INFERENCE_CREDENTIAL: str = "your-32-character-key-here"
+    AZURE_INFERENCE_DEPLOYMENT: str = "DeepSeek-R1"
+    AZURE_INFERENCE_API_VERSION: str = "2025-01-01-preview"
 
     # Model configuration
     MODEL_REGISTRY_PATH: str = "azureml://registries/azureml-deepseek/models/DeepSeek-R1"
@@ -95,15 +95,7 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
-    @validator("AZURE_OPENAI_DEPLOYMENT_NAME")
-    def strip_deployment_name(cls, v):
-        """
-        Example: disallow leading/trailing spaces or empty.
-        """
-        trimmed = v.strip()
-        if not trimmed:
-            raise ValueError("Deployment name cannot be empty or just spaces")
-        return trimmed
+    # Removed obsolete validator since we switched to AZURE_INFERENCE_DEPLOYMENT
 
 # Initialize pydantic settings
 settings = Settings()
@@ -111,15 +103,15 @@ settings = Settings()
 # -----------------------------------------------
 # Export constants from Settings
 # -----------------------------------------------
-AZURE_OPENAI_ENDPOINT = settings.AZURE_OPENAI_ENDPOINT
-AZURE_OPENAI_API_KEY = settings.AZURE_OPENAI_API_KEY
-AZURE_OPENAI_DEPLOYMENT_NAME = settings.AZURE_OPENAI_DEPLOYMENT_NAME
-AZURE_OPENAI_API_VERSION = settings.AZURE_OPENAI_API_VERSION
+AZURE_INFERENCE_ENDPOINT = settings.AZURE_INFERENCE_ENDPOINT
+AZURE_INFERENCE_CREDENTIAL = settings.AZURE_INFERENCE_CREDENTIAL
+AZURE_INFERENCE_DEPLOYMENT = settings.AZURE_INFERENCE_DEPLOYMENT
+AZURE_INFERENCE_API_VERSION = settings.AZURE_INFERENCE_API_VERSION
 
 # Model-specific configurations
 MODEL_CONFIGS = {
     "DeepSeek-R1": {
-        "max_tokens": 32000,
+        "max_tokens": 40000,
         "supports_temperature": False,
         "supports_streaming": True,
         "is_reasoning_model": True,
@@ -127,10 +119,10 @@ MODEL_CONFIGS = {
         "max_timeout": 300.0,
         "token_factor": 0.05,
         "api_version": "2025-01-01-preview",
-        "embeddings_endpoint": f"{settings.AZURE_OPENAI_ENDPOINT}/openai/deployments/DeepSeek-R1-Embeddings/embeddings",
-        "api_key": settings.AZURE_OPENAI_API_KEY
+        "embeddings_endpoint": f"{settings.AZURE_INFERENCE_ENDPOINT}/embeddings",
+        "api_key": settings.AZURE_INFERENCE_CREDENTIAL
     },
-    AZURE_OPENAI_DEPLOYMENT_NAME: {
+    AZURE_INFERENCE_DEPLOYMENT: {
         "max_tokens": 40000,
         "supports_streaming": False,
         "supports_temperature": False,
