@@ -20,7 +20,7 @@ def lifespan(app: FastAPI):
     yield
 
 # Resolve absolute path to the static directory
-STATIC_DIR = Path("/home/azureuser/newide/static")
+STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(
     docs_url=None,

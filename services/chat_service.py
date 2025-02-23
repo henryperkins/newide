@@ -1,27 +1,38 @@
-# chat_service.py
-
 import os
-import json
-import logging
-import asyncio
-import uuid
-import time
-from time import perf_counter
-from typing import List, Dict, Any, Optional
-from urllib.parse import quote
+from azure.ai.inference import ChatCompletionsClient
+from azure.core.credentials import AzureKeyCredential
+from config import AZURE_INFERENCE_ENDPOINT, AZURE_INFERENCE_CREDENTIAL, AZURE_INFERENCE_DEPLOYMENT
+import re
 
-from openai import AzureOpenAI
-from fastapi import HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+client = ChatCompletionsClient(
+    endpoint=AZURE_INFERENCE_ENDPOINT,
+    credential=AzureKeyCredential(AZURE_INFERENCE_CREDENTIAL),
+)
 
-import config
-from models import ChatMessage
-from utils import count_tokens, calculate_model_timeout, validate_streaming
-from logging_config import input_logger, response_logger, logger
-from errors import create_error_response
-from database import Conversation
-from services.model_stats_service import ModelStatsService
+async def get_chat_response(messages: list) -> str:
+    from azure.ai.inference.models import SystemMessage, UserMessage
+    
+    # Convert message format to DeepSeek-R1 expected structure
+    converted_messages = []
+    for msg in messages:
+        if msg["role"] == "system":
+            converted_messages.append(SystemMessage(content=msg["content"]))
+        elif msg["role"] in ["user", "assistant"]:
+            converted_messages.append(UserMessage(content=msg["content"], role=msg["role"]))
+    
+    response = client.complete(
+        messages=converted_messages,
+        max_tokens=40000,
+        temperature=0.0
+    )
+    
+    # Extract thinking and answer from response
+    content = response.choices[0].message.content
+    match = re.search(r"<think>(.*?)</think>(.*)", content, re.DOTALL)
+    
+    if match:
+        return match.group(2).strip()  # Return just the answer
+    return content
 
 # ----------------------------------------------------------------------------------
 # 1. Service Initialization
@@ -32,7 +43,7 @@ def get_model_stats_service(db_session: AsyncSession) -> ModelStatsService:
     return ModelStatsService(db_session)
 
 # ----------------------------------------------------------------------------------
-# 2. Token Management
+# 2. Token Management (Updated for DeepSeek-R1)
 # ----------------------------------------------------------------------------------
 
 class TokenManager:
@@ -351,6 +362,7 @@ async def process_chat_message(
 
     # Execute API call
     try:
+        # Use pre-configured client from clients.py
         response = azure_client.chat.completions.create(**params)
     except Exception as e:
         logger.error(f"Error during API call: {e}")
