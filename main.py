@@ -47,7 +47,7 @@ app.add_middleware(
     allow_origins=["*"],  # In production, lock this down
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["Content-Type", "Authorization", "api-key", "X-API-Version"],
+    allow_headers=["Content-Type", "Authorization", "api-key", "X-API-Version", "x-model-type"],
     expose_headers=[
         "Content-Type",
         "Authorization",

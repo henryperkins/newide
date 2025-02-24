@@ -5,8 +5,10 @@ export let sessionId = null;
 let _lastUserMessage = '';
 
 export async function initializeSession() {
+    console.log('[DEBUG] Initializing session...');
     try {
         const modelConfig = await getModelSettings();
+        console.log('[DEBUG] Model config:', modelConfig);
         const response = await fetch(`/api/session/create`, {
             method: 'GET',
             headers: {
@@ -16,6 +18,7 @@ export async function initializeSession() {
                 'X-Model-Type': modelConfig.name
             }
         });
+        console.log('[DEBUG] Session response status:', response.status);
         
         if (!response.ok) {
             const errorText = await response.text();
@@ -23,12 +26,14 @@ export async function initializeSession() {
         }
         
         const data = await response.json();
+        console.log('[DEBUG] Session response data:', data);
         if (!data.session_id) {
             throw new Error('Invalid session response: missing session_id');
         }
         
         sessionId = data.session_id;
-        console.log('Session initialized successfully:', sessionId);
+        console.log('[DEBUG] Session initialized successfully:', sessionId);
+        console.log('[DEBUG] Stored sessionId:', sessionId);
         return true;
     } catch (error) {
         console.error('Session initialization error:', error);
