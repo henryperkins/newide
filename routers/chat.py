@@ -56,26 +56,37 @@ async def store_message(
 @router.get("/api/conversations/history")
 async def get_conversation_history(
     session_id: UUID = Query(...),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db_session)
 ):
     """
-    Returns messages for a specified session in descending ID order,
-    currently limited to 1 if you want only the most recent message.
-    Adjust the query as needed for more messages.
+    Returns messages for a specified session in ascending order.
+    Allows pagination via offset & limit.
     """
     try:
-        result = await db.execute(
-            select(Conversation).where(Conversation.session_id == session_id).order_by(Conversation.id.desc()).limit(1)
+        query = (select(Conversation)
+                 .where(Conversation.session_id == session_id)
+                 .order_by(Conversation.id.asc())
+                 .offset(offset)
+                 .limit(limit)
         )
+        result = await db.execute(query)
         messages = result.scalars().all()
-        return [
-            {
-                "role": msg.role,
-                "content": msg.content,
-                "timestamp": msg.timestamp.isoformat() if msg.timestamp else None
-            }
-            for msg in messages
-        ]
+        return {
+            "session_id": str(session_id),
+            "messages": [
+                {
+                    "role": msg.role,
+                    "content": msg.content,
+                    "timestamp": msg.timestamp.isoformat() if msg.timestamp else None
+                } for msg in messages
+            ],
+            "offset": offset,
+            "limit": limit,
+            "returned_count": len(messages),
+            "has_more": (len(messages) == limit)
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

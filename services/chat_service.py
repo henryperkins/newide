@@ -12,6 +12,7 @@ from sqlalchemy import text
 from openai import AzureOpenAI
 from openai import OpenAIError
 
+import openai
 from logging_config import logger
 import config
 from models import ChatMessage, Conversation
@@ -135,6 +136,14 @@ async def process_chat_message(
 
     # Retrieve conversation history from DB
     existing_history = await fetch_conversation_history(db_session, session_id)
+
+    max_count = 15
+    if len(existing_history) > max_count:
+        older_part = existing_history[:-max_count]
+        summary_text = await summarize_messages(older_part)
+        existing_history = existing_history[-max_count:]
+        existing_history.insert(0, {"role": "system", "content": summary_text})
+
     messages.extend(existing_history)
 
     # Add the new user message
@@ -327,3 +336,18 @@ async def save_conversation(
     finally:
         # If each route uses its own session lifecycle, it's safe to close here.
         await db_session.close()
+async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
+    """
+    Summarize older messages into a single, concise system message.
+    """
+    combined_text = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in messages)
+    try:
+        # Example: using openai.Completion to summarize
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=f"Summarize the following chat:\n\n{combined_text}\n\nBrief Summary:",
+            max_tokens=150
+        )
+        return response["choices"][0]["text"].strip()
+    except Exception as e:
+        return "Summary of older messages: [Error fallback] " + str(e)
