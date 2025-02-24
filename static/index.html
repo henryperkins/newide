@@ -85,7 +85,8 @@
 
             <!-- Input Area -->
             <section class="border-t border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                <div class="flex space-x-2 items-end p-2">
+                <!-- Input and Send - with dedicated styles for mobile support -->
+                <div class="flex space-x-2 items-end p-2 relative">
                     <textarea 
                         id="user-input" 
                         placeholder="Type your message..."
@@ -93,13 +94,23 @@
                         rows="1"
                         class="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     ></textarea>
-                    <button 
-                        id="send-button" 
-                        class="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-md transition-colors"
-                    >
-                        <span aria-hidden="true">↑</span>
-                        <span class="sr-only">Send message</span>
-                    </button>
+                    <div class="send-button-wrapper" style="position: relative; z-index: 100;">
+                        <button 
+                            id="send-button" 
+                            type="button"
+                            class="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-md"
+                            style="min-width: 52px; min-height: 52px; touch-action: manipulation; -webkit-appearance: none;"
+                            onclick="window.universalSendMessage ? window.universalSendMessage() : null"
+                        >
+                            <span aria-hidden="true" style="font-size: 24px;">↑</span>
+                            <span class="sr-only">Send message</span>
+                        </button>
+                        <!-- Invisible touch-layer to increase tap target -->
+                        <div id="send-tap-target" 
+                            style="position: absolute; top: -15px; left: -15px; right: -15px; bottom: -15px; z-index: 101; cursor: pointer; background: rgba(255,255,255,0.01);"
+                            onclick="window.universalSendMessage ? window.universalSendMessage() : document.getElementById('send-button').click();">
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Token Usage -->
@@ -294,9 +305,9 @@
             </div>
         </aside>
 
-        <!-- Mobile Tab Toggle -->
+        <!-- Mobile Tab Toggle - moved away from send button -->
         <button 
-            class="fixed bottom-4 right-4 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 md:hidden z-50"
+            class="fixed top-4 right-4 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 md:hidden z-50"
             aria-label="Toggle sidebar"
             aria-controls="config-content files-content"
             aria-expanded="false">
@@ -318,6 +329,117 @@
     <div id="notification-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
     <!-- Initialization & New Modules -->
+    <!-- Inline the basic send functionality to be sure it works -->
+    <script>
+      // Universal send message handler - works without modules
+      function universalSendMessage() {
+        console.log("Universal send handler triggered");
+        // Try to call the send function directly first
+        try {
+          if (typeof sendMessage === 'function') {
+            sendMessage();
+            return false;
+          }
+        } catch (err) {
+          console.log("Direct call to sendMessage failed, using event system");
+        }
+        
+        // Fallback to event system
+        window.dispatchEvent(new CustomEvent('send-message'));
+        return false;
+      }
+      
+      // Make universalSendMessage globally available
+      window.universalSendMessage = universalSendMessage;
+      
+      // This function runs immediately, before any modules load
+      (function setupSendButton() {
+        console.log("Immediate send button setup running");
+        
+        // Set a global variable that modules can check
+        window.sendButtonInitialized = false;
+        window.triggerSendMessage = universalSendMessage;
+        
+        function initSendButton() {
+          const sendButton = document.getElementById('send-button');
+          const sendTapTarget = document.getElementById('send-tap-target');
+          const userInput = document.getElementById('user-input');
+          
+          if (!sendButton) {
+            console.error("Send button not found");
+            return false;
+          }
+          
+          console.log("Setting up send button handlers - native DOM");
+          
+          // Ensure onclick is set with the globally available function
+          sendButton.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.universalSendMessage();
+            return false;
+          };
+          
+          // Add multiple event types for better mobile capture
+          ['mousedown', 'touchstart', 'pointerdown', 'click'].forEach(function(event) {
+            sendButton.addEventListener(event, function(e) {
+              console.log("Send button " + event + " triggered");
+              e.preventDefault();
+              e.stopPropagation();
+              window.universalSendMessage();
+            }, {capture: true, passive: false});
+            
+            // Also add to the larger tap target
+            if (sendTapTarget) {
+              sendTapTarget.addEventListener(event, function(e) {
+                console.log("Tap target " + event + " triggered");
+                e.preventDefault();
+                e.stopPropagation();
+                window.universalSendMessage();
+              }, {capture: true, passive: false});
+            }
+          });
+          
+          // Enter key handler for input field
+          if (userInput) {
+            userInput.addEventListener('keypress', function(e) {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                window.universalSendMessage();
+              }
+            });
+          }
+          
+          window.sendButtonInitialized = true;
+          return true;
+        }
+        
+        // Try immediately
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+          initSendButton();
+        }
+        
+        // Also try on DOMContentLoaded
+        document.addEventListener('DOMContentLoaded', function() {
+          initSendButton();
+        });
+        
+        // Final fallback - try after a delay and repeat to ensure it works
+        window.addEventListener('load', function() {
+          // Try multiple times with increasing delays
+          [100, 500, 1000, 2000].forEach(function(delay) {
+            setTimeout(function() {
+              if (!window.sendButtonInitialized) {
+                console.warn("Send button not initialized yet - retrying after " + delay + "ms");
+                initSendButton();
+              }
+            }, delay);
+          });
+        });
+      })();
+    </script>
+    
+    <!-- Load the module scripts after our core functionality is set up -->
     <script type="module" src="/static/js/init.js"></script>
     <script type="module" src="/static/js/chat.js"></script>
     <script type="module" src="/static/js/streaming.js"></script>

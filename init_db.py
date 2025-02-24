@@ -7,10 +7,11 @@ import config
 async def init_database():
     """Initialize the database with required tables."""
     
-    # Temporarily disable SSL certificate verification (for testing only)
+    # Create proper SSL context with certificate verification
     ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
+    ssl_context.check_hostname = True
+    ssl_context.verify_mode = ssl.CERT_REQUIRED
+    ssl_context.load_verify_locations("DigiCertGlobalRootCA.crt.pem")
     
     engine = create_async_engine(
         config.POSTGRES_URL,
@@ -123,18 +124,32 @@ async def init_database():
         for stmt in index_statements:
             await conn.execute(text(stmt))
         
-        # Finally insert/update config for "o1hp"
+        # Finally insert/update config for "o1hp" using environment variables
+        import json
+        import os
+        
+        o1hp_config = {
+            "max_tokens": 40000, 
+            "supports_streaming": False, 
+            "supports_temperature": False, 
+            "base_timeout": 120.0, 
+            "api_version": os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
+            "api_key": ""  # Never store API keys in database
+        }
+        
         await conn.execute(text("""
-            INSERT INTO app_configurations (key, value, description)
+            INSERT INTO app_configurations (key, value, description, is_secret)
             VALUES (
                 'model.o1hp',
-                '{"max_tokens": 40000, "supports_streaming": false, "supports_temperature": false, "base_timeout": 120.0, "api_version":"2025-01-01-preview", "api_key": "YOUR-AZURE-KEY-HERE"}',
-                'Azure O1HP model config'
+                :config_value,
+                'Azure O1HP model config',
+                true
             )
             ON CONFLICT (key) DO UPDATE
             SET value = EXCLUDED.value,
-                description = EXCLUDED.description
-        """))
+                description = EXCLUDED.description,
+                is_secret = EXCLUDED.is_secret
+        """), {"config_value": json.dumps(o1hp_config)})
 
 if __name__ == "__main__":
     asyncio.run(init_database())

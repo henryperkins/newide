@@ -43,6 +43,15 @@ DEFAULT_CHUNK_SIZE = 4000  # Default tokens per chunk
 MAX_TOKENS_PER_FILE = 200000  # Maximum tokens for o-series models
 OVERLAP_SIZE = 200  # Token overlap between chunks
 
+# Allowed file extensions for security
+ALLOWED_EXTENSIONS = {
+    '.txt', '.md', '.pdf', '.docx', '.doc', '.json', '.js', '.py', 
+    '.html', '.css', '.xml', '.csv', '.xls', '.xlsx', '.pptx', '.ppt'
+}
+
+# Token count cache to improve performance
+_token_count_cache = {}
+
 async def process_uploaded_file(
     file_content: bytes, 
     filename: str, 
@@ -52,7 +61,25 @@ async def process_uploaded_file(
     Process an uploaded file based on its type
     
     Args:
-        file_content: Raw bytes of the file
+        file_content: Raw file content as bytes
+        filename: Name of the uploaded file
+        model_name: The model to use for token counting
+        
+    Returns:
+        Dictionary with processed file data
+        
+    Raises:
+        ValueError: For unsupported file types or invalid content
+    """
+    # Validate file extension
+    file_extension = os.path.splitext(filename)[1].lower()
+    if file_extension not in ALLOWED_EXTENSIONS:
+        raise ValueError(f"Unsupported file type: {file_extension}")
+        
+    # Check file size
+    max_size = config.settings.MAX_FILE_SIZE
+    if len(file_content) > max_size:
+        raise ValueError(f"File too large: {len(file_content)} bytes. Maximum allowed: {max_size} bytes")
         filename: Original filename with extension
         model_name: The model to be used (affects token counting)
         
@@ -288,7 +315,7 @@ async def chunk_text(
 
 async def count_tokens(text: str, model: Optional[str] = None) -> int:
     """
-    Count tokens in text for a specific model
+    Count tokens in text for a specific model with caching
     
     Args:
         text: Text to count tokens for
@@ -297,6 +324,11 @@ async def count_tokens(text: str, model: Optional[str] = None) -> int:
     Returns:
         Number of tokens in the text
     """
+    # Use cache for repeated text to improve performance
+    cache_key = f"{hash(text)}-{model}"
+    if cache_key in _token_count_cache:
+        return _token_count_cache[cache_key]
+        
     try:
         # Check if we're using an o-series model
         is_o_series = model and any(m in model.lower() for m in ["o1-", "o3-"])
@@ -306,11 +338,17 @@ async def count_tokens(text: str, model: Optional[str] = None) -> int:
         
         # Use appropriate encoding
         encoding = tiktoken.get_encoding(encoding_name)
-        return len(encoding.encode(text))
+        token_count = len(encoding.encode(text))
+        
+        # Cache the result
+        _token_count_cache[cache_key] = token_count
+        return token_count
     except Exception as e:
         logger.warning(f"Token counting error: {str(e)}")
         # Fallback to simple character-based estimation
-        return len(text) // 4  # Rough estimate: ~4 chars per token on average
+        token_count = len(text) // 4  # Rough estimate: ~4 chars per token on average
+        _token_count_cache[cache_key] = token_count
+        return token_count
 
 async def embed_file(file_id: str, text: str, azure_client):
     """

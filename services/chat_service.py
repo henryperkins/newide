@@ -211,15 +211,18 @@ async def process_chat_message(
         )
         raise ValueError(err["detail"])
     except Exception as e:
+        # Log the full error details for internal debugging
         logger.exception(
             f"[session {session_id}] An unexpected error occurred: {str(e)}"
         )
+        
+        # Create a sanitized error response that doesn't expose implementation details
         err = create_error_response(
             status_code=500,
             code="internal_server_error",
-            message="An unexpected error occurred during the Azure OpenAI API call.",
+            message="An unexpected error occurred during processing.",
             error_type="internal_server_error",
-            inner_error=str(e),
+            inner_error="Internal server error" # Don't expose actual error details externally
         )
         raise ValueError(err["detail"])
 

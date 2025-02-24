@@ -15,9 +15,10 @@ router = APIRouter(tags=["auth"])
 
 @router.post("/register")
 async def register_user(form: UserCreate, db: AsyncSession = Depends(get_db_session)):
-    # Check if email is in use
-    existing = await db.execute(text("SELECT 1 FROM users WHERE email=:email"), {"email": form.email})
-    if existing.scalar():
+    # Check if email is in use using parameterized query with SQLAlchemy
+    stmt = select(User).where(User.email == form.email)
+    result = await db.execute(stmt)
+    if result.scalars().first():
         raise HTTPException(status_code=400, detail="Email already exists")
     
     # Hash password

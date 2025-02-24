@@ -11,31 +11,57 @@ import StatsDisplay from '/static/js/ui/statsDisplay.js'; // If you're instantia
 // you might do this once. Or do so in init.js and import statsDisplay from there.
 export const statsDisplay = new StatsDisplay('performance-stats');
 
+// Listen for the global send-message event
+window.addEventListener('send-message', () => {
+  console.log("Global send-message event received");
+  sendMessage();
+});
+
 /**
  * Main request logic for chat:
  * - Called when user presses "Send" in UI
  * - Gathers user input, handles streaming or non-streaming requests
  * - Displays final message(s) and stats
  */
+// Expose globally for direct access
+window.sendMessage = sendMessage;
+
 export async function sendMessage() {
   let userInput;
-  console.log('[DEBUG] Send button clicked!');
+  console.log('[DEBUG] Send message function executing!');
 
   const streamingEl = document.getElementById('enable-streaming');
   const streamingEnabled = streamingEl ? streamingEl.checked : false;
   const sendButton = document.getElementById('send-button');
 
+  // Cache button state to restore later
+  const initialButtonText = sendButton ? sendButton.innerHTML : 'Send';
+  const initialButtonDisabled = sendButton ? sendButton.disabled : false;
+
   try {
     userInput = document.getElementById('user-input');
+    
+    // If userInput isn't found, exit gracefully - DOM might not be ready
+    if (!userInput) {
+      console.error('[sendMessage] User input element not found');
+      return;
+    }
+    
     const message = userInput.value.trim();
     if (!message) {
       showNotification('Message cannot be empty', 'warning');
       return;
     }
 
-    // Disable button & show feedback
-    sendButton.disabled = true;
-    sendButton.innerHTML = '<span class="animate-spin mr-1">🔄</span> Sending...';
+    // Disable button & show feedback - using try/catch for safety
+    try {
+      if (sendButton) {
+        sendButton.disabled = true;
+        sendButton.innerHTML = '<span class="animate-spin mr-1">🔄</span> Sending...';
+      }
+    } catch (btnErr) {
+      console.warn('[sendMessage] Error updating button state:', btnErr);
+    }
 
     // Initialize session if not done already
     if (!sessionId) {
@@ -45,13 +71,18 @@ export async function sendMessage() {
       }
     }
 
-    // Disable input while request is in flight
-    userInput.disabled = true;
+    // Disable input while request is in flight - with error handling
+    try { 
+      if (userInput) userInput.disabled = true;
+    } catch (inputErr) {
+      console.warn('[sendMessage] Error disabling input:', inputErr);
+    }
+    
     setLastUserMessage(message);
 
     // Display user's message in chat
     displayMessage(message, 'user');
-    userInput.value = '';
+    if (userInput) userInput.value = '';
 
     // Retrieve user config
     const config = await getCurrentConfig();
@@ -101,10 +132,17 @@ export async function sendMessage() {
   } catch (err) {
     handleMessageError(err);
   } finally {
-    sendButton.disabled = false;
-    sendButton.innerHTML = 'Send';
-    removeTypingIndicator();
-    userInput.disabled = false;
+    // Safely restore UI state
+    try {
+      if (sendButton) {
+        sendButton.disabled = initialButtonDisabled;
+        sendButton.innerHTML = initialButtonText;
+      }
+      removeTypingIndicator();
+      if (userInput) userInput.disabled = false;
+    } catch (finalErr) {
+      console.error('[sendMessage] Error in finally block:', finalErr);
+    }
   }
 }
 

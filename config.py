@@ -27,10 +27,10 @@ class Settings(BaseSettings):
     """
     Loads environment variables for DB credentials
     """
-    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "chatterpostgres.postgres.database.azure.com")
-    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "hperkins@chatterpostgres")
-    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "Twiohmld1234!")
-    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "chatterdb")
+    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST")
+    POSTGRES_USER: str = os.getenv("POSTGRES_USER")
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD")
+    POSTGRES_DB: str = os.getenv("POSTGRES_DB")
     POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", "5432"))
 
     # File size limits
@@ -39,15 +39,18 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_HUMAN: str = os.getenv("MAX_FILE_SIZE_HUMAN", "512MB")
 
     # DeepSeek Inference Configuration
-    AZURE_INFERENCE_ENDPOINT: str = "https://DeepSeek-R1HP.eastus2.models.ai.azure.com"
-    AZURE_INFERENCE_CREDENTIAL: str = "qmrlPygVEipb2JZ8XyNayytLL6PphKVW"
-    AZURE_INFERENCE_DEPLOYMENT: str = "DeepSeek-R1HP"
-    AZURE_INFERENCE_API_VERSION: str = "2025-01-01-preview"
+    AZURE_INFERENCE_ENDPOINT: str = os.getenv("AZURE_INFERENCE_ENDPOINT")
+    AZURE_INFERENCE_CREDENTIAL: str = os.getenv("AZURE_INFERENCE_CREDENTIAL")
+    AZURE_INFERENCE_DEPLOYMENT: str = os.getenv("AZURE_INFERENCE_DEPLOYMENT", "DeepSeek-R1HP")
+    AZURE_INFERENCE_API_VERSION: str = os.getenv("AZURE_INFERENCE_API_VERSION", "2025-01-01-preview")
     # Azure OpenAI Configuration
-    AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT", "https://aoai-east-2272068338224.cognitiveservices.azure.com")
-    AZURE_OPENAI_API_KEY: str = os.getenv("AZURE_OPENAI_API_KEY", "")
+    AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT")
+    AZURE_OPENAI_API_KEY: str = os.getenv("AZURE_OPENAI_API_KEY")
     AZURE_OPENAI_DEPLOYMENT_NAME: str = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "o1hp")
     AZURE_OPENAI_API_VERSION: str = os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
+    
+    # JWT Configuration
+    JWT_SECRET: str = os.getenv("JWT_SECRET")
 
     # Model configuration
     MODEL_REGISTRY_PATH: str = os.getenv("MODEL_REGISTRY_PATH", "azureml://registries/azure-openai/models/o1/versions/2024-12-17")
@@ -103,6 +106,24 @@ class Settings(BaseSettings):
 
 # Initialize pydantic settings
 settings = Settings()
+
+# Validate required settings
+required_settings = [
+    "POSTGRES_HOST", 
+    "POSTGRES_USER", 
+    "POSTGRES_PASSWORD", 
+    "POSTGRES_DB",
+    "AZURE_OPENAI_ENDPOINT",
+    "AZURE_OPENAI_API_KEY",
+    "AZURE_INFERENCE_ENDPOINT",
+    "AZURE_INFERENCE_CREDENTIAL",
+    "JWT_SECRET"
+]
+
+for setting in required_settings:
+    if not getattr(settings, setting):
+        logger.error(f"Required setting {setting} is not configured")
+        raise ValueError(f"Required environment variable {setting} is not set")
 
 # -----------------------------------------------
 # Export constants from Settings

@@ -3,7 +3,15 @@ import { sendMessage } from './chat.js';
 // init.js - Application initialization
 // Imports all necessary modules and bootstraps the application with Tailwind CSS
 
-import { initThemeSwitcher } from './ui/themeSwitcher.js';
+try {
+  import('./ui/themeSwitcher.js').then(module => {
+    window.initThemeSwitcher = module.initThemeSwitcher;
+  }).catch(err => {
+    console.error('Error loading themeSwitcher.js:', err);
+  });
+} catch (error) {
+  console.error('Could not import themeSwitcher:', error);
+}
 import { initTabSystem } from './ui/tabManager.js';
 import { configureMarkdown } from './ui/markdownParser.js';
 import { loadConversationFromLocalStorage } from './ui/displayManager.js';
@@ -16,8 +24,12 @@ import fileManager from './fileManager.js';
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Initializing Azure OpenAI Chat application...');
   
-  // Initialize theme system (dark/light mode)
-  initThemeSwitcher();
+  // Initialize theme system (dark/light mode) - call it if available
+  if (window.initThemeSwitcher) {
+    window.initThemeSwitcher();
+  } else {
+    console.warn('Theme switcher not initialized - UI may be missing the theme toggle');
+  }
   
   // Initialize the sidebar tab system
   initTabSystem();
@@ -156,6 +168,12 @@ function initUserInput() {
   const userInput = document.getElementById('user-input');
   const sendButton = document.getElementById('send-button');
 
+  // Global function for triggering send
+  window.triggerSendMessage = function() {
+    console.log("Global trigger function called");
+    window.dispatchEvent(new CustomEvent('send-message'));
+  };
+
   // Conversation management event binding
   const saveConvoBtn = document.getElementById('save-convo-btn');
   const clearConvoBtn = document.getElementById('clear-convo-btn');
@@ -239,12 +257,8 @@ function initUserInput() {
     this.style.height = Math.min(this.scrollHeight, 150) + 'px';
   });
 
-  // Hook up send button
-  sendButton.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    sendMessage();
-  });
+  // We no longer need this event handler as we're using direct DOM events
+  // and the global custom event system instead
   
   // Focus input on page load
   setTimeout(() => {
