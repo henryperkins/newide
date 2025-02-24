@@ -3,6 +3,31 @@
 import { safeMarkdownParse, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
 import { copyToClipboard } from '/static/js/utils/helpers.js';
 import { sessionId } from '/static/js/session.js';
+import fileManager from '/static/js/fileManager.js';
+
+function replaceFileReferences(container) {
+  if (!fileManager?.files?.length) return;
+
+  const fileNames = fileManager.files.map(f => f.name);
+  const textNodes = [...container.querySelectorAll('*')]
+    .flatMap(el => [...el.childNodes])
+    .filter(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+
+  textNodes.forEach(node => {
+    let txt = node.textContent;
+    fileNames.forEach(fname => {
+      if (txt.includes(fname)) {
+        const linkHTML = `<a href="#" class="text-blue-500 underline file-ref-link" data-file-name="${fname}">${fname}</a>`;
+        txt = txt.replace(fname, linkHTML);
+      }
+    });
+    if (txt !== node.textContent) {
+      const temp = document.createElement('span');
+      temp.innerHTML = txt;
+      node.replaceWith(temp);
+    }
+  });
+}
 
 /**
  *  Stores or retrieves messages from localStorage, plus
@@ -117,11 +142,49 @@ function storeMessageInLocalStorage(content, role) {
 export function loadConversationFromLocalStorage() {
   try {
     const conversation = JSON.parse(localStorage.getItem('conversation')) || [];
-    conversation.forEach(msg => {
+    // Show only the last 20 messages by default
+    const recentMessages = conversation.slice(-20);
+
+    recentMessages.forEach(msg => {
       displayMessage(msg.content, msg.role);
     });
   } catch (error) {
     console.warn('Could not load conversation from localStorage:', error);
+  }
+
+  export function loadOlderMessages() {
+    try {
+      const conversation = JSON.parse(localStorage.getItem('conversation')) || [];
+      const currentlyDisplayed = document.querySelectorAll('#chat-history > div');
+      const alreadyShownCount = currentlyDisplayed.length;
+      const olderBatch = conversation.slice(
+        Math.max(0, conversation.length - alreadyShownCount - 20),
+        Math.max(0, conversation.length - alreadyShownCount)
+      );
+      // Insert older messages at the *top* so user sees them above the existing ones
+      olderBatch.forEach(msg => {
+        const div = createMessageElement(msg.role);
+        const contentDiv = createContentElement(msg.content, msg.role);
+        div.appendChild(contentDiv);
+        const chatHistory = document.getElementById('chat-history');
+        if (chatHistory) {
+          chatHistory.insertBefore(div, chatHistory.firstChild);
+        }
+      });
+      updateLoadOlderButton(alreadyShownCount + olderBatch.length, conversation.length);
+    } catch (error) {
+      console.warn('[loadOlderMessages] error:', error);
+    }
+  }
+
+  function updateLoadOlderButton(displayed, total) {
+    const btn = document.getElementById('load-older-btn');
+    if (!btn) return;
+    if (displayed < total) {
+      btn.classList.remove('hidden');
+    } else {
+      btn.classList.add('hidden');
+    }
   }
 }
 

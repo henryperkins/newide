@@ -93,6 +93,12 @@ export async function handleStreamingResponse(response, controller, config, stat
       if (responseData.content && statsDisplay && statsDisplay.updateStats) {
         tokenCount += countTokensInChunk(responseData.content);
 
+        // Add partial chunk info to stats
+        statsDisplay.updateStats({
+          chunkCount: (statsDisplay.stats.chunkCount || 0) + 1,
+          partialTokens: tokenCount
+        });
+
         // Display partial tokenCount if element found
         if (streamingCounterEl) {
           streamingCounterEl.textContent = tokenCount.toString();

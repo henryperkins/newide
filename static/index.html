@@ -41,6 +41,14 @@
             </div>
             <div class="performance-stats" id="performance-stats">
                 <!-- Stats will be injected here -->
+                <div class="stat-item">
+                  <span class="stat-label">Chunks</span>
+                  <span class="stat-value" id="chunks-value">0</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Partial Tokens</span>
+                  <span class="stat-value" id="partial-tokens-value">0</span>
+                </div>
             </div>
             <div class="flex items-center space-x-2">
               <button id="font-size-down"
@@ -60,6 +68,13 @@
 
         <div class="flex flex-col h-full overflow-hidden">
             <!-- Chat History -->
+            <button 
+              id="load-older-btn" 
+              class="btn-secondary hidden my-2 mx-auto"
+              aria-label="Load older messages">
+              Load Older Messages
+            </button>
+
             <section 
                 id="chat-history" 
                 class="flex-1 p-4 overflow-y-auto flex flex-col space-y-4 bg-white dark:bg-gray-900 scroll-smooth" 

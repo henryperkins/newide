@@ -12,7 +12,9 @@ export default class StatsDisplay {
         latency: 0,
         tokensPerSecond: 0,
         activeConnections: 0,
-        totalTokens: 0
+        totalTokens: 0,
+        chunkCount: 0,
+        partialTokens: 0
       };
   
       this.initDisplay();
@@ -69,6 +71,11 @@ export default class StatsDisplay {
   
       this.container.querySelector('#latency-value').textContent =
         `${this.stats.latency}ms`;
+
+      const chunkEl = this.container.querySelector('#chunks-value');
+      const partialTokensEl = this.container.querySelector('#partial-tokens-value');
+      if (chunkEl) chunkEl.textContent = this.stats.chunkCount;
+      if (partialTokensEl) partialTokensEl.textContent = this.stats.partialTokens;
   
       // Show tokensPerSecond as one decimal place, e.g. "12.3 t/s"
       this.container.querySelector('#tokens-value').textContent =

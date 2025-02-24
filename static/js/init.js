@@ -155,6 +155,22 @@ function showWelcomeMessage() {
 function initUserInput() {
   const userInput = document.getElementById('user-input');
   const sendButton = document.getElementById('send-button');
+
+  // Attach "Load Older Messages" button
+  const loadOlderBtn = document.getElementById('load-older-btn');
+  if (loadOlderBtn) {
+    loadOlderBtn.addEventListener('click', loadOlderMessages);
+  }
+
+  // Make file references clickable
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('.file-ref-link');
+    if (link) {
+      e.preventDefault();
+      const fname = link.getAttribute('data-file-name');
+      openFileInSidebar(fname);
+    }
+  });
   
   if (!userInput || !sendButton) return;
   
