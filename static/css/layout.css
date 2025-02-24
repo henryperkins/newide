@@ -2,6 +2,7 @@
    This file handles the structural layout for the chat interface, header, message bubbles, input area, etc. */
 
 /* Main Layout */
+/* Commented out for Tailwind migration
 .chat-container {
   display: grid;
   grid-template-rows: min-content 1fr min-content;
@@ -13,6 +14,7 @@
  
   /* Removed overflow:hidden to ensure chat container is fully visible */
 }
+*/
 
 /* Header */
 .chat-header {
