@@ -690,7 +690,8 @@ function setupMobileHandlers() {
     });
 
     document.addEventListener('touchend', () => {
-        document.querySelector('.mobile-drag-overlay')?.remove();
+        const overlay = document.querySelector('.mobile-drag-overlay');
+        if (overlay) overlay.remove();
     });
 
     document.addEventListener('touchmove', () => {
