@@ -155,6 +155,31 @@
   font-size: 0.7em;
 }
 
+/* Mobile tab toggle button */
+.mobile-tab-toggle {
+  display: none;
+  position: fixed;
+  bottom: var(--space-md);
+  right: var(--space-md);
+  background: var(--color-primary);
+  color: var(--text-inverted);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  box-shadow: var(--shadow-lg);
+  border: none;
+  z-index: 1000;
+  cursor: pointer;
+  transition: 
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.mobile-tab-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-xl);
+}
+
 /* Performance Stats */
 .performance-stats {
   margin-top: var(--space-sm);

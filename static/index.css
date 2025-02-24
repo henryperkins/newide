@@ -18,23 +18,6 @@
   margin: 0;
 }
 
-/* Toggle for mobile tab panel */
-.mobile-tab-toggle {
-  display: none;
-  
-  position: fixed;
-  bottom: var(--space-md);
-  right: var(--space-md);
-  background: var(--color-primary);
-  color: var(--text-inverted);
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  box-shadow: var(--shadow-lg);
-  border: none;
-  z-index: 1000;
-  cursor: pointer;
-}
 
 /* Error display styling, unique to index layout */
 #error-display {

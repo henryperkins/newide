@@ -1,4 +1,4 @@
-import { safeMarkdownParse } from '/static/js/ui/markdownParser.js';
+import { safeMarkdownParse, configureMarkdown, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
 import { copyToClipboard } from '/static/js/utils/helpers.js';
 function updateTokenUsage(usage) {
     const tokenDisplay = document.getElementById('token-usage');
@@ -66,6 +66,7 @@ function createDeveloperMessage(content, isFormattingMessage) {
 
 function createMessageElement(role) {
     const messageDiv = document.createElement('div');
+    // Add 'markdown-content' class for proper styling
     messageDiv.className = `message ${role}-message markdown-content`;
     
     // Initial animation state
@@ -81,15 +82,13 @@ function createContentElement(content, role) {
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
 
-    if (role === 'assistant' && hasCitations(content)) {
-        const { parsedContent, citations } = processCitations(content);
-        contentDiv.innerHTML = createAssistantContent(parsedContent, citations);
-        addCitationStyles();
-    } else {
-        contentDiv.innerHTML = safeMarkdownParse(content);
-    }
+    // Ensure the content is always parsed with safeMarkdownParse, enabling code blocks
+    const htmlContent = safeMarkdownParse(typeof content === "string" ? content : JSON.stringify(content));
+    contentDiv.innerHTML = htmlContent;
 
-    processCodeBlocks(contentDiv);
+    // After inserting HTML, highlight code blocks for Prism + MarkdownIt
+    highlightCodeBlocks(contentDiv);
+
     return contentDiv;
 }
 
@@ -195,7 +194,7 @@ function addCitationStyles() {
     document.head.appendChild(style);
 }
 
-function processCodeBlocks(container) {
+export function highlightCodeBlocks(container) {
     container.querySelectorAll('pre code').forEach(block => {
         block.style.opacity = '0';
         // Add language class if not present

@@ -3,7 +3,6 @@ const CACHE_NAME = 'o1-chat-cache-v1';
 const URLS_TO_CACHE = [
   '/',
   '/static/index.html',
-  '/static/js/main.js',
   '/static/lib/markdown-it.min.js',
   '/static/lib/prism.min.js',
   '/static/lib/marked.min.js',
