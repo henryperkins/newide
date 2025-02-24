@@ -14,6 +14,8 @@ from routers.files import router as files_router
 from routers.config import router as config_router
 from routers.model_stats import router as model_stats_router
 
+from routers.auth import router as auth_router
+
 import config
 from services.config_service import ConfigService  # Import ConfigService
 

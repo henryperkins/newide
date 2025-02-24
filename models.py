@@ -91,6 +91,13 @@ class AppConfiguration(Base):
     description = Column(Text, nullable=True)
     is_secret = Column(Boolean, default=False)
 
+class User(Base):
+    __tablename__ = 'users'
+    id = Column(PGUUID, primary_key=True)
+    email = Column(String(120), unique=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+
 # -------------------------------------------------------------------------
 # Model Usage Stats
 # -------------------------------------------------------------------------

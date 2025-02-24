@@ -28,3 +28,31 @@ async def validate_auth(
             message="Missing or invalid authentication credentials",
             error_type="authentication_error"
         )
+
+import config
+import jwt
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from models import User
+from database import get_db_session
+from fastapi import HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+async def get_current_user(
+    db: AsyncSession = Depends(get_db_session),
+    creds: HTTPAuthorizationCredentials = Depends(HTTPBearer())
+):
+    try:
+        payload = jwt.decode(creds.credentials, config.settings.JWT_SECRET, algorithms=["HS256"])
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+
+        user = await db.get(User, user_id)
+        if not user or not user.is_active:
+            raise HTTPException(status_code=401, detail="Inactive user")
+
+        return user
+    except jwt.DecodeError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
