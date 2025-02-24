@@ -1,5 +1,6 @@
 // chat.js - Extracted chat logic from main.js
 
+import { statsDisplay } from "/static/js/init.js";
 import { initializeSession, sessionId, getLastUserMessage, setLastUserMessage } from "/static/js/session.js";
 import {
   getCurrentConfig,
