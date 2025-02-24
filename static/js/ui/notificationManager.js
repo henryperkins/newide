@@ -52,33 +52,77 @@ export function showNotification(message, type = 'info', duration = 5000) {
     }, duration);
 }
 
+let typingState = {
+    active: false,
+    element: null,
+    timeoutId: null,
+    animationFrame: null
+};
+
+const INDICATOR_TIMEOUT = 30000; // 30s safety timeout
+
 /**
- * Shows the typing indicator in the chat interface
+ * Shows the typing indicator with state management and accessibility
  */
 export function showTypingIndicator() {
-    const indicator = document.createElement('div');
-    indicator.id = 'typing-indicator';
-    indicator.className = 'typing-indicator';
-    indicator.innerHTML = `
-        <span class="dot"></span>
-        <span class="dot"></span>
-        <span class="dot"></span>
-    `;
+    if (typingState.active) return;
     
-    const chatHistory = document.getElementById('chat-history');
-    if (chatHistory) {
-        chatHistory.appendChild(indicator);
-        indicator.scrollIntoView({ behavior: 'smooth' });
-    }
+    // Create element
+    const indicator = document.createElement('div');
+    indicator.className = 'typing-indicator';
+    indicator.setAttribute('role', 'status');
+    indicator.setAttribute('aria-live', 'polite');
+    indicator.innerHTML = `
+        <div class="typing-content">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="sr-only">AI is generating response...</span>
+        </div>
+    `;
+
+    // State management
+    typingState = {
+        active: true,
+        element: indicator,
+        timeoutId: setTimeout(() => {
+            console.warn('Typing indicator timeout');
+            removeTypingIndicator();
+        }, INDICATOR_TIMEOUT),
+        animationFrame: requestAnimationFrame(() => {
+            const chatHistory = document.getElementById('chat-history');
+            if (chatHistory) {
+                chatHistory.appendChild(indicator);
+                indicator.classList.add('visible');
+                indicator.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }
+        })
+    };
 }
 
 /**
- * Removes the typing indicator from the chat interface
+ * Removes typing indicator with cleanup and smooth transition
  */
 export function removeTypingIndicator() {
-    const indicator = document.getElementById('typing-indicator');
-    if (indicator) {
-        indicator.remove();
+    if (!typingState.active) return;
+
+    // Cleanup
+    clearTimeout(typingState.timeoutId);
+    cancelAnimationFrame(typingState.animationFrame);
+
+    if (typingState.element) {
+        // Animated removal
+        typingState.element.classList.add('fading-out');
+        
+        setTimeout(() => {
+            typingState.element.remove();
+            typingState = {
+                active: false,
+                element: null,
+                timeoutId: null,
+                animationFrame: null
+            };
+        }, 300); // Match CSS transition duration
     }
 }
 
