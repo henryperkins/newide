@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Body, HTTPException
+import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
@@ -7,6 +8,38 @@ from database import get_db_session
 from services.model_stats_service import ModelStatsService
 
 router = APIRouter(prefix="/api/model-stats")
+
+@router.post("/usage")
+async def record_model_usage(
+    model: str = Body(...),
+    session_id: str = Body(..., description="Session ID in UUID format"),
+    usage: Dict[str, Any] = Body(...),
+    metadata: Optional[Dict[str, Any]] = Body(None),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Record model usage statistics"""
+    try:
+        session_uuid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid session ID format"
+        )
+
+    stats_service = ModelStatsService(db)
+    try:
+        await stats_service.record_usage(
+            model=model,
+            session_id=session_uuid,
+            usage=usage,
+            metadata=metadata
+        )
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to record usage: {str(e)}"
+        )
 
 @router.get("/session/{session_id}")
 async def get_session_stats(
@@ -43,7 +76,11 @@ async def get_model_stats(
         days = int(period[:-1])
         start_time = now - timedelta(days=days)
     else:
-        raise ValueError("Invalid period format. Use 'h' for hours or 'd' for days (e.g., '24h', '7d')")
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid period format. Use 'h' for hours or 'd' for days (e.g., '24h', '7d')"
+        )
 
     stats_service = ModelStatsService(db)
     stats = await stats_service.get_model_stats(
@@ -98,7 +135,11 @@ async def compare_models(
         days = int(period[:-1])
         start_time = now - timedelta(days=days)
     else:
-        raise ValueError("Invalid period format. Use 'h' for hours or 'd' for days (e.g., '24h', '7d')")
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid period format. Use 'h' for hours or 'd' for days (e.g., '24h', '7d')"
+        )
 
     stats_service = ModelStatsService(db)
     
@@ -116,6 +157,18 @@ async def compare_models(
         "period": period,
         "comparison": comparison
     }
+
+@router.get("/connections")
+async def get_connection_stats(
+    db: AsyncSession = Depends(get_db_session)
+):
+    """
+    Get active connection statistics including concurrent connections,
+    recent connection attempts, and connection trends.
+    """
+    stats_service = ModelStatsService(db)
+    connections = await stats_service.get_connection_stats()
+    return {"connections": connections}
 
 @router.get("/summary")
 async def get_usage_summary(

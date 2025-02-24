@@ -1,222 +1,234 @@
+/* components.css (Cleaned up to remove global resets and variables assigned to base.css)
+   This file now contains specialized component styling for model selection, config sections, 
+   performance stats, etc., ensuring no duplication with layout.css or index.css. */
+
 /* Model Selection */
 .model-selection {
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 20px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: var(--surface-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .model-selection h3 {
-    margin-top: 0;
-    margin-bottom: 16px;
-    color: var(--text-primary);
-    font-size: var(--text-sm);
-  }
-  
-  .config-section select,
-  .config-section input[type="text"],
-  .config-section input[type="range"] {
-    width: 100%;
-    padding: 2px 6px;
-    min-height: 22px;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    background: var(--surface-main);
-    color: var(--text-primary);
-    font-size: var(--text-sm);
-    margin-bottom: 1px;
-  }
-  
-  .config-section select:focus,
-  .config-section input[type="text"]:focus {
-    border-color: var(--color-primary);
-    outline: none;
-    border-color: var(--accent-color);
-    box-shadow: 0 0 0 2px var(--accent-color-alpha), 0 0 0 3px rgba(59, 130, 246, 0.5);
+  margin-top: 0;
+  margin-bottom: var(--space-md);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
 }
 
-.model-info {
-    margin-bottom: 16px;
+/* Config Sections */
+.config-section {
+  background: var(--surface-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--space-xs);
+  margin-bottom: var(--space-xs);
 }
 
-.model-description {
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
-    text-decoration: none;
-    margin-top: -2px;
-    padding: 0;
-  }
-  
-  .config-section a:hover {
-    text-decoration: underline;
-  }
-  
-  /* Reasoning Controls */
-  #reasoning-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-  
-  #reasoning-effort-slider {
-    width: 100%;
-    margin: 1px 0;
-    -webkit-appearance: none;
-    appearance: none;
-    height: 3px;
-    background: var(--surface-tertiary);
-    border-radius: var(--radius-lg);
-  }
-  
-  #reasoning-effort-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 12px;
-    height: 12px;
-    background: var(--color-primary);
-    border-radius: 50%;
-    cursor: pointer;
-    transition: transform var(--transition-fast);
-  }
-  
-  #reasoning-effort-slider::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
-    background: var(--color-primary);
-    border-radius: 50%;
-    cursor: pointer;
-    transition: transform var(--transition-fast);
-    border: none;
-  }
-  
-  #reasoning-effort-display {
-    color: var(--color-primary);
-    font-weight: 600;
-    font-size: var(--text-sm);
-    margin-bottom: 0;
-  }
-  
-  .effort-description {
-    font-size: var(--text-xs);
-    color: var(--text-secondary);
-    padding: 2px 6px;
-    background: var(--surface-main);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-subtle);
-    line-height: 1.15;
-    margin-top: 1px;
-  }
-  
-  /* Streaming Toggle */
-  #streaming-toggle {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2xs);
-    padding: 1px 6px;
-    margin-top: -1px;
-    min-height: 22px;
-    background: var(--surface-main);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-subtle);
-  }
-  
-  #streaming-toggle label {
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: var(--space-2xs);
-    cursor: pointer;
-    font-weight: 500;
-    font-size: var(--text-sm);
-  }
-  
-  #streaming-toggle input[type="checkbox"] {
-    width: 14px;
-    height: 14px;
-    border: 1px solid var(--border-medium);
-    border-radius: var(--radius-sm);
-    appearance: none;
-    -webkit-appearance: none;
-    outline: none;
-    cursor: pointer;
-    position: relative;
-    background: var(--surface-main);
-  }
-  
-  #streaming-toggle input[type="checkbox"]:checked {
-    background: var(--color-primary);
-    border-color: var(--color-primary);
-  }
-  
-  #streaming-toggle input[type="checkbox"]:checked::after {
-    content: '✓';
-    color: white;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 0.7em;
-  }
-  
-  /* Mobile Responsiveness */
-  @media (max-width: 768px) {
-    .config-section {
-      padding: 4px;
-    }
-  }
-  
-  @media (max-width: 480px) {
-    .config-section h3 {
-      font-size: var(--text-sm);
-    }
-  }
-  /* Stats Display */
+.config-section select,
+.config-section input[type="text"],
+.config-section input[type="range"] {
+  width: 100%;
+  padding: 2px 6px;
+  min-height: 22px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-main);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  margin-bottom: 1px;
+}
+
+.config-section select:focus,
+.config-section input[type="text"]:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Reasoning Controls */
+#reasoning-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+#reasoning-effort-slider {
+  width: 100%;
+  margin: 1px 0;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  background: var(--surface-tertiary);
+  border-radius: var(--radius-lg);
+}
+
+#reasoning-effort-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+#reasoning-effort-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+  border: none;
+}
+
+#reasoning-effort-display {
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  margin-bottom: 0;
+}
+
+.effort-description {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  background: var(--surface-main);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  line-height: 1.15;
+  margin-top: 1px;
+}
+
+/* Streaming Toggle */
+#streaming-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: 1px 6px;
+  margin-top: -1px;
+  min-height: 22px;
+  background: var(--surface-main);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+#streaming-toggle label {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: var(--text-sm);
+}
+
+#streaming-toggle input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  background: var(--surface-main);
+}
+
+#streaming-toggle input[type="checkbox"]:checked {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+#streaming-toggle input[type="checkbox"]:checked::after {
+  content: '✓';
+  color: var(--text-inverted);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.7em;
+}
+
+/* Performance Stats */
 .performance-stats {
-    margin-top: 1rem;
-    padding: 0.8rem;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-    backdrop-filter: blur(4px);
+  margin-top: var(--space-sm);
+  padding: var(--space-sm);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(4px);
 }
 
 .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1rem;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-sm);
 }
 
 .stat-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 0.5rem;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-2xs);
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
 }
 
-/* Dark mode adjustments */
+/* Dark mode adjustments (in addition to base.css) */
 @media (prefers-color-scheme: dark) {
-    .model-selection,
-    .model-stats {
-        background: var(--bg-tertiary);
-    }
-    .notification-container {
-        z-index: 9999;
-    }
+  .model-selection {
+    background: var(--surface-elevated);
+    border-color: var(--border-medium);
+  }
 
-    #reasoning-controls,
-    .current-session,
-    .period-stats,
-    .usage-chart {
-        background: var(--bg-secondary);
-    }
-    
-    @font-face {
-        font-family: 'Inter';
-        src: url('/static/fonts/inter/inter-400.woff2') format('woff2');
-        font-display: swap;
-        font-weight: 400 700;
-    }
+  #reasoning-controls,
+  .current-session,
+  .period-stats,
+  .usage-chart {
+    background: var(--surface-secondary);
+  }
 }
+
+/* Additional Specific Components */
+.notification-container {
+  z-index: 9999;
+}
+
+#reasoning-controls,
+.current-session,
+.period-stats,
+.usage-chart {
+  background: var(--surface-secondary);
+}
+
+/* Permissions to unify any specialized small detail changes as needed */
+.model-info {
+  margin-bottom: var(--space-xs);
+}
+
+.model-description {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  text-decoration: none;
+  margin-top: -2px;
+  padding: 0;
+}
+
+.config-section a:hover {
+  text-decoration: underline;
+}
+
+/* Horizontal stats bar approach for tokens or processing */
+.reasoning-bar {
+  height: 4px;
+  background: var(--color-primary);
+  border-radius: var(--radius-sm);
+  transition: width 0.3s ease;
+}
+
+/* This design encourages any unique utility classes to exist here as needed. */

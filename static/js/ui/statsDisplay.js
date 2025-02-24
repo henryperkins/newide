@@ -43,8 +43,15 @@ export default class StatsDisplay {
 
     startConnectionTracking() {
         // Simulate connection tracking - replace with real WebSocket connections
-        setInterval(() => {
-            this.stats.activeConnections = Math.floor(Math.random() * 10); // Demo data
+        setInterval(async () => {
+            try {
+                const response = await fetch('/api/model-stats/connections');
+                const data = await response.json();
+                this.stats.activeConnections = data.active_connections;
+            } catch (e) {
+                console.error('Failed to fetch active connections', e);
+                this.stats.activeConnections = 0;
+            }
             this.render();
         }, 5000);
     }

@@ -34,7 +34,7 @@ class ModelStatsService:
                 session_id=session_id,
                 prompt_tokens=usage.get("prompt_tokens", 0),
                 completion_tokens=usage.get("completion_tokens", 0),
-                total_tokens=usage.get("total_tokens", 0),
+                total_tokens=usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0),
                 reasoning_tokens=usage.get("completion_tokens_details", {}).get("reasoning_tokens"),
                 cached_tokens=usage.get("prompt_tokens_details", {}).get("cached_tokens", 0),
                 metadata=metadata
@@ -61,7 +61,7 @@ class ModelStatsService:
                         :total_tokens,
                         :reasoning_tokens,
                         :cached_tokens,
-                        :metadata::jsonb,
+                        COALESCE(:metadata, '{}'::jsonb),
                         :timestamp
                     )
                 """),
@@ -208,6 +208,62 @@ class ModelStatsService:
 
         except Exception as e:
             raise Exception(f"Failed to get model stats: {str(e)}")
+
+    async def get_connection_stats(self) -> Dict[str, Any]:
+        """
+        Get connection statistics including:
+        - Concurrent active connections
+        - Recent connection attempts
+        - Connection trends
+        """
+        try:
+            # Get concurrent connections (active in last 5 minutes)
+            concurrent_result = await self.db.execute(
+                text("""
+                    SELECT COUNT(DISTINCT session_id) as active_connections
+                    FROM model_usage_stats
+                    WHERE timestamp > NOW() - INTERVAL '5 minutes'
+                """)
+            )
+            concurrent = concurrent_result.scalar() or 0
+
+            # Get recent connection attempts (last 24 hours)
+            recent_result = await self.db.execute(
+                text("""
+                    SELECT 
+                        COUNT(*) as total_attempts,
+                        COUNT(DISTINCT session_id) as unique_sessions
+                    FROM model_usage_stats
+                    WHERE timestamp > NOW() - INTERVAL '24 hours'
+                """)
+            )
+            recent_row = recent_result.mappings().first()
+
+            # Get connection trend by hour
+            trend_result = await self.db.execute(
+                text("""
+                    SELECT
+                        DATE_TRUNC('hour', timestamp) as hour,
+                        COUNT(DISTINCT session_id) as connections
+                    FROM model_usage_stats
+                    WHERE timestamp > NOW() - INTERVAL '24 hours'
+                    GROUP BY hour
+                    ORDER BY hour
+                """)
+            )
+            trend = [dict(row) for row in trend_result.mappings()]
+
+            return {
+                "concurrent_connections": concurrent,
+                "recent_attempts": {
+                    "total": recent_row["total_attempts"],
+                    "unique_sessions": recent_row["unique_sessions"]
+                },
+                "hourly_trend": trend
+            }
+
+        except Exception as e:
+            raise Exception(f"Failed to get connection stats: {str(e)}")
 
     async def get_token_usage_trend(
         self,

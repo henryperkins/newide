@@ -1,3 +1,6 @@
+/* layout.css (Cleaned up to remove base resets, variable definitions, and font-face declarations handled in base.css)
+   This file handles the structural layout for the chat interface, header, message bubbles, input area, etc. */
+
 /* Main Layout */
 .chat-container {
   display: grid;
@@ -22,7 +25,7 @@
 
 .chat-header h1 {
   font-size: var(--text-lg);
-  margin: 0;
+  margin: 0; /* Possibly overridden or refined in index.css */
 }
 
 .model-info {
@@ -343,18 +346,6 @@
   font-size: var(--text-sm);
 }
 
-.drop-message {
-  margin: 0;
-  color: var(--text-secondary);
-}
-
-.drop-hint {
-  margin: 0;
-  font-style: italic;
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-}
-
 /* Tab System */
 .tab-content {
   flex: 1;
@@ -390,6 +381,12 @@
   .token-usage-compact {
     padding-left: var(--space-sm);
     padding-right: var(--space-sm);
+  }
+
+  /* Ensure chat container can shrink in mobile view */
+  .chat-container {
+    height: auto;
+    min-height: 100vh;
   }
 
   .message {
