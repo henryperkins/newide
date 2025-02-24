@@ -38,6 +38,11 @@ async def login_user(form: UserLogin, db: AsyncSession = Depends(get_db_session)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     # Generate JWT
-    payload = {"sub": user.email, "user_id": user.id}
+    payload = {
+        "sub": user.email,
+        "user_id": user.id,
+        "exp": datetime.utcnow() + timedelta(minutes=60),
+        "iat": datetime.utcnow()
+    }
     token = jwt.encode(payload, config.settings.JWT_SECRET, algorithm="HS256")
     return {"access_token": token, "token_type": "bearer"}

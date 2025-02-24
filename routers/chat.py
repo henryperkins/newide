@@ -23,6 +23,9 @@ from pydantic_models import (
 from models import Conversation
 from pydantic_models import ModelCapabilities, ModelCapabilitiesResponse
 
+from routers.security import get_current_user
+from models import User
+
 router = APIRouter(prefix="/chat")
 
 
@@ -30,7 +33,8 @@ router = APIRouter(prefix="/chat")
 async def create_chat_completion(
     request: CreateChatCompletionRequest,
     api_version: str = Query(..., alias="api-version"),
-    db: AsyncSession = Depends(get_db_session),  # Use get_db_session correctly
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Creates a single chat completion in a non-streaming (standard) manner,
@@ -120,7 +124,8 @@ async def create_chat_completion(
 @router.post("/stream")
 async def stream_chat_response(
     request: Request,
-    db: AsyncSession = Depends(get_db_session),  # Corrected dependency
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     SSE-style streaming endpoint for models that support streaming.
