@@ -9,6 +9,8 @@
   max-width: 1400px;
   margin: 0 auto;
   background: var(--surface-main);
+  position: relative;
+  overflow: hidden;
 }
 
 /* Header */
@@ -383,10 +385,30 @@
     padding-right: var(--space-sm);
   }
 
-  /* Ensure chat container can shrink in mobile view */
+  .chat-main {
+    grid-column: 1 / -1;
+  }
+
   .chat-container {
     height: auto;
     min-height: 100vh;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    right: -100%;
+    width: 85%;
+    height: 100vh;
+    z-index: 1000;
+    box-shadow: var(--shadow-xl);
+    transform: translateX(100%);
+    transition: transform 0.3s ease-in-out;
+  }
+  
+  .sidebar.active {
+    transform: translateX(0);
+    right: 0;
   }
 
   .message {

@@ -173,6 +173,11 @@
   transition: 
     transform var(--transition-fast),
     box-shadow var(--transition-fast);
+  will-change: transform;
+}
+
+.mobile-tab-toggle.active {
+  transform: rotate(135deg);
 }
 
 .mobile-tab-toggle:hover {

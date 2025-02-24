@@ -45,6 +45,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Initialize file handling logic
     await initializeFileHandling();
 
+    // Initialize mobile menu gestures
+    initializeMobileMenuGestures();
+
     console.log(`Application initialized successfully at ${new Date().toISOString()}`);
   } catch (error) {
     handleApplicationError(error, "initialize");
@@ -341,6 +344,49 @@ function updateReasoningEffortDisplay() {
 /**
  * For basic tab switching logic
  */
+function initializeMobileMenuGestures() {
+  const mobileToggle = document.querySelector('.mobile-tab-toggle');
+  const sidebar = document.querySelector('.sidebar');
+  
+  if (mobileToggle && sidebar) {
+    let touchStartX = 0;
+    
+    // Swipe handling
+    document.addEventListener('touchstart', e => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    document.addEventListener('touchend', e => {
+      const touchEndX = e.changedTouches[0].screenX;
+      const deltaX = touchEndX - touchStartX;
+
+      if (Math.abs(deltaX) > 50) {
+        if (deltaX > 0 && !sidebar.classList.contains('active')) {
+          sidebar.classList.add('active');
+          mobileToggle.classList.add('active');
+          mobileToggle.setAttribute('aria-expanded', 'true');
+        } else if (deltaX < 0 && sidebar.classList.contains('active')) {
+          sidebar.classList.remove('active');
+          mobileToggle.classList.remove('active');
+          mobileToggle.setAttribute('aria-expanded', 'false');
+        }
+      }
+    });
+
+    // Click outside handling
+    document.addEventListener('click', e => {
+      const isSidebarClick = e.target.closest('.sidebar');
+      const isToggleClick = e.target.closest('.mobile-tab-toggle');
+      
+      if (!isSidebarClick && !isToggleClick && sidebar.classList.contains('active')) {
+        sidebar.classList.remove('active');
+        mobileToggle.classList.remove('active');
+        mobileToggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+}
+
 function switchTab(tabId) {
   document.querySelectorAll(".tab-content").forEach((content) => {
     content.classList.remove("active");

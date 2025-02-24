@@ -67,6 +67,11 @@
 }
 
 @media (max-width: 480px) {
+  #user-input {
+    font-size: var(--text-md);
+    padding: var(--space-xs) var(--space-sm);
+  }
+
   .tab-button {
     font-size: var(--text-xs);
     padding: var(--space-xs);
