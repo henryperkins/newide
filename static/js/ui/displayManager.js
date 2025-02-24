@@ -252,13 +252,16 @@ function createMessageElement(role) {
 
 function createContentElement(content, role) {
   const contentDiv = document.createElement('div');
-  contentDiv.className = 'prose dark:prose-invert prose-sm max-w-none'; // Tailwind Typography classes
+  contentDiv.className = 'prose dark:prose-invert prose-sm max-w-none';
 
   // Always parse with safeMarkdownParse for security
   const htmlContent = safeMarkdownParse(
     typeof content === 'string' ? content : JSON.stringify(content)
   );
   contentDiv.innerHTML = htmlContent;
+
+  // Turn any recognized file references into clickable links
+  replaceFileReferences(contentDiv);
 
   // After injecting, highlight code blocks
   highlightCodeBlocks(contentDiv);
