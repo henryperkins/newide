@@ -666,9 +666,13 @@ export function getFilesForChat() {
 }
 
 function setupMobileHandlers() {
-    document.querySelector('.mobile-tab-toggle')?.addEventListener('click', () => {
-        document.querySelector('.sidebar').classList.toggle('active');
-    });
+    const toggleButton = document.querySelector('.mobile-tab-toggle');
+    if (toggleButton) {
+        toggleButton.addEventListener('click', () => {
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) sidebar.classList.toggle('active');
+        });
+    }
 
     let dragTimeout;
     document.addEventListener('dragover', (e) => {
