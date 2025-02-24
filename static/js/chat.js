@@ -443,6 +443,8 @@ async function processResponseData(data) {
  */
 export async function sendMessage() {
   console.log('[DEBUG] Send button clicked!');
+  const modelConfig = await getModelSettings();
+  const streamingEnabled = document.getElementById("enable-streaming")?.checked;
   try {
     const userInput = document.getElementById("user-input");
     const message = userInput.value.trim();
