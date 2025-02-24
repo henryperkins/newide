@@ -247,6 +247,9 @@ async function initializeUIEventHandlers() {
   const userInput = document.getElementById("user-input");
   if (sendButton) {
     sendButton.addEventListener("click", async (e) => {
+      console.log("[INIT] Send button clicked; will call sendMessage()");
+      showNotification("Button clicked!", "info", 3000);
+
       e.preventDefault();
       e.stopPropagation();
       await syncConfigToStorage();
