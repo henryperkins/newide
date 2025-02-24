@@ -234,7 +234,24 @@ function applyEntranceAnimation(element) {
 }
 
 function scheduleScroll(element) {
-    setTimeout(() => {
-        element.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }, 100);
+    const chatHistory = document.getElementById('chat-history');
+    if (!chatHistory) return;
+
+    // Mobile-friendly scroll behavior
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    const scrollOptions = {
+        behavior: 'smooth',
+        block: isMobile ? 'nearest' : 'end',
+        inline: 'nearest'
+    };
+
+    // Only scroll if within 300px of bottom (desktop) or 100px (mobile)
+    const scrollThreshold = isMobile ? 100 : 300;
+    const fromBottom = chatHistory.scrollHeight - (chatHistory.scrollTop + chatHistory.clientHeight);
+    
+    if (fromBottom <= scrollThreshold) {
+        setTimeout(() => {
+            element.scrollIntoView(scrollOptions);
+        }, isMobile ? 50 : 100);
+    }
 }
