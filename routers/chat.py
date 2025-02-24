@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+from openai import AzureOpenAI
 
 from database import get_db_session  # Corrected import
 from clients import get_model_client
