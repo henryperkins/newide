@@ -65,7 +65,7 @@ app.include_router(files_router, prefix="/api/files")
 app.include_router(chat_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
 app.include_router(model_stats_router)  # Already has prefix="/api/model-stats"
-app.include_router(auth_router, prefix="/api/auth")
+app.include_router(auth_router, prefix="/auth")
 
 # Mount static files at '/static' instead
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
@@ -86,7 +86,15 @@ def favicon():
 async def get_apple_touch_icon():
     return FileResponse(STATIC_DIR / "img/apple-touch-icon.png")
 
+@app.get("/login")
+def serve_login():
+    return FileResponse(STATIC_DIR / "login.html")
+
+@app.get("/register")
+def serve_register():
+    return FileResponse(STATIC_DIR / "register.html")
 
 @app.get("/health")
 async def health_check():
+    return {"status": "ok", "timestamp": datetime.datetime.utcnow(), "version": "1.0.0"}
     return {"status": "ok", "timestamp": datetime.datetime.utcnow(), "version": "1.0.0"}

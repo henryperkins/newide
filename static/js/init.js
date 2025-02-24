@@ -1,479 +1,216 @@
-  // init.js - Application bootstrapping and overall initialization logic
+import { sendMessage } from './chat.js';
+
+// init.js - Application initialization
+// Imports all necessary modules and bootstraps the application with Tailwind CSS
+
+import { initThemeSwitcher } from './ui/themeSwitcher.js';
+import { initTabSystem } from './ui/tabManager.js';
+import { configureMarkdown } from './ui/markdownParser.js';
+import { loadConversationFromLocalStorage } from './ui/displayManager.js';
+import StatsDisplay from './ui/statsDisplay.js';
+import fileManager from './fileManager.js';
 
 /**
- * This file organizes the core initialization steps (DOMContentLoaded, 
- * Azure config, session handling, markdown setup, UI event handlers, etc.)
- * that were originally in main.js. 
+ * Initialize the application when the DOM is fully loaded
  */
-
-import { configureMarkdown, injectMarkdownStyles } from "/static/js/ui/markdownParser.js";
-import { showNotification } from "/static/js/ui/notificationManager.js";
-import { initializeSession } from "/static/js/session.js";
-import { initializeFileManager } from "/static/js/fileManager.js";
-import { getCurrentConfig, updateConfig, updateModelSpecificUI } from "/static/js/config.js";
-import { sendMessage, regenerateResponse } from "/static/js/chat.js";
-
-/** 
- * Global stats display instance
- * (so we can reference it in other modules if needed).
- * If you prefer storing it in a separate module, do so
- * and then import here. 
- */
-export let statsDisplay = null;
-
-/**
- * Add DOMContentLoaded listener to bootstrap the app
- */
-document.addEventListener("DOMContentLoaded", async () => {
-    // Enforce login requirement: if no JWT token found, redirect to login
-    const token = localStorage.getItem("access_token");
-    if (!token) {
-        window.location.href = "static/login.html";
-        return;
-    }
-
-    try {
-        // Initialize stats display for performance metrics
-        statsDisplay = new StatsDisplay();
-
-    // Basic markdown support
-    await initializeMarkdownSupport();
-
-    // Initialize session
-    await initializeSessionHandling();
-    
-    if (sessionId) {
-        try {
-            const response = await fetch(`/api/conversations/history?session_id=${sessionId}`);
-            if (response.ok) {
-                const messages = await response.json();
-                // For each message in the DB, call displayMessage
-                for (const msg of messages) {
-                    displayMessage(msg.content, msg.role);
-                }
-            }
-        } catch (error) {
-            console.error("Failed to load conversation from DB:", error);
-        }
-    }
-
-    // Initialize Azure config
-    await initializeAzureConfig();
-
-    // Wire up UI event handlers
-    await initializeUIEventHandlers();
-
-    // Initialize file handling logic
-    await initializeFileHandling();
-
-    // Initialize mobile menu gestures
-    initializeMobileMenuGestures();
-
-    console.log(`Application initialized successfully at ${new Date().toISOString()}`);
-
-    try {
-        const response = await fetch("/api/conversations/sessions");
-        if (!response.ok) {
-            console.error("Failed to fetch conversation sessions:", response.statusText);
-        } else {
-            const sessions = await response.json();
-            const historyPanel = document.getElementById("conversation-history-pane");
-            if (historyPanel) {
-                // Clear existing entries
-                historyPanel.innerHTML = "";
-                // Create a headline
-                const headline = document.createElement("h3");
-                headline.textContent = "Conversation History";
-                historyPanel.appendChild(headline);
-
-                // List each session
-                sessions.forEach(sess => {
-                    const sessDiv = document.createElement("div");
-                    sessDiv.classList.add("session-entry");
-                    sessDiv.textContent = `Session ${sess.session_id.slice(0, 8)}… (${sess.message_count} messages)`;
-                    sessDiv.onclick = async () => {
-                        // Clear current chat
-                        const chatHistory = document.getElementById("chat-history");
-                        if (chatHistory) chatHistory.innerHTML = "";
-
-                        // Fetch that session's entire message list
-                        try {
-                            const convoResp = await fetch(`/api/conversations/history?session_id=${sess.session_id}`);
-                            if (!convoResp.ok) {
-                                console.error("Failed to load conversation messages:", convoResp.statusText);
-                                return;
-                            }
-                            const messages = await convoResp.json();
-                            messages.forEach(msg => {
-                                displayMessage(msg.content, msg.role);
-                            });
-                        } catch (error) {
-                            console.error("Error fetching conversation messages:", error);
-                        }
-                    };
-                    historyPanel.appendChild(sessDiv);
-                });
-            }
-        }
-    } catch (error) {
-        console.error("Error fetching conversation sessions:", error);
-    }
-  } catch (error) {
-    handleApplicationError(error, "initialize");
-  }
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('Initializing Azure OpenAI Chat application...');
+  
+  // Initialize theme system (dark/light mode)
+  initThemeSwitcher();
+  
+  // Initialize the sidebar tab system
+  initTabSystem();
+  
+  // Configure markdown parser for chat messages
+  configureMarkdown();
+  
+  // Initialize performance stats display
+  initPerformanceStats();
+  
+  // Load previous conversation if it exists
+  loadConversationFromLocalStorage();
+  
+  // Initialize chat interface
+  initChatInterface();
+  
+  // Initialize user input handling
+  initUserInput();
+  
+  // Initialize token usage display
+  initTokenUsageDisplay();
+  
+  // Add keyboard shortcuts
+  registerKeyboardShortcuts();
+  
+  // Add accessibility features
+  enhanceAccessibility();
+  
+  console.log('Application initialization complete');
 });
 
 /**
- * Initialize Azure config with retry logic
+ * Initialize the performance stats display
  */
-async function initializeAzureConfig(retryCount = 3, retryDelay = 1000) {
-  try {
-    let lastError = null;
-
-    for (let attempt = 1; attempt <= retryCount; attempt++) {
-      try {
-        const response = await fetch("/api/config/", {
-          headers: { Accept: "application/json" }
-        });
-
-        if (response.status === 422) {
-          const errorData = await response.json();
-          console.error("[initializeAzureConfig] Validation error:", errorData);
-          throw new Error(
-            `Config validation failed: ${errorData.detail || "Unknown validation error"}`
-          );
-        }
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const config = await response.json();
-        console.log("[initializeAzureConfig] Config response:", config);
-
-        // Validate required fields
-        const requiredFields = {
-          deploymentName: "deployment name",
-          models: "model configuration",
-          "azureOpenAI.apiKey": "API key"
-        };
-
-        for (const [field, label] of Object.entries(requiredFields)) {
-          const value = field
-            .split(".")
-            .reduce((obj, key) => obj?.[key], config);
-          if (!value) {
-            throw new Error(`Missing ${label} in configuration`);
-          }
-        }
-
-        if (!config.models?.[config.deploymentName]) {
-          throw new Error(
-            `No model configuration found for deployment: ${config.deploymentName}`
-          );
-        }
-
-        const modelConfig = config.models[config.deploymentName];
-
-        window.azureOpenAIConfig = {
-          endpoint: modelConfig.endpoint || "https://o1models.openai.azure.com",
-          apiKey: config.azureOpenAI.apiKey,
-          deploymentName: config.deploymentName
-        };
-
-        console.log(
-          "[initializeAzureConfig] Successfully initialized with deployment:",
-          config.deploymentName
-        );
-        return true;
-      } catch (error) {
-        lastError = error;
-        console.warn(
-          `[initializeAzureConfig] Attempt ${attempt}/${retryCount} failed:`,
-          error
-        );
-
-        // Don't retry validation errors
-        if (error.message.includes("validation failed") || error.message.includes("422")) {
-          break;
-        }
-
-        if (attempt < retryCount) {
-          await new Promise((resolve) => setTimeout(resolve, retryDelay * attempt));
-        }
-      }
-    }
-    // All attempts failed
-    throw lastError || new Error("Failed to initialize Azure configuration");
-  } catch (error) {
-    handleInitializationError(error);
-  }
-}
-
-/**
- * Provide fallback for critical initialization failure
- */
-function handleInitializationError(error) {
-  console.error("Critical initialization error:", error);
-  showNotification(
-    `Failed to initialize application: ${error.message}`,
-    "error",
-    10000
-  );
-  const chatInterface = document.getElementById("chat-interface");
-  const errorDisplay = document.getElementById("error-display");
-
-  if (chatInterface) chatInterface.style.display = "none";
-  if (errorDisplay) errorDisplay.style.display = "block";
-}
-
-/**
- * Basic application-level error handling
- */
-function handleApplicationError(error, context) {
-  console.error(`[handleApplicationError - ${context}]`, error);
-  showNotification("Application error in " + context + ": " + error.message, "error");
-}
-
-/**
- * Setup basic markdown support
- */
-async function initializeMarkdownSupport() {
-  if (!configureMarkdown()) {
-    showNotification(
-      "Markdown support limited - required libraries not loaded",
-      "warning",
-      8000
-    );
-  }
-  injectMarkdownStyles();
-}
-
-/**
- * Initialize session
- */
-async function initializeSessionHandling() {
-  const sessionInitialized = await initializeSession();
-  if (!sessionInitialized) {
-    throw new Error("Failed to initialize session");
-  }
-}
-
-/**
- * Initialize UI event handlers
- */
-async function initializeUIEventHandlers() {
-  // Configuration sync helper
-  const syncConfigToStorage = async () => {
-    const devConfigEl = document.getElementById("developer-config");
-    const sliderEl = document.getElementById("reasoning-effort-slider");
-    const fileSearchEl = document.getElementById("use-file-search");
-    const modelSelEl = document.getElementById("model-selector");
-
-    const config = {
-      developerConfig: devConfigEl ? devConfigEl.value : "",
-      reasoningEffort: ["low", "medium", "high"][
-        sliderEl && sliderEl.value ? sliderEl.value - 1 : 1
-      ],
-      includeFiles: fileSearchEl && fileSearchEl.checked ? true : false,
-      selectedModel: modelSelEl && modelSelEl.value ? modelSelEl.value : "o1model-east2"
-    };
-    localStorage.setItem("appConfig", JSON.stringify(config));
-    await updateConfig(config);
-  };
-
-  // Model selector changes
-  const modelSelector = document.getElementById("model-selector");
-  if (modelSelector) {
-    modelSelector.addEventListener("change", async (e) => {
-      try {
-        const configBefore = await getCurrentConfig();
-        configBefore.selectedModel = e.target.value;
-        await updateConfig(configBefore);
-
-        showNotification(`Switched to ${e.target.value} model`, "info", 2000);
-        await updateModelSpecificUI(e.target.value);
-
-        // Update .model-info text
-        const modelInfoEl = document.querySelector(".model-info p");
-        if (modelInfoEl) {
-          if (e.target.value === "o1") {
-            modelInfoEl.innerHTML =
-              "<strong>Model Info:</strong> Using Azure OpenAI o1 model (no streaming)";
-          } else {
-            modelInfoEl.innerHTML =
-              "<strong>Model Info:</strong> Using DeepSeek R1 model (streaming available)";
-          }
-        }
-      } catch (error) {
-        console.error("Model switch error:", error);
-        showNotification("Failed to switch model", "error");
-      }
-    });
-    // Initialize model-specific UI
-    try {
-      const config = await getCurrentConfig();
-      await updateModelSpecificUI(config.selectedModel);
-    } catch (error) {
-      console.error("Failed to initialize model UI:", error);
-      showNotification("Failed to initialize model UI", "error");
-    }
-  }
-
-  // Sending a message
-  const sendButton = document.getElementById("send-button");
-  const userInput = document.getElementById("user-input");
-  if (sendButton) {
-    sendButton.addEventListener("click", async (e) => {
-      console.log("[INIT] Send button clicked; will call sendMessage()");
-      showNotification("Button clicked!", "info", 3000);
-
-      e.preventDefault();
-      e.stopPropagation();
-      await syncConfigToStorage();
-      await sendMessage();
-    });
-  }
-  if (userInput) {
-    userInput.addEventListener("keypress", async (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        await syncConfigToStorage();
-        await sendMessage();
-      }
-    });
-  }
-
-  // Reasoning effort slider
-  const slider = document.getElementById("reasoning-effort-slider");
-  if (slider) {
-    slider.addEventListener("input", () => {
-      updateReasoningEffortDisplay();
-    });
-    // Ensure valid initial value
-    slider.value = Math.max(1, Math.min(3, parseInt(slider.value) || 2));
-    updateReasoningEffortDisplay();
-  }
-
-  // Regeneration handler
-  const regenerateButton = document.getElementById("regenerate-button");
-  if (regenerateButton) {
-    regenerateButton.addEventListener("click", regenerateResponse);
-  }
-
-  // Tab switching with accessibility
-  document.querySelectorAll(".tab-button").forEach((button) => {
-    button.addEventListener("click", () => {
-      const tabId = button.dataset.targetTab;
-      if (tabId) {
-        switchTab(tabId);
-        // Update URL hash for deep linking
-        window.location.hash = tabId;
-      }
-    });
-    // Keyboard navigation
-    button.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        button.click();
-      }
-    });
-  });
-
-  // Handle deep linking on page load
-  if (window.location.hash) {
-    const tabId = window.location.hash.slice(1);
-    const tabButton = document.querySelector(`[data-target-tab="${tabId}"]`);
-    if (tabButton) {
-      tabButton.click();
-    }
-  }
-}
-
-/**
- * Initialize file handling
- */
-async function initializeFileHandling() {
-  initializeFileManager();
-}
-
-/**
- * For updating reasoning effort slider UI
- */
-function updateReasoningEffortDisplay() {
-  const slider = document.getElementById("reasoning-effort-slider");
-  const displayEl = document.getElementById("reasoning-effort-display");
-  if (!slider || !displayEl) return;
-
-  const val = parseInt(slider.value, 10);
-  const label = val === 1 ? "Low" : val === 3 ? "High" : "Medium";
-  displayEl.textContent = label;
-}
-
-/**
- * For basic tab switching logic
- */
-function initializeMobileMenuGestures() {
-  const mobileToggle = document.querySelector('.mobile-tab-toggle');
-  const sidebar = document.querySelector('.sidebar');
+function initPerformanceStats() {
+  const statsDisplay = new StatsDisplay('performance-stats');
+  window.statsDisplay = statsDisplay; // Make available globally for updates
   
-  if (mobileToggle && sidebar) {
-    let touchStartX = 0;
+  // Show initial mock stats
+  statsDisplay.updateStats({
+    latency: 0,
+    tokensPerSecond: 0,
+    activeConnections: 0,
+    totalTokens: 0
+  });
+}
+
+/**
+ * Initialize the chat interface
+ */
+function initChatInterface() {
+  // Initialize error handling
+  initErrorDisplay();
+  
+  // Show welcome message if no conversation exists
+  const conversationExists = localStorage.getItem('conversation') && 
+    JSON.parse(localStorage.getItem('conversation')).length > 0;
     
-    // Swipe handling
-    document.addEventListener('touchstart', e => {
-      touchStartX = e.changedTouches[0].screenX;
-    }, { passive: true });
+  if (!conversationExists) {
+    showWelcomeMessage();
+  }
+}
 
-    document.addEventListener('touchend', e => {
-      const touchEndX = e.changedTouches[0].screenX;
-      const deltaX = touchEndX - touchStartX;
-
-      if (Math.abs(deltaX) > 50) {
-        if (deltaX > 0 && !sidebar.classList.contains('active')) {
-          sidebar.classList.add('active');
-          mobileToggle.classList.add('active');
-          mobileToggle.setAttribute('aria-expanded', 'true');
-        } else if (deltaX < 0 && sidebar.classList.contains('active')) {
-          sidebar.classList.remove('active');
-          mobileToggle.classList.remove('active');
-          mobileToggle.setAttribute('aria-expanded', 'false');
-        }
-      }
-    });
-
-    // Click outside handling
-    document.addEventListener('click', e => {
-      const isSidebarClick = e.target.closest('.sidebar');
-      const isToggleClick = e.target.closest('.mobile-tab-toggle');
-      
-      if (!isSidebarClick && !isToggleClick && sidebar.classList.contains('active')) {
-        sidebar.classList.remove('active');
-        mobileToggle.classList.remove('active');
-        mobileToggle.setAttribute('aria-expanded', 'false');
-      }
+/**
+ * Initialize error display with dismiss functionality
+ */
+function initErrorDisplay() {
+  const errorDisplay = document.getElementById('error-display');
+  const dismissButton = errorDisplay?.querySelector('button');
+  
+  if (dismissButton) {
+    dismissButton.addEventListener('click', () => {
+      errorDisplay.classList.add('hidden');
     });
   }
 }
 
-function switchTab(tabId) {
-  document.querySelectorAll(".tab-content").forEach((content) => {
-    content.classList.remove("active");
-    content.setAttribute("aria-hidden", "true");
-  });
-  document.querySelectorAll(".tab-button").forEach((button) => {
-    button.classList.remove("active");
-    button.setAttribute("aria-selected", "false");
+/**
+ * Show welcome message
+ */
+function showWelcomeMessage() {
+  const chatHistory = document.getElementById('chat-history');
+  if (!chatHistory) return;
+  
+  const welcomeMessage = document.createElement('div');
+  welcomeMessage.className = 'mx-auto max-w-2xl text-center p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-8';
+  welcomeMessage.innerHTML = `
+    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Welcome to Azure OpenAI Chat</h2>
+    <p class="text-gray-600 dark:text-gray-300 mb-4">
+      This chat application uses Azure OpenAI's powerful language models to provide
+      intelligent responses to your questions and requests.
+    </p>
+    <p class="text-gray-600 dark:text-gray-300">
+      Type a message below to get started!
+    </p>
+  `;
+  
+  chatHistory.appendChild(welcomeMessage);
+}
+
+/**
+ * Initialize user input functionality
+ */
+function initUserInput() {
+  const userInput = document.getElementById('user-input');
+  const sendButton = document.getElementById('send-button');
+  
+  if (!userInput || !sendButton) return;
+  
+  // Auto-resize textarea as user types
+  userInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 150) + 'px';
   });
 
-  const selectedContent = document.getElementById(tabId);
-  const selectedTab = document.querySelector(`[data-target-tab="${tabId}"]`);
-  if (selectedContent) {
-    selectedContent.classList.add("active");
-    selectedContent.setAttribute("aria-hidden", "false");
-  }
-  if (selectedTab) {
-    selectedTab.classList.add("active");
-    selectedTab.setAttribute("aria-selected", "true");
-  }
+  // Hook up send button
+  sendButton.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    sendMessage();
+  });
+  
+  // Focus input on page load
+  setTimeout(() => {
+    userInput.focus();
+  }, 100);
+}
+
+/**
+ * Initialize token usage display toggles
+ */
+function initTokenUsageDisplay() {
+  const tokenUsage = document.querySelector('.token-usage-compact');
+  if (!tokenUsage) return;
+  
+  // Create toggle button
+  const toggleButton = document.createElement('button');
+  toggleButton.className = 'absolute right-2 top-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 focus:outline-none';
+  toggleButton.setAttribute('aria-label', 'Toggle token usage display');
+  toggleButton.innerHTML = '<span aria-hidden="true">⚙️</span>';
+  
+  tokenUsage.appendChild(toggleButton);
+  
+  // Add toggle functionality
+  toggleButton.addEventListener('click', () => {
+    tokenUsage.classList.toggle('h-6');
+    tokenUsage.classList.toggle('overflow-hidden');
+    const isExpanded = !tokenUsage.classList.contains('h-6');
+    toggleButton.setAttribute('aria-expanded', isExpanded);
+  });
+}
+
+/**
+ * Register keyboard shortcuts
+ */
+function registerKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    // Cmd/Ctrl + Enter to send message
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      const sendButton = document.getElementById('send-button');
+      if (sendButton) sendButton.click();
+    }
+    
+    // Escape to close sidebar on mobile
+    if (e.key === 'Escape') {
+      const sidebar = document.querySelector('aside');
+      if (sidebar && sidebar.classList.contains('translate-x-0') && window.innerWidth < 768) {
+        sidebar.classList.remove('translate-x-0');
+        sidebar.classList.add('translate-x-full');
+        
+        const overlay = document.getElementById('sidebar-overlay');
+        if (overlay) overlay.classList.add('hidden');
+      }
+    }
+  });
+}
+
+/**
+ * Enhance accessibility features
+ */
+function enhanceAccessibility() {
+  // Create a live region for screen reader announcements
+  const liveRegion = document.createElement('div');
+  liveRegion.id = 'a11y-announcements';
+  liveRegion.className = 'sr-only';
+  liveRegion.setAttribute('aria-live', 'polite');
+  document.body.appendChild(liveRegion);
+  
+  // Ensure all interactive elements have appropriate aria attributes
+  document.querySelectorAll('button:not([aria-label])').forEach(button => {
+    // Provide default aria-label if no text content
+    if (!button.textContent.trim()) {
+      button.setAttribute('aria-label', 'Button');
+    }
+  });
 }

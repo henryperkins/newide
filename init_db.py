@@ -29,6 +29,16 @@ async def init_database():
             )
         """))
 
+        # Create users table
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS users (
+                id UUID PRIMARY KEY,
+                email VARCHAR(120) UNIQUE NOT NULL,
+                hashed_password VARCHAR NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE
+            )
+        """))
+
         # Create conversations table with model tracking
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS conversations (

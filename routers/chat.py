@@ -30,7 +30,7 @@ from models import User
 
 router = APIRouter(prefix="/chat")
 
-@router.post("/api/conversations/store")
+@router.post("/conversations/store")
 async def store_message(
     session_id: UUID = Query(...),
     role: str = Query(...),

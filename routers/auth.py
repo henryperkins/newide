@@ -9,9 +9,9 @@ from database import get_db_session
 from models import User
 import uuid
 import config
-from sqlalchemy import text
+from sqlalchemy import text, select
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(tags=["auth"])
 
 @router.post("/register")
 async def register_user(form: UserCreate, db: AsyncSession = Depends(get_db_session)):
@@ -29,12 +29,13 @@ async def register_user(form: UserCreate, db: AsyncSession = Depends(get_db_sess
 
 @router.post("/login")
 async def login_user(form: UserLogin, db: AsyncSession = Depends(get_db_session)):
-    result = await db.execute(text("SELECT * FROM users WHERE email=:email"), {"email": form.email})
-    row = result.mappings().first()
-    if not row:
+    from models import User
+    stmt = select(User).where(User.email == form.email)
+    result = await db.execute(stmt)
+    user = result.scalars().first()
+    if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    user = row.User
     if not bcrypt.verify(form.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 

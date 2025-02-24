@@ -1,3 +1,233 @@
+/* tailwind.css */
+
+/* Import Tailwind's base styles */
 @tailwind base;
+
+/* Inject custom base styles */
+@layer base {
+  html {
+    @apply h-full;
+  }
+  
+  body {
+    @apply h-full font-sans text-gray-900 dark:text-white bg-white dark:bg-gray-900;
+  }
+
+  /* Custom focus styles */
+  a:focus,
+  button:focus,
+  [role="tab"]:focus,
+  [role="button"]:focus,
+  input:focus,
+  select:focus,
+  textarea:focus {
+    @apply outline-none ring-2 ring-blue-500/40 dark:ring-blue-400/60 ring-offset-1 dark:ring-offset-gray-900;
+  }
+
+  /* Skip link for accessibility */
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:absolute focus:p-4 focus:bg-blue-600 focus:text-white focus:z-50;
+  }
+
+  /* Font declarations */
+  @font-face {
+    font-family: 'JetBrains Mono';
+    font-style: normal;
+    font-weight: 400;
+    src: url('/static/fonts/jetbrains-mono/jetbrains-mono-400.woff2') format('woff2');
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 500;
+    src: url('/static/fonts/inter/inter-500.woff2') format('woff2');
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 600;
+    src: url('/static/fonts/inter/inter-600.woff2') format('woff2');
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 700;
+    src: url('/static/fonts/inter/inter-700.woff2') format('woff2');
+    font-display: swap;
+  }
+
+  /* Heading defaults */
+  h1 {
+    @apply text-2xl font-semibold;
+  }
+
+  h2 {
+    @apply text-xl font-semibold;
+  }
+
+  h3 {
+    @apply text-lg font-semibold;
+  }
+
+  h4 {
+    @apply text-base font-semibold;
+  }
+}
+
+/* Import Tailwind's component styles */
 @tailwind components;
+
+/* Add custom component classes */
+@layer components {
+  /* Message bubbles */
+  .user-message {
+    @apply ml-auto max-w-3xl rounded-lg rounded-br-none bg-blue-600 p-3 text-white shadow-md relative my-2;
+  }
+
+  .assistant-message {
+    @apply mr-auto max-w-3xl rounded-lg rounded-bl-none bg-white dark:bg-gray-700 p-3 border border-gray-200 dark:border-gray-600 shadow-sm text-gray-800 dark:text-gray-100 relative my-2;
+  }
+
+  .system-message {
+    @apply mx-auto max-w-xl bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-400 dark:border-yellow-600 p-3 text-yellow-800 dark:text-yellow-200 rounded my-2;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 active:bg-blue-800 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none transition-colors;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 active:bg-gray-400 dark:active:bg-gray-500 focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:outline-none transition-colors;
+  }
+
+  .btn-danger {
+    @apply bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 active:bg-red-800 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:outline-none transition-colors;
+  }
+
+  .btn-success {
+    @apply bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 active:bg-green-800 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:outline-none transition-colors;
+  }
+
+  /* Form inputs */
+  .form-input {
+    @apply w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none;
+  }
+
+  .form-select {
+    @apply w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none;
+  }
+
+  .form-textarea {
+    @apply w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none resize-none;
+  }
+
+  .form-checkbox {
+    @apply h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500;
+  }
+
+  /* Tabs */
+  .tab-active {
+    @apply px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400;
+  }
+
+  .tab-inactive {
+    @apply px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200;
+  }
+
+  /* Notifications */
+  .notification {
+    @apply fixed top-4 right-4 bg-white dark:bg-gray-800 shadow-md rounded p-2 max-w-xs animate-slide-in-right;
+  }
+
+  .notification-info {
+    @apply border-l-4 border-blue-600 dark:border-blue-400;
+  }
+
+  .notification-success {
+    @apply border-l-4 border-green-600 dark:border-green-400;
+  }
+
+  .notification-warning {
+    @apply border-l-4 border-yellow-600 dark:border-yellow-400;
+  }
+
+  .notification-error {
+    @apply border-l-4 border-red-600 dark:border-red-400;
+  }
+
+  /* File upload area */
+  .file-drop-area {
+    @apply border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center;
+  }
+
+  /* Typing indicator */
+  .typing-indicator {
+    @apply flex items-center space-x-1 opacity-0 transition-opacity;
+  }
+
+  .typing-indicator.visible {
+    @apply opacity-100;
+  }
+
+  .typing-indicator.fading-out {
+    @apply opacity-0;
+  }
+
+  .typing-dot {
+    @apply h-2 w-2 rounded-full bg-gray-500 dark:bg-gray-400 animate-pulse;
+  }
+}
+
+/* Import Tailwind's utility styles */
 @tailwind utilities;
+
+/* Add custom utilities */
+@layer utilities {
+  /* For screen readers only */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  /* For reduced motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Custom scrollbar (for Webkit browsers) */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-gray-100 dark:bg-gray-800;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-gray-400 dark:bg-gray-600 rounded;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500 dark:bg-gray-500;
+  }
+}

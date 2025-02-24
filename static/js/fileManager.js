@@ -1,713 +1,422 @@
-// fileManager.js - Enhanced file handling
+import { showNotification } from './ui/notificationManager.js';
 
-// Import dependencies
-import { getSessionId } from '/static/js/session.js';
-import { showNotification } from '/static/js/ui/notificationManager.js';
-import { formatFileSize } from '/static/js/utils/helpers.js';
-
-// Initialize file manager state
-let uploadedFiles = new Map();
-let selectedFiles = new Set();
-let useFileSearch = false;
-
-export function initializeFileManager() {
-    setupDragAndDrop();
-    setupFileSelector();
-    loadFilesList();
-    setupMobileHandlers();
+/**
+ * Manages file uploads, file display, and related stats
+ */
+export class FileManager {
+  constructor() {
+    this.files = [];
+    this.maxFileSize = 20 * 1024 * 1024; // 20MB
+    this.maxFileCount = 10;
+    this.allowedFileTypes = [
+      'text/plain',
+      'text/markdown',
+      'application/json',
+      'application/javascript',
+      'text/html',
+      'text/css',
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'text/csv',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
     
-    // Initialize file search toggle
-    const fileSearchToggle = document.getElementById('azure-search');
-    if (fileSearchToggle) {
-        fileSearchToggle.addEventListener('change', (e) => {
-            useFileSearch = e.target.checked;
-            showNotification(`File search ${useFileSearch ? 'enabled' : 'disabled'}`, 'info');
-        });
-    }
-}
-
-export async function loadFilesList(retryCount = 0, limit = 20, cursor = null) {
-    try {
-        const sessionId = getSessionId();
-        if (!sessionId) {
-            console.warn('No session ID available');
-            showNotification('Starting new session...', 'info');
-            await initializeSession();
-            return loadFilesList(0, limit);
-        }
-        
-        // Add timeout and retry logic
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-        
-        let url = `/api/files/${sessionId}?limit=${limit}`;
-        if (cursor) {
-            url += `&cursor=${cursor}`;
-        }
-        
-        const response = await fetch(`/api/files/${sessionId}`, {
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            // Try to get error details from response
-            let errorDetails = '';
-            try {
-                const errorResponse = await response.json();
-                errorDetails = errorResponse.detail || errorResponse.message || '';
-            } catch (e) {}
-            
-            throw new Error(`HTTP ${response.status} - Failed to load files. ${errorDetails}`);
-        }
-        
-        const filesData = await response.json();
-        
-        // Validate response structure
-        if (!filesData?.files || !Array.isArray(filesData.files)) {
-            throw new Error('Invalid files data format from server');
-        }
-        updateFileList(filesData.files);
-        updateFileStats(filesData.total_count, filesData.total_size);
-        
-        // Save files to our state
-        uploadedFiles.clear();
-        filesData.files.forEach(file => {
-            uploadedFiles.set(file.id, file);
-        });
-        
-        return filesData;
-    } catch (error) {
-        console.error('File load error:', {
-            error: error.message,
-            stack: error.stack,
-            retryCount
-        });
-        
-        // Handle specific error cases
-        let errorMessage = 'Failed to load files';
-        let isRecoverable = true;
-        
-        if (error.message.includes('401')) {
-            errorMessage = 'Session expired - redirecting...';
-            isRecoverable = false;
-            setTimeout(() => window.location.reload(), 2000);
-        } else if (error.message.includes('500')) {
-            errorMessage = 'Server error - try again later';
-        } else if (error.name === 'AbortError') {
-            errorMessage = 'Request timed out - check your connection';
-        }
-        
-        showNotification(`${errorMessage} (${error.message})`, 'error', 
-            isRecoverable ? [{
-                label: 'Retry',
-                action: () => loadFilesList(Math.min(retryCount + 1, 3))
-            }] : null
-        );
-
-        // Exponential backoff retry for network errors
-        if (isRecoverable && retryCount < 3) {
-            const delay = Math.pow(2, retryCount) * 1000;
-            await new Promise(resolve => setTimeout(resolve, delay));
-            return loadFilesList(retryCount + 1);
-        }
-        
-        return { files: [], total_count: 0, total_size: 0 };
-    }
-}
-
-export function setupDragAndDrop() {
-    const dropZone = document.querySelector('.file-drop-area');
-    const fileInput = document.getElementById('file-input');
+    this.init();
+  }
+  
+  /**
+   * Initialize file upload functionality
+   */
+  init() {
+    this.initElements();
+    this.attachEventListeners();
+    this.updateStats();
+  }
+  
+  /**
+   * Initialize DOM element references
+   */
+  initElements() {
+    // File element references
+    this.fileInput = document.getElementById('file-input');
+    this.uploadButton = document.querySelector('.upload-button') || document.querySelector('button:has(.folder-icon)');
+    this.dropArea = document.querySelector('.file-drop-area');
+    this.fileList = document.createElement('div');
+    this.fileList.className = 'space-y-2 max-h-96 overflow-y-auto mt-4';
     
-    if (!dropZone || !fileInput) {
-        console.warn('File upload elements not found');
-        return;
-    }
-
-    // Handle file selection via input
-    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
-
-    // Handle drag and drop
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('drag-over');
-    });
-
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('drag-over');
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('drag-over');
-        handleFiles(e.dataTransfer.files);
-    });
-
-    // Handle click to select files
-    dropZone.addEventListener('click', () => {
-        fileInput.click();
-    });
-}
-
-const setupFileSelector = () => {
-    const fileList = document.getElementById('file-list');
-    if (fileList) {
-        fileList.addEventListener('click', (e) => {
-            // Handle file selection
-            const fileItem = e.target.closest('.file-item');
-            if (fileItem && !e.target.closest('.delete-file')) {
-                const fileId = fileItem.dataset.fileId;
-                if (fileId) {
-                    toggleFileSelection(fileId, fileItem);
-                }
-            }
-        });
+    // Add the file list after the drop area
+    if (this.dropArea) {
+      this.dropArea.insertAdjacentElement('afterend', this.fileList);
     }
     
-    // Setup select all button
-    const selectAllBtn = document.getElementById('select-all-files');
-    if (selectAllBtn) {
-        selectAllBtn.addEventListener('click', toggleSelectAllFiles);
+    // Stats elements
+    this.totalFilesElement = document.getElementById('total-files');
+    this.totalSizeElement = document.getElementById('total-size');
+    this.estimatedTokensElement = document.getElementById('estimated-tokens');
+    
+    // Azure search toggle
+    this.azureSearchToggle = document.getElementById('azure-search');
+  }
+  
+  /**
+   * Attach event listeners to file-related elements
+   */
+  attachEventListeners() {
+    if (this.uploadButton) {
+      this.uploadButton.addEventListener('click', () => this.fileInput.click());
     }
-};
-
-const toggleFileSelection = (fileId, fileElement) => {
-    if (selectedFiles.has(fileId)) {
-        selectedFiles.delete(fileId);
-        fileElement.classList.remove('selected');
+    
+    if (this.fileInput) {
+      this.fileInput.addEventListener('change', (e) => this.handleFileSelection(e));
+    }
+    
+    if (this.dropArea) {
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        this.dropArea.addEventListener(eventName, this.preventDefaults, false);
+      });
+      
+      ['dragenter', 'dragover'].forEach(eventName => {
+        this.dropArea.addEventListener(eventName, () => {
+          this.dropArea.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20');
+        });
+      });
+      
+      ['dragleave', 'drop'].forEach(eventName => {
+        this.dropArea.addEventListener(eventName, () => {
+          this.dropArea.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20');
+        });
+      });
+      
+      this.dropArea.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        this.processFiles(files);
+      });
+    }
+    
+    if (this.azureSearchToggle) {
+      this.azureSearchToggle.addEventListener('change', () => {
+        if (this.azureSearchToggle.checked) {
+          if (this.fileList) this.fileList.classList.add('opacity-50', 'pointer-events-none');
+          showNotification('Azure Search enabled. File context will be handled by the search service.', 'info');
+        } else {
+          if (this.fileList) this.fileList.classList.remove('opacity-50', 'pointer-events-none');
+        }
+      });
+    }
+    
+    // Global event for removing files
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('file-remove-btn')) {
+        const fileId = e.target.dataset.fileId;
+        if (fileId) {
+          this.removeFile(fileId);
+        }
+      }
+    });
+  }
+  
+  /**
+   * Prevent default behavior for drag and drop events
+   * @param {Event} e The event object
+   */
+  preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  
+  /**
+   * Handle file selection from file input
+   * @param {Event} e The change event
+   */
+  handleFileSelection(e) {
+    const files = e.target.files;
+    this.processFiles(files);
+    // Reset file input to allow re-selection of the same file
+    e.target.value = '';
+  }
+  
+  /**
+   * Process selected files
+   * @param {FileList} fileList The list of selected files
+   */
+  processFiles(fileList) {
+    if (!fileList || fileList.length === 0) return;
+    
+    // Check if adding these files would exceed the maximum
+    if (this.files.length + fileList.length > this.maxFileCount) {
+      showNotification(`You can only upload up to ${this.maxFileCount} files.`, 'warning');
+      return;
+    }
+    
+    Array.from(fileList).forEach(file => {
+      this.validateAndAddFile(file);
+    });
+    
+    this.updateStats();
+    this.renderFileList();
+    this.updateDropAreaMessage();
+  }
+  
+  /**
+   * Validate and add a file to the managed files
+   * @param {File} file The file to validate and add
+   */
+  validateAndAddFile(file) {
+    // Check file size
+    if (file.size > this.maxFileSize) {
+      showNotification(`File ${file.name} exceeds the 20MB limit.`, 'error');
+      return;
+    }
+    
+    // Check file type
+    const isAllowed = this.allowedFileTypes.includes(file.type) ||
+                     file.name.endsWith('.py') || // Special handling for Python files
+                     file.name.endsWith('.txt') ||
+                     file.name.endsWith('.md') ||
+                     file.name.endsWith('.json') ||
+                     file.name.endsWith('.js') ||
+                     file.name.endsWith('.html') ||
+                     file.name.endsWith('.css');
+    
+    if (!isAllowed) {
+      showNotification(`File type not supported: ${file.type || file.name.split('.').pop()}`, 'warning');
+      return;
+    }
+    
+    // Add the file with a unique ID
+    const fileId = `file-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    
+    this.files.push({
+      id: fileId,
+      file: file,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      uploaded: new Date(),
+      estimatedTokens: this.estimateTokens(file)
+    });
+  }
+  
+  /**
+   * Estimate the number of tokens a file might contain
+   * @param {File} file The file to estimate tokens for
+   * @returns {number} Estimated token count
+   */
+  estimateTokens(file) {
+    // Very rough estimation: ~1 token per 4 characters for text files
+    // PDF and DOCX would need more sophisticated estimation
+    const isPDF = file.type === 'application/pdf';
+    const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                  file.type === 'application/msword';
+    
+    if (isPDF) {
+      // Rough estimation for PDF: ~100 tokens per KB
+      return Math.round(file.size / 1024 * 100);
+    } else if (isDocx) {
+      // Rough estimation for DOCX: ~200 tokens per KB (less efficient than plain text)
+      return Math.round(file.size / 1024 * 200);
     } else {
-        selectedFiles.add(fileId);
-        fileElement.classList.add('selected');
+      // Text-based files
+      return Math.round(file.size / 4);
+    }
+  }
+  
+  /**
+   * Remove a file from the managed files
+   * @param {string} fileId The ID of the file to remove
+   */
+  removeFile(fileId) {
+    const fileIndex = this.files.findIndex(f => f.id === fileId);
+    if (fileIndex !== -1) {
+      this.files.splice(fileIndex, 1);
+      this.updateStats();
+      this.renderFileList();
+      this.updateDropAreaMessage();
+    }
+  }
+  
+  /**
+   * Update the file statistics display
+   */
+  updateStats() {
+    if (this.totalFilesElement) {
+      this.totalFilesElement.textContent = this.files.length;
     }
     
-    // Update UI to show selected files count
-    updateSelectionStatus();
-};
-
-const toggleSelectAllFiles = () => {
-    const fileElements = document.querySelectorAll('.file-item');
+    if (this.totalSizeElement) {
+      this.totalSizeElement.textContent = this.formatFileSize(
+        this.files.reduce((total, file) => total + file.size, 0)
+      );
+    }
     
-    // If all are selected, deselect all, otherwise select all
-    const allSelected = selectedFiles.size === uploadedFiles.size;
+    if (this.estimatedTokensElement) {
+      const totalTokens = this.files.reduce((total, file) => total + (file.estimatedTokens || 0), 0);
+      this.estimatedTokensElement.textContent = totalTokens.toLocaleString();
+    }
+  }
+  
+  /**
+   * Format file size in human-readable format
+   * @param {number} bytes The file size in bytes
+   * @returns {string} Formatted file size
+   */
+  formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
     
-    if (allSelected) {
-        // Deselect all
-        selectedFiles.clear();
-        fileElements.forEach(el => el.classList.remove('selected'));
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+  
+  /**
+   * Render the list of uploaded files
+   */
+  renderFileList() {
+    if (!this.fileList) return;
+    
+    this.fileList.innerHTML = '';
+    
+    if (this.files.length === 0) return;
+    
+    this.files.forEach(file => {
+      const fileItem = document.createElement('div');
+      fileItem.className = 'flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded';
+      fileItem.setAttribute('aria-label', `File: ${file.name}`);
+      
+      const fileTypeIcon = this.getFileTypeIcon(file.type, file.name);
+      
+      fileItem.innerHTML = `
+        <div class="flex items-center space-x-2 overflow-hidden">
+          <span class="text-gray-500 dark:text-gray-400">${fileTypeIcon}</span>
+          <span class="text-sm text-gray-800 dark:text-gray-200 truncate" title="${file.name}">${file.name}</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="text-xs text-gray-500 dark:text-gray-400">${this.formatFileSize(file.size)}</span>
+          <button 
+            class="file-remove-btn text-red-500 hover:text-red-700 dark:hover:text-red-400 focus:outline-none" 
+            data-file-id="${file.id}"
+            aria-label="Remove file ${file.name}">
+            ×
+          </button>
+        </div>
+      `;
+      
+      this.fileList.appendChild(fileItem);
+    });
+  }
+  
+  /**
+   * Update the drop area message based on file count
+   */
+  updateDropAreaMessage() {
+    if (!this.dropArea) return;
+    
+    const messageContainer = this.dropArea.querySelector('.drop-message') || this.dropArea.querySelector('p:first-child');
+    const hintContainer = this.dropArea.querySelector('.drop-hint') || this.dropArea.querySelector('p:last-child');
+    
+    if (messageContainer) {
+      if (this.files.length > 0) {
+        messageContainer.textContent = `${this.files.length} file(s) uploaded.`;
+        if (hintContainer) {
+          hintContainer.textContent = 'Drop more files here or click to add more.';
+        }
+      } else {
+        messageContainer.textContent = 'No files uploaded.';
+        if (hintContainer) {
+          hintContainer.textContent = 'Drop files here to add context.';
+        }
+      }
+    }
+  }
+  
+  /**
+   * Get an appropriate icon for a file type
+   * @param {string} fileType The MIME type of the file
+   * @param {string} fileName The name of the file (used for fallback detection)
+   * @returns {string} Icon HTML
+   */
+  getFileTypeIcon(fileType, fileName) {
+    // Extract extension from the file name
+    const extension = fileName.split('.').pop().toLowerCase();
+    
+    // Determine icon based on file type or extension
+    if (fileType === 'application/pdf' || extension === 'pdf') {
+      return '📄';
+    } else if (fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
+               fileType === 'application/msword' ||
+               extension === 'doc' || 
+               extension === 'docx') {
+      return '📝';
+    } else if (fileType === 'text/csv' || extension === 'csv') {
+      return '📊';
+    } else if (fileType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+               extension === 'xlsx' || 
+               extension === 'xls') {
+      return '📊';
+    } else if (fileType === 'application/json' || extension === 'json') {
+      return '{ }';
+    } else if (fileType === 'text/javascript' || extension === 'js') {
+      return '📜';
+    } else if (fileType === 'text/html' || extension === 'html') {
+      return '🌐';
+    } else if (fileType === 'text/css' || extension === 'css') {
+      return '🎨';
+    } else if (extension === 'py') {
+      return '🐍';
+    } else if (fileType === 'text/markdown' || extension === 'md') {
+      return '📑';
     } else {
-        // Select all
-        uploadedFiles.forEach((file, id) => {
-            selectedFiles.add(id);
-        });
-        fileElements.forEach(el => el.classList.add('selected'));
+      return '📄';
     }
-    
-    updateSelectionStatus();
-};
-
-const updateSelectionStatus = () => {
-    const statusElement = document.getElementById('file-selection-status');
-    if (statusElement) {
-        statusElement.textContent = selectedFiles.size > 0 
-            ? `${selectedFiles.size} file(s) selected` 
-            : 'No files selected';
-    }
-};
-
-async function handleFiles(fileList) {
-    const files = Array.from(fileList);
-    
-    // Get session ID
-    const sessionId = getSessionId();
-    if (!sessionId) {
-        showNotification('No active session - please reload the page', 'error');
-        return;
-    }
-    
-    // Create progress UI
-    const fileStatusContainer = document.getElementById('file-upload-status');
-    if (fileStatusContainer) {
-        fileStatusContainer.innerHTML = '';
-        fileStatusContainer.style.display = 'block';
-    }
-    
-    // Validate files
-    const MAX_FILE_SIZE = 512 * 1024 * 1024; // 512MB
-    const validFiles = files.filter(file => {
-        if (file.size > MAX_FILE_SIZE) {
-            showNotification(`File ${file.name} is too large (max 512MB)`, 'error');
-            return false;
-        }
-        
-        // Get file extension
-        const extension = file.name.split('.').pop().toLowerCase();
-        const supportedExtensions = ['txt', 'md', 'pdf', 'docx', 'json', 'js', 'py', 'html', 'css'];
-        
-        if (!supportedExtensions.includes(extension)) {
-            showNotification(`Unsupported file type: .${extension}`, 'error');
-            return false;
-        }
-        
-        return true;
-    });
-
-    if (validFiles.length === 0) return;
-    
-    // Create progress elements
-    const progressElements = {};
-    validFiles.forEach(file => {
-        if (fileStatusContainer) {
-            const fileElement = createFileProgressElement(file.name);
-            fileStatusContainer.appendChild(fileElement);
-            progressElements[file.name] = {
-                container: fileElement,
-                progressBar: fileElement.querySelector('.progress-bar-fill'),
-                statusText: fileElement.querySelector('.file-status-text')
-            };
-        }
-    });
-    
-    // Upload files in parallel; errors for individual uploads are caught
-    const uploadPromises = validFiles.map(file => 
-        uploadFileWithProgress(file, sessionId, progressElements[file.name])
-            .catch(error => {
-                // Error already notified in uploadFileWithProgress; return error info if needed.
-                return { error, fileName: file.name };
-            })
-    );
-    await Promise.all(uploadPromises);
-    
-    // Refresh file list once after all uploads complete
-    await loadFilesList();
+  }
+  
+  /**
+   * Get the current files for context processing
+   * @returns {File[]} Array of File objects
+   */
+  getFiles() {
+    return this.files.map(f => f.file);
+  }
+  
+  /**
+   * Check if Azure Search is enabled
+   * @returns {boolean} True if Azure Search is enabled
+   */
+  isAzureSearchEnabled() {
+    return this.azureSearchToggle && this.azureSearchToggle.checked;
+  }
+  
+  /**
+   * Clear all uploaded files
+   */
+  clearFiles() {
+    this.files = [];
+    this.updateStats();
+    this.renderFileList();
+    this.updateDropAreaMessage();
+  }
+  
+  /**
+   * Check if any files are uploaded
+   * @returns {boolean} True if there are uploaded files
+   */
+  hasFiles() {
+    return this.files.length > 0;
+  }
+  
+  /**
+   * Get the total token estimation for all files
+   * @returns {number} Total estimated tokens
+   */
+  getTotalTokenEstimation() {
+    return this.files.reduce((total, file) => total + (file.estimatedTokens || 0), 0);
+  }
 }
 
-function createFileProgressElement(filename) {
-    const container = document.createElement('div');
-    container.className = 'file-upload-progress';
-    
-    const header = document.createElement('div');
-    header.className = 'file-progress-header';
-    
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'file-name';
-    nameSpan.textContent = filename;
-    
-    const statusText = document.createElement('span');
-    statusText.className = 'file-status-text';
-    statusText.textContent = 'Pending...';
-    
-    const progressBar = document.createElement('div');
-    progressBar.className = 'progress-bar';
-    
-    const progressFill = document.createElement('div');
-    progressFill.className = 'progress-bar-fill';
-    progressFill.style.width = '0%';
-    
-    // Assemble the elements
-    progressBar.appendChild(progressFill);
-    header.appendChild(nameSpan);
-    header.appendChild(statusText);
-    container.appendChild(header);
-    container.appendChild(progressBar);
-    
-    return container;
-}
-
-async function uploadFileWithProgress(file, sessionId, progressUI) {
-    try {
-        // Create form data
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('session_id', sessionId);
-        formData.append('process_with_azure', useFileSearch ? 'true' : 'false');
-        
-        // Setup progress tracking with XMLHttpRequest
-        const xhr = new XMLHttpRequest();
-        xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable && progressUI) {
-                const percent = Math.round((event.loaded / event.total) * 100);
-                progressUI.progressBar.style.width = `${percent}%`;
-                progressUI.statusText.textContent = `Uploading: ${percent}%`;
-            }
-        };
-        
-        // Create a promise to handle the result
-        const uploadPromise = new Promise((resolve, reject) => {
-            xhr.onload = () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    if (progressUI) {
-                        progressUI.progressBar.style.width = '100%';
-                        progressUI.statusText.textContent = 'Processing...';
-                    }
-                    
-                    try {
-                        const result = JSON.parse(xhr.responseText);
-                        resolve(result);
-                    } catch (e) {
-                        reject(new Error('Invalid response format'));
-                    }
-                } else {
-                    if (progressUI) {
-                        progressUI.progressBar.classList.add('error');
-                        progressUI.statusText.textContent = 'Failed';
-                    }
-                    reject(new Error(`HTTP error ${xhr.status}`));
-                }
-            };
-            
-            xhr.onerror = () => {
-                if (progressUI) {
-                    progressUI.progressBar.classList.add('error');
-                    progressUI.statusText.textContent = 'Network error';
-                }
-                reject(new Error('Network error'));
-            };
-        });
-        
-        // Start upload
-        xhr.open('POST', '/api/files/upload', true);
-        xhr.send(formData);
-        
-        // Wait for upload to complete
-        const result = await uploadPromise;
-        
-        // Update progress UI with result details
-        if (progressUI) {
-            if (result.chunks > 1) {
-                progressUI.statusText.textContent = `Processed into ${result.chunks} chunks`;
-            } else {
-                progressUI.statusText.textContent = 'Completed';
-            }
-            
-            if (result.azure_processing) {
-                progressUI.container.classList.add('azure-processing');
-                const azureIndicator = document.createElement('div');
-                azureIndicator.className = 'azure-indicator';
-                azureIndicator.innerHTML = '<span class="azure-icon">🔍</span> Azure processing';
-                progressUI.container.appendChild(azureIndicator);
-            }
-        }
-        
-        showNotification(`Uploaded ${file.name} successfully`, 'success');
-        return result;
-    } catch (error) {
-        console.error(`Error uploading ${file.name}:`, error);
-        showNotification(`Failed to upload ${file.name}: ${error.message}`, 'error');
-        
-        if (progressUI) {
-            progressUI.progressBar.classList.add('error');
-            progressUI.statusText.textContent = 'Failed: ' + error.message;
-        }
-        
-        // Rethrow so that individual upload errors can be caught in the parallel batch
-        throw error;
-    }
-}
-
-function updateFileList(files) {
-    const fileList = document.getElementById('file-list');
-    if (!fileList) return;
-    
-    // Clear existing list
-    fileList.innerHTML = '';
-    
-    if (files.length === 0) {
-        const emptyMessage = document.createElement('div');
-        emptyMessage.className = 'empty-files-message';
-        emptyMessage.textContent = 'No files uploaded. Drop files above to add context.';
-        fileList.appendChild(emptyMessage);
-        return;
-    }
-    
-    // Group files by parent/chunks with safe metadata checks
-    const fileGroups = {};
-    const standaloneFiles = [];
-    
-    files.forEach(file => {
-        const metadata = file.metadata && typeof file.metadata === 'object' ? file.metadata : {};
-        if (metadata.parent_file_id) {
-            const parentId = metadata.parent_file_id;
-            if (!fileGroups[parentId]) {
-                fileGroups[parentId] = { chunks: [] };
-            }
-            fileGroups[parentId].chunks.push(file);
-        } else if (file.chunk_count > 1) {
-            if (!fileGroups[file.id]) {
-                fileGroups[file.id] = { parent: file, chunks: [] };
-            } else {
-                fileGroups[file.id].parent = file;
-            }
-        } else {
-            standaloneFiles.push(file);
-        }
-    });
-    
-    // Add file groups first (files with chunks)
-    Object.values(fileGroups).forEach(group => {
-        if (group.parent) {
-            const fileGroupElement = createFileGroupElement(group.parent, group.chunks);
-            fileList.appendChild(fileGroupElement);
-        }
-    });
-    
-    // Then add standalone files
-    standaloneFiles.forEach(file => {
-        const fileElement = createFileElement(file);
-        fileList.appendChild(fileElement);
-    });
-    
-    // Update selection highlights
-    updateSelectionHighlights();
-}
-
-function updateSelectionHighlights() {
-    document.querySelectorAll('.file-item').forEach(el => {
-        const fileId = el.dataset.fileId;
-        if (fileId && selectedFiles.has(fileId)) {
-            el.classList.add('selected');
-        } else {
-            el.classList.remove('selected');
-        }
-    });
-}
-
-function createFileGroupElement(parentFile, chunks) {
-    const container = document.createElement('div');
-    container.className = 'file-group';
-    
-    // Create parent file element
-    const parentElement = createFileElement(parentFile, true);
-    parentElement.classList.add('file-parent');
-    
-    // Create toggle button
-    const toggleButton = document.createElement('button');
-    toggleButton.className = 'toggle-chunks';
-    toggleButton.innerHTML = '▾';
-    toggleButton.title = 'Show/hide chunks';
-    toggleButton.onclick = (e) => {
-        e.stopPropagation();
-        const chunksContainer = container.querySelector('.file-chunks');
-        chunksContainer.classList.toggle('hidden');
-        toggleButton.innerHTML = chunksContainer.classList.contains('hidden') ? '▸' : '▾';
-    };
-    
-    parentElement.appendChild(toggleButton);
-    container.appendChild(parentElement);
-    
-    // Create chunks container
-    const chunksContainer = document.createElement('div');
-    chunksContainer.className = 'file-chunks hidden';
-    
-    // Sort and add each chunk
-    chunks.sort((a, b) => {
-        const aIndex = a.metadata && a.metadata.chunk_index !== undefined ? a.metadata.chunk_index : 0;
-        const bIndex = b.metadata && b.metadata.chunk_index !== undefined ? b.metadata.chunk_index : 0;
-        return aIndex - bIndex;
-    }).forEach(chunk => {
-        const chunkElement = createFileElement(chunk, false, true);
-        chunksContainer.appendChild(chunkElement);
-    });
-    
-    container.appendChild(chunksContainer);
-    return container;
-}
-
-function createFileElement(file, isParent = false, isChunk = false) {
-    const div = document.createElement('div');
-    div.className = `file-item ${isParent ? 'parent-file' : ''} ${isChunk ? 'chunk-file' : ''}`;
-    div.dataset.fileId = file.id;
-    
-    // Add selected class if already selected
-    if (selectedFiles.has(file.id)) {
-        div.classList.add('selected');
-    }
-    
-    // File type icon based on extension
-    const fileIcon = document.createElement('span');
-    fileIcon.className = 'file-icon';
-    const fileType = file.filename.split('.').pop().toLowerCase();
-    let iconText = '📄';
-    
-    switch (fileType) {
-        case 'pdf': iconText = '📕'; break;
-        case 'docx': case 'doc': iconText = '📝'; break;
-        case 'json': iconText = '🔍'; break;
-        case 'md': iconText = '📋'; break;
-        case 'js': case 'py': case 'html': case 'css': iconText = '💻'; break;
-    }
-    fileIcon.textContent = iconText;
-    
-    // File name with chunk indicator if applicable
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'file-name';
-    let displayName = file.filename;
-    if (isChunk && file.metadata && file.metadata.chunk_index !== undefined) {
-        displayName = `Chunk ${file.metadata.chunk_index + 1}`;
-    }
-    nameSpan.textContent = displayName;
-    
-    // File size and token count information
-    const infoSpan = document.createElement('span');
-    infoSpan.className = 'file-info';
-    
-    const sizeSpan = document.createElement('span');
-    sizeSpan.className = 'file-size';
-    sizeSpan.textContent = formatFileSize(file.size);
-    
-    const tokenSpan = document.createElement('span');
-    tokenSpan.className = 'file-tokens';
-    tokenSpan.textContent = `~${file.token_count?.toLocaleString() || '0'} tokens`;
-    
-    infoSpan.appendChild(sizeSpan);
-    infoSpan.appendChild(tokenSpan);
-    
-    // Add badge for multi-chunk files
-    if (isParent && file.chunk_count > 1) {
-        const chunkBadge = document.createElement('span');
-        chunkBadge.className = 'chunk-badge';
-        chunkBadge.textContent = `${file.chunk_count} chunks`;
-        infoSpan.appendChild(chunkBadge);
-    }
-    
-    // Azure processing badge if applicable
-    if (file.metadata && file.metadata.azure_processing) {
-        const azureBadge = document.createElement('span');
-        azureBadge.className = 'azure-badge';
-        
-        if (file.metadata.azure_processing === 'completed') {
-            azureBadge.textContent = '🔍 Searchable';
-            azureBadge.title = 'This file can be searched with Azure OpenAI';
-        } else if (file.metadata.azure_processing === 'scheduled' || file.metadata.azure_processing === 'started') {
-            azureBadge.textContent = '⏳ Processing';
-            azureBadge.title = 'File is being processed for search';
-        } else {
-            azureBadge.textContent = '❌ Failed';
-            azureBadge.title = 'Azure processing failed';
-        }
-        
-        infoSpan.appendChild(azureBadge);
-    }
-    
-    // Delete button (not for chunks)
-    if (!isChunk) {
-        const deleteButton = document.createElement('button');
-        deleteButton.className = 'delete-file';
-        deleteButton.textContent = '×';
-        deleteButton.setAttribute('aria-label', `Delete ${file.filename}`);
-        deleteButton.onclick = (e) => {
-            e.stopPropagation();
-            deleteFile(file.id, file.filename);
-        };
-        div.appendChild(deleteButton);
-    }
-    
-    // Assemble the file element
-    div.appendChild(fileIcon);
-    div.appendChild(nameSpan);
-    div.appendChild(infoSpan);
-    
-    return div;
-}
-
-async function deleteFile(fileId, filename) {
-    if (!confirm(`Are you sure you want to delete ${filename}?`)) {
-        return;
-    }
-    
-    try {
-        const sessionId = getSessionId();
-        const response = await fetch(`/api/files/${sessionId}/${fileId}`, {
-            method: 'DELETE'
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        showNotification(`Deleted ${filename} successfully`, 'success');
-        
-        // Remove from selected files
-        selectedFiles.delete(fileId);
-        
-        // Reload file list after deletion
-        await loadFilesList();
-    } catch (error) {
-        console.error('Error deleting file:', error);
-        showNotification(`Failed to delete ${filename}`, 'error');
-    }
-}
-
-function updateFileStats(fileCount, totalSize) {
-    // Update file statistics in the UI
-    const totalFilesElement = document.getElementById('total-files');
-    const totalSizeElement = document.getElementById('total-size');
-    
-    if (totalFilesElement) {
-        totalFilesElement.textContent = fileCount;
-    }
-    
-    if (totalSizeElement) {
-        totalSizeElement.textContent = formatFileSize(totalSize);
-    }
-}
-
-// Export functions and state needed by other modules
-export function getSelectedFileIds() {
-    return Array.from(selectedFiles);
-}
-
-export function getFilesForChat() {
-    return {
-        include_files: selectedFiles.size > 0,
-        file_ids: Array.from(selectedFiles),
-        use_file_search: useFileSearch
-    };
-}
-
-function setupMobileHandlers() {
-    const toggleButton = document.querySelector('.mobile-tab-toggle');
-    if (toggleButton) {
-        toggleButton.addEventListener('click', () => {
-            const sidebar = document.querySelector('.sidebar');
-            if (sidebar) sidebar.classList.toggle('active');
-        });
-    }
-
-    let dragTimeout;
-    document.addEventListener('dragover', (e) => {
-        if(isMobileDevice()) {
-            clearTimeout(dragTimeout);
-            const overlay = document.createElement('div');
-            overlay.className = 'mobile-drag-overlay';
-            overlay.textContent = 'Drop files to upload';
-            document.body.appendChild(overlay);
-        }
-    });
-
-    document.addEventListener('dragleave', (e) => {
-        if(isMobileDevice()) {
-            dragTimeout = setTimeout(() => {
-                document.querySelector('.mobile-drag-overlay')?.remove();
-            }, 100);
-        }
-    });
-
-    document.addEventListener('touchend', () => {
-        const overlay = document.querySelector('.mobile-drag-overlay');
-        if (overlay) overlay.remove();
-    });
-
-    document.addEventListener('touchmove', () => {
-        const overlay = document.querySelector('.mobile-drag-overlay');
-        if (overlay) {
-            overlay.remove();
-        }
-    });
-
-    document.addEventListener('drop', (e) => {
-        if(isMobileDevice()) {
-            document.querySelector('.mobile-drag-overlay')?.remove();
-        }
-    });
-}
+// Create and export a singleton instance
+const fileManager = new FileManager();
+export default fileManager;

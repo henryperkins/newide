@@ -1,4 +1,4 @@
-// displayManager.js
+// chat.js/ui/displayManager.js full content with corrected lines 120-133
 
 import { safeMarkdownParse, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
 import { copyToClipboard } from '/static/js/utils/helpers.js';
@@ -54,9 +54,6 @@ export function displayMessage(content, role) {
 /**
  * A helper to process final response data once we've gotten
  * the entire (non-streaming) message from the server.
- * 
- * If you are not using streaming for some models, you can call
- * this at the end of your request logic to display the final text.
  */
 export async function processServerResponseData(data, modelName = 'unknown') {
   if (data.calculated_timeout) {
@@ -77,7 +74,7 @@ export async function processServerResponseData(data, modelName = 'unknown') {
   }
 
   // Optionally append the model name as subtext:
-  assistantContent += `\n\n<span class="model-subtext" style="font-size: 0.85em; color: #777;">(Using model: ${modelName})</span>`;
+  assistantContent += `\n\n<span class="text-xs text-gray-500 dark:text-gray-400">(Using model: ${modelName})</span>`;
 
   // Inject global Markdown styles once
   injectMarkdownStyles();
@@ -128,10 +125,9 @@ async function storeMessageInDB(role, content) {
     return;
   }
   try {
-    await fetch('/api/conversations/store', {
+    await fetch(`/api/chat/conversations/store?session_id=${sessionId}&role=${encodeURIComponent(role)}&content=${encodeURIComponent(content)}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: sessionId, role, content })
+      credentials: 'include'
     });
   } catch (error) {
     console.error('Failed to store conversation in DB:', error);
@@ -141,17 +137,20 @@ async function storeMessageInDB(role, content) {
 /* ---------- Developer (system) message handling ---------- */
 function createDeveloperMessage(content, isFormattingMessage) {
   const messageDiv = document.createElement('div');
-  messageDiv.className = 'message developer-message markdown-content';
+  // Updated class names for Tailwind
+  messageDiv.className = 'mx-auto max-w-xl bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-400 dark:border-yellow-600 p-3 text-yellow-800 dark:text-yellow-200 rounded my-2';
   messageDiv.setAttribute('role', 'alert');
   messageDiv.setAttribute('aria-live', 'assertive');
 
   if (isFormattingMessage) {
     const noticeDiv = document.createElement('div');
-    noticeDiv.className = 'formatting-notice';
+    noticeDiv.className = 'flex items-center';
     noticeDiv.innerHTML = `
-      <span aria-hidden="true">⚙️</span>
-      <strong>System:</strong>
-      ${safeMarkdownParse(content)}
+      <span aria-hidden="true" class="mr-2">⚙️</span>
+      <div>
+        <strong>System:</strong>
+        ${safeMarkdownParse(content)}
+      </div>
     `;
     messageDiv.appendChild(noticeDiv);
   } else {
@@ -164,9 +163,15 @@ function createDeveloperMessage(content, isFormattingMessage) {
 /* ---------- Generic message elements for user/assistant roles ---------- */
 function createMessageElement(role) {
   const messageDiv = document.createElement('div');
-  messageDiv.className = `message ${role}-message markdown-content`;
 
-  // Start hidden for entrance animation
+  // Apply Tailwind classes based on role
+  if (role === 'user') {
+    messageDiv.className = 'ml-auto max-w-3xl rounded-lg rounded-br-none bg-blue-600 p-3 text-white shadow-md relative my-2';
+  } else if (role === 'assistant') {
+    messageDiv.className = 'mr-auto max-w-3xl rounded-lg rounded-bl-none bg-white dark:bg-gray-700 p-3 border border-gray-200 dark:border-gray-600 shadow-sm text-gray-800 dark:text-gray-100 relative my-2';
+  }
+
+  // Apply entrance animation styles with Tailwind
   messageDiv.style.opacity = '0';
   messageDiv.style.transform = 'translateY(20px)';
 
@@ -175,7 +180,7 @@ function createMessageElement(role) {
 
 function createContentElement(content, role) {
   const contentDiv = document.createElement('div');
-  contentDiv.className = 'message-content';
+  contentDiv.className = 'prose dark:prose-invert prose-sm max-w-none'; // Tailwind Typography classes
 
   // Always parse with safeMarkdownParse for security
   const htmlContent = safeMarkdownParse(
@@ -194,7 +199,7 @@ function createContentElement(content, role) {
  */
 function createCopyButton(content) {
   const button = document.createElement('button');
-  button.className = 'copy-button';
+  button.className = 'absolute top-2 right-2 text-white dark:text-gray-300 opacity-60 hover:opacity-100 focus:opacity-100 transition-opacity';
   button.innerHTML = '📋';
   button.title = 'Copy to clipboard';
   button.onclick = () =>
@@ -204,12 +209,14 @@ function createCopyButton(content) {
 
 /**
  * Highlight code blocks for any inserted Markdown code
- * (using Prism or a similar syntax highlighter).
  */
 export function highlightCodeBlocks(container) {
   container.querySelectorAll('pre code').forEach(block => {
     block.style.opacity = '0';
-    // Optionally detect language from the text or a class
+    // Apply Tailwind classes to code blocks
+    block.classList.add('block', 'p-4', 'overflow-x-auto', 'rounded', 'bg-gray-100', 'dark:bg-gray-800', 'text-sm', 'font-mono');
+    
+    // Optional detection of language from text or class
     if (!block.className && block.parentElement.firstChild?.textContent) {
       const lang = block.parentElement.firstChild.textContent.trim();
       if (lang && typeof Prism !== 'undefined' && Prism.languages[lang]) {
@@ -275,18 +282,19 @@ export function processCitations(content) {
 }
 
 function createCitationHTML(index, citation) {
+  // Updated to use Tailwind classes
   return `
-    <div class="file-citation" 
+    <div class="my-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md border-l-3 border-blue-500 dark:border-blue-400" 
          role="region" 
          aria-label="Document reference ${index}"
          tabindex="0">
-      <div class="citation-header" id="citation-heading-${index}">
-        <span class="citation-number" aria-label="Reference number">[${index}]</span>
-        <span class="citation-file" aria-label="Source document">
+      <div class="flex items-center mb-2" id="citation-heading-${index}">
+        <span class="text-blue-600 dark:text-blue-400 font-mono font-bold mr-2" aria-label="Reference number">[${index}]</span>
+        <span class="text-gray-600 dark:text-gray-400 text-sm" aria-label="Source document">
           ${citation.file_name}
         </span>
       </div>
-      <div class="citation-quote" aria-label="Relevant excerpt">
+      <div class="text-gray-800 dark:text-gray-200 italic" aria-label="Relevant excerpt">
         ${citation.quote}
       </div>
     </div>
@@ -294,63 +302,25 @@ function createCitationHTML(index, citation) {
 }
 
 /**
- * Add custom styles for citations block, if needed.
- */
-function addCitationStyles() {
-  if (document.getElementById('citation-styles')) return;
-
-  const style = document.createElement('style');
-  style.id = 'citation-styles';
-  style.textContent = `
-    .citations-container {
-      margin-top: 1.5em;
-      padding-top: 1em;
-      border-top: 1px solid rgba(0, 0, 0, 0.1);
-    }
-    .citations-header {
-      display: flex;
-      align-items: center;
-      gap: 0.5em;
-      font-weight: 600;
-      color: #4b5563;
-      margin-bottom: 1em;
-    }
-    .file-citation {
-      margin: 1em 0;
-      padding: 1em;
-      background: rgba(59, 130, 246, 0.05);
-      border-radius: 8px;
-      border-left: 3px solid #3b82f6;
-    }
-    .citation-number {
-      color: #3b82f6;
-      font-weight: 600;
-      font-family: 'JetBrains Mono', monospace;
-    }
-    .citation-file {
-      color: #6b7280;
-      font-size: 0.9em;
-    }
-    .citation-quote {
-      color: #1f2937;
-      font-style: italic;
-      line-height: 1.5;
-    }
-  `;
-  document.head.appendChild(style);
-}
-
-/**
  * If you want to reuse the UI token usage display in this same file, you can define it here.
- * Otherwise, you might already have a function in /static/js/utils/helpers.js or somewhere else.
  */
 export function updateTokenUsage(usage) {
-  const tokenDisplay = document.getElementById('token-usage');
-  if (tokenDisplay) {
-    tokenDisplay.innerHTML = `
-      Prompt: ${usage.prompt_tokens} tokens<br>
-      Completion: ${usage.completion_tokens} tokens<br>
-      Total: ${usage.total_tokens} tokens
-    `;
+  // Update the token display with the usage info
+  const promptTokens = document.getElementById('prompt-tokens');
+  const completionTokens = document.getElementById('completion-tokens');
+  const totalTokens = document.getElementById('total-tokens');
+  const reasoningTokens = document.getElementById('reasoning-tokens');
+  const baseCompletionTokens = document.getElementById('base-completion-tokens');
+
+  if (promptTokens) promptTokens.textContent = usage.prompt_tokens || 0;
+  if (completionTokens) completionTokens.textContent = usage.completion_tokens || 0;
+  if (totalTokens) totalTokens.textContent = usage.total_tokens || 0;
+  
+  // Optional if these are provided
+  if (reasoningTokens && usage.reasoning_tokens) {
+    reasoningTokens.textContent = usage.reasoning_tokens;
+  }
+  if (baseCompletionTokens && usage.base_completion_tokens) {
+    baseCompletionTokens.textContent = usage.base_completion_tokens;
   }
 }
