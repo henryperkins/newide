@@ -23,6 +23,7 @@ export async function sendMessage() {
 
   const streamingEl = document.getElementById('enable-streaming');
   const streamingEnabled = streamingEl ? streamingEl.checked : false;
+  const sendButton = document.getElementById('send-button');
 
   try {
     userInput = document.getElementById('user-input');
@@ -31,6 +32,10 @@ export async function sendMessage() {
       showNotification('Message cannot be empty', 'warning');
       return;
     }
+
+    // Disable button & show feedback
+    sendButton.disabled = true;
+    sendButton.innerHTML = '<span class="animate-spin mr-1">🔄</span> Sending...';
 
     // Initialize session if not done already
     if (!sessionId) {
@@ -96,6 +101,8 @@ export async function sendMessage() {
   } catch (err) {
     handleMessageError(err);
   } finally {
+    sendButton.disabled = false;
+    sendButton.innerHTML = 'Send';
     removeTypingIndicator();
     userInput.disabled = false;
   }

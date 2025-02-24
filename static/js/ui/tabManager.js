@@ -6,6 +6,23 @@
 export function initTabSystem() {
   const tabButtons = document.querySelectorAll('[data-target-tab]');
   
+  // Add arrow-key navigation
+  tabButtons.forEach((button, index) => {
+    button.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        const nextBtn = tabButtons[(index + 1) % tabButtons.length];
+        nextBtn.focus();
+        handleTabChange(nextBtn);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const prevBtn = tabButtons[(index - 1 + tabButtons.length) % tabButtons.length];
+        prevBtn.focus();
+        handleTabChange(prevBtn);
+      }
+    });
+  });
+
   // Setup event listeners for tab buttons
   tabButtons.forEach(button => {
     button.addEventListener('click', () => handleTabChange(button));
@@ -77,11 +94,22 @@ function initMobileSidebarToggle() {
       // Add overlay if it exists
       const overlay = document.getElementById('sidebar-overlay');
       if (overlay) overlay.classList.add('hidden');
+
+      // Return focus to toggle after closing
+      toggleButton.focus();
     } else {
       // Show sidebar
       sidebar.classList.remove('translate-x-full');
       sidebar.classList.add('translate-x-0');
       toggleButton.setAttribute('aria-expanded', 'true');
+
+      // Move focus to first tab button after opening
+      const firstTabButton = sidebar.querySelector('[data-target-tab]');
+      if (firstTabButton) {
+        setTimeout(() => {
+          firstTabButton.focus();
+        }, 150);
+      }
       
       // Check if overlay exists, if not create it
       let overlay = document.getElementById('sidebar-overlay');

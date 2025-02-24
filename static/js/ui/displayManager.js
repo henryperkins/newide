@@ -42,7 +42,15 @@ export function displayMessage(content, role) {
   messageDiv.appendChild(createCopyButton(content));
   messageDiv.appendChild(contentDiv);
 
+  // Insert small timestamp
+  const timeStamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'block text-xs text-gray-400 mt-1';
+  timeSpan.textContent = timeStamp;
+  messageDiv.appendChild(timeSpan);
+
   applyEntranceAnimation(messageDiv);
+  highlightNewMessage(messageDiv);
   chatHistory.appendChild(messageDiv);
   scheduleScroll(messageDiv);
 
@@ -240,6 +248,13 @@ function applyEntranceAnimation(element) {
     element.style.opacity = '1';
     element.style.transform = 'translateY(0)';
   });
+}
+
+function highlightNewMessage(element) {
+  element.classList.add('bg-yellow-50', 'transition-colors');
+  setTimeout(() => {
+    element.classList.remove('bg-yellow-50');
+  }, 1200);
 }
 
 function scheduleScroll(element) {

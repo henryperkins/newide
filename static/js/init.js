@@ -46,8 +46,39 @@ document.addEventListener('DOMContentLoaded', () => {
   // Add accessibility features
   enhanceAccessibility();
   
+  initializeFontSizeControls();
   console.log('Application initialization complete');
 });
+
+function initializeFontSizeControls() {
+  const smallerBtn = document.getElementById('font-size-down');
+  const biggerBtn = document.getElementById('font-size-up');
+  if (!smallerBtn || !biggerBtn) return;
+  
+  // Apply stored size at startup
+  const storedSize = localStorage.getItem('fontSize') || 'text-base';
+  document.documentElement.classList.add(storedSize);
+
+  smallerBtn.addEventListener('click', () => adjustFontSize(-1));
+  biggerBtn.addEventListener('click', () => adjustFontSize(1));
+}
+
+function adjustFontSize(direction) {
+  const sizes = ['text-sm', 'text-base', 'text-lg', 'text-xl'];
+  let currentIndex = sizes.findIndex(sz =>
+    document.documentElement.classList.contains(sz)
+  );
+  if (currentIndex === -1) currentIndex = 1;
+  
+  const newIndex = Math.min(
+    Math.max(currentIndex + direction, 0),
+    sizes.length - 1
+  );
+
+  document.documentElement.classList.remove(...sizes);
+  document.documentElement.classList.add(sizes[newIndex]);
+  localStorage.setItem('fontSize', sizes[newIndex]);
+}
 
 /**
  * Initialize the performance stats display

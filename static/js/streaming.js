@@ -45,6 +45,8 @@ export async function handleStreamingResponse(response, controller, config, stat
   const eventSource = new EventSource(streamUrl);
   const streamStart = Date.now();
   let tokenCount = 0;
+  const streamingCounterEl = document.getElementById('streaming-token-count');
+  if (streamingCounterEl) streamingCounterEl.textContent = '0';
 
   eventSource.onmessage = (event) => {
     try {
@@ -90,6 +92,12 @@ export async function handleStreamingResponse(response, controller, config, stat
       // If the SSE response includes a top-level "content" for stats usage
       if (responseData.content && statsDisplay && statsDisplay.updateStats) {
         tokenCount += countTokensInChunk(responseData.content);
+
+        // Display partial tokenCount if element found
+        if (streamingCounterEl) {
+          streamingCounterEl.textContent = tokenCount.toString();
+        }
+
         const elapsed = Date.now() - streamStart;
         statsDisplay.updateStats({
           latency: elapsed,
