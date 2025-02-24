@@ -43,7 +43,7 @@ export async function handleStandardResponse(response) {
   const latency = Date.now() - startTime;
   if (data.usage && data.usage.total_tokens !== undefined) {
     // Update local stats display
-    if (typeof statsDisplay !== "undefined" && statsDisplay?.updateStats) {
+    if (typeof statsDisplay !== "undefined" && statsDisplay && statsDisplay.updateStats) {
       statsDisplay.updateStats({
         latency: latency,
         tokensPerSecond: data.usage.total_tokens / (latency / 1000),
@@ -445,7 +445,8 @@ async function processResponseData(data) {
 export async function sendMessage() {
   console.log('[DEBUG] Send button clicked!');
   const modelConfig = await getModelSettings();
-  const streamingEnabled = document.getElementById("enable-streaming")?.checked;
+  const streamingEl = document.getElementById("enable-streaming");
+  const streamingEnabled = streamingEl ? streamingEl.checked : false;
   try {
     const userInput = document.getElementById("user-input");
     const message = userInput.value.trim();

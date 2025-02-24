@@ -83,7 +83,7 @@ export async function handleStreamingResponse(response, controller, config, mode
       }
 
       // Update stats if "content" is present
-      if (responseData.content && statsDisplay?.updateStats) {
+      if (responseData.content && statsDisplay && statsDisplay.updateStats) {
         tokenCount += countTokensInChunk(responseData.content);
         const elapsed = Date.now() - streamStart;
         statsDisplay.updateStats({
