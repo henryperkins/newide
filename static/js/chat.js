@@ -452,8 +452,7 @@ export async function sendMessage() {
       return;
     }
 
-    // Temporary forced error for testing
-    throw new Error('Test error - sendMessage working but forced error');
+    // Removed temporary forced error
 
   // If user picks o1, it cannot stream
   if (isO1Model(modelConfig) && streamingEnabled) {
