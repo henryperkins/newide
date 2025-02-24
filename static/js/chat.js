@@ -442,16 +442,18 @@ async function processResponseData(data) {
  * Main request logic for chat
  */
 export async function sendMessage() {
-  const userInput = document.getElementById("user-input");
-  const message = userInput.value.trim();
-  const modelConfig = await getModelSettings();
-  window.isO1Model = isO1Model(modelConfig);
+  console.log('[DEBUG] Send button clicked!');
+  try {
+    const userInput = document.getElementById("user-input");
+    const message = userInput.value.trim();
+    
+    if (!message) {
+      showNotification('Message cannot be empty', 'warning');
+      return;
+    }
 
-  // Basic model-specific checks:
-  const streamingToggle = document.getElementById("enable-streaming");
-  const streamingEnabled = streamingToggle?.checked;
-
-  if (!message) return;
+    // Temporary forced error for testing
+    throw new Error('Test error - sendMessage working but forced error');
 
   // If user picks o1, it cannot stream
   if (isO1Model(modelConfig) && streamingEnabled) {
