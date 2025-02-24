@@ -103,7 +103,8 @@ export async function processServerResponseData(data, modelName = 'unknown') {
 function storeMessageInLocalStorage(content, role) {
   try {
     const conversation = JSON.parse(localStorage.getItem('conversation')) || [];
-    conversation.push({ content, role });
+    const now = new Date().toISOString();
+    conversation.push({ content, role, timestamp: now });
     localStorage.setItem('conversation', JSON.stringify(conversation));
   } catch (error) {
     console.warn('Could not store message in localStorage:', error);
