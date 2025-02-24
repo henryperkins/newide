@@ -173,7 +173,7 @@ export async function getTimeoutDurations() {
     // Standard timeouts for other models
     return {
         low: 15000,    // 15s
-        medium: 30000, // 30s
+        medium: 30000, // 30s,
         high: 60000    // 60s
     };
 }
