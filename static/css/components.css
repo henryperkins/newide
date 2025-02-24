@@ -224,6 +224,56 @@
   z-index: 9999;
 }
 
+.typing-indicator {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.3s ease;
+  padding: var(--space-xs);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  background: var(--surface-secondary);
+  border-radius: var(--radius-md);
+  margin: var(--space-xs) 0;
+}
+
+.typing-indicator.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.typing-indicator.fading-out {
+  opacity: 0 !important;
+  transform: translateY(-20px) !important;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  animation: pulse 1.4s infinite ease-in-out;
+}
+
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes pulse {
+  0%, 100% { transform: scale(0.9); }
+  50% { transform: scale(1.1); }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
 #reasoning-controls,
 .current-session,
 .period-stats,
