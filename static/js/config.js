@@ -258,7 +258,7 @@ export function updateReasoningEffortDisplay() {
 export async function updateModelSpecificUI(model) {
     const modelCfg = await getModelSettings();
     const reasoningControls = document.getElementById('reasoning-controls');
-    const streamingToggle = document.getElementById('streaming-toggle');
+    const streamingToggle = document.getElementById('enable-streaming');
 
     const requiresEffort = modelCfg.capabilities?.requires_reasoning_effort ?? true;
     if (reasoningControls) {
