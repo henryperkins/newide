@@ -193,6 +193,26 @@ function initUserInput() {
   }, 100);
 }
 
+function openFileInSidebar(filename) {
+  // Show the sidebar, switch to Files tab
+  const toggleButton = document.querySelector('[aria-controls="config-content files-content"]');
+  if (toggleButton) toggleButton.click();
+  const filesTab = document.getElementById('files-tab');
+  if (filesTab) filesTab.click();
+
+  // Attempt to scroll to the matching file in the file list
+  const fileManagerList = document.querySelector('.file-drop-area + .space-y-2');
+  if (!fileManagerList) return;
+
+  const fileItem = [...fileManagerList.children]
+    .find(c => c?.getAttribute('aria-label')?.includes(filename));
+  if (fileItem) {
+    fileItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    fileItem.classList.add('bg-yellow-50', 'transition-colors');
+    setTimeout(() => fileItem.classList.remove('bg-yellow-50'), 1200);
+  }
+}
+
 /**
  * Initialize token usage display toggles
  */
