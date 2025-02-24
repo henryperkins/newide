@@ -458,11 +458,6 @@ export async function sendMessage() {
 
     // Removed temporary forced error
 
-  // If user picks o1, it cannot stream
-  // if (isO1Model(modelConfig) && streamingEnabled) {
-  //   showNotification("o1 model does not support streaming", "error");
-  //   return;
-  // }
 
   try {
     if (!sessionId) {
