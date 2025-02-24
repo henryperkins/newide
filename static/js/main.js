@@ -215,7 +215,10 @@ async function initializeUIEventHandlers() {
     if (modelSelector) {
         modelSelector.addEventListener('change', async (e) => {
             try {
-                await syncConfigToStorage();
+                const configBefore = await getCurrentConfig();
+                configBefore.selectedModel = e.target.value;
+                await updateConfig(configBefore);
+                
                 showNotification(`Switched to ${e.target.value} model`, 'info', 2000);
                 await updateModelSpecificUI(e.target.value);
                 
@@ -691,7 +694,8 @@ export async function sendMessage() {
     // Basic model-specific checks:
     if (isO1Model(modelConfig)) {
         // o-series models do not support streaming
-        if (document.getElementById("streaming-toggle").checked) {
+        const streamingToggle = document.getElementById("streaming-toggle");
+        if (streamingToggle && streamingToggle.checked) {
             showNotification("o-series models do not support streaming", "error");
             return;
         }
@@ -812,7 +816,7 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
 async function makeApiRequest({ messageContent, controller, developerConfig, reasoningEffort }) {
     const config = await getCurrentConfig();
     const modelConfig = await getModelSettings();
-    const apiVersion = modelConfig.api_version;
+    const apiVersion = modelConfig.api_version || "2025-01-01-preview";
 
     // Always use the deployment name from config.
     const deploymentName = config.deploymentName;

@@ -1,3 +1,4 @@
+# config.py
 from typing import ClassVar, Dict, Literal, Any, Optional
 import os
 
@@ -44,10 +45,7 @@ class Settings(BaseSettings):
     AZURE_INFERENCE_API_VERSION: str = "2025-01-01-preview"
     # Azure OpenAI Configuration
     AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT", "https://aoai-east-2272068338224.cognitiveservices.azure.com")
-    AZURE_OPENAI_API_KEY: str = os.getenv(
-        "AZURE_OPENAI_API_KEY",
-        "7mJkkoQMQj90ysPR2V4Agqp7t3vy0rmOvauzpHG7KmleCbe0dipTJQQJ99BAACHYHv6XJ3w3AAAAACOGTspt",
-    )
+    AZURE_OPENAI_API_KEY: str = os.getenv("AZURE_OPENAI_API_KEY", "")
     AZURE_OPENAI_DEPLOYMENT_NAME: str = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "o1hp")
     AZURE_OPENAI_API_VERSION: str = os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
 
@@ -103,8 +101,6 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
-    # Removed obsolete validator since we switched to AZURE_INFERENCE_DEPLOYMENT
-
 # Initialize pydantic settings
 settings = Settings()
 
@@ -119,29 +115,7 @@ AZURE_OPENAI_ENDPOINT = settings.AZURE_OPENAI_ENDPOINT
 AZURE_OPENAI_DEPLOYMENT_NAME = settings.AZURE_OPENAI_DEPLOYMENT_NAME
 AZURE_OPENAI_API_KEY = settings.AZURE_OPENAI_API_KEY
 AZURE_OPENAI_API_VERSION = settings.AZURE_OPENAI_API_VERSION
-# Model-specific configurations
-MODEL_CONFIGS = {
-    settings.AZURE_OPENAI_DEPLOYMENT_NAME: {
-        "max_tokens": 40000,
-        "supports_streaming": False,
-        "supports_temperature": False,
-        "base_timeout": settings.O_SERIES_BASE_TIMEOUT,
-        "max_timeout": settings.O_SERIES_MAX_TIMEOUT,
-        "token_factor": settings.O_SERIES_TOKEN_FACTOR,
-        "api_version": "2025-01-01-preview",
-        "api_key": settings.AZURE_OPENAI_API_KEY
-    },
-    "DeepSeek-R1": {
-            "max_tokens": 40000,
-            "supports_streaming": True,
-            "supports_temperature": False,
-            "base_timeout": 120.0,
-            "max_timeout": 300.0,
-            "token_factor": 0.05,
-            "api_version": "2025-01-01-preview",
-            "api_key": settings.AZURE_INFERENCE_CREDENTIAL
-        }
-}
+# MODEL_CONFIGS has been removed from config.py and should be loaded from a database or external config.
 
 O_SERIES_BASE_TIMEOUT = settings.O_SERIES_BASE_TIMEOUT
 O_SERIES_MAX_TIMEOUT = settings.O_SERIES_MAX_TIMEOUT

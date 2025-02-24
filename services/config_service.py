@@ -1,64 +1,92 @@
+from typing import Any, Dict, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from database import get_db_session
+from sqlalchemy import select, update, delete
+from logging_config import logger
+from database import get_db_session  # For injection
+from models import AppConfiguration
 from fastapi import Depends
-from typing import Any, Dict
-import json
-from sqlalchemy import text
-import os
 
 class ConfigService:
-    def __init__(self, db: AsyncSession = Depends(get_db_session)):
+    """
+    Service to manage application configurations stored in the database.
+    Each configuration is an AppConfiguration row, keyed by a unique 'key' column.
+    """
+    def __init__(self, db: AsyncSession):
         self.db = db
-        
-    async def get_config(self, key: str) -> Any:
-        result = await self.db.execute(
-            text("SELECT value FROM app_configurations WHERE key = :key"),
-            {"key": key}
-        )
-        row = result.fetchone()
-        return json.loads(row[0]) if row else None
-        
-    async def get_all_configs(self) -> Dict[str, Any]:
+
+    async def get_config(self, key: str) -> Optional[Dict[str, Any]]:
         try:
             result = await self.db.execute(
-                text("SELECT key, value FROM app_configurations WHERE is_secret = false")
+                select(AppConfiguration).where(AppConfiguration.key == key)
             )
-            configs = {}
-            for row in result.fetchall():
-                try:
-                    # Add API version to configs
-                    if row.key == "azure_openai_api_version":
-                        configs[row.key] = os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
-                    # Ensure value is properly serialized
-                    value = row.value
-                    if isinstance(value, str):
-                        configs[row.key] = json.loads(value)
-                    else:
-                        configs[row.key] = json.loads(json.dumps(value))
-                except json.JSONDecodeError:
-                    configs[row.key] = row.value
-            return configs
+            config = result.scalar_one_or_none()
+            return config.value if config else None
         except Exception as e:
-            raise Exception(f"Error fetching configs: {str(e)}")
+            logger.error(f"Error fetching config for key '{key}': {str(e)}")
+            return None
 
-    async def set_config(self, key: str, value: Any, description: str = "", is_secret: bool = False):
-        # Ensure value is JSON serializable
-        value_json = json.dumps(value)
-        await self.db.execute(
-            text("""
-                INSERT INTO app_configurations (key, value, description, is_secret)
-                VALUES (:key, :value, :description, :is_secret)
-                ON CONFLICT (key) DO UPDATE SET
-                    value = EXCLUDED.value,
-                    description = EXCLUDED.description,
-                    is_secret = EXCLUDED.is_secret,
-                    updated_at = NOW()
-            """),
-            {
-                "key": key,
-                "value": value_json,
-                "description": description,
-                "is_secret": is_secret
-            }
-        )
-        await self.db.commit()
+    async def set_config(
+        self,
+        key: str,
+        value: Dict[str, Any],
+        description: Optional[str] = None,
+        is_secret: bool = False,
+    ) -> bool:
+        try:
+            # Check if the key already exists
+            existing_config = await self.get_config(key)
+            if existing_config is not None:
+                # Update existing config
+                await self.db.execute(
+                    update(AppConfiguration)
+                    .where(AppConfiguration.key == key)
+                    .values(value=value, description=description, is_secret=is_secret)
+                )
+                logger.info(f"Updated config for key '{key}'")
+            else:
+                # Insert new config
+                new_config = AppConfiguration(
+                    key=key,
+                    value=value,
+                    description=description,
+                    is_secret=is_secret,
+                )
+                self.db.add(new_config)
+                logger.info(f"Inserted config for key '{key}'")
+
+            await self.db.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error setting config for key '{key}': {str(e)}")
+            await self.db.rollback()
+            return False
+
+    async def delete_config(self, key: str) -> bool:
+        try:
+            await self.db.execute(
+                delete(AppConfiguration).where(AppConfiguration.key == key)
+            )
+            await self.db.commit()
+            logger.info(f"Deleted config for key '{key}'")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting config for key '{key}': {str(e)}")
+            await self.db.rollback()
+            return False
+
+    async def list_configs(self) -> List[AppConfiguration]:
+        try:
+            result = await self.db.execute(select(AppConfiguration))
+            configs = result.scalars().all()
+            return list(configs)
+        except Exception as e:
+            logger.error(f"Error listing configs: {str(e)}")
+            await self.db.rollback()
+            return []
+
+def get_config_service(db=Depends(get_db_session)):
+    """
+    Return a ConfigService instance without type hints in the signature.
+    This ensures FastAPI won't treat AsyncSession as a Pydantic field.
+    """
+    return ConfigService(db)

@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, update
 from database import get_db_session, UploadedFile, Session, AsyncSessionLocal
 from errors import create_error_response
-from models import FileResponseModel, FileListResponse, DeleteFileResponse
+from pydantic_models import FileResponseModel, FileListResponse, DeleteFileResponse
 from utils import count_tokens
 from services.azure_file_service import AzureFileService
 from services.azure_search_service import AzureSearchService

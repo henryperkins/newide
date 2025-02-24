@@ -1,18 +1,13 @@
+import config
 from fastapi import APIRouter, Depends, HTTPException
-from services.config_service import ConfigService
-from pydantic import BaseModel, Field, validator
-from database import get_db_session
-from typing import Any, Dict
+from typing import Any
 import json
 import os
 
-router = APIRouter(prefix="/config", tags=["Configuration"])
+from services.config_service import get_config_service, ConfigService
+from pydantic import BaseModel, Field, validator
 
-def parse_config(key: str, default_value: Any) -> Any:
-    try:
-        return os.getenv(f"CONFIG_{key.upper()}", default_value)
-    except Exception:
-        return default_value
+router = APIRouter(prefix="/config", tags=["Configuration"])
 
 class ConfigUpdate(BaseModel):
     value: Any = Field(..., description="Configuration value")
@@ -21,76 +16,50 @@ class ConfigUpdate(BaseModel):
     
     @validator('value')
     def validate_value(cls, v, values, **kwargs):
-        # Get config key from context
         config_key = kwargs.get('config_key', '')
-        
-        if config_key == 'reasoningEffort':
-            if not isinstance(v, str) or v not in ['low', 'medium', 'high']:
-                raise ValueError("reasoningEffort must be one of: low, medium, high")
-        elif config_key == 'includeFiles':
-            if not isinstance(v, bool):
-                raise ValueError("includeFiles must be a boolean")
-        elif config_key == 'selectedModel' or config_key == 'developerConfig':
-            if not isinstance(v, str):
-                raise ValueError(f"{config_key} must be a string")
-        elif config_key == 'azureOpenAI':
-            if not isinstance(v, dict):
-                raise ValueError("azureOpenAI must be a dictionary")
-            required_fields = ['apiKey', 'endpoint', 'deploymentName', 'apiVersion']
-            missing_fields = [f for f in required_fields if f not in v]
-            if missing_fields:
-                raise ValueError(f"Missing required fields in azureOpenAI config: {', '.join(missing_fields)}")
+        # Additional domain-specific validation can be inserted here.
         return v
 
-@router.get("/{key}")
-async def get_config(key: str, config_service: ConfigService = Depends()):
-    value = await config_service.get_config(key)
-    if not value:
+@router.get("/{key}", response_model=None)
+async def get_config(key: str, config_service=Depends(get_config_service)) -> dict:
+    """
+    Retrieve a configuration by key, returning as a raw dict.
+    response_model=None ensures no Pydantic parse of the DB session or the result.
+    """
+    val = await config_service.get_config(key)
+    if not val:
         raise HTTPException(status_code=404, detail="Config not found")
-    return {key: value}
+    return {key: val}
 
-@router.put("/{key}")
-async def update_config(key: str, update: ConfigUpdate, config_service: ConfigService = Depends()):
-    try:
-        # Pass config key to validator
-        update.value = ConfigUpdate.validate_value(update.value, {}, config_key=key)
-        await config_service.set_config(key, update.value, update.description, update.is_secret)
-        return {"status": "updated"}
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+@router.put("/{key}", response_model=None)
+async def update_config(key: str, update: ConfigUpdate, config_service=Depends(get_config_service)):
+    """
+    Update a configuration specified by key.
+    """
+    # If we need the config key for validation
+    update.value = ConfigUpdate.validate_value(update.value, {}, config_key=key)
+    success = await config_service.set_config(key, update.value, update.description, update.is_secret)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update config")
+    return {"status": "updated"}
 
-@router.get("/")
-async def get_all_configs(config_service: ConfigService = Depends()):
-    try:
-        configs = await config_service.get_all_configs()
-        
-        # Get deployment name from environment variable
-        deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "o1model-east2")
-
-        # Get models config with API key
-        models = {
-            deployment_name: {
-                "max_tokens": 40000,
-                "temperature": 1.0,
-                "endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
-                "api_key": os.getenv("AZURE_OPENAI_API_KEY"),
-                "api_version": os.getenv("AZURE_OPENAI_API_VERSION"),
-                "deployment_name": deployment_name
+@router.get("/", response_model=None)
+async def get_all_configs(config_service=Depends(get_config_service)) -> dict:
+    """
+    Return configuration data in the format needed by the frontend
+    (deploymentName, azureOpenAI -> apiKey, models -> {deploymentName:{endpoint:...}}).
+    """
+    # Return the required shape directly from environment/config settings:
+    return {
+        "deploymentName": config.AZURE_OPENAI_DEPLOYMENT_NAME,
+        "selectedModel": config.AZURE_OPENAI_DEPLOYMENT_NAME,
+        "azureOpenAI": {
+            "apiKey": config.AZURE_OPENAI_API_KEY
+        },
+        "models": {
+            config.AZURE_OPENAI_DEPLOYMENT_NAME: {
+                "endpoint": config.AZURE_OPENAI_ENDPOINT,
+                "api_version": config.AZURE_OPENAI_API_VERSION
             }
         }
-
-        return {
-            "selectedModel": deployment_name,
-            "reasoningEffort": parse_config("reasoningEffort", "medium"),
-            "includeFiles": parse_config("includeFiles", False),
-            "models": models,
-            "deploymentName": deployment_name,
-            "azureOpenAI": {
-                "apiKey": os.getenv("AZURE_OPENAI_API_KEY"),
-                "endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
-                "deploymentName": deployment_name,
-                "apiVersion": os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
-            }
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    }
