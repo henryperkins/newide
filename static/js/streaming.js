@@ -1,43 +1,43 @@
-// streaming.js - Extracted SSE-based streaming logic from main.js
+// streaming.js - Centralized SSE-based streaming logic
 
-import { safeMarkdownParse } from "/static/js/ui/markdownParser.js";
-import { removeTypingIndicator } from "/static/js/ui/notificationManager.js";
-import { displayMessage } from "/static/js/ui/displayManager.js";
-import { updateTokenUsage } from "/static/js/utils/helpers.js";
+import { safeMarkdownParse } from '/static/js/ui/markdownParser.js';
+import { removeTypingIndicator } from '/static/js/ui/notificationManager.js';
+import { displayMessage } from '/static/js/ui/displayManager.js';
+import { updateTokenUsage } from '/static/js/ui/displayManager.js'; // or from your helpers if you prefer
 
 /**
  * Buffers used for streaming partial results
  */
-let mainTextBuffer = "";
-let reasoningBuffer = "";
+let mainTextBuffer = '';
+let reasoningBuffer = '';
 let isThinking = false;
 let mainContainer = null;
 let reasoningContainer = null;
 
 /**
  * Handles SSE streaming when a model supports streaming responses.
- * If the user has toggled streaming on, we parse partial chunks
+ * If streaming is toggled on, we parse partial chunks
  * and display them incrementally in the UI.
+ * 
+ * @param {Response} response - The fetch response object from an /chat/completions endpoint
+ * @param {AbortController} controller - The abort controller in case we want to cancel the stream
+ * @param {object} config - The current user config (model settings, etc.)
+ * @param {object} statsDisplay - Your StatsDisplay instance (optional)
  */
-export async function handleStreamingResponse(response, controller, config, modelConfig, statsDisplay) {
-  console.log("[streaming.js] Starting SSE streaming...");
+export async function handleStreamingResponse(response, controller, config, statsDisplay) {
+  console.log('[streaming.js] Starting SSE streaming...');
 
-  const slug = (config?.selectedModel || "").toLowerCase();
-  const showReasoning = slug.includes("deepseek-r1"); // We only do real-time reasoning parse for DeepSeek-R1
+  const slug = (config?.selectedModel || '').toLowerCase();
+  const showReasoning = slug.includes('deepseek-r1');
 
-  // Always use the deployment name from config.
-  const deploymentName = config.deploymentName;
-  if (!deploymentName) {
-    console.error("[streaming.js] No valid deployment name found in config:", config);
-    throw new Error("No valid deployment name found in configuration.");
-  }
+  // Build SSE endpoint from the initial response's URL, e.g.:
+  // "https://.../chat/completions" -> "https://.../chat/completions/stream"
+  const streamUrl = response.url.replace('/chat/completions', '/chat/completions/stream');
+  console.log('[streaming.js] SSE endpoint:', streamUrl);
 
-  // Build the SSE endpoint from the existing chat completions endpoint:
-  const streamUrl = response.url.replace("/chat/completions", "/chat/completions/stream");
-  console.log("[streaming.js] SSE endpoint:", streamUrl);
-
-  mainTextBuffer = "";
-  reasoningBuffer = "";
+  // Reset buffers/state
+  mainTextBuffer = '';
+  reasoningBuffer = '';
   isThinking = false;
   mainContainer = null;
   reasoningContainer = null;
@@ -49,20 +49,25 @@ export async function handleStreamingResponse(response, controller, config, mode
   eventSource.onmessage = (event) => {
     try {
       const responseData = JSON.parse(event.data);
+
+      // If the backend sends an explicit error
       if (responseData.error) {
-        displayMessage(`Error: ${responseData.error}`, "error");
+        displayMessage(`Error: ${responseData.error}`, 'error');
         eventSource.close();
         return;
       }
 
-      // If final chunk
-      if (responseData.choices && responseData.choices[0].finish_reason === "stop") {
+      // If final chunk => finish_reason==="stop"
+      if (
+        responseData.choices &&
+        responseData.choices[0].finish_reason === 'stop'
+      ) {
         finalizeStreamingResponse(JSON.stringify(responseData), mainContainer);
         eventSource.close();
         return;
       }
 
-      // If chunk has actual content
+      // If partial chunk content
       if (responseData.choices && responseData.choices[0].delta?.content) {
         const chunk = responseData.choices[0].delta.content;
 
@@ -77,12 +82,12 @@ export async function handleStreamingResponse(response, controller, config, mode
           mainTextBuffer += chunk;
           if (mainContainer) {
             mainContainer.innerHTML = safeMarkdownParse(mainTextBuffer);
-            mainContainer.scrollIntoView({ behavior: "smooth", block: "end" });
+            mainContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
           }
         }
       }
 
-      // Update stats if "content" is present
+      // If the SSE response includes a top-level "content" for stats usage
       if (responseData.content && statsDisplay && statsDisplay.updateStats) {
         tokenCount += countTokensInChunk(responseData.content);
         const elapsed = Date.now() - streamStart;
@@ -93,145 +98,144 @@ export async function handleStreamingResponse(response, controller, config, mode
         });
       }
     } catch (err) {
-      console.error("[streaming.js] SSE parsing error:", err);
+      console.error('[streaming.js] SSE parsing error:', err);
       eventSource.close();
       removeTypingIndicator();
     }
   };
 
   eventSource.onerror = (err) => {
-    console.error("[streaming.js] SSE failed:", err);
+    console.error('[streaming.js] SSE failed:', err);
     eventSource.close();
     removeTypingIndicator();
   };
 }
 
 /**
- * Create container for streaming messages.
+ * Called once the finish_reason is "stop" or the SSE stream ends.
  */
-function createMessageContainer(classes = "") {
-  const container = document.createElement("div");
+export function finalizeStreamingResponse(content, container) {
+  if (!container) return;
+
+  container.classList.remove('streaming');
+  try {
+    // Attempt to parse the final chunk to retrieve usage
+    const parsed = JSON.parse(content);
+    if (parsed.usage) {
+      updateTokenUsage(parsed.usage);
+    }
+  } catch (error) {
+    console.warn('[streaming.js] Could not parse streaming usage data:', error);
+  }
+
+  addCopyButton(container, content);
+}
+
+/* ---------- Container creation ---------- */
+
+function ensureMainContainer() {
+  if (!mainContainer) {
+    mainContainer = createMessageContainer('assistant streaming');
+  }
+}
+
+function ensureReasoningContainer() {
+  if (!reasoningContainer) {
+    reasoningContainer = createMessageContainer('assistant-thinking streaming');
+  }
+}
+
+function createMessageContainer(classes = '') {
+  const container = document.createElement('div');
   container.className = `message ${classes}`;
-  const chatHistory = document.getElementById("chat-history");
+  const chatHistory = document.getElementById('chat-history');
   if (chatHistory) {
     chatHistory.appendChild(container);
   }
   return container;
 }
 
-/**
- * Ensure main container for streaming text.
- */
-function ensureMainContainer() {
-  if (!mainContainer) {
-    mainContainer = createMessageContainer("assistant streaming");
-  }
-}
+/* ---------- Real-time chain-of-thought parsing ---------- */
 
-/**
- * Ensure separate container for reasoning text (e.g. <think> blocks).
- */
-function ensureReasoningContainer() {
-  if (!reasoningContainer) {
-    reasoningContainer = createMessageContainer("assistant-thinking streaming");
-  }
-}
-
-/**
- * Parse partial chunk text for <think> blocks vs. normal text.
- */
 function parseChunkForReasoning(text) {
   while (text) {
     if (!isThinking) {
-      const thinkStart = text.indexOf("<think>");
+      const thinkStart = text.indexOf('<think>');
       if (thinkStart === -1) {
         mainTextBuffer += text;
-        text = "";
+        text = '';
         if (mainContainer) {
           mainContainer.innerHTML = safeMarkdownParse(mainTextBuffer);
-          mainContainer.scrollIntoView({ behavior: "smooth", block: "end" });
+          mainContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
       } else {
         // Everything before <think> is normal text
         mainTextBuffer += text.slice(0, thinkStart);
         if (mainContainer) {
           mainContainer.innerHTML = safeMarkdownParse(mainTextBuffer);
-          mainContainer.scrollIntoView({ behavior: "smooth", block: "end" });
+          mainContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
-        text = text.slice(thinkStart + "<think>".length);
+        text = text.slice(thinkStart + '<think>'.length);
         isThinking = true;
         ensureReasoningContainer();
       }
     } else {
-      const thinkEnd = text.indexOf("</think>");
+      const thinkEnd = text.indexOf('</think>');
       if (thinkEnd === -1) {
         reasoningBuffer += text;
-        text = "";
+        text = '';
         if (reasoningContainer) {
-          reasoningContainer.innerHTML = safeMarkdownParse("## DeepSeek-R1 Reasoning\n\n" + reasoningBuffer);
-          reasoningContainer.scrollIntoView({ behavior: "smooth", block: "end" });
+          reasoningContainer.innerHTML = safeMarkdownParse(
+            '## DeepSeek-R1 Reasoning\n\n' + reasoningBuffer
+          );
+          reasoningContainer.scrollIntoView({
+            behavior: 'smooth',
+            block: 'end'
+          });
         }
       } else {
         reasoningBuffer += text.slice(0, thinkEnd);
         if (reasoningContainer) {
-          reasoningContainer.innerHTML = safeMarkdownParse("## DeepSeek-R1 Reasoning\n\n" + reasoningBuffer);
-          reasoningContainer.scrollIntoView({ behavior: "smooth", block: "end" });
+          reasoningContainer.innerHTML = safeMarkdownParse(
+            '## DeepSeek-R1 Reasoning\n\n' + reasoningBuffer
+          );
+          reasoningContainer.scrollIntoView({
+            behavior: 'smooth',
+            block: 'end'
+          });
         }
-        text = text.slice(thinkEnd + "</think>".length);
+        text = text.slice(thinkEnd + '</think>'.length);
         isThinking = false;
       }
     }
   }
 }
 
-/**
- * Re-render the containers after chunk updates.
- */
 function updateContainers() {
   if (mainContainer) {
     mainContainer.innerHTML = safeMarkdownParse(mainTextBuffer);
-    mainContainer.scrollIntoView({ behavior: "smooth", block: "end" });
+    mainContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }
   if (reasoningContainer) {
-    const heading = "## DeepSeek-R1 Reasoning\n\n";
+    const heading = '## DeepSeek-R1 Reasoning\n\n';
     reasoningContainer.innerHTML = safeMarkdownParse(heading + reasoningBuffer);
-    reasoningContainer.scrollIntoView({ behavior: "smooth", block: "end" });
+    reasoningContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }
 }
 
-/**
- * Finalize streaming response once it's done. Called when finish_reason is "stop".
- */
-export function finalizeStreamingResponse(content, container) {
-  if (!container) return;
+/* ---------- Helpers ---------- */
 
-  container.classList.remove("streaming");
-  try {
-    const parsed = JSON.parse(content);
-    if (parsed.usage) {
-      updateTokenUsage(parsed.usage);
-    }
-  } catch (error) {
-    console.warn("[streaming.js] Could not parse streaming usage data:", error);
-  }
-
-  addCopyButton(container, content);
-}
-
-/**
- * Add "copy to clipboard" to streaming container.
- */
 function addCopyButton(container, content) {
-  const button = document.createElement("button");
-  button.className = "copy-button";
-  button.innerHTML = "📋";
-  button.title = "Copy to clipboard";
+  const button = document.createElement('button');
+  button.className = 'copy-button';
+  button.innerHTML = '📋';
+  button.title = 'Copy to clipboard';
   button.onclick = () => navigator.clipboard.writeText(content);
   container.prepend(button);
 }
 
 /**
- * Basic helper to estimate token count in a partial chunk.
+ * Very rough token count for chunk stats
  */
 function countTokensInChunk(chunk) {
   return chunk.split(/\s+/).length;

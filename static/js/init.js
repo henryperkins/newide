@@ -1,4 +1,4 @@
-// init.js - Application bootstrapping and overall initialization logic
+  // init.js - Application bootstrapping and overall initialization logic
 
 /**
  * This file organizes the core initialization steps (DOMContentLoaded, 
@@ -6,7 +6,6 @@
  * that were originally in main.js. 
  */
 
-import StatsDisplay from "/static/js/ui/statsDisplay.js";
 import { configureMarkdown, injectMarkdownStyles } from "/static/js/ui/markdownParser.js";
 import { showNotification } from "/static/js/ui/notificationManager.js";
 import { initializeSession } from "/static/js/session.js";
@@ -26,15 +25,37 @@ export let statsDisplay = null;
  * Add DOMContentLoaded listener to bootstrap the app
  */
 document.addEventListener("DOMContentLoaded", async () => {
-  try {
-    // Initialize stats display for performance metrics
-    statsDisplay = new StatsDisplay();
+    // Enforce login requirement: if no JWT token found, redirect to login
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+        window.location.href = "static/login.html";
+        return;
+    }
+
+    try {
+        // Initialize stats display for performance metrics
+        statsDisplay = new StatsDisplay();
 
     // Basic markdown support
     await initializeMarkdownSupport();
 
     // Initialize session
     await initializeSessionHandling();
+    
+    if (sessionId) {
+        try {
+            const response = await fetch(`/api/conversations/history?session_id=${sessionId}`);
+            if (response.ok) {
+                const messages = await response.json();
+                // For each message in the DB, call displayMessage
+                for (const msg of messages) {
+                    displayMessage(msg.content, msg.role);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to load conversation from DB:", error);
+        }
+    }
 
     // Initialize Azure config
     await initializeAzureConfig();
@@ -49,6 +70,54 @@ document.addEventListener("DOMContentLoaded", async () => {
     initializeMobileMenuGestures();
 
     console.log(`Application initialized successfully at ${new Date().toISOString()}`);
+
+    try {
+        const response = await fetch("/api/conversations/sessions");
+        if (!response.ok) {
+            console.error("Failed to fetch conversation sessions:", response.statusText);
+        } else {
+            const sessions = await response.json();
+            const historyPanel = document.getElementById("conversation-history-pane");
+            if (historyPanel) {
+                // Clear existing entries
+                historyPanel.innerHTML = "";
+                // Create a headline
+                const headline = document.createElement("h3");
+                headline.textContent = "Conversation History";
+                historyPanel.appendChild(headline);
+
+                // List each session
+                sessions.forEach(sess => {
+                    const sessDiv = document.createElement("div");
+                    sessDiv.classList.add("session-entry");
+                    sessDiv.textContent = `Session ${sess.session_id.slice(0, 8)}… (${sess.message_count} messages)`;
+                    sessDiv.onclick = async () => {
+                        // Clear current chat
+                        const chatHistory = document.getElementById("chat-history");
+                        if (chatHistory) chatHistory.innerHTML = "";
+
+                        // Fetch that session's entire message list
+                        try {
+                            const convoResp = await fetch(`/api/conversations/history?session_id=${sess.session_id}`);
+                            if (!convoResp.ok) {
+                                console.error("Failed to load conversation messages:", convoResp.statusText);
+                                return;
+                            }
+                            const messages = await convoResp.json();
+                            messages.forEach(msg => {
+                                displayMessage(msg.content, msg.role);
+                            });
+                        } catch (error) {
+                            console.error("Error fetching conversation messages:", error);
+                        }
+                    };
+                    historyPanel.appendChild(sessDiv);
+                });
+            }
+        }
+    } catch (error) {
+        console.error("Error fetching conversation sessions:", error);
+    }
   } catch (error) {
     handleApplicationError(error, "initialize");
   }

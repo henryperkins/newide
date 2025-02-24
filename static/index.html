@@ -27,13 +27,13 @@
     <link rel="manifest" href="/static/site.webmanifest">
 
     <!-- Core Modules -->
-    <script type="module" src="/static/js/session.js"></script>
-    <script type="module" src="/static/js/config.js"></script>
-    <script type="module" src="/static/js/utils/helpers.js"></script>
-    <script type="module" src="/static/js/ui/markdownParser.js"></script>
-    <script type="module" src="/static/js/ui/notificationManager.js"></script>
-    <script type="module" src="/static/js/ui/displayManager.js"></script>
-    <script type="module" src="/static/js/fileManager.js"></script>
+    <script type="module" defer src="/static/js/session.js"></script>
+    <script type="module" defer src="/static/js/config.js"></script>
+    <script type="module" defer src="/static/js/utils/helpers.js"></script>
+    <script type="module" defer src="/static/js/ui/markdownParser.js"></script>
+    <script type="module" defer src="/static/js/ui/notificationManager.js"></script>
+    <script type="module" defer src="/static/js/ui/displayManager.js"></script>
+    <script type="module" defer src="/static/js/fileManager.js"></script>
 </head>
 <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -219,3 +219,10 @@
     <script type="module" src="/static/js/streaming.js"></script>
 </body>
 </html>
+
+<!-- Ensure send-button is hooked after DOM is ready -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("DOM fully loaded, hooking send-button if found...");
+});
+</script>

@@ -11,7 +11,7 @@ import uuid
 import config
 from sqlalchemy import text
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/register")
 async def register_user(form: UserCreate, db: AsyncSession = Depends(get_db_session)):

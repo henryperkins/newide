@@ -10,7 +10,8 @@
   margin: 0 auto;
   background: var(--surface-main);
   position: relative;
-  overflow: hidden;
+ 
+  /* Removed overflow:hidden to ensure chat container is fully visible */
 }
 
 /* Header */
@@ -79,9 +80,9 @@
 .chat-main {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   height: 100%;
   position: relative;
+
   z-index: 1;
 }
 

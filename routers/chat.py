@@ -2,12 +2,13 @@ import json
 import uuid
 import time
 from typing import Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from sqlalchemy import text, select, func
 from openai import AzureOpenAI
 
 from database import get_db_session  # Corrected import
@@ -29,6 +30,79 @@ from models import User
 
 router = APIRouter(prefix="/chat")
 
+@router.post("/api/conversations/store")
+async def store_message(
+    session_id: UUID = Query(...),
+    role: str = Query(...),
+    content: str = Query(...),
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        from sqlalchemy import insert
+        stmt = insert(Conversation).values(
+            session_id=session_id,
+            user_id=current_user.id,
+            role=role,
+            content=content
+        )
+        await db.execute(stmt)
+        await db.commit()
+        return {"status": "success"}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/conversations/history")
+async def get_conversation_history(
+    session_id: UUID = Query(...),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """
+    Returns messages for a specified session in descending ID order,
+    currently limited to 1 if you want only the most recent message.
+    Adjust the query as needed for more messages.
+    """
+    try:
+        result = await db.execute(
+            select(Conversation).where(Conversation.session_id == session_id).order_by(Conversation.id.desc()).limit(1)
+        )
+        messages = result.scalars().all()
+        return [
+            {
+                "role": msg.role,
+                "content": msg.content,
+                "timestamp": msg.timestamp.isoformat() if msg.timestamp else None
+            }
+            for msg in messages
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/conversations/sessions")
+async def list_sessions(db: AsyncSession = Depends(get_db_session)):
+    """
+    Returns a list of distinct session_ids in the conversations table,
+    along with how many messages each session has.
+    Useful for listing conversation histories in the UI.
+    """
+    try:
+        stmt = select(
+            Conversation.session_id,
+            func.count(Conversation.id).label("message_count")
+        ).group_by(Conversation.session_id)
+
+        result = await db.execute(stmt)
+        rows = result.all()
+        return [
+            {
+                "session_id": str(row.session_id),
+                "message_count": row.message_count
+            }
+            for row in rows
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/", response_model=ChatCompletionResponse)
 async def create_chat_completion(
@@ -233,9 +307,7 @@ async def generate_stream_chunks(
 
     # If the model supports temperature, pass it; otherwise, use reasoning_effort
     if model_config.get("supports_temperature", True):  # Safe get
-        params["temperature"] = (
-            0.7  # Example default; consider making this configurable
-        )
+        params["temperature"] = 0.7  # Example default; consider making this configurable
     else:
         params["reasoning_effort"] = reasoning_effort
 
@@ -294,95 +366,10 @@ async def generate_stream_chunks(
                 content=full_content,
                 model=model_name,
             )
-            # Removed db interaction here because client init also did it
-            #   This may be the real error source.  DB interaction should only
-            #   be done when required by the request.
-            # db.add(user_msg)
-            # db.add(assistant_msg)
-
-            # await db.execute(
-            #     text(
-            #         """
-            #         UPDATE sessions
-            #         SET last_activity = NOW(),
-            #             last_model = :model_name
-            #         WHERE id = :session_id
-            #     """
-            #     ),
-            #     {"session_id": session_id, "model_name": model_name},
-            # )
-            # await db.commit() # Removed, same reason.
+            # Database logic for user_msg / assistant_msg could be placed here if needed
 
     except Exception as e:
         logger.exception("[ChatRouter] SSE streaming error")
         error_payload = {"error": str(e)}
         # Yield an SSE event indicating an error
         yield f"data: {json.dumps(error_payload)}\n\n"
-
-
-@router.get("/model/capabilities", response_model=ModelCapabilitiesResponse)
-async def get_model_capabilities(
-    model: str = Query(None, description="Model to get capabilities for"),
-):
-    """
-    Get capabilities (streaming, temperature, max_tokens, etc.)
-    for a specific model or for all models listed in config.MODEL_CONFIGS.
-    """
-    try:
-        if model:
-            if model not in config.MODEL_CONFIGS:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Unknown model: {model}",
-                )
-            model_config = config.MODEL_CONFIGS[model]
-            capabilities = {
-                "supports_streaming": model_config.get("supports_streaming", False),
-                "supports_temperature": model_config.get("supports_temperature", True),
-                "max_tokens": model_config.get("max_tokens", 4096),  # Default
-                "api_version": model_config.get(
-                    "api_version", config.AZURE_OPENAI_API_VERSION
-                ),
-            }
-            return ModelCapabilitiesResponse(
-                models={
-                    model: ModelCapabilities(model=model, capabilities=capabilities)
-                }
-            )
-        else:
-            # Return capabilities for all models in config
-            model_capabilities = {
-                name: ModelCapabilities(
-                    model=name,
-                    capabilities={
-                        "supports_streaming": cfg.get("supports_streaming", False),
-                        "supports_temperature": cfg.get("supports_temperature", True),
-                        "max_tokens": cfg.get("max_tokens", 4096),  # Default
-                        "api_version": cfg.get(
-                            "api_version", config.AZURE_OPENAI_API_VERSION
-                        ),
-                    },
-                )
-                for name, cfg in config.MODEL_CONFIGS.items()
-            }
-            return ModelCapabilitiesResponse(models=model_capabilities)
-
-    except HTTPException:
-        # Re-raise HTTPExceptions (e.g. invalid request, missing model)
-        raise
-
-    except Exception as e:
-        logger.exception(
-            f"[ChatRouter] An unexpected error occurred in /chat/model/capabilities/: {str(e)}"
-        )
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": {
-                    "code": "internal_server_error",
-                    "message": "An unexpected error occurred while processing your request.",
-                    "type": "internal_server_error",
-                    "details": str(e),
-                }
-            },
-        )

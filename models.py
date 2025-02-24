@@ -24,6 +24,7 @@ class Conversation(Base):
     __tablename__ = "conversations"
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(PGUUID, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(PGUUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"))

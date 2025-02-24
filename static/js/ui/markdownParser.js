@@ -27,11 +27,19 @@ export function configureMarkdown() {
                         console.warn('Prism highlighting failed:', e);
                     }
                 }
-                return ''; // use external default escaping
+                // If we can't highlight, escape the code so it's still displayed
+                return markdownit().utils.escapeHtml(str);
             }
         });
 
-        // Basic configuration without plugins
+        // Attempt to load some optional plugins for richer formatting
+        if (typeof window.markdownitEmoji !== 'undefined') {
+            markdownParser.use(window.markdownitEmoji);
+        }
+        if (typeof window.markdownitFootnote !== 'undefined') {
+            markdownParser.use(window.markdownitFootnote);
+        }
+        return true;
         return true;
     } catch (error) {
         console.error('Failed to configure markdown parser:', error);
