@@ -192,13 +192,18 @@ async function initializeSessionHandling() {
 async function initializeUIEventHandlers() {
   // Configuration sync helper
   const syncConfigToStorage = async () => {
+    const devConfigEl = document.getElementById("developer-config");
+    const sliderEl = document.getElementById("reasoning-effort-slider");
+    const fileSearchEl = document.getElementById("use-file-search");
+    const modelSelEl = document.getElementById("model-selector");
+
     const config = {
-      developerConfig: document.getElementById("developer-config")?.value || "",
+      developerConfig: devConfigEl ? devConfigEl.value : "",
       reasoningEffort: ["low", "medium", "high"][
-        (document.getElementById("reasoning-effort-slider")?.value || 2) - 1
+        sliderEl && sliderEl.value ? sliderEl.value - 1 : 1
       ],
-      includeFiles: document.getElementById("use-file-search")?.checked || false,
-      selectedModel: document.getElementById("model-selector")?.value || "o1model-east2"
+      includeFiles: fileSearchEl && fileSearchEl.checked ? true : false,
+      selectedModel: modelSelEl && modelSelEl.value ? modelSelEl.value : "o1model-east2"
     };
     localStorage.setItem("appConfig", JSON.stringify(config));
     await updateConfig(config);
