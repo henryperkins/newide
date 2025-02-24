@@ -689,6 +689,10 @@ function setupMobileHandlers() {
         }
     });
 
+    document.addEventListener('touchend', () => {
+        document.querySelector('.mobile-drag-overlay')?.remove();
+    });
+
     document.addEventListener('drop', (e) => {
         if(isMobileDevice()) {
             document.querySelector('.mobile-drag-overlay')?.remove();
