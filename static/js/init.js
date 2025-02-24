@@ -156,6 +156,65 @@ function initUserInput() {
   const userInput = document.getElementById('user-input');
   const sendButton = document.getElementById('send-button');
 
+  // Conversation management event binding
+  const saveConvoBtn = document.getElementById('save-convo-btn');
+  const clearConvoBtn = document.getElementById('clear-convo-btn');
+  const convoList = document.getElementById('conversation-list');
+
+  if (saveConvoBtn) {
+    saveConvoBtn.addEventListener('click', () => {
+      const conversation = localStorage.getItem('conversation');
+      if (!conversation) {
+        alert('No conversation to save!');
+        return;
+      }
+      const key = `conversation_${Date.now()}`;
+      localStorage.setItem(key, conversation);
+      alert('Conversation saved as ' + key);
+      refreshConversationList();
+    });
+  }
+
+  if (clearConvoBtn) {
+    clearConvoBtn.addEventListener('click', () => {
+      localStorage.removeItem('conversation');
+      alert('Current conversation cleared.');
+      location.reload();
+    });
+  }
+
+  if (convoList) {
+    convoList.addEventListener('change', (e) => {
+      const key = e.target.value;
+      if (!key) return;
+      const savedConvo = localStorage.getItem(key);
+      if (!savedConvo) {
+        alert('Selected conversation not found in localStorage.');
+        return;
+      }
+      localStorage.setItem('conversation', savedConvo);
+      alert('Conversation loaded.');
+      location.reload();
+    });
+  }
+
+  function refreshConversationList() {
+    if (!convoList) return;
+    convoList.innerHTML = '<option value="">-- Select --</option>';
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith('conversation_')) {
+        const option = document.createElement('option');
+        option.value = k;
+        option.textContent = k;
+        convoList.appendChild(option);
+      }
+    }
+  }
+  refreshConversationList();
+
+  // Remainder of initUserInput function stays here
+
   // Attach "Load Older Messages" button
   const loadOlderBtn = document.getElementById('load-older-btn');
   if (loadOlderBtn) {

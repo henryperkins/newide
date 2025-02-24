@@ -152,6 +152,15 @@
                     aria-controls="files-content">
                     Files &amp; Context
                 </button>
+                <button 
+                    class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    id="conversations-tab"
+                    data-target-tab="conversations-content"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="conversations-content">
+                    Conversations
+                </button>
             </div>
 
             <!-- Configuration Panel -->
@@ -260,6 +269,27 @@
                         accept=".txt,.md,.json,.js,.py,.html,.css,.pdf,.docx,.doc"
                         multiple 
                         class="hidden">
+                </div>
+            </div>
+            <div id="conversations-content" class="h-full overflow-y-auto p-4 hidden" role="tabpanel" aria-hidden="true">
+                <h2 class="text-lg font-semibold mb-2">Conversation Management</h2>
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                    Manage or switch between saved conversations.
+                </p>
+                <button id="save-convo-btn" class="btn-primary mb-2">
+                    Save Conversation
+                </button>
+                <button id="clear-convo-btn" class="btn-danger mb-2 ml-2">
+                    Clear Conversation
+                </button>
+                <hr class="my-4" />
+                <div>
+                    <label for="conversation-list" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Load a saved conversation:
+                    </label>
+                    <select id="conversation-list" class="form-select w-full">
+                        <option value="">-- Select --</option>
+                    </select>
                 </div>
             </div>
         </aside>
