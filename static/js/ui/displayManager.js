@@ -298,25 +298,29 @@ function createDeveloperMessage(content, isFormattingMessage) {
 function createMessageElement(role) {
   const messageDiv = document.createElement('div');
 
-  // Apply Tailwind classes based on role
   if (role === 'user') {
-    messageDiv.className =
-      'ml-auto max-w-3xl rounded-lg rounded-br-none bg-blue-600 p-3 text-white shadow-md relative my-2';
+    messageDiv.classList.add('user-message');
   } else if (role === 'assistant') {
-    messageDiv.className =
-      'mr-auto max-w-3xl rounded-lg rounded-bl-none bg-white dark:bg-gray-700 p-3 border border-gray-200 dark:border-gray-600 shadow-sm text-gray-800 dark:text-gray-100 relative my-2';
+    messageDiv.classList.add('assistant-message');
   }
 
-  // Apply entrance animation styles with Tailwind
+  // Entrance animation (optional)
   messageDiv.style.opacity = '0';
   messageDiv.style.transform = 'translateY(20px)';
-
+  
   return messageDiv;
 }
 
 function createContentElement(content, role) {
   const contentDiv = document.createElement('div');
   contentDiv.className = 'prose dark:prose-invert prose-sm max-w-none';
+  
+  // Add additional classes for better visibility in dark mode
+  if (role === 'user') {
+    contentDiv.classList.add('text-white', 'dark:text-white');
+  } else if (role === 'assistant') {
+    contentDiv.classList.add('text-gray-800', 'dark:text-gray-100');
+  }
 
   // Always parse with safeMarkdownParse for security
   const htmlContent =
@@ -544,7 +548,7 @@ function applyEntranceAnimation(element) {
 }
 
 /**
- * Highlight new message with improved mobile visibility
+ * Highlight new message with improved visibility
  */
 function highlightNewMessage(element) {
   // More visible highlight on mobile
@@ -556,9 +560,9 @@ function highlightNewMessage(element) {
       element.classList.remove('bg-blue-50', 'dark:bg-blue-900/20');
     }, 1500);
   } else {
-    element.classList.add('bg-yellow-50', 'transition-colors');
+    element.classList.add('bg-yellow-50', 'dark:bg-blue-900/10', 'transition-colors');
     setTimeout(() => {
-      element.classList.remove('bg-yellow-50');
+      element.classList.remove('bg-yellow-50', 'dark:bg-blue-900/10');
     }, 1200);
   }
 }

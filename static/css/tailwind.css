@@ -10,7 +10,9 @@
   }
   
   body {
-    @apply h-full font-sans text-gray-900 dark:text-white bg-white dark:bg-gray-900;
+    @apply h-full font-sans text-gray-900 dark:text-white bg-white;
+    background-color: oklch(28.822% 0.022 277.508) !important; /* --color-base-100 */
+    color: oklch(97.747% 0.007 106.545) !important; /* --color-base-content */
   }
 
   /* Custom focus styles */
@@ -85,13 +87,33 @@
 
 /* Add custom component classes */
 @layer components {
-  /* Mobile-optimized message bubbles */
-  .user-message {
-    @apply ml-auto max-w-[85%] sm:max-w-[80%] md:max-w-3xl rounded-lg rounded-br-none bg-blue-600 p-2.5 md:p-3 text-white shadow-md relative my-2;
+  /* Shared base styles for both message bubbles - scoped to chat messages only */
+  .chat-bubble {
+    @apply px-4 py-3 my-3 rounded-xl shadow relative leading-relaxed;
+    @apply transition-colors duration-300; /* smoother transitions */
   }
 
+  /* User bubble - Dracula theme */
+  .user-message {
+    @apply chat-bubble
+           ml-auto
+           max-w-[85%] sm:max-w-[75%] md:max-w-3xl
+           rounded-br-none
+           bg-blue-600 text-white;
+    /* Dracula theme colors */
+    @apply dark:bg-[#bd93f9] dark:text-[#f8f8f2];
+  }
+
+  /* Assistant bubble - Dracula theme */
   .assistant-message {
-    @apply mr-auto max-w-[85%] sm:max-w-[80%] md:max-w-3xl rounded-lg rounded-bl-none bg-white dark:bg-gray-700 p-2.5 md:p-3 border border-gray-200 dark:border-gray-600 shadow-sm text-gray-800 dark:text-gray-100 relative my-2;
+    @apply chat-bubble
+           mr-auto
+           max-w-[85%] sm:max-w-[75%] md:max-w-3xl
+           rounded-bl-none
+           border border-gray-200
+           bg-white text-gray-800;
+    /* Dracula theme colors */
+    @apply dark:bg-[#44475a] dark:border-[#6272a4] dark:text-[#f8f8f2];
   }
   
   /* Other message types */
@@ -209,6 +231,188 @@
 
 /* Add custom utilities */
 @layer utilities {
+  /* Dracula theme for bottom info panels using OKLCH colors */
+  .token-usage-compact {
+    background-color: oklch(28.822% 0.022 277.508) !important; /* --color-base-100 */
+    border-color: oklch(26.805% 0.02 277.508) !important; /* --color-base-200 */
+    overflow-x: hidden !important; /* Prevent horizontal scrolling */
+    border-radius: 0.5rem !important; /* --radius-field */
+    margin: 0.25rem !important; /* --size-field */
+    width: 100% !important; /* Ensure full width */
+    padding: 0.75rem !important; /* Increased padding for better spacing */
+  }
+  
+  /* Improved token stats display readability - DESKTOP VERSION */
+  @media (min-width: 768px) {
+    .token-usage-compact .grid {
+      display: grid !important;
+      grid-template-columns: repeat(5, 1fr) !important;
+      gap: 0.75rem !important;
+      width: 100% !important;
+    }
+    
+    .token-usage-compact .flex {
+      display: flex !important;
+      justify-content: space-between !important;
+      align-items: center !important;
+      min-width: 0 !important;
+      background-color: oklch(24.787% 0.019 277.508) !important; /* Slightly darker background */
+      padding: 0.5rem !important;
+      border-radius: 0.375rem !important;
+      margin-bottom: 0.25rem !important;
+    }
+    
+    .token-usage-compact .text-gray-500,
+    .token-usage-compact .dark\:text-gray-400 {
+      color: oklch(88.263% 0.093 212.846) !important; /* --color-info (cyan) - brighter color */
+      font-size: 0.875rem !important; /* Larger font */
+      font-weight: 500 !important; /* Medium weight for better visibility */
+    }
+    
+    .token-usage-compact .text-gray-800,
+    .token-usage-compact .dark\:text-gray-200 {
+      color: oklch(97.747% 0.007 106.545) !important; /* --color-base-content */
+      font-size: 0.875rem !important; /* Larger font */
+      font-weight: 600 !important; /* Semi-bold for better visibility */
+    }
+    
+    .token-usage-compact .font-mono {
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      font-size: 0.875rem !important; /* Larger font */
+    }
+  }
+  
+  /* Add color to the icons in the token usage panel */
+  .token-usage-compact svg {
+    color: oklch(75.461% 0.183 346.812) !important; /* --color-primary (pink) */
+    width: 1rem !important;
+    height: 1rem !important;
+    margin-right: 0.375rem !important;
+  }
+  
+  /* Different colors for different token types */
+  .token-usage-compact div:nth-child(1) svg {
+    color: oklch(88.263% 0.093 212.846) !important; /* --color-info (cyan) */
+  }
+  
+  .token-usage-compact div:nth-child(2) svg {
+    color: oklch(74.202% 0.148 301.883) !important; /* --color-secondary (purple) */
+  }
+  
+  .token-usage-compact div:nth-child(3) svg {
+    color: oklch(95.533% 0.134 112.757) !important; /* --color-warning (orange) */
+  }
+  
+  .token-usage-compact div:nth-child(4) svg {
+    color: oklch(68.22% 0.206 24.43) !important; /* --color-error (red) */
+  }
+  
+  .token-usage-compact div:nth-child(5) svg {
+    color: oklch(87.099% 0.219 148.024) !important; /* --color-success (green) */
+  }
+  
+  /* Dracula theme for sidebar and tabs using OKLCH colors */
+  aside {
+    background-color: oklch(28.822% 0.022 277.508) !important; /* --color-base-100 */
+    border-color: oklch(26.805% 0.02 277.508) !important; /* --color-base-200 */
+    border-radius: 1rem !important; /* --radius-box */
+  }
+  
+  /* Fix for tab navigation to span full width - DESKTOP VERSION ONLY */
+  @media (min-width: 768px) {
+    aside > div[role="tablist"] {
+      display: flex !important;
+      width: 100% !important;
+      justify-content: space-between !important;
+      overflow-x: hidden !important;
+      border-bottom: 1px solid oklch(24.787% 0.019 277.508) !important; /* Darker border for better visibility */
+    }
+    
+    aside > div[role="tablist"] button {
+      flex: 1 1 0 !important; /* Equal width distribution */
+      text-align: center !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      min-width: 0 !important;
+      padding: 0.75rem 0.5rem !important; /* Increased padding for better touch targets */
+      font-size: 0.875rem !important; /* Slightly larger font */
+      font-weight: 500 !important; /* Medium weight for better visibility */
+      border-bottom-width: 2px !important; /* Thicker border */
+      transition: all 0.2s ease-in-out !important;
+    }
+    
+    /* Ensure tab panels take full width */
+    aside [role="tabpanel"] {
+      width: 100% !important;
+      max-width: 100% !important;
+      overflow-x: hidden !important;
+    }
+  }
+  
+  .tab-active {
+    border-color: oklch(75.461% 0.183 346.812) !important; /* --color-primary (pink) */
+    color: oklch(75.461% 0.183 346.812) !important; /* --color-primary (pink) */
+    background-color: oklch(24.787% 0.019 277.508) !important; /* Slightly darker background for active tab */
+  }
+  
+  .tab-inactive:hover {
+    color: oklch(97.747% 0.007 106.545) !important; /* --color-base-content */
+    background-color: oklch(26.805% 0.02 277.508) !important; /* Slight hover effect */
+  }
+  
+  /* Dracula theme for input field */
+  #user-input {
+    background-color: oklch(26.805% 0.02 277.508) !important; /* --color-base-200 */
+    border-color: oklch(39.445% 0.032 275.524) !important; /* --color-neutral */
+    color: oklch(97.747% 0.007 106.545) !important; /* --color-base-content */
+    border-radius: 0.5rem !important; /* --radius-field */
+  }
+  
+  /* Update send button with OKLCH colors */
+  #send-button {
+    background-color: oklch(75.461% 0.183 346.812) !important; /* --color-primary (pink) */
+    color: oklch(97.747% 0.007 106.545) !important; /* --color-base-content */
+  }
+  
+  #send-button:hover {
+    background-color: oklch(74.202% 0.148 301.883) !important; /* --color-secondary (purple) */
+  }
+  
+  /* Update user and assistant message bubbles with improved readability */
+  .user-message {
+    background-color: oklch(75.461% 0.183 346.812) !important; /* --color-primary (pink) */
+    color: oklch(97.747% 0.007 106.545) !important; /* --color-base-content */
+    border-radius: 1rem !important; /* --radius-box */
+  }
+  
+  .assistant-message {
+    background-color: oklch(26.805% 0.02 277.508) !important; /* --color-base-200 */
+    border-color: oklch(24.787% 0.019 277.508) !important; /* --color-base-300 */
+    color: oklch(97.747% 0.007 106.545) !important; /* --color-base-content */
+    border-radius: 1rem !important; /* --radius-box */
+  }
+  
+  /* Improved readability for message content */
+  .user-message .prose,
+  .assistant-message .prose {
+    color: inherit !important;
+    font-size: 1rem !important;
+    line-height: 1.5 !important;
+  }
+  
+  /* Make model info more readable */
+  .assistant-message .text-xs.text-gray-500,
+  .assistant-message .text-xs.text-gray-400 {
+    color: oklch(97.747% 0.007 106.545) !important;
+    opacity: 0.7 !important;
+    font-size: 0.8rem !important;
+    margin-top: 0.5rem !important;
+    display: block !important;
+  }
+  
   /* Utility for better touch targets */
   .touch-action-manipulation {
     touch-action: manipulation;
@@ -230,7 +434,7 @@
     padding-top: env(safe-area-inset-top, 0px);
   }
 
-  /* Mobile button fix - should help with tap issues */
+  /* Send button styles - Dracula theme */
   #send-button {
     cursor: pointer !important;
     -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
@@ -239,9 +443,28 @@
     transform: translateZ(0) !important;
     user-select: none !important;
     position: relative !important;
-    z-index: 150 !important;  /* Much higher z-index */
-    min-width: 56px !important;
-    min-height: 56px !important;
+    z-index: 150 !important;
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    border-radius: 9999px !important; /* rounded-full */
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background-color: #ff79c6 !important; /* Dracula pink */
+    color: #f8f8f2 !important; /* Dracula foreground */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important; /* shadow-md */
+    margin-bottom: 0 !important;
+    padding: 0 !important;
+  }
+  
+  #send-button:hover {
+    background-color: #bd93f9 !important; /* Dracula purple */
+  }
+  
+  #send-button span {
+    font-size: 1.25rem !important; /* text-xl */
   }
   
   #send-tap-target {
