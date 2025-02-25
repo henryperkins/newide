@@ -1,6 +1,6 @@
 import config
 from fastapi import APIRouter, Depends, HTTPException
-from typing import Any
+from typing import Any, Dict, List
 import json
 import os
 
@@ -63,3 +63,93 @@ async def get_all_configs(config_service=Depends(get_config_service)) -> dict:
             }
         }
     }
+
+class ModelConfigModel(BaseModel):
+    name: str
+    max_tokens: int
+    supports_streaming: bool
+    supports_temperature: bool
+    api_version: str
+    azure_endpoint: str
+    description: str = ""
+    base_timeout: float = 120.0
+    max_timeout: float = 300.0
+    token_factor: float = 0.05
+
+@router.get("/models", response_model=Dict[str, ModelConfigModel])
+async def get_models(config_service=Depends(get_config_service)):
+    """Get all model configurations"""
+    models = await config_service.get_model_configs()
+    return models
+
+@router.get("/models/{model_id}", response_model=ModelConfigModel)
+async def get_model(model_id: str, config_service=Depends(get_config_service)):
+    """Get a specific model configuration"""
+    model = await config_service.get_model_config(model_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+    return model
+
+@router.post("/models/{model_id}")
+async def create_model(
+    model_id: str,
+    model: ModelConfigModel,
+    config_service=Depends(get_config_service)
+):
+    """Create a new model configuration"""
+    existing = await config_service.get_model_config(model_id)
+    if existing:
+        raise HTTPException(status_code=400, detail="Model already exists")
+    
+    success = await config_service.add_model_config(model_id, model.dict())
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to create model")
+    
+    # Refresh client pool
+    from clients import get_client_pool
+    pool = await get_client_pool()
+    await pool.refresh_client(model_id, config_service)
+    
+    return {"status": "created", "model_id": model_id}
+
+@router.put("/models/{model_id}")
+async def update_model(
+    model_id: str,
+    model: ModelConfigModel,
+    config_service=Depends(get_config_service)
+):
+    """Update an existing model configuration"""
+    existing = await config_service.get_model_config(model_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Model not found")
+    
+    success = await config_service.update_model_config(model_id, model.dict())
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update model")
+    
+    # Refresh client pool
+    from clients import get_client_pool
+    pool = await get_client_pool()
+    await pool.refresh_client(model_id, config_service)
+    
+    return {"status": "updated", "model_id": model_id}
+
+@router.delete("/models/{model_id}")
+async def delete_model(
+    model_id: str,
+    config_service=Depends(get_config_service)
+):
+    """Delete a model configuration"""
+    existing = await config_service.get_model_config(model_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Model not found")
+    
+    # Prevent deleting the default model
+    if model_id == config.AZURE_OPENAI_DEPLOYMENT_NAME:
+        raise HTTPException(status_code=400, detail="Cannot delete default model")
+    
+    success = await config_service.delete_model_config(model_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete model")
+    
+    return {"status": "deleted", "model_id": model_id}

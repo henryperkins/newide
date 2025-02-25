@@ -1,7 +1,7 @@
 # clients.py
 import os
 import asyncio
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 from openai import AzureOpenAI
 from logging_config import logger
@@ -35,37 +35,29 @@ class ClientPool:
                 await cls._instance.initialize_clients(config_service)
         return cls._instance
 
-    async def initialize_clients(
-            self,
-            config_service: ConfigService
-        ) -> None:
+    async def initialize_clients(self, config_service: ConfigService) -> None:
         """
-        Fetch model_configs from the database and initialize a client for each model.
-        If the default deployment (o1hp) is missing, we create it in memory and persist it to the database.
+        Initialize clients based on database configurations
         """
-        logger.info("[ClientPool debug] initialize_clients called.")
-        logger.info(
-            f"[ClientPool debug] AZURE_OPENAI_DEPLOYMENT_NAME: {config.AZURE_OPENAI_DEPLOYMENT_NAME}"
-        )
-
+        logger.info("[ClientPool] initialize_clients called.")
+        
         # Flag to track if we need a default client
         has_default_client = False
         initialization_errors = []
 
         try:
-            db_model_configs = await config_service.get_config("model_configs")
+            db_model_configs = await config_service.get_model_configs()
+            
+            # If no configurations found, create defaults
             if not db_model_configs:
-                logger.warning(
-                    "[ClientPool debug] No model_configs found in DB. Using empty dict."
-                )
-                db_model_configs = {}
-
-            forced_key = config.settings.AZURE_OPENAI_DEPLOYMENT_NAME
-            if forced_key not in db_model_configs:
-                logger.warning(
-                    f"[ClientPool debug] Forcing creation of '{forced_key}' in model_configs since it's missing."
-                )
-                db_model_configs[forced_key] = {
+                logger.warning("No model configs found. Creating defaults.")
+                
+                # Create default o1 model
+                default_o1 = config.AZURE_OPENAI_DEPLOYMENT_NAME
+                logger.info(f"Creating default config for {default_o1}")
+                
+                o1_config = {
+                    "name": default_o1,
                     "max_tokens": 40000,
                     "supports_streaming": False,
                     "supports_temperature": False,
@@ -73,73 +65,103 @@ class ClientPool:
                     "max_timeout": config.O_SERIES_MAX_TIMEOUT,
                     "token_factor": config.O_SERIES_TOKEN_FACTOR,
                     "api_version": config.AZURE_OPENAI_API_VERSION,
-                    "api_key": os.getenv("AZURE_OPENAI_API_KEY", ""),
                     "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
+                    "description": "Default Azure OpenAI o1 model"
                 }
-                # Persist updated configs back to DB so that forced model is recognized on subsequent requests
+                
+                # Create DeepSeek-R1 model config
+                deepseek_config = {
+                    "name": "DeepSeek-R1",
+                    "max_tokens": 32000,
+                    "supports_streaming": True,
+                    "supports_temperature": False,
+                    "base_timeout": 120.0,
+                    "max_timeout": 300.0,
+                    "token_factor": 0.05,
+                    "api_version": config.AZURE_INFERENCE_API_VERSION,
+                    "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
+                    "description": "Reasoning-focused model with high performance in math, coding, and science"
+                }
+                
+                # Add both models to the configuration
+                db_model_configs = {
+                    default_o1: o1_config,
+                    "DeepSeek-R1": deepseek_config
+                }
+                
+                # Save to database
                 await config_service.set_config(
                     "model_configs",
                     db_model_configs,
-                    "Auto-created forced model config",
-                    is_secret=False,
+                    "Default model configurations",
+                    is_secret=True
                 )
-                logger.info(
-                    f"[ClientPool debug] Forced model config for {forced_key} with endpoint {config.AZURE_OPENAI_ENDPOINT}"
-                )
+                logger.info("Created default model configurations")
+            else:
+                # Ensure the default models exist
+                default_o1 = config.AZURE_OPENAI_DEPLOYMENT_NAME
+                
+                # Add o1 if missing
+                if default_o1 not in db_model_configs:
+                    logger.warning(f"Default o1 model {default_o1} missing, adding it")
+                    db_model_configs[default_o1] = {
+                        "name": default_o1,
+                        "max_tokens": 40000,
+                        "supports_streaming": False,
+                        "supports_temperature": False,
+                        "base_timeout": config.O_SERIES_BASE_TIMEOUT,
+                        "max_timeout": config.O_SERIES_MAX_TIMEOUT,
+                        "token_factor": config.O_SERIES_TOKEN_FACTOR,
+                        "api_version": config.AZURE_OPENAI_API_VERSION,
+                        "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
+                        "description": "Default Azure OpenAI o1 model"
+                    }
+                    
+                    # Update database
+                    await config_service.set_config(
+                        "model_configs",
+                        db_model_configs,
+                        "Updated with default o1 model",
+                        is_secret=True
+                    )
+                
+                # Add DeepSeek-R1 if missing
+                if "DeepSeek-R1" not in db_model_configs:
+                    logger.warning("DeepSeek-R1 model missing, adding it")
+                    db_model_configs["DeepSeek-R1"] = {
+                        "name": "DeepSeek-R1",
+                        "max_tokens": 32000,
+                        "supports_streaming": True,
+                        "supports_temperature": False,
+                        "base_timeout": 120.0,
+                        "max_timeout": 300.0,
+                        "token_factor": 0.05,
+                        "api_version": config.AZURE_INFERENCE_API_VERSION,
+                        "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
+                        "description": "Reasoning-focused model with high performance in math, coding, and science"
+                    }
+                    
+                    # Update database
+                    await config_service.set_config(
+                        "model_configs",
+                        db_model_configs,
+                        "Updated with DeepSeek-R1 model",
+                        is_secret=True
+                    )
 
-            logger.info(
-                f"[ClientPool debug] Found model_configs keys: {list(db_model_configs.keys())}"
-            )
+            logger.info(f"Found model_configs keys: {list(db_model_configs.keys())}")
 
+            # Initialize clients from configs
             for model_name, model_config in db_model_configs.items():
-                logger.info(
-                    f"[ClientPool debug] Attempting to initialize client for '{model_name}' with config: {model_config}"
-                )
                 try:
-                    api_version = model_config.get(
-                        "api_version", config.AZURE_OPENAI_API_VERSION
-                    )
-                    is_o_series = (
-                        model_name.startswith("o")
-                        or model_config.get("supports_temperature") is False
-                    )
-                    max_retries = config.O_SERIES_MAX_RETRIES if is_o_series else 3
-                    base_timeout = model_config.get(
-                        "base_timeout", config.STANDARD_BASE_TIMEOUT
-                    )
-
-                    logger.debug(
-                        f"[ClientPool] Creating client for {model_name} with "
-                        f"endpoint: {model_config.get('azure_endpoint', config.AZURE_OPENAI_ENDPOINT)}, "
-                        f"deployment: {model_name}, "
-                        f"api_version: {api_version}"
-                    )
-
-                    client = AzureOpenAI(
-                        api_key=model_config.get(
-                            "api_key", os.getenv("AZURE_OPENAI_API_KEY", "")
-                        ),
-                        api_version=api_version,
-                        azure_endpoint=model_config.get(
-                            "azure_endpoint", config.AZURE_OPENAI_ENDPOINT
-                        ),
-                        azure_deployment=model_name,
-                        max_retries=max_retries,
-                        timeout=base_timeout,
-                    )
-
-                    logger.info(
-                        f"[ClientPool] Skipped model listing test for '{model_name}'"
-                    )
-                    self._clients[model_name] = client
+                    # Create client with configuration from database
+                    self._clients[model_name] = self._create_client(model_name, model_config)
                     
                     # Mark if we have initialized the default client
                     if model_name == config.AZURE_OPENAI_DEPLOYMENT_NAME:
                         has_default_client = True
                         
-                    logger.info(
-                        f"[ClientPool] Initialized AzureOpenAI client for model '{model_name}'"
-                    )
+                    logger.info(f"Initialized client for model: {model_name}")
                 except Exception as e:
                     # Collect error but continue with other models
                     error_msg = f"Failed to initialize client for '{model_name}': {str(e)}"
@@ -155,24 +177,36 @@ class ClientPool:
             # If default client wasn't initialized but we have others, set first available as default
             if not has_default_client and self._clients:
                 logger.warning(
-                    f"[ClientPool] Default client '{config.AZURE_OPENAI_DEPLOYMENT_NAME}' not initialized. "
+                    f"Default client '{config.AZURE_OPENAI_DEPLOYMENT_NAME}' not initialized. "
                     f"Using '{next(iter(self._clients))}' as default."
                 )
                 
             # Log any errors that occurred during initialization    
             if initialization_errors:
                 logger.warning(
-                    f"[ClientPool] Completed initialization with {len(initialization_errors)} errors: "
+                    f"Completed initialization with {len(initialization_errors)} errors: "
                     f"{'; '.join(initialization_errors)}"
                 )
                 
         except Exception as e:
-            logger.error(
-                f"[ClientPool] An error occurred during initialization: {str(e)}"
-            )
+            logger.error(f"An error occurred during initialization: {str(e)}")
             # Only re-raise if we couldn't initialize any clients
             if not self._clients:
                 raise
+                
+    def _create_client(self, model_name: str, model_config: Dict[str, Any]) -> AzureOpenAI:
+        """Create an Azure OpenAI client with the given configuration"""
+        is_o_series = model_name.startswith("o") or not model_config.get("supports_temperature", True)
+        max_retries = config.O_SERIES_MAX_RETRIES if is_o_series else 3
+        
+        return AzureOpenAI(
+            api_key=os.getenv("AZURE_OPENAI_API_KEY", ""),
+            api_version=model_config.get("api_version", config.AZURE_OPENAI_API_VERSION),
+            azure_endpoint=model_config.get("azure_endpoint", config.AZURE_OPENAI_ENDPOINT),
+            azure_deployment=model_name,
+            max_retries=max_retries,
+            timeout=model_config.get("base_timeout", 60.0)
+        )
 
     def get_client(self, model_name: Optional[str] = None) -> AzureOpenAI:
         """
@@ -198,64 +232,20 @@ class ClientPool:
                 )
         return client
 
-    async def refresh_client(
-            self,
-            model_name: str,
-            config_service: ConfigService
-        ) -> None:
-        """
-        Refresh a specific client's configuration from the latest 'model_configs' in the database.
-        Useful if environment variables or config for a model changed at runtime.
-        """
+    async def refresh_client(self, model_name: str, config_service: ConfigService) -> None:
+        """Refresh a specific client with latest configuration"""
         async with self._lock:
-            # The database session is *now* handled by the config service dependency.
-            # db = await get_db_session() # NO NEED TO GET DB SESSION HERE
-            # config_service = ConfigService(db=db) # Not needed
             try:
-                db_model_configs = (
-                    await config_service.get_config("model_configs") or {}
-                )
-
-                if model_name in db_model_configs:
-                    model_config = db_model_configs[model_name]
-                    api_version = model_config.get(
-                        "api_version", config.AZURE_OPENAI_API_VERSION
-                    )
-                    is_o_series = model_name.startswith("o") or (
-                        not model_config.get("supports_temperature", True)
-                    )
-                    max_retries = config.O_SERIES_MAX_RETRIES if is_o_series else 3
-                    base_timeout = model_config.get(
-                        "base_timeout", config.STANDARD_BASE_TIMEOUT
-                    )
-
-                    self._clients[model_name] = AzureOpenAI(
-                        api_key=model_config.get(
-                            "api_key", os.getenv("AZURE_OPENAI_API_KEY", "")
-                        ),
-                        api_version=api_version,
-                        azure_endpoint=model_config.get(
-                            "azure_endpoint", config.AZURE_OPENAI_ENDPOINT
-                        ),
-                        azure_deployment=model_name,
-                        max_retries=max_retries,
-                        timeout=base_timeout,
-                    )
-                    logger.info(
-                        f"[ClientPool] Refreshed client for model: '{model_name}'"
-                    )
-                else:
-                    logger.warning(
-                        f"[ClientPool] No database config entry for '{model_name}', cannot refresh client."
-                    )
+                model_config = await config_service.get_model_config(model_name)
+                if not model_config:
+                    logger.warning(f"No configuration found for {model_name}")
+                    return
+                    
+                # Update or create client
+                self._clients[model_name] = self._create_client(model_name, model_config)
+                logger.info(f"Refreshed client for model: {model_name}")
             except Exception as e:
-                logger.error(f"[ClientPool] An error occurred during refresh: {str(e)}")
-                # Handle the exception appropriately, possibly re-raising or logging
-                raise
-            finally:
-                # Removed the db session close, since this code doesn't depend on it.
-                # await db.close()  # No longer closing session.
-                pass
+                logger.error(f"Failed to refresh client for {model_name}: {str(e)}")
 
 
 # ------------------------------------------------------
