@@ -86,7 +86,22 @@ class ConfigService:
             
     async def get_model_configs(self) -> Dict[str, Any]:
         """Get all model configurations"""
-        return await self.get_config("model_configs") or {}
+        db_models = await self.get_config("model_configs") or {}
+        
+        # Ensure all models have required fields 
+        for model_id, config in db_models.items():
+            if "name" not in config:
+                config["name"] = model_id
+            if "description" not in config:
+                config["description"] = f"Model configuration for {model_id}"
+            if "max_tokens" not in config:
+                config["max_tokens"] = 4096
+            if "supports_streaming" not in config:
+                config["supports_streaming"] = False
+            if "supports_temperature" not in config:
+                config["supports_temperature"] = False
+                
+        return db_models
 
     async def get_model_config(self, model_id: str) -> Optional[Dict[str, Any]]:
         """Get configuration for a specific model"""

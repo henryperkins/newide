@@ -76,11 +76,18 @@ class ModelConfigModel(BaseModel):
     max_timeout: float = 300.0
     token_factor: float = 0.05
 
-@router.get("/models", response_model=Dict[str, ModelConfigModel])
+@router.get("/models", response_model=None)
 async def get_models(config_service=Depends(get_config_service)):
     """Get all model configurations"""
-    models = await config_service.get_model_configs()
-    return models
+    try:
+        models = await config_service.get_model_configs()
+        print(f"Retrieved models from database: {models}")  # Debug log
+        # Return without response model to avoid validation issues
+        # Just return the direct dictionary to match frontend expectations
+        return models
+    except Exception as e:
+        print(f"Error getting model configs: {e}")  # Debug log
+        raise HTTPException(status_code=500, detail=f"Error retrieving models: {str(e)}")
 
 @router.get("/models/{model_id}", response_model=ModelConfigModel)
 async def get_model(model_id: str, config_service=Depends(get_config_service)):

@@ -193,7 +193,37 @@ class ModelManager {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
-            const models = await response.json();
+            // Log the response for debugging
+            const response_data = await response.json();
+            console.log("API response:", response_data);
+            
+            // Handle both possible response formats
+            let models;
+            if (response_data.models) {
+                // The API returned {models: {o1hp: {...}}} format
+                console.log("Converting API format to internal format");
+                models = {};
+                // Convert the API format to our internal format
+                for (const [id, apiModel] of Object.entries(response_data.models)) {
+                    models[id] = {
+                        name: id,
+                        description: `Model configuration for ${id}`,
+                        max_tokens: 40000,
+                        supports_streaming: false,
+                        supports_temperature: false,
+                        api_version: apiModel.api_version,
+                        azure_endpoint: apiModel.endpoint,
+                        base_timeout: 120.0,
+                        max_timeout: 300.0,
+                        token_factor: 0.05
+                    };
+                }
+            } else {
+                // Assume direct model format: {o1hp: {name: "o1hp", ...}}
+                models = response_data;
+            }
+            
+            console.log("Using models:", models);
             this.modelConfigs = models; // Update local cache
             
             // Clear container

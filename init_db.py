@@ -141,6 +141,8 @@ async def init_database():
         # Create a model_configs entry with o1hp as a key
         model_configs = {
             "o1hp": {
+                "name": "o1hp",
+                "description": "Azure OpenAI o1 high performance model",
                 "max_tokens": 40000, 
                 "supports_streaming": False, 
                 "supports_temperature": False, 
