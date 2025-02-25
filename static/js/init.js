@@ -14,7 +14,7 @@ try {
 }
 import { initTabSystem } from './ui/tabManager.js';
 import { configureMarkdown } from './ui/markdownParser.js';
-import { loadConversationFromLocalStorage } from './ui/displayManager.js';
+import { loadConversationFromLocalStorage, loadOlderMessages } from './ui/displayManager.js';
 import StatsDisplay from './ui/statsDisplay.js';
 import fileManager from './fileManager.js';
 

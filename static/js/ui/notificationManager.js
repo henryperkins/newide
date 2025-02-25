@@ -162,7 +162,9 @@ export function removeTypingIndicator() {
   if (typingState.element) {
     typingState.element.classList.replace('opacity-100', 'opacity-0');
     setTimeout(() => {
-      typingState.element.remove();
+      if (typingState.element) {
+        typingState.element.remove();
+      }
       typingState = {
         active: false,
         element: null,
