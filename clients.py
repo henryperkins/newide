@@ -85,6 +85,11 @@ class ClientPool:
                     "description": "Reasoning-focused model with high performance in math, coding, and science"
                 }
                 
+                # Ensure the DeepSeek endpoint is set
+                if not deepseek_config["azure_endpoint"]:
+                    logger.error("AZURE_INFERENCE_ENDPOINT is not set but required for DeepSeek-R1")
+                    raise ValueError("Missing AZURE_INFERENCE_ENDPOINT for DeepSeek-R1 model")
+                
                 # Add both models to the configuration
                 db_model_configs = {
                     default_o1: o1_config,
@@ -160,6 +165,9 @@ class ClientPool:
                     if not model_config.get("azure_endpoint"):
                         if model_name.lower() == "deepseek-r1":
                             model_config["azure_endpoint"] = config.AZURE_INFERENCE_ENDPOINT
+                            if not config.AZURE_INFERENCE_ENDPOINT:
+                                logger.error(f"AZURE_INFERENCE_ENDPOINT is not set but required for {model_name}")
+                                raise ValueError(f"Missing AZURE_INFERENCE_ENDPOINT for {model_name} model")
                             logger.info(f"Using default AZURE_INFERENCE_ENDPOINT for {model_name}")
                         else:
                             model_config["azure_endpoint"] = config.AZURE_OPENAI_ENDPOINT
@@ -218,6 +226,9 @@ class ClientPool:
         if is_deepseek:
             api_key = os.getenv("AZURE_INFERENCE_CREDENTIAL", "")
             endpoint = model_config.get("azure_endpoint", config.AZURE_INFERENCE_ENDPOINT)
+            if not endpoint:
+                logger.error(f"No Azure Inference endpoint configured for DeepSeek-R1 model")
+                raise ValueError(f"Missing Azure Inference endpoint for DeepSeek-R1 model")
             api_version = model_config.get("api_version", config.AZURE_INFERENCE_API_VERSION)
         else:
             api_key = os.getenv("AZURE_OPENAI_API_KEY", "")

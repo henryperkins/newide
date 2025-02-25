@@ -43,7 +43,7 @@ class ModelManager {
             const deepseekModel = {
                 name: "DeepSeek-R1",
                 description: "Reasoning-focused model with high performance in math, coding, and science",
-                azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
+                azure_endpoint: "https://aoai-east-inference.cognitiveservices.azure.com",
                 api_version: "2025-01-01-preview",
                 max_tokens: 32000,
                 supports_temperature: false,
