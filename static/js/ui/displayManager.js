@@ -2,7 +2,7 @@
 
 import { safeMarkdownParse, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
 import { copyToClipboard } from '/static/js/utils/helpers.js';
-import { sessionId } from '/static/js/session.js';
+import { sessionId, initializeSession } from '/static/js/session.js';
 import fileManager from '/static/js/fileManager.js';
 
 function replaceFileReferences(container) {
@@ -193,8 +193,12 @@ function updateLoadOlderButton(displayed, total) {
  */
 async function storeMessageInDB(role, content) {
   if (!sessionId) {
-    console.warn('No sessionId available to store DB conversation.');
-    return;
+    console.warn('No sessionId available to store DB conversation, trying to initialize session...');
+    await initializeSession();
+    if (!sessionId) {
+      console.warn('Still no sessionId after initialization, skipping DB store');
+      return;
+    }
   }
   try {
     const response = await fetch(
