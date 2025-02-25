@@ -224,13 +224,14 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
 
   // Basic request body
   const requestBody = {
-    messages: [
-      {
-        role: 'user',
-        content: messageContent
-      }
-    ],
-    session_id: sessionId
+      model: modelConfig?.name || 'o1model-east2',
+      messages: [
+          {
+              role: 'user',
+              content: messageContent
+          }
+      ],
+      session_id: sessionId
   };
 
   // Insert developer or system prompt if present

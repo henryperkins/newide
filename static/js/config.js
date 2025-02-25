@@ -41,6 +41,20 @@ export async function initializeConfig() {
         const appConfig = await getCurrentConfig();
         updateReasoningEffortDisplay();
         await updateModelSpecificUI(appConfig.selectedModel);
+
+        // Attach a change listener to the model-select dropdown so that
+        // selecting a different model updates the config and UI
+        const modelSelectEl = document.getElementById('model-select');
+        if (modelSelectEl) {
+            modelSelectEl.addEventListener('change', async (e) => {
+                const newModel = e.target.value;
+                // Update config
+                await updateConfig('selectedModel', newModel);
+                // Refresh UI for the newly selected model
+                await updateModelSpecificUI(newModel);
+                console.log(`Model switched to: ${newModel}`);
+            });
+        }
     } catch (error) {
         console.error('Failed to initialize UI elements:', error);
     }
