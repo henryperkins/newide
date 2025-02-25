@@ -271,4 +271,4 @@ DeepSeek-R1 excels at multi-step, chain-of-thought reasoning. You can:
 
 These code samples showcase typical interactions. For additional details—like streaming partial tokens, multi-turn thread usage, or integrating with advanced features such as content filtering—refer to the official Azure OpenAI (or your private deployment) documentation on the [data plane inference API](#).
 
-Use these patterns to incorporate DeepSeek-R1 into your own application’s chat, Q&A, or complex reasoning workflows.
+Use these patterns to incorporate DeepSeek-R1 into your own application’s chat, Q&A, or complex reasoning workflows. 

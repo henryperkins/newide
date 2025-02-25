@@ -8,6 +8,7 @@ from database import get_db_session, Session
 import config
 from services.azure_search_service import AzureSearchService
 from clients import get_model_client
+from logging_config import logger
 
 class SessionResponse(BaseModel):
     session_id: str
