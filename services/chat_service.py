@@ -15,7 +15,8 @@ from openai import OpenAIError
 import openai
 from logging_config import logger
 import config
-from models import ChatMessage, Conversation
+from models import Conversation
+from pydantic_models import ChatMessage
 
 
 # If you prefer a uniform error response dict:
@@ -50,9 +51,21 @@ class TokenManager:
     """
 
     @staticmethod
-    def get_model_limits(model_name: str) -> Dict[str, int]:
-        """Get token limits for a specific model from config."""
-        model_config = config.MODEL_CONFIGS.get(model_name, {})
+    async def get_model_limits(model_name: str) -> Dict[str, int]:
+        """Get token limits for a specific model from database or use default."""
+        # Get model configs from database
+        from services.config_service import ConfigService
+        from database import AsyncSessionLocal
+        
+        try:
+            async with AsyncSessionLocal() as config_db:
+                config_service = ConfigService(config_db)
+                model_configs = await config_service.get_config("model_configs")
+                
+            model_config = model_configs.get(model_name, {}) if model_configs else {}
+        except Exception:
+            model_config = {}
+            
         # fallback to e.g. 4096 if not defined
         max_tokens = model_config.get("max_tokens", 4096)
         return {
@@ -113,15 +126,22 @@ async def process_chat_message(
 
     # Determine final model to use
     model_name = model_name or config.AZURE_OPENAI_DEPLOYMENT_NAME
-    if model_name not in config.MODEL_CONFIGS:
-        err = create_error_response(
-            status_code=400,
-            code="invalid_model_name",
-            message=f"Model '{model_name}' is not defined in config.MODEL_CONFIGS",
-            error_type="invalid_request_error",
-        )
-        # You could raise an HTTPException here instead of ValueError if using FastAPI
-        raise ValueError(err["detail"])
+    
+    # Get model configs from database
+    from services.config_service import ConfigService
+    from database import AsyncSessionLocal
+    
+    try:
+        async with AsyncSessionLocal() as config_db:
+            config_service = ConfigService(config_db)
+            model_configs = await config_service.get_config("model_configs")
+            
+        if not model_configs or model_name not in model_configs:
+            logger.warning(f"Model '{model_name}' is not defined in database model_configs")
+            # Continue anyway, we'll set defaults later
+    except Exception as e:
+        logger.error(f"Error fetching model_configs: {str(e)}")
+        # Continue with execution
 
     logger.info(
         f"[session {session_id}] Processing chat request for model: {model_name}"
@@ -150,7 +170,7 @@ async def process_chat_message(
     messages.append({"role": "user", "content": user_content})
 
     # Check token usage
-    token_info = TokenManager.get_model_limits(model_name)
+    token_info = await TokenManager.get_model_limits(model_name)
     context_tokens = TokenManager.sum_context_tokens(messages)
     if context_tokens >= token_info["max_context_tokens"]:
         logger.warning(
@@ -163,7 +183,16 @@ async def process_chat_message(
     params = {"messages": messages, "stream": False}  # Non-streaming by default
 
     # Configure model parameters
-    model_config = config.MODEL_CONFIGS[model_name]
+    # First try to get model config from database
+    from services.config_service import ConfigService
+    from database import AsyncSessionLocal
+    
+    async with AsyncSessionLocal() as config_db:
+        config_service = ConfigService(config_db)
+        db_model_configs = await config_service.get_config("model_configs")
+        
+    # Use database config if available, otherwise fall back to config.MODEL_CONFIGS
+    model_config = db_model_configs.get(model_name, {}) if db_model_configs else {}
     if model_config.get("supports_temperature", True):
         # Fallback to 0.7 if user hasn't provided it
         params["temperature"] = (

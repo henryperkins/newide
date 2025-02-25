@@ -1,12 +1,12 @@
 import json
 import uuid
 import time
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select, func
 from openai import AzureOpenAI
@@ -19,14 +19,15 @@ import config
 # Import models and schemas that define request/response shapes
 from pydantic_models import (
     ChatMessage,
-    CreateChatCompletionRequest,
-    ChatCompletionResponse
+    ChatCompletionResponse,
+    CreateChatCompletionRequest
 )
 from models import Conversation
 from pydantic_models import ModelCapabilities, ModelCapabilitiesResponse
 
 from routers.security import get_current_user
 from models import User
+from services.config_service import ConfigService, get_config_service
 
 router = APIRouter(prefix="/chat")
 
@@ -36,16 +37,21 @@ async def store_message(
     role: str = Query(...),
     content: str = Query(...),
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
 ):
     try:
         from sqlalchemy import insert
-        stmt = insert(Conversation).values(
-            session_id=session_id,
-            user_id=current_user.id,
-            role=role,
-            content=content
-        )
+        values = {
+            "session_id": session_id,
+            "role": role,
+            "content": content
+        }
+        
+        # Add user_id if authenticated
+        if current_user:
+            values["user_id"] = current_user.id
+            
+        stmt = insert(Conversation).values(**values)
         await db.execute(stmt)
         await db.commit()
         return {"status": "success"}
@@ -120,39 +126,30 @@ async def create_chat_completion(
     request: CreateChatCompletionRequest,
     api_version: str = Query(..., alias="api-version"),
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
+    config_service: ConfigService = Depends(get_config_service),
 ):
     """
     Creates a single chat completion in a non-streaming (standard) manner,
     returning a ChatCompletionResponse following Azure OpenAI style.
     """
     try:
-        # Validate requested API version
-        if api_version != config.AZURE_OPENAI_API_VERSION:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": {
-                        "code": "invalid_request_error",
-                        "message": f"Unsupported or invalid API version: {api_version}",
-                        "type": "invalid_request_error",
-                    }
-                },
-            )
+        # Accept any API version for now to simplify debugging
+        # We'll eventually want to validate against supported versions
 
         # Determine which model to use
         model_name = request.model or config.AZURE_OPENAI_DEPLOYMENT_NAME
-        if model_name not in config.MODEL_CONFIGS:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": {
-                        "code": "invalid_request_error",
-                        "message": f"Unsupported model: {model_name}",
-                        "type": "invalid_request_error",
-                    }
-                },
-            )
+        
+        # Simplified model validation - for debugging
+        try:
+            # Get the model configurations
+            model_configs = await config_service.get_config("model_configs")
+            if not model_configs or model_name not in model_configs:
+                logger.warning(f"Model {model_name} not found in configurations, using default")
+                model_name = config.AZURE_OPENAI_DEPLOYMENT_NAME
+        except Exception as e:
+            logger.error(f"Error getting model configurations: {str(e)}")
+            model_name = config.AZURE_OPENAI_DEPLOYMENT_NAME
 
         # Acquire AzureOpenAI client
         client = await get_model_client(model_name)

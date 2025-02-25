@@ -28,11 +28,11 @@ class ClientPool:
 
     @classmethod
     async def get_instance(cls, config_service: ConfigService):
-        if not cls._instance:
-            async with cls._lock:
-                if not cls._instance:
-                    cls._instance = cls()
-                    await cls._instance.initialize_clients(config_service)
+        # Fix race condition by acquiring lock first
+        async with cls._lock:
+            if not cls._instance:
+                cls._instance = cls()
+                await cls._instance.initialize_clients(config_service)
         return cls._instance
 
     async def initialize_clients(
@@ -48,8 +48,10 @@ class ClientPool:
             f"[ClientPool debug] AZURE_OPENAI_DEPLOYMENT_NAME: {config.AZURE_OPENAI_DEPLOYMENT_NAME}"
         )
 
-        # Get the database session for config only.
-        # db = await get_db_session() # NO LONGER NEEDED HERE. ConfigService DEPENDS on this.
+        # Flag to track if we need a default client
+        has_default_client = False
+        initialization_errors = []
+
         try:
             db_model_configs = await config_service.get_config("model_configs")
             if not db_model_configs:
@@ -130,25 +132,47 @@ class ClientPool:
                         f"[ClientPool] Skipped model listing test for '{model_name}'"
                     )
                     self._clients[model_name] = client
+                    
+                    # Mark if we have initialized the default client
+                    if model_name == config.AZURE_OPENAI_DEPLOYMENT_NAME:
+                        has_default_client = True
+                        
                     logger.info(
                         f"[ClientPool] Initialized AzureOpenAI client for model '{model_name}'"
                     )
                 except Exception as e:
-                    logger.error(
-                        f"[ClientPool] Failed to initialize client for '{model_name}': {str(e)}"
-                    )
-                    raise
+                    # Collect error but continue with other models
+                    error_msg = f"Failed to initialize client for '{model_name}': {str(e)}"
+                    initialization_errors.append(error_msg)
+                    logger.error(f"[ClientPool] {error_msg}")
+            
+            # Check if we have at least one client
+            if not self._clients:
+                error_msg = "Failed to initialize any model clients. Check configuration and Azure OpenAI access."
+                logger.error(f"[ClientPool] {error_msg}")
+                raise ValueError(error_msg)
+                
+            # If default client wasn't initialized but we have others, set first available as default
+            if not has_default_client and self._clients:
+                logger.warning(
+                    f"[ClientPool] Default client '{config.AZURE_OPENAI_DEPLOYMENT_NAME}' not initialized. "
+                    f"Using '{next(iter(self._clients))}' as default."
+                )
+                
+            # Log any errors that occurred during initialization    
+            if initialization_errors:
+                logger.warning(
+                    f"[ClientPool] Completed initialization with {len(initialization_errors)} errors: "
+                    f"{'; '.join(initialization_errors)}"
+                )
+                
         except Exception as e:
             logger.error(
                 f"[ClientPool] An error occurred during initialization: {str(e)}"
             )
-            # Handle the exception appropriately, possibly re-raising or logging
-            raise  # Re-raise is usually the best approach here to signal failure.
-        finally:
-            # No longer closing session.  The sessions are only consumed during
-            # the route handlers.
-            # await db.close() # Always close the db session!
-            pass
+            # Only re-raise if we couldn't initialize any clients
+            if not self._clients:
+                raise
 
     def get_client(self, model_name: Optional[str] = None) -> AzureOpenAI:
         """

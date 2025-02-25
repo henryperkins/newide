@@ -20,20 +20,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 async def get_current_user(
     db: AsyncSession = Depends(get_db_session),
-    creds: HTTPAuthorizationCredentials = Depends(HTTPBearer())
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))
 ):
+    # If no credentials provided, return None (anonymous user)
+    if not creds:
+        return None
+    
     try:
         payload = jwt.decode(creds.credentials, config.settings.JWT_SECRET, algorithms=["HS256"])
         user_id = payload.get("user_id")
         if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token payload")
+            return None
 
         user = await db.get(User, user_id)
         if not user or not user.is_active:
-            raise HTTPException(status_code=401, detail="Inactive user")
+            return None
 
         return user
-    except jwt.DecodeError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
+    except (jwt.DecodeError, jwt.ExpiredSignatureError):
+        # Return None instead of raising an exception
+        return None

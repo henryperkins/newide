@@ -229,7 +229,8 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
         role: 'user',
         content: messageContent
       }
-    ]
+    ],
+    session_id: sessionId
   };
 
   // Insert developer or system prompt if present
@@ -357,13 +358,10 @@ function isDeepSeekModel(modelConfig) {
 }
 
 /**
- * Possibly a helper to build the Azure endpoint for a given deploymentName + API version
+ * Build the API endpoint for chat completion
  */
 async function buildAzureOpenAIUrl(deploymentName, apiVersion) {
-  // For example:
-  // return `https://YOUR-RESOURCE-NAME.openai.azure.com/openai/deployments/${deploymentName}/chat/completions?api-version=${apiVersion}`;
-  // ... or fetch from config.
-  const config = await getCurrentConfig();
-  const baseUrl = config?.azureOpenAI?.endpointUrl || '';
-  return `${baseUrl}/openai/deployments/${deploymentName}/chat/completions?api-version=${apiVersion}`;
+  // Use local API endpoint instead of direct Azure endpoint
+  // This ensures all requests go through our backend API
+  return `/api/chat?api-version=${apiVersion}`;
 }
