@@ -85,17 +85,36 @@
 
 /* Add custom component classes */
 @layer components {
-  /* Message bubbles */
+  /* Mobile-optimized message bubbles */
   .user-message {
-    @apply ml-auto max-w-3xl rounded-lg rounded-br-none bg-blue-600 p-3 text-white shadow-md relative my-2;
+    @apply ml-auto max-w-[85%] sm:max-w-[80%] md:max-w-3xl rounded-lg rounded-br-none bg-blue-600 p-2.5 md:p-3 text-white shadow-md relative my-2;
   }
 
   .assistant-message {
-    @apply mr-auto max-w-3xl rounded-lg rounded-bl-none bg-white dark:bg-gray-700 p-3 border border-gray-200 dark:border-gray-600 shadow-sm text-gray-800 dark:text-gray-100 relative my-2;
+    @apply mr-auto max-w-[85%] sm:max-w-[80%] md:max-w-3xl rounded-lg rounded-bl-none bg-white dark:bg-gray-700 p-2.5 md:p-3 border border-gray-200 dark:border-gray-600 shadow-sm text-gray-800 dark:text-gray-100 relative my-2;
   }
-
+  
+  /* Other message types */
   .system-message {
-    @apply mx-auto max-w-xl bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-400 dark:border-yellow-600 p-3 text-yellow-800 dark:text-yellow-200 rounded my-2;
+    @apply mx-auto max-w-[92%] md:max-w-xl bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-400 dark:border-yellow-600 p-2 md:p-3 text-yellow-800 dark:text-yellow-200 rounded my-2;
+  }
+  
+  /* Improved copy button for touch */
+  .copy-button {
+    @apply absolute top-1 right-1 md:top-2 md:right-2 w-8 h-8 flex items-center justify-center rounded-full bg-black/10 hover:bg-black/20 backdrop-blur-sm transition-colors text-white/80 dark:text-gray-200/80 touch-action-manipulation;
+  }
+  
+  /* Mobile-optimized tab buttons */
+  .tab-button {
+    @apply px-3 py-3 md:py-2 text-sm font-medium border-b-2 flex-1 text-center touch-action-manipulation;
+  }
+  
+  .tab-active {
+    @apply border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400;
+  }
+  
+  .tab-inactive {
+    @apply border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200;
   }
 
   /* Buttons */
@@ -190,6 +209,27 @@
 
 /* Add custom utilities */
 @layer utilities {
+  /* Utility for better touch targets */
+  .touch-action-manipulation {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Mobile font sizes */
+  .mobile-text-adjust {
+    font-size: 16px; /* Minimum readable size for mobile */
+    line-height: 1.5;
+  }
+  
+  /* Safe area handling for notched phones */
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  
+  .safe-area-inset-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
   /* Mobile button fix - should help with tap issues */
   #send-button {
     cursor: pointer !important;

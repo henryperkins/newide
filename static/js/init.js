@@ -58,9 +58,213 @@ document.addEventListener('DOMContentLoaded', () => {
   // Add accessibility features
   enhanceAccessibility();
   
+  // Initialize font size controls
   initializeFontSizeControls();
+  
+  // Initialize mobile UI enhancements
+  initMobileUI();
+  
   console.log('Application initialization complete');
 });
+
+/**
+ * Initialize mobile-specific enhancements
+ */
+function initMobileUI() {
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  
+  if (isMobile) {
+    // Apply mobile-specific classes
+    document.documentElement.classList.add('mobile-view');
+    
+    // Initialize mobile stats panel
+    const statsToggle = document.getElementById('mobile-stats-toggle');
+    const statsPanel = document.getElementById('mobile-stats-panel');
+    
+    if (statsToggle && statsPanel) {
+      statsToggle.addEventListener('click', () => {
+        statsPanel.classList.toggle('hidden');
+      });
+    }
+    
+    // Link desktop and mobile font controls
+    const mobileFontUp = document.getElementById('mobile-font-up');
+    const mobileFontDown = document.getElementById('mobile-font-down');
+    
+    if (mobileFontUp && mobileFontDown) {
+      mobileFontUp.addEventListener('click', () => adjustFontSize(1));
+      mobileFontDown.addEventListener('click', () => adjustFontSize(-1));
+    }
+    
+    // Initialize mobile font toggle
+    const fontToggle = document.getElementById('mobile-font-toggle');
+    if (fontToggle && statsPanel) {
+      fontToggle.addEventListener('click', () => {
+        statsPanel.classList.toggle('hidden');
+        // Focus on font controls
+        if (!statsPanel.classList.contains('hidden') && mobileFontUp) {
+          setTimeout(() => mobileFontUp.focus(), 100);
+        }
+      });
+    }
+    
+    // Enhanced sidebar controls for mobile
+    initMobileSidebar();
+    
+    // Add double-tap to copy for messages
+    initDoubleTapToCopy();
+    
+    // Add pull-to-refresh for loading older messages
+    initPullToRefresh();
+  }
+}
+
+/**
+ * Initialize double-tap to copy functionality for messages
+ */
+function initDoubleTapToCopy() {
+  const chatHistory = document.getElementById('chat-history');
+  if (!chatHistory) return;
+  
+  let lastTap = 0;
+  let lastElement = null;
+  
+  chatHistory.addEventListener('touchend', (e) => {
+    const messageDiv = e.target.closest('.assistant-message');
+    if (!messageDiv) return;
+    
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - lastTap;
+    
+    if (tapLength < 500 && lastElement === messageDiv) {
+      // Double tap detected
+      const content = messageDiv.textContent;
+      navigator.clipboard.writeText(content)
+        .then(() => {
+          // Show feedback
+          const feedback = document.createElement('div');
+          feedback.className = 'fixed top-4 right-4 bg-black/70 text-white py-2 px-4 rounded-md z-50';
+          feedback.textContent = 'Copied to clipboard';
+          document.body.appendChild(feedback);
+          
+          setTimeout(() => {
+            feedback.remove();
+          }, 1500);
+        })
+        .catch(err => console.error('Could not copy text: ', err));
+      
+      e.preventDefault();
+    }
+    
+    lastTap = currentTime;
+    lastElement = messageDiv;
+  }, { passive: false });
+}
+
+/**
+ * Initialize pull-to-refresh for loading older messages
+ */
+function initPullToRefresh() {
+  const chatHistory = document.getElementById('chat-history');
+  if (!chatHistory || typeof window.loadOlderMessages !== 'function') return;
+  
+  let startY = 0;
+  let isPulling = false;
+  const threshold = 80;
+  let indicator;
+  
+  chatHistory.addEventListener('touchstart', (e) => {
+    // Only activate when at top of chat
+    if (chatHistory.scrollTop <= 0) {
+      startY = e.touches[0].clientY;
+      isPulling = true;
+    }
+  }, { passive: true });
+  
+  chatHistory.addEventListener('touchmove', (e) => {
+    if (!isPulling) return;
+    
+    const currentY = e.touches[0].clientY;
+    const pullDistance = currentY - startY;
+    
+    if (pullDistance > 0 && chatHistory.scrollTop <= 0) {
+      // Prevent default scrolling behavior
+      e.preventDefault();
+      
+      // Apply a transform to show visual feedback
+      chatHistory.style.transform = `translateY(${Math.min(pullDistance / 2, threshold)}px)`;
+      
+      // Show/update pull indicator
+      if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.className = 'text-center text-gray-500 absolute top-0 left-0 right-0 z-10 py-2 bg-gray-100/80 dark:bg-gray-800/80 backdrop-blur-sm';
+        indicator.textContent = 'Pull to load older messages';
+        chatHistory.parentNode.prepend(indicator);
+      }
+      
+      if (pullDistance > threshold) {
+        indicator.textContent = 'Release to load older messages';
+      } else {
+        indicator.textContent = 'Pull to load older messages';
+      }
+    }
+  }, { passive: false });
+  
+  chatHistory.addEventListener('touchend', (e) => {
+    if (!isPulling) return;
+    
+    const currentY = e.changedTouches[0].clientY;
+    const pullDistance = currentY - startY;
+    
+    // Reset the transform
+    chatHistory.style.transform = '';
+    
+    if (pullDistance > threshold && chatHistory.scrollTop <= 0) {
+      // Show loading indicator
+      if (indicator) {
+        indicator.textContent = 'Loading...';
+      }
+      
+      // Load older messages
+      window.loadOlderMessages();
+    }
+    
+    // Remove indicator after animation
+    setTimeout(() => {
+      if (indicator) {
+        indicator.remove();
+        indicator = null;
+      }
+    }, 300);
+    
+    isPulling = false;
+  }, { passive: true });
+}
+
+/**
+ * Initialize enhanced mobile sidebar handling
+ */
+function initMobileSidebar() {
+  // This is now handled in tabManager.js
+}
+
+/**
+ * Update stats on both desktop and mobile elements
+ */
+function syncMobileStats(stats) {
+  // Update mobile stat elements
+  const mobilePromptTokens = document.getElementById('mobile-prompt-tokens');
+  const mobileCompletionTokens = document.getElementById('mobile-completion-tokens');
+  const mobileTotalTokens = document.getElementById('mobile-total-tokens');
+  const mobileTokensPerSecond = document.getElementById('mobile-tokens-per-second');
+  
+  if (mobilePromptTokens) mobilePromptTokens.textContent = stats.promptTokens || 0;
+  if (mobileCompletionTokens) mobileCompletionTokens.textContent = stats.completionTokens || 0;
+  if (mobileTotalTokens) mobileTotalTokens.textContent = stats.totalTokens || 0;
+  if (mobileTokensPerSecond) {
+    mobileTokensPerSecond.textContent = `${(stats.tokensPerSecond || 0).toFixed(1)} t/s`;
+  }
+}
 
 function initializeFontSizeControls() {
   const smallerBtn = document.getElementById('font-size-down');
@@ -354,3 +558,31 @@ function enhanceAccessibility() {
     }
   });
 }
+
+/**
+ * Detect touch capability and add appropriate classes
+ */
+function detectTouchCapability() {
+  const isTouchDevice = 
+    ('ontouchstart' in window) || 
+    (navigator.maxTouchPoints > 0) || 
+    (navigator.msMaxTouchPoints > 0);
+  
+  if (isTouchDevice) {
+    document.documentElement.classList.add('touch-device');
+    
+    // Adjust font size for better readability on mobile
+    const defaultFontSize = localStorage.getItem('fontSize') || 'text-base';
+    
+    // If no font size has been set by user, set a more readable default for mobile
+    if (!localStorage.getItem('fontSize') && window.matchMedia('(max-width: 640px)').matches) {
+      document.documentElement.classList.add('text-lg');
+      localStorage.setItem('fontSize', 'text-lg');
+    } else {
+      document.documentElement.classList.add(defaultFontSize);
+    }
+  }
+}
+
+// Call this function early in the initialization process
+detectTouchCapability();

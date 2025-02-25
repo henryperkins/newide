@@ -14,7 +14,7 @@ ssl_context.check_hostname = True
 
 # Load the root certificate
 try:
-     ssl_context.load_verify_locations("DigiCertGlobalRootCA.crt.pem")
+    ssl_context.load_verify_locations("DigiCertGlobalRootCA.crt.pem")
 except Exception as e:
     raise RuntimeError(f"Failed to load SSL certificate: {e}")
 

@@ -283,16 +283,60 @@ function createContentElement(content, role) {
 }
 
 /**
- * Generate a button that copies the underlying content to the clipboard.
+ *  Create a copy button with improved mobile support
  */
 function createCopyButton(content) {
   const button = document.createElement('button');
-  button.className =
-    'absolute top-2 right-2 text-white dark:text-gray-300 opacity-60 hover:opacity-100 focus:opacity-100 transition-opacity';
-  button.innerHTML = '[Clipboard]';
+  button.className = 'copy-button touch-action-manipulation';
+  button.innerHTML = '📋';
   button.title = 'Copy to clipboard';
-  button.onclick = () =>
-    copyToClipboard(typeof content === 'string' ? content : JSON.stringify(content));
+  
+  // Better touch event handling
+  button.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    copyToClipboard(typeof content === 'string' ? content : JSON.stringify(content))
+      .then(() => {
+        // Show success indicator
+        button.innerHTML = '✓';
+        setTimeout(() => {
+          button.innerHTML = '📋';
+        }, 1000);
+      })
+      .catch(err => {
+        console.error('Copy failed:', err);
+        // Show failure indicator
+        button.innerHTML = '❌';
+        setTimeout(() => {
+          button.innerHTML = '📋';
+        }, 1000);
+      });
+  });
+  
+  // Also handle regular click for desktop
+  button.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    copyToClipboard(typeof content === 'string' ? content : JSON.stringify(content))
+      .then(() => {
+        // Show success indicator
+        button.innerHTML = '✓';
+        setTimeout(() => {
+          button.innerHTML = '📋';
+        }, 1000);
+      })
+      .catch(err => {
+        console.error('Copy failed:', err);
+        // Show failure indicator
+        button.innerHTML = '❌';
+        setTimeout(() => {
+          button.innerHTML = '📋';
+        }, 1000);
+      });
+  });
+  
   return button;
 }
 
@@ -340,13 +384,29 @@ function applyEntranceAnimation(element) {
   });
 }
 
+/**
+ * Highlight new message with improved mobile visibility
+ */
 function highlightNewMessage(element) {
-  element.classList.add('bg-yellow-50', 'transition-colors');
-  setTimeout(() => {
-    element.classList.remove('bg-yellow-50');
-  }, 1200);
+  // More visible highlight on mobile
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  
+  if (isMobile) {
+    element.classList.add('bg-blue-50', 'dark:bg-blue-900/20', 'transition-colors', 'duration-1000');
+    setTimeout(() => {
+      element.classList.remove('bg-blue-50', 'dark:bg-blue-900/20');
+    }, 1500);
+  } else {
+    element.classList.add('bg-yellow-50', 'transition-colors');
+    setTimeout(() => {
+      element.classList.remove('bg-yellow-50');
+    }, 1200);
+  }
 }
 
+/**
+ * Improved scroll behavior for mobile
+ */
 function scheduleScroll(element) {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return;
@@ -354,17 +414,18 @@ function scheduleScroll(element) {
   const isMobile = window.matchMedia('(max-width: 768px)').matches;
   const scrollOptions = {
     behavior: 'smooth',
-    block: isMobile ? 'nearest' : 'end',
+    block: isMobile ? 'end' : 'nearest',
     inline: 'nearest'
   };
 
-  const scrollThreshold = isMobile ? 100 : 300;
+  // More generous scroll threshold on mobile
+  const scrollThreshold = isMobile ? 200 : 300;
   const fromBottom = chatHistory.scrollHeight - (chatHistory.scrollTop + chatHistory.clientHeight);
 
   if (fromBottom <= scrollThreshold) {
     setTimeout(() => {
       element.scrollIntoView(scrollOptions);
-    }, isMobile ? 50 : 100);
+    }, isMobile ? 100 : 50);
   }
 }
 

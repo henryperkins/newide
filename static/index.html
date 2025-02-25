@@ -2,7 +2,7 @@
 <html lang="en" class="h-full" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <!-- Favicon -->
     <link rel="icon" href="/static/img/favicon.ico" type="image/x-icon">
@@ -35,12 +35,27 @@
     <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:p-4 focus:bg-blue-600 focus:text-white focus:z-50">Skip to main content</a>
 
     <main class="h-screen max-w-[1400px] mx-auto bg-white dark:bg-gray-900 grid grid-rows-[auto,1fr,auto] relative">
-        <header class="flex items-center justify-between gap-4 p-2 border-b border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
-            <h1 class="text-lg font-semibold">Azure OpenAI o1 Chat</h1>
-            <div class="text-sm text-gray-600 dark:text-gray-400">
+        <header class="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 p-2 border-b border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+            <div class="flex items-center justify-between w-full md:w-auto">
+                <h1 class="text-lg font-semibold">Azure OpenAI o1 Chat</h1>
+                <!-- Mobile-only controls -->
+                <div class="flex items-center space-x-2 md:hidden">
+                    <button id="mobile-stats-toggle" aria-label="Toggle statistics" class="p-1 text-sm bg-gray-200 dark:bg-gray-700 rounded">
+                        📊
+                    </button>
+                    <button id="mobile-font-toggle" aria-label="Font size" class="p-1 text-sm bg-gray-200 dark:bg-gray-700 rounded">
+                        Aa
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Desktop-only info -->
+            <div class="hidden md:block text-sm text-gray-600 dark:text-gray-400">
                 <p><strong>Model Info:</strong> Using Azure OpenAI o1 model (no streaming)</p>
             </div>
-            <div class="performance-stats" id="performance-stats">
+            
+            <!-- Stats - hidden on mobile by default -->
+            <div class="performance-stats hidden md:flex" id="performance-stats">
                 <!-- Stats will be injected here -->
                 <div class="stat-item">
                   <span class="stat-label">Chunks</span>
@@ -51,7 +66,9 @@
                   <span class="stat-value" id="partial-tokens-value">0</span>
                 </div>
             </div>
-            <div class="flex items-center space-x-2">
+            
+            <!-- Desktop font controls -->
+            <div class="hidden md:flex items-center space-x-2">
               <button id="font-size-down"
                 class="btn-secondary"
                 title="Decrease font size">
@@ -66,6 +83,33 @@
 
             <!-- Theme toggle will be injected here by JavaScript -->
         </header>
+
+        <!-- Add mobile stats panel (initially hidden) -->
+        <div id="mobile-stats-panel" class="hidden md:hidden p-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700">
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Prompt:</span>
+                    <span id="mobile-prompt-tokens" class="font-mono">0</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Completion:</span>
+                    <span id="mobile-completion-tokens" class="font-mono">0</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Total:</span>
+                    <span id="mobile-total-tokens" class="font-mono font-medium">0</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Speed:</span>
+                    <span id="mobile-tokens-per-second" class="font-mono">0 t/s</span>
+                </div>
+            </div>
+            <!-- Mobile font controls -->
+            <div class="flex justify-center mt-2">
+                <button id="mobile-font-down" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-l-md">A-</button>
+                <button id="mobile-font-up" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-r-md">A+</button>
+            </div>
+        </div>
 
         <div class="flex flex-col h-full overflow-hidden">
             <!-- Chat History -->
@@ -86,32 +130,24 @@
 
             <!-- Input Area -->
             <section class="border-t border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                <!-- Input and Send - with dedicated styles for mobile support -->
+                <!-- Input and Send - with better touch handling -->
                 <div class="flex space-x-2 items-end p-2 relative">
                     <textarea 
                         id="user-input" 
                         placeholder="Type your message..."
                         aria-label="Your message"
                         rows="1"
-                        class="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                        class="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     ></textarea>
-                    <div class="send-button-wrapper" style="position: relative; z-index: 100;">
-                        <button 
-                            id="send-button" 
-                            type="button"
-                            class="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-md"
-                            style="min-width: 52px; min-height: 52px; touch-action: manipulation; -webkit-appearance: none;"
-                            onclick="window.universalSendMessage ? window.universalSendMessage() : null"
-                        >
-                            <span aria-hidden="true" style="font-size: 24px;">↑</span>
-                            <span class="sr-only">Send message</span>
-                        </button>
-                        <!-- Invisible touch-layer to increase tap target -->
-                        <div id="send-tap-target" 
-                            style="position: absolute; top: -15px; left: -15px; right: -15px; bottom: -15px; z-index: 101; cursor: pointer; background: rgba(255,255,255,0.01);"
-                            onclick="window.universalSendMessage ? window.universalSendMessage() : document.getElementById('send-button').click();">
-                        </div>
-                    </div>
+                    <button 
+                        id="send-button" 
+                        type="button"
+                        class="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-md touch-action-manipulation"
+                        aria-label="Send message"
+                        onclick="window.universalSendMessage ? window.universalSendMessage() : null"
+                    >
+                        <span aria-hidden="true" class="text-xl">↑</span>
+                    </button>
                 </div>
                 
                 <!-- Token Usage -->
@@ -144,8 +180,14 @@
         </div>
 
         <!-- Sidebar -->
-        <aside class="fixed top-0 right-0 h-full w-72 transform translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:relative md:z-auto bg-white dark:bg-gray-800 border-l border-gray-300 dark:border-gray-700 shadow-lg md:shadow-none">
-            <div class="flex border-b border-gray-300 dark:border-gray-700" role="tablist">
+        <aside class="fixed top-0 right-0 h-full w-80 transform translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:relative md:z-auto bg-white dark:bg-gray-800 border-l border-gray-300 dark:border-gray-700 shadow-lg md:shadow-none overflow-hidden">
+            <!-- Add close button for mobile -->
+            <button id="close-sidebar" class="absolute top-3 left-3 md:hidden p-2 rounded-full bg-gray-200 dark:bg-gray-700 z-10">
+                ✕
+            </button>
+            
+            <!-- Tab navigation - adjust for better touch targets -->
+            <div class="flex border-b border-gray-300 dark:border-gray-700 mt-12 md:mt-0" role="tablist">
                 <button 
                     class="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400" 
                     id="config-tab"
@@ -383,14 +425,17 @@
             </div>
         </aside>
 
-        <!-- Mobile Tab Toggle - moved away from send button -->
+        <!-- Add modal overlay for mobile -->
+        <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden"></div>
+
+        <!-- Adjust mobile sidebar toggle -->
         <button 
-            class="fixed top-4 right-4 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 md:hidden z-50"
-            aria-label="Toggle sidebar"
+            class="fixed bottom-24 right-4 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 md:hidden z-50"
+            aria-label="Settings"
             aria-controls="config-content files-content"
             aria-expanded="false">
-            <span class="sr-only">Toggle sidebar</span>
-            <span aria-hidden="true">📁</span>
+            <span class="sr-only">Toggle settings</span>
+            <span aria-hidden="true">⚙️</span>
         </button>
     </main>
 
@@ -521,5 +566,20 @@
     <script type="module" src="/static/js/init.js"></script>
     <script type="module" src="/static/js/chat.js"></script>
     <script type="module" src="/static/js/streaming.js"></script>
+    
+    <script>
+      // Register service worker for PWA support
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/static/js/utils/service-worker.js')
+            .then(function(registration) {
+              console.log('ServiceWorker registration successful with scope: ', registration.scope);
+            })
+            .catch(function(error) {
+              console.log('ServiceWorker registration failed: ', error);
+            });
+        });
+      }
+    </script>
 </body>
 </html>

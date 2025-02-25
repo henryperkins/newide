@@ -1,10 +1,24 @@
 // tabManager.js - Handles tab switching with Tailwind CSS
 
 /**
- * Initializes the tab functionality for the sidebar
+ * Initializes the tab functionality with improved mobile support
  */
 export function initTabSystem() {
   const tabButtons = document.querySelectorAll('[data-target-tab]');
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  
+  // Updated button classes
+  if (isMobile) {
+    tabButtons.forEach(button => {
+      button.classList.add('tab-button');
+      
+      if (button.getAttribute('aria-selected') === 'true') {
+        button.classList.add('tab-active');
+      } else {
+        button.classList.add('tab-inactive');
+      }
+    });
+  }
   
   // Add arrow-key navigation
   tabButtons.forEach((button, index) => {
@@ -33,7 +47,7 @@ export function initTabSystem() {
 }
 
 /**
- * Handles changing the active tab
+ * Handles changing the active tab with improved mobile classes
  * @param {HTMLElement} clickedTab The tab button that was clicked
  */
 function handleTabChange(clickedTab) {
@@ -47,8 +61,8 @@ function handleTabChange(clickedTab) {
   // Deactivate all tabs
   allTabButtons.forEach(button => {
     // Remove active styles and add inactive styles
-    button.classList.remove('border-blue-600', 'text-blue-600', 'dark:text-blue-400', 'dark:border-blue-400');
-    button.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'dark:text-gray-400', 'dark:hover:text-gray-200');
+    button.classList.remove('border-blue-600', 'text-blue-600', 'dark:text-blue-400', 'dark:border-blue-400', 'tab-active');
+    button.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'dark:text-gray-400', 'dark:hover:text-gray-200', 'tab-inactive');
     button.setAttribute('aria-selected', 'false');
   });
   
@@ -59,8 +73,8 @@ function handleTabChange(clickedTab) {
   });
   
   // Activate clicked tab
-  clickedTab.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'dark:text-gray-400', 'dark:hover:text-gray-200');
-  clickedTab.classList.add('border-blue-600', 'text-blue-600', 'dark:text-blue-400', 'dark:border-blue-400');
+  clickedTab.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'dark:text-gray-400', 'dark:hover:text-gray-200', 'tab-inactive');
+  clickedTab.classList.add('border-blue-600', 'text-blue-600', 'dark:text-blue-400', 'dark:border-blue-400', 'tab-active');
   clickedTab.setAttribute('aria-selected', 'true');
   
   // Show corresponding content
@@ -72,65 +86,91 @@ function handleTabChange(clickedTab) {
 }
 
 /**
- * Sets up the mobile sidebar toggle functionality
+ * Initialize enhanced mobile sidebar handling
  */
 function initMobileSidebarToggle() {
-  const toggleButton = document.querySelector('[aria-controls="config-content files-content"]');
-  if (!toggleButton) return;
-  
   const sidebar = document.querySelector('aside');
-  if (!sidebar) return;
+  const overlay = document.getElementById('sidebar-overlay');
+  const toggleButton = document.querySelector('[aria-controls="config-content files-content"]');
+  const closeButton = document.getElementById('close-sidebar');
   
-  toggleButton.addEventListener('click', () => {
-    // Toggle sidebar visibility
-    const isVisible = sidebar.classList.contains('translate-x-0');
-    
-    if (isVisible) {
-      // Hide sidebar
-      sidebar.classList.remove('translate-x-0');
+  if (!sidebar || !overlay || !toggleButton) return;
+  
+  // Close button handling
+  if (closeButton) {
+    closeButton.addEventListener('click', () => {
       sidebar.classList.add('translate-x-full');
+      sidebar.classList.remove('translate-x-0');
+      overlay.classList.add('hidden');
       toggleButton.setAttribute('aria-expanded', 'false');
-      
-      // Add overlay if it exists
-      const overlay = document.getElementById('sidebar-overlay');
-      if (overlay) overlay.classList.add('hidden');
-
-      // Return focus to toggle after closing
-      toggleButton.focus();
+    });
+  }
+  
+  // Enhance existing toggle button functionality
+  toggleButton.addEventListener('click', () => {
+    const isExpanded = toggleButton.getAttribute('aria-expanded') === 'true';
+    
+    if (isExpanded) {
+      sidebar.classList.add('translate-x-full');
+      sidebar.classList.remove('translate-x-0');
+      overlay.classList.add('hidden');
     } else {
-      // Show sidebar
       sidebar.classList.remove('translate-x-full');
       sidebar.classList.add('translate-x-0');
-      toggleButton.setAttribute('aria-expanded', 'true');
-
-      // Move focus to first tab button after opening
-      const firstTabButton = sidebar.querySelector('[data-target-tab]');
-      if (firstTabButton) {
-        setTimeout(() => {
-          firstTabButton.focus();
-        }, 150);
-      }
-      
-      // Check if overlay exists, if not create it
-      let overlay = document.getElementById('sidebar-overlay');
-      if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'sidebar-overlay';
-        overlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden transition-opacity duration-300';
-        document.body.appendChild(overlay);
-        
-        // Close sidebar when clicking outside
-        overlay.addEventListener('click', () => {
-          sidebar.classList.remove('translate-x-0');
-          sidebar.classList.add('translate-x-full');
-          toggleButton.setAttribute('aria-expanded', 'false');
-          overlay.classList.add('hidden');
-        });
-      } else {
-        overlay.classList.remove('hidden');
-      }
+      overlay.classList.remove('hidden');
     }
+    
+    toggleButton.setAttribute('aria-expanded', !isExpanded);
   });
+  
+  // Close sidebar when overlay is clicked
+  overlay.addEventListener('click', () => {
+    sidebar.classList.add('translate-x-full');
+    sidebar.classList.remove('translate-x-0');
+    overlay.classList.add('hidden');
+    toggleButton.setAttribute('aria-expanded', 'false');
+  });
+  
+  // Handle swipe to close
+  let startX, startY;
+  sidebar.addEventListener('touchstart', (e) => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+  
+  sidebar.addEventListener('touchmove', (e) => {
+    if (!startX) return;
+    
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const diffX = currentX - startX;
+    const diffY = currentY - startY;
+    
+    // Only handle horizontal swipes (ignore more vertical swipes)
+    if (Math.abs(diffX) > Math.abs(diffY) && diffX > 50) {
+      sidebar.style.transform = `translateX(${diffX}px)`;
+    }
+  }, { passive: true });
+  
+  sidebar.addEventListener('touchend', (e) => {
+    if (!startX) return;
+    
+    const currentX = e.changedTouches[0].clientX;
+    const diffX = currentX - startX;
+    
+    if (diffX > 100) {
+      // Close the sidebar if swiped right enough
+      sidebar.classList.add('translate-x-full');
+      sidebar.classList.remove('translate-x-0');
+      overlay.classList.add('hidden');
+      toggleButton.setAttribute('aria-expanded', 'false');
+    }
+    
+    // Reset transform
+    sidebar.style.transform = '';
+    startX = null;
+    startY = null;
+  }, { passive: true });
   
   // Handle resize events to ensure proper sidebar state on desktop
   window.addEventListener('resize', () => {
@@ -140,7 +180,6 @@ function initMobileSidebarToggle() {
       sidebar.classList.add('md:translate-x-0');
       
       // Hide overlay
-      const overlay = document.getElementById('sidebar-overlay');
       if (overlay) overlay.classList.add('hidden');
     }
   });
