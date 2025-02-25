@@ -138,6 +138,12 @@ AZURE_OPENAI_API_KEY = settings.AZURE_OPENAI_API_KEY
 AZURE_OPENAI_API_VERSION = settings.AZURE_OPENAI_API_VERSION
 # MODEL_CONFIGS has been removed from config.py and should be loaded from a database or external config.
 
+# Validate that the endpoints are set
+if not AZURE_OPENAI_ENDPOINT:
+    logger.warning("AZURE_OPENAI_ENDPOINT is not set. This will cause issues with o-series models.")
+if not AZURE_INFERENCE_ENDPOINT:
+    logger.warning("AZURE_INFERENCE_ENDPOINT is not set. This will cause issues with DeepSeek models.")
+
 O_SERIES_BASE_TIMEOUT = settings.O_SERIES_BASE_TIMEOUT
 O_SERIES_MAX_TIMEOUT = settings.O_SERIES_MAX_TIMEOUT
 O_SERIES_TOKEN_FACTOR = settings.O_SERIES_TOKEN_FACTOR

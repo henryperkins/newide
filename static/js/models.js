@@ -57,7 +57,7 @@ class ModelManager {
             const o1Model = {
                 name: "o1hp",
                 description: "Advanced reasoning model for complex tasks",
-                azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
+                azure_endpoint: config.AZURE_OPENAI_ENDPOINT || "https://aoai-east-2272068338224.cognitiveservices.azure.com",
                 api_version: "2025-01-01-preview",
                 max_tokens: 40000,
                 supports_temperature: false,

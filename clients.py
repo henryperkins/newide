@@ -156,6 +156,15 @@ class ClientPool:
             # Initialize clients from configs
             for model_name, model_config in db_model_configs.items():
                 try:
+                    # Ensure azure_endpoint is set
+                    if not model_config.get("azure_endpoint"):
+                        if model_name.lower() == "deepseek-r1":
+                            model_config["azure_endpoint"] = config.AZURE_INFERENCE_ENDPOINT
+                            logger.info(f"Using default AZURE_INFERENCE_ENDPOINT for {model_name}")
+                        else:
+                            model_config["azure_endpoint"] = config.AZURE_OPENAI_ENDPOINT
+                            logger.info(f"Using default AZURE_OPENAI_ENDPOINT for {model_name}")
+                    
                     # Create client with configuration from database
                     self._clients[model_name] = self._create_client(model_name, model_config)
                     
@@ -212,6 +221,11 @@ class ClientPool:
             endpoint = model_config.get("azure_endpoint", config.AZURE_OPENAI_ENDPOINT)
             api_version = model_config.get("api_version", config.AZURE_OPENAI_API_VERSION)
 
+        # Validate endpoint is not None
+        if not endpoint:
+            logger.error(f"No Azure endpoint configured for model '{model_name}'")
+            raise ValueError(f"Missing Azure endpoint for model '{model_name}'")
+
         def ensure_protocol(url: str) -> str:
             """Guarantee endpoint URLs have a protocol prefix"""
             if not url.startswith(("http://", "https://")):
@@ -253,11 +267,23 @@ class ClientPool:
             logger.warning(
                 f"[ClientPool] Client not found for model '{model_name}'. Attempting fallback to default."
             )
+            # Try the default model first
             client = self._clients.get(config.AZURE_OPENAI_DEPLOYMENT_NAME)
+            
+            # If default model is not available, use any available client
+            if not client and self._clients:
+                available_models = list(self._clients.keys())
+                logger.warning(
+                    f"[ClientPool] Default client '{config.AZURE_OPENAI_DEPLOYMENT_NAME}' not available. "
+                    f"Using '{available_models[0]}' as fallback."
+                )
+                client = self._clients[available_models[0]]
+                
+            # If still no client, raise error
             if not client:
                 available = list(self._clients.keys())
                 raise ValueError(
-                    f"No default AzureOpenAI client available for '{model_name}' "
+                    f"No AzureOpenAI client available for '{model_name}' "
                     f"or fallback '{config.AZURE_OPENAI_DEPLOYMENT_NAME}'.\n"
                     f"Initialized clients: {available}\n"
                     f"Verify that 'model_configs' in the DB includes an entry for '{model_name}' or the default."
