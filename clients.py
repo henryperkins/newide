@@ -2,6 +2,8 @@
 import os
 import asyncio
 from typing import Dict, Optional, Any
+from urllib.parse import urlparse
+import socket
 
 from openai import AzureOpenAI
 from logging_config import logger
@@ -218,6 +220,16 @@ class ClientPool:
             return url
 
         endpoint = ensure_protocol(endpoint)
+        
+        # Debug DNS resolution
+        parsed = urlparse(endpoint)
+        logger.info(f"Resolving DNS for: {parsed.hostname}")
+        try:
+            ip = socket.gethostbyname(parsed.hostname)
+            logger.info(f"Resolved {parsed.hostname} → {ip}")
+        except socket.gaierror as e:
+            logger.error(f"DNS resolution failed for {parsed.hostname}: {str(e)}")
+            raise
         
         return AzureOpenAI(
             api_key=api_key,
