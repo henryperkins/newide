@@ -307,24 +307,38 @@ async def generate_stream_chunks(
 
     model_config = config.MODEL_CONFIGS.get(model_name, {})  # Safe get and default
 
+    # Check if this is an o-series model (reasoning model)
+    is_o_series = model_name.lower().startswith('o1') or model_name.lower().startswith('o3')
+
     params = {
         "messages": [{"role": "user", "content": message}],
+        "model": model_name,
         "stream": True,
-        "max_tokens": model_config.get("max_tokens", 4096),  # Safe get
     }
 
-    # If the model supports temperature, pass it; otherwise, use reasoning_effort
-    if model_config.get("supports_temperature", True):  # Safe get
-        params["temperature"] = 0.7  # Example default; consider making this configurable
-    else:
+    if is_o_series or not model_config.get("supports_temperature", True):
+        # For o-series models, use reasoning_effort and max_completion_tokens
         params["reasoning_effort"] = reasoning_effort
+        params["max_completion_tokens"] = model_config.get("max_tokens", 4096)
+        
+        # For o-series models, add a developer message with formatting re-enabled
+        params["messages"].insert(0, {
+            "role": "developer",
+            "content": "Formatting re-enabled - use markdown code blocks."
+        })
+    else:
+        # For standard models, use temperature and max_tokens
+        params["temperature"] = 0.7  # Example default; consider making this configurable
+        params["max_tokens"] = model_config.get("max_tokens", 4096)
 
     full_content = ""
 
     try:
-        response = await client.chat.completions.create(**params)
+        # Call the OpenAI API synchronously (without await)
+        response = client.chat.completions.create(**params)
 
-        async for chunk in response:
+        # Process the response chunks
+        for chunk in response:
             response_data = {
                 "id": f"chatcmpl-{uuid.uuid4()}",
                 "object": "chat.completion.chunk",

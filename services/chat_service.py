@@ -180,7 +180,7 @@ async def process_chat_message(
         # Consider truncating older messages or summarizing them if needed.
 
     # Build AzureOpenAI request parameters
-    params = {"messages": messages, "stream": False}  # Non-streaming by default
+    params = {"messages": messages, "model": model_name, "stream": False}  # Non-streaming by default
 
     # Configure model parameters
     # First try to get model config from database
@@ -193,18 +193,32 @@ async def process_chat_message(
         
     # Use database config if available, otherwise fall back to config.MODEL_CONFIGS
     model_config = db_model_configs.get(model_name, {}) if db_model_configs else {}
-    if model_config.get("supports_temperature", True):
-        # Fallback to 0.7 if user hasn't provided it
+    
+    # Check if this is an o-series model (reasoning model)
+    is_o_series = model_name.lower().startswith('o1') or model_name.lower().startswith('o3')
+    
+    if is_o_series or not model_config.get("supports_temperature", True):
+        # For o-series models, use reasoning_effort and max_completion_tokens
+        reasoning_effort = getattr(chat_message, "reasoning_effort", "medium")
+        params["reasoning_effort"] = reasoning_effort
+        
+        max_completion_tokens = getattr(chat_message, "max_completion_tokens", 4096)
+        params["max_completion_tokens"] = max_completion_tokens
+        
+        # For o-series models, we need to use developer role instead of system
+        if messages and messages[0].get("role") == "system":
+            messages[0]["role"] = "developer"
+            
+        # Add formatting re-enabled to developer message if not already present
+        if messages and messages[0].get("role") == "developer" and not messages[0].get("content", "").startswith("Formatting re-enabled"):
+            messages[0]["content"] = "Formatting re-enabled - use markdown code blocks. " + messages[0].get("content", "")
+    else:
+        # For standard models, use temperature and max_tokens
         params["temperature"] = (
             chat_message.temperature if chat_message.temperature is not None else 0.7
         )
         max_completion_tokens = getattr(chat_message, "max_completion_tokens", 1024)
-        params["max_tokens"] = min(max_completion_tokens, model_config["max_tokens"])
-    else:
-        # If not supporting temperature, maybe it uses something else, e.g. reasoning_effort
-        reasoning_effort = getattr(chat_message, "reasoning_effort", "medium")
-        params["reasoning_effort"] = reasoning_effort
-        params["max_tokens"] = model_config.get("max_tokens", 40000)
+        params["max_tokens"] = min(max_completion_tokens, model_config.get("max_tokens", 4096))
 
     # If user wants file context or additional data, inject here
     if getattr(chat_message, "include_files", False) and chat_message.file_ids:
@@ -218,7 +232,8 @@ async def process_chat_message(
     # Call to AzureOpenAI
     # ----------------------------------------------------------------------
     try:
-        response = await azure_client.chat.completions.create(**params)
+        # Call the OpenAI API synchronously (without await)
+        response = azure_client.chat.completions.create(**params)
     except OpenAIError as e:
         logger.exception(
             f"[session {session_id}] AzureOpenAI API call failed: {str(e)}"
@@ -251,7 +266,7 @@ async def process_chat_message(
             code="internal_server_error",
             message="An unexpected error occurred during processing.",
             error_type="internal_server_error",
-            inner_error="Internal server error" # Don't expose actual error details externally
+            inner_error="Internal server error"  # Don't expose actual error details externally
         )
         raise ValueError(err["detail"])
 
@@ -269,7 +284,15 @@ async def process_chat_message(
     await save_conversation(db_session, session_id, model_name, user_content, content)
 
     # Prepare a response in the style of ChatCompletionResponse
-    usage_info = getattr(response, "usage", {}) or {}
+    usage_raw = getattr(response, "usage", None)
+    usage_data = {}
+    if usage_raw:
+        usage_data = {
+            "prompt_tokens": getattr(usage_raw, "prompt_tokens", 0),
+            "completion_tokens": getattr(usage_raw, "completion_tokens", 0),
+            "total_tokens": getattr(usage_raw, "total_tokens", 0),
+        }
+    
     resp_data = {
         "id": f"chatcmpl-{uuid.uuid4()}",
         "object": "chat.completion",
@@ -282,11 +305,7 @@ async def process_chat_message(
                 "finish_reason": "stop",
             }
         ],
-        "usage": {
-            "prompt_tokens": usage_info.get("prompt_tokens", 0),
-            "completion_tokens": usage_info.get("completion_tokens", 0),
-            "total_tokens": usage_info.get("total_tokens", 0),
-        },
+        "usage": usage_data,
     }
 
     return resp_data

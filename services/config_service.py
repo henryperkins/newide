@@ -83,6 +83,39 @@ class ConfigService:
             logger.error(f"Error listing configs: {str(e)}")
             await self.db.rollback()
             return []
+            
+    async def get_model_configs(self) -> Dict[str, Any]:
+        """Get all model configurations"""
+        return await self.get_config("model_configs") or {}
+
+    async def get_model_config(self, model_id: str) -> Optional[Dict[str, Any]]:
+        """Get configuration for a specific model"""
+        models = await self.get_model_configs()
+        return models.get(model_id)
+
+    async def add_model_config(self, model_id: str, config: Dict[str, Any]) -> bool:
+        """Add a new model configuration"""
+        models = await self.get_model_configs()
+        if model_id in models:
+            return False
+        models[model_id] = config
+        return await self.set_config("model_configs", models, "Model configurations", is_secret=True)
+
+    async def update_model_config(self, model_id: str, config: Dict[str, Any]) -> bool:
+        """Update an existing model configuration"""
+        models = await self.get_model_configs()
+        if model_id not in models:
+            return False
+        models[model_id] = config
+        return await self.set_config("model_configs", models, "Model configurations", is_secret=True)
+
+    async def delete_model_config(self, model_id: str) -> bool:
+        """Delete a model configuration"""
+        models = await self.get_model_configs()
+        if model_id not in models:
+            return False
+        del models[model_id]
+        return await self.set_config("model_configs", models, "Model configurations", is_secret=True)
 
 def get_config_service(db=Depends(get_db_session)):
     """

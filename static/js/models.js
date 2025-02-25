@@ -27,22 +27,21 @@ class ModelManager {
 
     async initialize() {
         try {
-            // Get available models from server
+            // Get available models from server instead of hardcoded defaults
             const response = await fetch('/api/config/models');
             if (response.ok) {
                 const serverModels = await response.json();
-                // Merge server configurations with local defaults
-                this.modelConfigs = {
-                    ...this.modelConfigs,
-                    ...serverModels
-                };
+                this.modelConfigs = serverModels;
+            } else {
+                console.error('Error fetching model configurations:', await response.text());
             }
         } catch (error) {
-            console.error('Error fetching model configurations:', error);
+            console.error('Error initializing models:', error);
         }
 
         // Create model selector UI
         this.createModelSelector();
+        this.initModelManagement();
         
         // Initialize stats display using dynamic import
         import('./ui/statsDisplay.js').then(({ default: StatsDisplay }) => {
@@ -50,6 +49,255 @@ class ModelManager {
         }).catch(error => {
             console.error('Error loading stats display:', error);
         });
+    }
+    
+    // Add model management initialization
+    initModelManagement() {
+        // Set up the models tab UI
+        const addModelBtn = document.getElementById('add-model-btn');
+        const modelForm = document.getElementById('model-form');
+        const cancelBtn = document.getElementById('model-form-cancel');
+        
+        if (addModelBtn) {
+            addModelBtn.addEventListener('click', () => this.showModelForm('add'));
+        }
+        
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => this.hideModelForm());
+        }
+        
+        if (modelForm) {
+            modelForm.addEventListener('submit', (e) => this.handleModelFormSubmit(e));
+        }
+        
+        // Initialize models list
+        this.refreshModelsList();
+    }
+    
+    // Add method to show the model form
+    showModelForm(mode, modelId = null) {
+        const formContainer = document.getElementById('model-form-container');
+        const formTitle = document.getElementById('model-form-title');
+        const formMode = document.getElementById('model-form-mode');
+        const formIdField = document.getElementById('model-form-id');
+        
+        if (!formContainer || !formTitle || !formMode || !formIdField) return;
+        
+        // Reset form
+        document.getElementById('model-form').reset();
+        
+        // Set form mode and title
+        formMode.value = mode;
+        formTitle.textContent = mode === 'add' ? 'Add New Model' : 'Edit Model';
+        
+        // If editing, populate form with existing data
+        if (mode === 'edit' && modelId && this.modelConfigs[modelId]) {
+            const config = this.modelConfigs[modelId];
+            formIdField.value = modelId;
+            
+            // Populate form fields
+            document.getElementById('model-name').value = modelId;
+            document.getElementById('model-name').disabled = true; // Can't change ID when editing
+            document.getElementById('model-description').value = config.description || '';
+            document.getElementById('model-endpoint').value = config.azure_endpoint || '';
+            document.getElementById('model-api-version').value = config.api_version || '2025-01-01-preview';
+            document.getElementById('model-max-tokens').value = config.max_tokens || 4096;
+            document.getElementById('model-supports-temperature').checked = config.supports_temperature || false;
+            document.getElementById('model-supports-streaming').checked = config.supports_streaming || false;
+        } else {
+            // Clear ID field for new model
+            formIdField.value = '';
+            document.getElementById('model-name').disabled = false;
+        }
+        
+        // Show form
+        formContainer.classList.remove('hidden');
+    }
+    
+    // Add method to hide the model form
+    hideModelForm() {
+        const formContainer = document.getElementById('model-form-container');
+        if (formContainer) {
+            formContainer.classList.add('hidden');
+        }
+    }
+    
+    // Add method to handle form submission
+    async handleModelFormSubmit(e) {
+        e.preventDefault();
+        
+        const formMode = document.getElementById('model-form-mode').value;
+        const formIdField = document.getElementById('model-form-id');
+        const modelId = formMode === 'add' 
+            ? document.getElementById('model-name').value
+            : formIdField.value;
+            
+        // Collect form data
+        const modelData = {
+            name: modelId,
+            description: document.getElementById('model-description').value,
+            azure_endpoint: document.getElementById('model-endpoint').value,
+            api_version: document.getElementById('model-api-version').value,
+            max_tokens: parseInt(document.getElementById('model-max-tokens').value, 10),
+            supports_temperature: document.getElementById('model-supports-temperature').checked,
+            supports_streaming: document.getElementById('model-supports-streaming').checked,
+            // Default values
+            base_timeout: 120.0,
+            max_timeout: 300.0,
+            token_factor: 0.05
+        };
+        
+        try {
+            // API endpoint changes based on add vs. edit
+            const url = `/api/config/models/${modelId}`;
+            const method = formMode === 'add' ? 'POST' : 'PUT';
+            
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(modelData)
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                console.log(`Model ${formMode === 'add' ? 'created' : 'updated'}:`, result);
+                
+                // Refresh models and hide form
+                await this.refreshModelsList();
+                this.hideModelForm();
+                
+                // Show success message
+                alert(`Model ${modelId} ${formMode === 'add' ? 'created' : 'updated'} successfully.`);
+            } else {
+                const error = await response.json();
+                alert(`Error: ${error.detail || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('Error submitting model form:', error);
+            alert('An error occurred. Please check console for details.');
+        }
+    }
+    
+    // Add method to refresh models list
+    async refreshModelsList() {
+        const listContainer = document.getElementById('models-list');
+        if (!listContainer) return;
+        
+        // Show loading state
+        listContainer.innerHTML = '<div class="text-gray-500 dark:text-gray-400 text-sm">Loading models...</div>';
+        
+        try {
+            // Fetch latest models
+            const response = await fetch('/api/config/models');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const models = await response.json();
+            this.modelConfigs = models; // Update local cache
+            
+            // Clear container
+            listContainer.innerHTML = '';
+            
+            // Create card for each model
+            if (Object.keys(models).length === 0) {
+                listContainer.innerHTML = '<div class="text-gray-500 dark:text-gray-400 text-sm">No models configured.</div>';
+                return;
+            }
+            
+            for (const [id, config] of Object.entries(models)) {
+                const card = document.createElement('div');
+                card.className = 'border border-gray-200 dark:border-gray-700 rounded-md p-3 bg-white dark:bg-gray-700';
+                
+                // Check if this is the default model
+                const isDefault = id === 'o1hp'; // This should match the default from config.py
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="font-medium">
+                                ${id}
+                                ${isDefault ? '<span class="ml-2 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">Default</span>' : ''}
+                            </h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">${config.description || 'No description'}</p>
+                        </div>
+                        <div class="flex space-x-1">
+                            <button class="edit-model-btn p-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300" data-model-id="${id}">
+                                <span aria-hidden="true">✏️</span>
+                                <span class="sr-only">Edit</span>
+                            </button>
+                            ${!isDefault ? `
+                                <button class="delete-model-btn p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300" data-model-id="${id}">
+                                    <span aria-hidden="true">🗑️</span>
+                                    <span class="sr-only">Delete</span>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div class="mt-2 grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                            <span class="text-gray-500 dark:text-gray-400">Max Tokens:</span>
+                            <span>${config.max_tokens}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 dark:text-gray-400">API Version:</span>
+                            <span>${config.api_version}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 dark:text-gray-400">Streaming:</span>
+                            <span>${config.supports_streaming ? 'Yes' : 'No'}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 dark:text-gray-400">Temperature:</span>
+                            <span>${config.supports_temperature ? 'Yes' : 'No'}</span>
+                        </div>
+                    </div>
+                `;
+                
+                listContainer.appendChild(card);
+            }
+            
+            // Add event listeners to edit/delete buttons
+            listContainer.querySelectorAll('.edit-model-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const modelId = btn.getAttribute('data-model-id');
+                    this.showModelForm('edit', modelId);
+                });
+            });
+            
+            listContainer.querySelectorAll('.delete-model-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const modelId = btn.getAttribute('data-model-id');
+                    
+                    if (confirm(`Are you sure you want to delete the model "${modelId}"?`)) {
+                        await this.deleteModel(modelId);
+                    }
+                });
+            });
+        } catch (error) {
+            console.error('Error refreshing models list:', error);
+            listContainer.innerHTML = '<div class="text-red-500 dark:text-red-400">Error loading models. See console for details.</div>';
+        }
+    }
+    
+    // Add method to delete a model
+    async deleteModel(modelId) {
+        try {
+            const response = await fetch(`/api/config/models/${modelId}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                await this.refreshModelsList();
+                alert(`Model ${modelId} deleted successfully.`);
+            } else {
+                const error = await response.json();
+                alert(`Error: ${error.detail || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('Error deleting model:', error);
+            alert('An error occurred while deleting the model.');
+        }
     }
 
     createModelSelector() {
@@ -146,10 +394,11 @@ class ModelManager {
         const modelConfig = this.modelConfigs[modelId];
         
         // Update chat interface based on model capabilities
+        const reasoningControls = document.getElementById('reasoning-controls');
         if (modelConfig.isReasoningModel) {
-            document.getElementById('reasoning-controls')?.style.display = 'block';
+            if (reasoningControls) reasoningControls.style.display = 'block';
         } else {
-            document.getElementById('reasoning-controls')?.style.display = 'none';
+            if (reasoningControls) reasoningControls.style.display = 'none';
         }
     }
 

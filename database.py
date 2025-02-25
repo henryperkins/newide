@@ -60,10 +60,12 @@ class Conversation(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(PGUUID, ForeignKey("sessions.id", ondelete='CASCADE'), nullable=False)
+    user_id = Column(PGUUID, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"))
     system_fingerprint = Column(String(64))
+    model = Column(String(50), nullable=True)
     prompt_filter_results = Column(JSONB)
     content_filter_results = Column(JSONB)
     model_version = Column(String(50))  # Stores the model version from API response

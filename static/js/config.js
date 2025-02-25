@@ -158,6 +158,36 @@ export async function updateConfig(key, value) {
 }
 
 
+// Add methods to get model configurations
+export async function getModelConfigurations() {
+  try {
+    const response = await fetch('/api/config/models');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching model configurations:', error);
+    return {};
+  }
+}
+
+export async function getModelConfiguration(modelId) {
+  try {
+    const response = await fetch(`/api/config/models/${modelId}`);
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching configuration for model ${modelId}:`, error);
+    return null;
+  }
+}
+
 export async function getModelSettings() {
     try {
         const current = await getCurrentConfig();
