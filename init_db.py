@@ -25,8 +25,9 @@ async def init_database():
                 id UUID PRIMARY KEY,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP WITH TIME ZONE,
                 last_model VARCHAR(50),
-                metadata JSONB
+                session_metadata JSONB
             )
         """))
 
@@ -44,12 +45,17 @@ async def init_database():
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS conversations (
                 id SERIAL PRIMARY KEY,
-                session_id UUID REFERENCES sessions(id),
-                role VARCHAR(50) NOT NULL,
+                session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
+                user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                role VARCHAR(20) NOT NULL,
                 content TEXT NOT NULL,
-                model VARCHAR(50),
                 timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                metadata JSONB
+                system_fingerprint VARCHAR(64),
+                model VARCHAR(50),
+                prompt_filter_results JSONB,
+                content_filter_results JSONB,
+                model_version VARCHAR(50),
+                service_tier VARCHAR(50)
             )
         """))
 
@@ -57,14 +63,18 @@ async def init_database():
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS uploaded_files (
                 id UUID PRIMARY KEY,
-                session_id UUID REFERENCES sessions(id),
-                filename VARCHAR(255) NOT NULL,
-                content TEXT,
-                status VARCHAR(50),
-                chunk_count INTEGER,
-                metadata JSONB,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
+                filename TEXT NOT NULL,
+                content TEXT NOT NULL,
+                size BIGINT NOT NULL DEFAULT 0,
+                upload_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                file_type VARCHAR(50),
+                status VARCHAR(20) DEFAULT 'ready',
+                chunk_count INTEGER DEFAULT 1,
+                token_count INTEGER,
+                embedding_id VARCHAR(255),
+                file_metadata JSONB,
+                azure_status VARCHAR(20)
             )
         """))
 
@@ -92,7 +102,7 @@ async def init_database():
                 reasoning_tokens INTEGER,
                 cached_tokens INTEGER,
                 timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                metadata JSONB
+                usage_metadata JSONB
             )
         """))
 
@@ -124,32 +134,38 @@ async def init_database():
         for stmt in index_statements:
             await conn.execute(text(stmt))
         
-        # Finally insert/update config for "o1hp" using environment variables
+        # Insert model configuration in the format expected by ClientPool
         import json
         import os
         
-        o1hp_config = {
-            "max_tokens": 40000, 
-            "supports_streaming": False, 
-            "supports_temperature": False, 
-            "base_timeout": 120.0, 
-            "api_version": os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
-            "api_key": ""  # Never store API keys in database
+        # Create a model_configs entry with o1hp as a key
+        model_configs = {
+            "o1hp": {
+                "max_tokens": 40000, 
+                "supports_streaming": False, 
+                "supports_temperature": False, 
+                "base_timeout": 120.0, 
+                "max_timeout": 300.0,
+                "token_factor": 0.05,
+                "api_version": os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
+                "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT", ""),
+                "api_key": ""  # Never store API keys in database
+            }
         }
         
         await conn.execute(text("""
             INSERT INTO app_configurations (key, value, description, is_secret)
             VALUES (
-                'model.o1hp',
+                'model_configs',
                 :config_value,
-                'Azure O1HP model config',
+                'Azure OpenAI model configurations',
                 true
             )
             ON CONFLICT (key) DO UPDATE
             SET value = EXCLUDED.value,
                 description = EXCLUDED.description,
                 is_secret = EXCLUDED.is_secret
-        """), {"config_value": json.dumps(o1hp_config)})
+        """), {"config_value": json.dumps(model_configs)})
 
 if __name__ == "__main__":
     asyncio.run(init_database())
