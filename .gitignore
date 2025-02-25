@@ -24,3 +24,4 @@ logs/
 .env.*.local
 .env.production
 .aider*
+opt/google/chrome/chrome
