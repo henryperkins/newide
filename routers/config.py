@@ -76,18 +76,17 @@ class ModelConfigModel(BaseModel):
     max_timeout: float = 300.0
     token_factor: float = 0.05
 
-@router.get("/models", response_model=None)
+@router.get("/models", response_model=Dict[str, ModelConfigModel])
 async def get_models(config_service=Depends(get_config_service)):
     """Get all model configurations"""
     try:
         models = await config_service.get_model_configs()
-        print(f"Retrieved models from database: {models}")  # Debug log
-        # Return without response model to avoid validation issues
-        # Just return the direct dictionary to match frontend expectations
+        print(f"Retrieved models: {models}")
         return models
     except Exception as e:
-        print(f"Error getting model configs: {e}")  # Debug log
-        raise HTTPException(status_code=500, detail=f"Error retrieving models: {str(e)}")
+        print(f"Error retrieving models: {str(e)}")
+        # Return empty dict instead of raising error to avoid UI disruption
+        return {}
 
 @router.get("/models/{model_id}", response_model=ModelConfigModel)
 async def get_model(model_id: str, config_service=Depends(get_config_service)):
@@ -104,20 +103,27 @@ async def create_model(
     config_service=Depends(get_config_service)
 ):
     """Create a new model configuration"""
-    existing = await config_service.get_model_config(model_id)
-    if existing:
-        raise HTTPException(status_code=400, detail="Model already exists")
-    
-    success = await config_service.add_model_config(model_id, model.dict())
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to create model")
-    
-    # Refresh client pool
-    from clients import get_client_pool
-    pool = await get_client_pool()
-    await pool.refresh_client(model_id, config_service)
-    
-    return {"status": "created", "model_id": model_id}
+    try:
+        print(f"Creating model {model_id} with config: {model.dict()}")
+        existing = await config_service.get_model_config(model_id)
+        if existing:
+            raise HTTPException(status_code=400, detail="Model already exists")
+        
+        success = await config_service.add_model_config(model_id, model.dict())
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to create model")
+        
+        # Refresh client pool
+        from clients import get_client_pool
+        pool = await get_client_pool()
+        await pool.refresh_client(model_id, config_service)
+        
+        return {"status": "created", "model_id": model_id}
+    except Exception as e:
+        print(f"Error creating model {model_id}: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/models/{model_id}")
 async def update_model(

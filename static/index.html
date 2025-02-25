@@ -22,6 +22,7 @@
     <link rel="manifest" href="/static/site.webmanifest">
 
     <!-- Core Modules -->
+    <script type="module" defer src="/static/js/debugging.js"></script>
     <script type="module" defer src="/static/js/session.js"></script>
     <script type="module" defer src="/static/js/config.js"></script>
     <script type="module" defer src="/static/js/models.js"></script>
@@ -358,21 +359,21 @@
             
             <!-- Model Management Panel -->
             <div id="models-content" class="h-full overflow-y-auto p-4 hidden" role="tabpanel" aria-hidden="true">
-                <div class="space-y-6">
-                    <div class="flex justify-between items-center">
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center mb-4">
                         <h2 class="text-lg font-semibold">Model Management</h2>
-                        <button id="add-model-btn" class="btn-primary text-sm px-3 py-1">
-                            Add Model
+                        <button id="add-model-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md shadow-sm touch-action-manipulation">
+                            <span>Add Model</span>
                         </button>
                     </div>
                     
+                    <!-- Models list - Content will be populated by JavaScript -->
                     <div id="models-list" class="space-y-2">
-                        <!-- Model cards will be populated here -->
-                        <div class="text-gray-500 dark:text-gray-400 text-sm">Loading models...</div>
+                        <div class="text-gray-500 dark:text-gray-400 text-sm p-4 text-center">Loading models...</div>
                     </div>
                     
-                    <!-- Add/Edit Model Form (initially hidden) -->
-                    <div id="model-form-container" class="hidden border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-gray-50 dark:bg-gray-800">
+                    <!-- Model form container - Initially hidden -->
+                    <div id="model-form-container" class="hidden border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-gray-50 dark:bg-gray-800 shadow-md">
                         <h3 class="text-md font-medium mb-3" id="model-form-title">Add New Model</h3>
                         <form id="model-form" class="space-y-3">
                             <input type="hidden" id="model-form-mode" value="add">
@@ -380,44 +381,44 @@
                             
                             <div>
                                 <label for="model-name" class="block text-sm font-medium">Model ID/Name</label>
-                                <input type="text" id="model-name" class="form-input mt-1" required>
+                                <input type="text" id="model-name" class="form-input w-full p-2 md:p-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none" required>
                                 <p class="text-xs text-gray-500 mt-1">Used for deployment name (e.g., "gpt-4" or "o1hp")</p>
                             </div>
                             
                             <div>
                                 <label for="model-description" class="block text-sm font-medium">Description</label>
-                                <input type="text" id="model-description" class="form-input mt-1">
+                                <input type="text" id="model-description" class="form-input w-full p-2 md:p-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none">
                             </div>
                             
                             <div>
                                 <label for="model-endpoint" class="block text-sm font-medium">Azure Endpoint</label>
-                                <input type="url" id="model-endpoint" class="form-input mt-1" required>
+                                <input type="url" id="model-endpoint" class="form-input w-full p-2 md:p-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none" required>
                             </div>
                             
                             <div>
                                 <label for="model-api-version" class="block text-sm font-medium">API Version</label>
-                                <input type="text" id="model-api-version" class="form-input mt-1" value="2025-01-01-preview" required>
+                                <input type="text" id="model-api-version" class="form-input w-full p-2 md:p-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none" value="2025-01-01-preview" required>
                             </div>
                             
                             <div>
                                 <label for="model-max-tokens" class="block text-sm font-medium">Max Tokens</label>
-                                <input type="number" id="model-max-tokens" class="form-input mt-1" min="1024" max="128000" value="4096" required>
+                                <input type="number" id="model-max-tokens" class="form-input w-full p-2 md:p-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none" min="1024" max="128000" value="4096" required>
                             </div>
                             
-                            <div class="flex space-x-4">
+                            <div class="flex flex-col sm:flex-row sm:space-x-8 space-y-3 sm:space-y-0">
                                 <div class="flex items-center">
-                                    <input type="checkbox" id="model-supports-temperature" class="form-checkbox">
+                                    <input type="checkbox" id="model-supports-temperature" class="h-5 w-5 md:h-4 md:w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                                     <label for="model-supports-temperature" class="ml-2 text-sm">Supports Temperature</label>
                                 </div>
                                 <div class="flex items-center">
-                                    <input type="checkbox" id="model-supports-streaming" class="form-checkbox">
+                                    <input type="checkbox" id="model-supports-streaming" class="h-5 w-5 md:h-4 md:w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                                     <label for="model-supports-streaming" class="ml-2 text-sm">Supports Streaming</label>
                                 </div>
                             </div>
                             
                             <div class="pt-2 flex justify-end space-x-2">
-                                <button type="button" id="model-form-cancel" class="btn-secondary text-sm px-3 py-1">Cancel</button>
-                                <button type="submit" class="btn-primary text-sm px-3 py-1">Save</button>
+                                <button type="button" id="model-form-cancel" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500">Cancel</button>
+                                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">Save</button>
                             </div>
                         </form>
                     </div>
