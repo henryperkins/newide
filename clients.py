@@ -197,12 +197,23 @@ class ClientPool:
     def _create_client(self, model_name: str, model_config: Dict[str, Any]) -> AzureOpenAI:
         """Create an Azure OpenAI client with the given configuration"""
         is_o_series = model_name.startswith("o") or not model_config.get("supports_temperature", True)
+        is_deepseek = model_name.lower() == "deepseek-r1"
         max_retries = config.O_SERIES_MAX_RETRIES if is_o_series else 3
         
+        # Select the proper API key and endpoint based on model type
+        if is_deepseek:
+            api_key = os.getenv("AZURE_INFERENCE_CREDENTIAL", "")
+            endpoint = model_config.get("azure_endpoint", config.AZURE_INFERENCE_ENDPOINT)
+            api_version = model_config.get("api_version", config.AZURE_INFERENCE_API_VERSION)
+        else:
+            api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
+            endpoint = model_config.get("azure_endpoint", config.AZURE_OPENAI_ENDPOINT)
+            api_version = model_config.get("api_version", config.AZURE_OPENAI_API_VERSION)
+        
         return AzureOpenAI(
-            api_key=os.getenv("AZURE_OPENAI_API_KEY", ""),
-            api_version=model_config.get("api_version", config.AZURE_OPENAI_API_VERSION),
-            azure_endpoint=model_config.get("azure_endpoint", config.AZURE_OPENAI_ENDPOINT),
+            api_key=api_key,
+            api_version=api_version,
+            azure_endpoint=endpoint,
             azure_deployment=model_name,
             max_retries=max_retries,
             timeout=model_config.get("base_timeout", 60.0)

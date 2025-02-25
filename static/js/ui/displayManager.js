@@ -62,6 +62,29 @@ export function displayMessage(content, role) {
   // For user or assistant roles:
   const messageDiv = createMessageElement(role);
   const contentDiv = createContentElement(content, role);
+  
+  // After content is added, set up event listeners for thinking process toggles
+  if (role === 'assistant') {
+    setTimeout(() => {
+      contentDiv.querySelectorAll('.thinking-toggle').forEach(button => {
+        button.addEventListener('click', () => {
+          const container = button.closest('.thinking-process');
+          const content = container.querySelector('.thinking-content');
+          const isExpanded = button.getAttribute('aria-expanded') === 'true';
+          
+          if (isExpanded) {
+            content.style.display = 'none';
+            button.setAttribute('aria-expanded', 'false');
+            button.querySelector('.toggle-icon').textContent = '►';
+          } else {
+            content.style.display = 'block';
+            button.setAttribute('aria-expanded', 'true');
+            button.querySelector('.toggle-icon').textContent = '▼';
+          }
+        });
+      });
+    }, 100);
+  }
 
   // We can attach a copy button for convenience
   messageDiv.appendChild(createCopyButton(content));
@@ -96,13 +119,36 @@ export async function processServerResponseData(data, modelName = 'unknown') {
   // If data.choices[0].message.content exists, use that; else fallback.
   let assistantContent = data?.choices?.[0]?.message?.content || data.response || '';
 
-  // Example: If modelName includes 'deepseek-r1', remove chain-of-thought
-  // from final content but optionally store or show it.
+  // For DeepSeek models, preserve thinking tags and display them nicely
   if (modelName.toLowerCase().includes('deepseek-r1')) {
-    const thinkRegex = /<think>[\s\S]*?<\/think>/g;
+    const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
+    let match;
+    
+    // Check if we have thinking tags
     if (assistantContent.match(thinkRegex)) {
-      // Optionally capture or log the chain-of-thought here if desired
-      assistantContent = assistantContent.replace(thinkRegex, '');
+      console.log("DeepSeek thinking tags detected in content");
+      
+      // Process and format the thinking content
+      let processedContent = assistantContent;
+      
+      while ((match = thinkRegex.exec(assistantContent)) !== null) {
+        const fullMatch = match[0];
+        const thinkingContent = match[1];
+        const formattedThinking = `<div class="thinking-process">
+          <div class="thinking-header">
+            <button class="thinking-toggle" aria-expanded="true">
+              <span class="toggle-icon">▼</span> Thinking Process
+            </button>
+          </div>
+          <div class="thinking-content">
+            <pre class="thinking-pre">${thinkingContent}</pre>
+          </div>
+        </div>`;
+        
+        processedContent = processedContent.replace(fullMatch, formattedThinking);
+      }
+      
+      assistantContent = processedContent;
     }
   }
 
@@ -347,6 +393,85 @@ function createCopyButton(content) {
 /**
  * Highlight code blocks for any inserted Markdown code
  */
+// Add styles for thinking process
+function addThinkingStyles() {
+  if (document.getElementById('thinking-styles')) return;
+  
+  const styleSheet = document.createElement('style');
+  styleSheet.id = 'thinking-styles';
+  styleSheet.textContent = `
+    .thinking-process {
+      margin: 1rem 0;
+      border-radius: 0.375rem;
+      border: 1px solid #e5e7eb;
+      overflow: hidden;
+    }
+    
+    .dark .thinking-process {
+      border-color: #4b5563;
+    }
+    
+    .thinking-header {
+      background-color: #e5edff;
+      padding: 0.5rem 1rem;
+      border-top-left-radius: 0.375rem;
+      border-top-right-radius: 0.375rem;
+    }
+    
+    .dark .thinking-header {
+      background-color: #1e3a8a;
+    }
+    
+    .thinking-toggle {
+      font-weight: 500;
+      color: #3b82f6;
+      display: flex;
+      align-items: center;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+    }
+    
+    .dark .thinking-toggle {
+      color: #93c5fd;
+    }
+    
+    .toggle-icon {
+      margin-right: 0.5rem;
+      display: inline-block;
+      transition: transform 0.2s;
+    }
+    
+    .thinking-content {
+      background-color: #f1f5ff;
+      padding: 1rem;
+      overflow-x: auto;
+      border-bottom-left-radius: 0.375rem;
+      border-bottom-right-radius: 0.375rem;
+    }
+    
+    .dark .thinking-content {
+      background-color: #172554;
+    }
+    
+    .thinking-pre {
+      margin: 0;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 0.875rem;
+      color: #334155;
+    }
+    
+    .dark .thinking-pre {
+      color: #cbd5e1;
+    }
+  `;
+  document.head.appendChild(styleSheet);
+}
+
+// Call this function on page load
+addThinkingStyles();
+
 export function highlightCodeBlocks(container) {
   container.querySelectorAll('pre code').forEach(block => {
     block.style.opacity = '0';
@@ -372,6 +497,36 @@ export function highlightCodeBlocks(container) {
     if (typeof Prism !== 'undefined') {
       Prism.highlightElement(block);
     }
+    
+    // Add copy button to code blocks
+    const copyButton = document.createElement('button');
+    copyButton.className = 'absolute top-2 right-2 bg-gray-700 text-white dark:bg-gray-600 px-2 py-1 rounded text-xs opacity-70 hover:opacity-100';
+    copyButton.textContent = 'Copy';
+    copyButton.style.zIndex = '10';
+    
+    copyButton.addEventListener('click', () => {
+      const code = block.textContent;
+      copyToClipboard(code)
+        .then(() => {
+          copyButton.textContent = 'Copied!';
+          setTimeout(() => {
+            copyButton.textContent = 'Copy';
+          }, 2000);
+        })
+        .catch(() => {
+          copyButton.textContent = 'Failed';
+          setTimeout(() => {
+            copyButton.textContent = 'Copy';
+          }, 2000);
+        });
+    });
+    
+    // Make sure pre has position relative for absolute positioning of button
+    if (block.parentElement) {
+      block.parentElement.style.position = 'relative';
+      block.parentElement.appendChild(copyButton);
+    }
+    
     setTimeout(() => {
       block.style.opacity = '1';
       block.style.transition = 'opacity 0.3s ease';

@@ -12,9 +12,15 @@ def resolve_api_version(deployment_name: str) -> str:
     Falls back to an environment variable DEFAULT_API_VERSION or
     a default '2025-01-01-preview' if not found.
     """
+    # First check if it's in our config's MODEL_API_VERSIONS
+    if hasattr(config, 'MODEL_API_VERSIONS') and deployment_name in config.MODEL_API_VERSIONS:
+        return config.MODEL_API_VERSIONS[deployment_name]
+    
+    # Else use the static version matrix
     version_matrix = {
         "o1-prod": "2025-01-01-preview",
         "o3-mini": "2025-01-01-preview", 
+        "deepseek-r1": "2025-01-01-preview",
         "gpt-4":   "2023-12-01"
     }
     return version_matrix.get(
@@ -39,6 +45,10 @@ def validate_streaming(model_id: str) -> bool:
         },
         "o1-prod": {
             "supports_streaming": False
+        },
+        "deepseek-r1": {
+            "supports_streaming": True,
+            "max_streams": 5
         },
         "gpt-4": {
             "supports_streaming": True

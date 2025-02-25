@@ -17,12 +17,14 @@ class SessionResponse(BaseModel):
 router = APIRouter()
 
 async def initialize_session_services(session_id: str, azure_client: Any):
-    # Only initialize Azure search if this is the DeepSeek-R1 model
-    if getattr(azure_client, "azure_deployment", "") != "DeepSeek-R1":
-        return
+    # Get the current model deployment name
+    azure_deployment = getattr(azure_client, "azure_deployment", "")
     
-    search_service = AzureSearchService(azure_client)
-    await search_service.create_search_index(session_id)
+    # Only initialize Azure search if this is the DeepSeek-R1 model
+    if azure_deployment == "DeepSeek-R1":
+        logger.info(f"Initializing Azure Search for DeepSeek-R1 session {session_id}")
+        search_service = AzureSearchService(azure_client)
+        await search_service.create_search_index(session_id)
 
 @router.get("/create", response_model=SessionResponse)
 async def create_session(background_tasks: BackgroundTasks, db_session: AsyncSession = Depends(get_db_session), azure_client: Optional[Any] = Depends(get_model_client)):
@@ -37,9 +39,6 @@ async def create_session(background_tasks: BackgroundTasks, db_session: AsyncSes
     await db_session.commit()
     
     # Initialize Azure services in background
-    import logging
-    
-    logger = logging.getLogger("uvicorn.error")
     
     if not azure_client:
         # Log an error indicating that no Azure client was provided, which can cause a 500

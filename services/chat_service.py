@@ -194,11 +194,12 @@ async def process_chat_message(
     # Use database config if available, otherwise fall back to config.MODEL_CONFIGS
     model_config = db_model_configs.get(model_name, {}) if db_model_configs else {}
     
-    # Check if this is an o-series model (reasoning model)
+    # Check if this is an o-series model or DeepSeek model
     is_o_series = model_name.lower().startswith('o1') or model_name.lower().startswith('o3')
+    is_deepseek = model_name.lower() == 'deepseek-r1'
     
-    if is_o_series or not model_config.get("supports_temperature", True):
-        # For o-series models, use reasoning_effort and max_completion_tokens
+    if is_o_series or is_deepseek or not model_config.get("supports_temperature", True):
+        # For o-series and DeepSeek models, use reasoning_effort and max_completion_tokens
         reasoning_effort = getattr(chat_message, "reasoning_effort", "medium")
         params["reasoning_effort"] = reasoning_effort
         
@@ -206,12 +207,15 @@ async def process_chat_message(
         params["max_completion_tokens"] = max_completion_tokens
         
         # For o-series models, we need to use developer role instead of system
-        if messages and messages[0].get("role") == "system":
+        # DeepSeek-R1 uses system role
+        if is_o_series and messages and messages[0].get("role") == "system":
             messages[0]["role"] = "developer"
             
-        # Add formatting re-enabled to developer message if not already present
-        if messages and messages[0].get("role") == "developer" and not messages[0].get("content", "").startswith("Formatting re-enabled"):
-            messages[0]["content"] = "Formatting re-enabled - use markdown code blocks. " + messages[0].get("content", "")
+        # Add formatting re-enabled to message if not already present
+        if messages:
+            first_role = messages[0].get("role")
+            if (is_o_series and first_role == "developer" or is_deepseek and first_role == "system") and not messages[0].get("content", "").startswith("Formatting re-enabled"):
+                messages[0]["content"] = "Formatting re-enabled - use markdown code blocks. " + messages[0].get("content", "")
     else:
         # For standard models, use temperature and max_tokens
         params["temperature"] = (
@@ -276,6 +280,12 @@ async def process_chat_message(
         content = ""
     else:
         content = response.choices[0].message.content
+        
+        # Process DeepSeek-R1 responses if needed
+        if model_name == "DeepSeek-R1" and content:
+            # By default, keep the thinking process for DeepSeek-R1
+            # Application can decide to filter it out if needed
+            logger.debug(f"[session {session_id}] DeepSeek response received with <think> tags: {('<think>' in content)}")
 
     elapsed = perf_counter() - start_time
     logger.info(f"[session {session_id}] Chat completion finished in {elapsed:.2f}s")

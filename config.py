@@ -165,6 +165,7 @@ MODEL_API_VERSIONS: Dict[str, str] = {
     "o3-mini":    "2025-01-01-preview",
     "o1-preview": "2025-01-01-preview",
     "o1-mini":    "2025-01-01-preview",
+    "DeepSeek-R1": "2025-01-01-preview",
     "default":    "2025-01-01-preview"
 }
 
@@ -196,16 +197,25 @@ AZURE_EMBEDDING_DEPLOYMENT = os.getenv("AZURE_EMBEDDING_DEPLOYMENT", "text-embed
 AZURE_EMBEDDING_DIMENSION = int(os.getenv("AZURE_EMBEDDING_DIMENSION", "1536"))
 
 def build_azure_openai_url(deployment_name: str = None, api_version: str = None) -> str:
-    """Build the Azure OpenAI API URL"""
-    endpoint = os.getenv('AZURE_OPENAI_ENDPOINT', 
-                        'https://aoai-east-2272068338224.cognitiveservices.azure.com')
-    
-    if not endpoint:
-        raise ValueError("AZURE_OPENAI_ENDPOINT environment variable is not set")
+    """Build the Azure OpenAI API URL with support for different model types"""
+    # Determine which endpoint to use based on the model
+    if deployment_name == "DeepSeek-R1":
+        endpoint = os.getenv('AZURE_INFERENCE_ENDPOINT',
+                           'https://aoai-east-inference.cognitiveservices.azure.com')
+        if not endpoint:
+            raise ValueError("AZURE_INFERENCE_ENDPOINT environment variable is not set")
+    else:
+        endpoint = os.getenv('AZURE_OPENAI_ENDPOINT', 
+                           'https://aoai-east-2272068338224.cognitiveservices.azure.com')
+        if not endpoint:
+            raise ValueError("AZURE_OPENAI_ENDPOINT environment variable is not set")
         
-    # Use default API version if none provided
+    # Use default API version if none provided, selecting the appropriate version for the model
     if not api_version:
-        api_version = os.getenv('AZURE_OPENAI_API_VERSION', '2025-01-01-preview')
+        if deployment_name == "DeepSeek-R1":
+            api_version = os.getenv('AZURE_INFERENCE_API_VERSION', '2025-01-01-preview')
+        else:
+            api_version = os.getenv('AZURE_OPENAI_API_VERSION', '2025-01-01-preview')
         
     # Use default deployment if none provided 
     if not deployment_name:

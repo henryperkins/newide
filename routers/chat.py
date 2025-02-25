@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select, func
 from openai import AzureOpenAI
 
-from database import get_db_session  # Corrected import
+from database import get_db_session, AsyncSessionLocal  # Corrected import
 from clients import get_model_client
 from logging_config import logger
 import config
@@ -209,6 +209,7 @@ async def stream_chat_response(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
+    config_service: ConfigService = Depends(get_config_service),
 ):
     """
     SSE-style streaming endpoint for models that support streaming.
@@ -231,8 +232,15 @@ async def stream_chat_response(
                 },
             )
 
-        model_config = config.MODEL_CONFIGS.get(model_name)
-        if not (model_config and model_config.get("supports_streaming", False)):
+        # Get model configs from database
+        try:
+            model_configs = await config_service.get_config("model_configs")
+            model_config = model_configs.get(model_name, {}) if model_configs else {}
+        except Exception as e:
+            logger.error(f"Error getting model configurations: {str(e)}")
+            model_config = {}
+            
+        if not model_config.get("supports_streaming", False):
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -305,10 +313,15 @@ async def generate_stream_chunks(
     """
     from models import Conversation  # If conversation logs are stored in DB
 
-    model_config = config.MODEL_CONFIGS.get(model_name, {})  # Safe get and default
+    # Get model configurations from database
+    async with AsyncSessionLocal() as config_db:
+        config_service = ConfigService(config_db)
+        model_configs = await config_service.get_config("model_configs")
+        model_config = model_configs.get(model_name, {}) if model_configs else {}
 
-    # Check if this is an o-series model (reasoning model)
+    # Check if this is an o-series model (reasoning model) or DeepSeek model
     is_o_series = model_name.lower().startswith('o1') or model_name.lower().startswith('o3')
+    is_deepseek = model_name.lower().startswith('deepseek')
 
     params = {
         "messages": [{"role": "user", "content": message}],
@@ -316,14 +329,15 @@ async def generate_stream_chunks(
         "stream": True,
     }
 
-    if is_o_series or not model_config.get("supports_temperature", True):
-        # For o-series models, use reasoning_effort and max_completion_tokens
+    if is_o_series or is_deepseek or not model_config.get("supports_temperature", True):
+        # For o-series models and DeepSeek, use reasoning_effort and max_completion_tokens
         params["reasoning_effort"] = reasoning_effort
         params["max_completion_tokens"] = model_config.get("max_tokens", 4096)
         
         # For o-series models, add a developer message with formatting re-enabled
+        developer_role = "developer" if is_o_series else "system"
         params["messages"].insert(0, {
-            "role": "developer",
+            "role": developer_role,
             "content": "Formatting re-enabled - use markdown code blocks."
         })
     else:
