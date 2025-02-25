@@ -209,6 +209,15 @@ class ClientPool:
             api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
             endpoint = model_config.get("azure_endpoint", config.AZURE_OPENAI_ENDPOINT)
             api_version = model_config.get("api_version", config.AZURE_OPENAI_API_VERSION)
+
+        def ensure_protocol(url: str) -> str:
+            """Guarantee endpoint URLs have a protocol prefix"""
+            if not url.startswith(("http://", "https://")):
+                logger.warning(f"Auto-adding HTTPS protocol to endpoint: {url}")
+                return f"https://{url}"
+            return url
+
+        endpoint = ensure_protocol(endpoint)
         
         return AzureOpenAI(
             api_key=api_key,
