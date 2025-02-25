@@ -39,7 +39,7 @@ class ModelManager {
         console.log('No models found, creating defaults');
         
         try {
-            // Create default DeepSeek-R1 model
+            // Create default DeepSeek-R1 model first since it's more likely to work
             const deepseekModel = {
                 name: "DeepSeek-R1",
                 description: "Reasoning-focused model with high performance in math, coding, and science",
@@ -53,7 +53,11 @@ class ModelManager {
                 token_factor: 0.05
             };
             
-            // Create default o1 model
+            // Create DeepSeek model first
+            await this.createModel("DeepSeek-R1", deepseekModel);
+            console.log('DeepSeek-R1 model created successfully');
+            
+            // Then try to create o1 model
             const o1Model = {
                 name: "o1hp",
                 description: "Advanced reasoning model for complex tasks",
@@ -67,9 +71,13 @@ class ModelManager {
                 token_factor: 0.05
             };
             
-            // Create the models via API
-            await this.createModel("DeepSeek-R1", deepseekModel);
-            await this.createModel("o1hp", o1Model);
+            try {
+                await this.createModel("o1hp", o1Model);
+                console.log('o1hp model created successfully');
+            } catch (error) {
+                console.warn('Failed to create o1hp model, but DeepSeek-R1 is available:', error);
+                // Continue anyway since we have DeepSeek-R1
+            }
             
             // Refresh the list after creating defaults
             await this.refreshModelsList();

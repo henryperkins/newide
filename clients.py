@@ -187,10 +187,13 @@ class ClientPool:
                 
             # If default client wasn't initialized but we have others, set first available as default
             if not has_default_client and self._clients:
+                default_fallback = next(iter(self._clients))
                 logger.warning(
                     f"Default client '{config.AZURE_OPENAI_DEPLOYMENT_NAME}' not initialized. "
-                    f"Using '{next(iter(self._clients))}' as default."
+                    f"Using '{default_fallback}' as default."
                 )
+                # Log available models for debugging
+                logger.info(f"Available models: {list(self._clients.keys())}")
                 
             # Log any errors that occurred during initialization    
             if initialization_errors:
@@ -258,36 +261,44 @@ class ClientPool:
         """
         Retrieve an already-initialized AzureOpenAI client object from the pool.
         If no model_name is provided, fallback to config.AZURE_OPENAI_DEPLOYMENT_NAME.
+        If requested model is not available, try default model, then any available model.
         """
         if not model_name:
             model_name = config.AZURE_OPENAI_DEPLOYMENT_NAME
 
+        # Try to get the requested model
         client = self._clients.get(model_name)
         if not client:
             logger.warning(
                 f"[ClientPool] Client not found for model '{model_name}'. Attempting fallback to default."
             )
-            # Try the default model first
-            client = self._clients.get(config.AZURE_OPENAI_DEPLOYMENT_NAME)
             
-            # If default model is not available, use any available client
-            if not client and self._clients:
+            # Try the default model if it's different from the requested model
+            if model_name != config.AZURE_OPENAI_DEPLOYMENT_NAME:
+                client = self._clients.get(config.AZURE_OPENAI_DEPLOYMENT_NAME)
+                if client:
+                    logger.info(f"[ClientPool] Successfully using default model '{config.AZURE_OPENAI_DEPLOYMENT_NAME}' as fallback.")
+                    return client
+            
+            # If default model is not available or is the same as requested model, use any available client
+            if self._clients:
                 available_models = list(self._clients.keys())
+                fallback_model = available_models[0]
                 logger.warning(
                     f"[ClientPool] Default client '{config.AZURE_OPENAI_DEPLOYMENT_NAME}' not available. "
-                    f"Using '{available_models[0]}' as fallback."
+                    f"Using '{fallback_model}' as fallback."
                 )
-                client = self._clients[available_models[0]]
-                
+                client = self._clients[fallback_model]
+                return client
+            
             # If still no client, raise error
-            if not client:
-                available = list(self._clients.keys())
-                raise ValueError(
-                    f"No AzureOpenAI client available for '{model_name}' "
-                    f"or fallback '{config.AZURE_OPENAI_DEPLOYMENT_NAME}'.\n"
-                    f"Initialized clients: {available}\n"
-                    f"Verify that 'model_configs' in the DB includes an entry for '{model_name}' or the default."
-                )
+            available = list(self._clients.keys())
+            raise ValueError(
+                f"No AzureOpenAI client available for '{model_name}' "
+                f"or fallback '{config.AZURE_OPENAI_DEPLOYMENT_NAME}'.\n"
+                f"Initialized clients: {available}\n"
+                f"Verify that 'model_configs' in the DB includes an entry for '{model_name}' or the default."
+            )
         return client
 
     async def refresh_client(self, model_name: str, config_service: ConfigService) -> None:

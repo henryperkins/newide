@@ -151,8 +151,25 @@ async def create_chat_completion(
             logger.error(f"Error getting model configurations: {str(e)}")
             model_name = config.AZURE_OPENAI_DEPLOYMENT_NAME
 
-        # Acquire AzureOpenAI client
-        client = await get_model_client(model_name)
+        # Acquire AzureOpenAI client - this will handle fallbacks if needed
+        try:
+            client = await get_model_client(model_name)
+            # If we got a client but it's not for the requested model, update model_name
+            if client and hasattr(client, 'azure_deployment') and client.azure_deployment != model_name:
+                logger.info(f"Using fallback model {client.azure_deployment} instead of {model_name}")
+                model_name = client.azure_deployment
+        except Exception as e:
+            logger.error(f"Error getting model client: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": {
+                        "code": "model_unavailable",
+                        "message": f"Could not initialize model {model_name} or any fallback models",
+                        "type": "service_error",
+                    }
+                },
+            )
 
         # Build an internal ChatMessage object from the request
         chat_message = ChatMessage(
