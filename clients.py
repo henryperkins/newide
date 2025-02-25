@@ -76,7 +76,7 @@ class ClientPool:
                     "name": "DeepSeek-R1",
                     "max_tokens": 32000,
                     "supports_streaming": True,
-                    "supports_temperature": False,
+                    "supports_temperature": True,  # Changed to TRUE - DeepSeek uses temperature parameter
                     "base_timeout": 120.0,
                     "max_timeout": 300.0,
                     "token_factor": 0.05,
@@ -139,7 +139,7 @@ class ClientPool:
                         "name": "DeepSeek-R1",
                         "max_tokens": 32000,
                         "supports_streaming": True,
-                        "supports_temperature": False,
+                        "supports_temperature": True,  # Changed to TRUE - DeepSeek uses temperature parameter
                         "base_timeout": 120.0,
                         "max_timeout": 300.0,
                         "token_factor": 0.05,

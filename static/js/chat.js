@@ -243,19 +243,22 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
     });
   }
 
-  // If it's a "DeepSeek" or O1 model, apply specialized fields
-  if (isDeepSeekModel(modelConfig)) {
+  // Set model-specific parameters
+  if (isO1Model(modelConfig)) {
+    // O1 model - uses reasoning_effort
     requestBody.reasoning_effort = reasoningEffort || 'medium';
-    if (modelConfig.capabilities?.max_tokens) {
-      requestBody.max_tokens = modelConfig.capabilities.max_tokens;
-    }
-  } else if (isO1Model(modelConfig)) {
-    // O1 model
     if (modelConfig.capabilities?.max_completion_tokens) {
       requestBody.max_completion_tokens = modelConfig.capabilities.max_completion_tokens;
     }
     if (modelConfig.capabilities?.fixed_temperature !== undefined) {
       requestBody.temperature = modelConfig.capabilities.fixed_temperature;
+    }
+  } else if (isDeepSeekModel(modelConfig)) {
+    // DeepSeek-R1 model - uses temperature (NOT reasoning_effort)
+    // According to documentation in deepseek-reference.md
+    requestBody.temperature = 0.7; // Default from documentation
+    if (modelConfig.capabilities?.max_tokens) {
+      requestBody.max_tokens = modelConfig.capabilities.max_tokens;
     }
   } else {
     // Standard model
@@ -356,6 +359,8 @@ function isO1Model(modelConfig) {
 function isDeepSeekModel(modelConfig) {
   const name = modelConfig?.name?.toLowerCase() || '';
   return name.includes('deepseek');
+  // Note: DeepSeek models use temperature parameter, not reasoning_effort
+  // This matches the API documentation in deepseek-reference.md
 }
 
 /**

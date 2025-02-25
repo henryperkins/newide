@@ -69,6 +69,7 @@ async def get_conversation_history(
     """
     Returns messages for a specified session in ascending order.
     Allows pagination via offset & limit.
+    Uses formatted_content when available for display purposes.
     """
     try:
         query = (select(Conversation)
@@ -84,7 +85,9 @@ async def get_conversation_history(
             "messages": [
                 {
                     "role": msg.role,
-                    "content": msg.content,
+                    # Use formatted_content if available, otherwise fall back to content
+                    "content": msg.formatted_content if msg.formatted_content else msg.content,
+                    "raw_content": msg.content,  # Original unformatted content
                     "timestamp": msg.timestamp.isoformat() if msg.timestamp else None
                 } for msg in messages
             ],
@@ -346,15 +349,24 @@ async def generate_stream_chunks(
         "stream": True,
     }
 
-    if is_o_series or is_deepseek or not model_config.get("supports_temperature", True):
-        # For o-series models and DeepSeek, use reasoning_effort and max_completion_tokens
+    if is_o_series:
+        # For o-series models, use reasoning_effort and max_completion_tokens
         params["reasoning_effort"] = reasoning_effort
         params["max_completion_tokens"] = model_config.get("max_tokens", 4096)
         
         # For o-series models, add a developer message with formatting re-enabled
-        developer_role = "developer" if is_o_series else "system"
         params["messages"].insert(0, {
-            "role": developer_role,
+            "role": "developer",
+            "content": "Formatting re-enabled - use markdown code blocks."
+        })
+    elif is_deepseek:
+        # For DeepSeek-R1, use temperature and max_tokens according to documentation
+        params["temperature"] = 0.7  # Default temperature from documentation
+        params["max_tokens"] = model_config.get("max_tokens", 4096)
+        
+        # DeepSeek-R1 uses system role
+        params["messages"].insert(0, {
+            "role": "system",
             "content": "Formatting re-enabled - use markdown code blocks."
         })
     else:
@@ -407,19 +419,56 @@ async def generate_stream_chunks(
 
         # After streaming completes, store conversation if there's any content
         if full_content:
+            # Process and format content for display
+            formatted_content = full_content
+            
+            # Format DeepSeek thinking tags if present
+            if model_name == "DeepSeek-R1" and full_content:
+                import re
+                thinkRegex = r'<think>([\s\S]*?)<\/think>'
+                
+                matches = re.findall(thinkRegex, full_content)
+                
+                # Apply formatting to each thinking block
+                for i, match in enumerate(matches):
+                    thinking_html = f'''<div class="thinking-process">
+                      <div class="thinking-header">
+                        <button class="thinking-toggle" aria-expanded="true">
+                          <span class="toggle-icon">▼</span> Thinking Process
+                        </button>
+                      </div>
+                      <div class="thinking-content">
+                        <pre class="thinking-pre">{match}</pre>
+                      </div>
+                    </div>'''
+                    
+                    # Replace the original thinking tags with the formatted HTML
+                    formatted_content = formatted_content.replace(f'<think>{match}</think>', thinking_html, 1)
+            
+            # Create user message
             user_msg = Conversation(
                 session_id=session_id,
                 role="user",
                 content=message,
                 model=model_name,
             )
+            
+            # Create assistant message with formatted content and raw response
             assistant_msg = Conversation(
                 session_id=session_id,
                 role="assistant",
                 content=full_content,
+                formatted_content=formatted_content,
                 model=model_name,
+                # We don't have the complete raw response for streaming,
+                # but we can store the final accumulated chunk data
+                raw_response={"streaming": True, "final_content": full_content}
             )
-            # Database logic for user_msg / assistant_msg could be placed here if needed
+            
+            # Store messages in database
+            db.add(user_msg)
+            db.add(assistant_msg)
+            await db.commit()
 
     except Exception as e:
         logger.exception("[ChatRouter] SSE streaming error")

@@ -198,8 +198,8 @@ async def process_chat_message(
     is_o_series = model_name.lower().startswith('o1') or model_name.lower().startswith('o3')
     is_deepseek = model_name.lower() == 'deepseek-r1'
     
-    if is_o_series or is_deepseek or not model_config.get("supports_temperature", True):
-        # For o-series and DeepSeek models, use reasoning_effort and max_completion_tokens
+    if is_o_series:
+        # For o-series models, use reasoning_effort and max_completion_tokens
         reasoning_effort = getattr(chat_message, "reasoning_effort", "medium")
         params["reasoning_effort"] = reasoning_effort
         
@@ -207,14 +207,27 @@ async def process_chat_message(
         params["max_completion_tokens"] = max_completion_tokens
         
         # For o-series models, we need to use developer role instead of system
-        # DeepSeek-R1 uses system role
-        if is_o_series and messages and messages[0].get("role") == "system":
+        if messages and messages[0].get("role") == "system":
             messages[0]["role"] = "developer"
             
         # Add formatting re-enabled to message if not already present
         if messages:
             first_role = messages[0].get("role")
-            if (is_o_series and first_role == "developer" or is_deepseek and first_role == "system") and not messages[0].get("content", "").startswith("Formatting re-enabled"):
+            if first_role == "developer" and not messages[0].get("content", "").startswith("Formatting re-enabled"):
+                messages[0]["content"] = "Formatting re-enabled - use markdown code blocks. " + messages[0].get("content", "")
+    elif is_deepseek:
+        # For DeepSeek-R1, use temperature and max_tokens as per documentation
+        params["temperature"] = chat_message.temperature if chat_message.temperature is not None else 0.7
+        
+        # DeepSeek uses max_tokens, not max_completion_tokens
+        max_tokens = getattr(chat_message, "max_completion_tokens", 4096)
+        params["max_tokens"] = min(max_tokens, model_config.get("max_tokens", 4096))
+        
+        # DeepSeek-R1 uses system role
+        # Add formatting re-enabled to message if not already present
+        if messages:
+            first_role = messages[0].get("role")
+            if first_role == "system" and not messages[0].get("content", "").startswith("Formatting re-enabled"):
                 messages[0]["content"] = "Formatting re-enabled - use markdown code blocks. " + messages[0].get("content", "")
     else:
         # For standard models, use temperature and max_tokens
@@ -290,9 +303,6 @@ async def process_chat_message(
     elapsed = perf_counter() - start_time
     logger.info(f"[session {session_id}] Chat completion finished in {elapsed:.2f}s")
 
-    # Save conversation to DB
-    await save_conversation(db_session, session_id, model_name, user_content, content)
-
     # Prepare a response in the style of ChatCompletionResponse
     usage_raw = getattr(response, "usage", None)
     usage_data = {}
@@ -317,6 +327,37 @@ async def process_chat_message(
         ],
         "usage": usage_data,
     }
+    
+    # Process and format content for display if needed
+    formatted_content = content
+    
+    # For DeepSeek models, preserve thinking tags but format them for HTML display
+    if model_name == "DeepSeek-R1" and content:
+        # Preserve and format thinking tags for DeepSeek
+        thinkRegex = r'<think>([\s\S]*?)<\/think>'
+        import re
+        
+        matches = re.findall(thinkRegex, content)
+        formatted_content = content
+        
+        # Apply formatting to each thinking block
+        for i, match in enumerate(matches):
+            thinking_html = f'''<div class="thinking-process">
+              <div class="thinking-header">
+                <button class="thinking-toggle" aria-expanded="true">
+                  <span class="toggle-icon">▼</span> Thinking Process
+                </button>
+              </div>
+              <div class="thinking-content">
+                <pre class="thinking-pre">{match}</pre>
+              </div>
+            </div>'''
+            
+            # Replace the original thinking tags with the formatted HTML
+            formatted_content = formatted_content.replace(f'<think>{match}</think>', thinking_html, 1)
+    
+    # Save conversation to DB before sending to frontend, including raw response and formatted content
+    await save_conversation(db_session, session_id, model_name, user_content, content, formatted_content, response)
 
     return resp_data
 
@@ -356,20 +397,40 @@ async def save_conversation(
     model_name: str,
     user_text: str,
     assistant_text: str,
+    formatted_assistant_text: str = None,
+    raw_response: Any = None,
 ):
     """
     Save the user's message and the assistant's message to the DB,
     plus update session info if needed.
+    
+    Parameters:
+    - db_session: Database session
+    - session_id: Session identifier
+    - model_name: Name of the model used
+    - user_text: Original user message
+    - assistant_text: Original assistant response text
+    - formatted_assistant_text: HTML/markdown formatted response for display
+    - raw_response: Complete JSON response from the model API
     """
     try:
+        # Create user message
         user_msg = Conversation(
-            session_id=session_id, role="user", content=user_text, model=model_name
+            session_id=session_id, 
+            role="user", 
+            content=user_text, 
+            model=model_name
         )
+        
+        # Create assistant message with formatted content and raw response
         assistant_msg = Conversation(
             session_id=session_id,
             role="assistant",
             content=assistant_text,
+            formatted_content=formatted_assistant_text if formatted_assistant_text else assistant_text,
             model=model_name,
+            raw_response=raw_response.model_dump() if raw_response and hasattr(raw_response, "model_dump") else 
+                        (raw_response.__dict__ if raw_response else None)
         )
 
         db_session.add(user_msg)

@@ -27,6 +27,10 @@ class Conversation(Base):
     user_id = Column(PGUUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
+    # New field for storing formatted/rendered content with markdown/HTML
+    formatted_content = Column(Text, nullable=True)
+    # New field for storing the raw JSON response from the model
+    raw_response = Column(JSONB, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"))
     system_fingerprint = Column(String(64), nullable=True)
     model = Column(String(50), nullable=True)
