@@ -118,6 +118,11 @@ export async function sendMessage() {
       const data = await response.json();
       if (!response.ok) {
         console.error('[sendMessage] API Error details:', data);
+        if (response.status === 401 || response.status === 403) {
+          showNotification('Please log in to continue.', 'warning');
+        } else if (response.status === 404) {
+          showNotification('The requested endpoint was not found. Check your server configuration.', 'warning');
+        }
         throw new Error(
           `HTTP error! status: ${response.status}, details: ${JSON.stringify(data)}`
         );

@@ -1,61 +1,83 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" class="h-full bg-gray-50 dark:bg-gray-900">
 <head>
   <meta charset="UTF-8">
   <title>Register</title>
-  <link rel="stylesheet" href="/static/css/register.css">
+  <!-- Use Tailwind CSS -->
+  <link rel="stylesheet" href="/static/css/tailwind.css">
 </head>
-<body>
-  <h1>User Register</h1>
-  
-  <form id="register-form">
-    <label for="reg-email">Email:</label>
-    <input type="email" id="reg-email" required />
+<body class="h-full flex items-center justify-center">
+  <main class="w-full max-w-sm p-6 space-y-4 bg-white dark:bg-gray-800 rounded-md shadow-md">
+    <h1 class="text-2xl font-semibold text-center text-gray-800 dark:text-gray-100">User Register</h1>
 
-    <label for="reg-password">Password:</label>
-    <input type="password" id="reg-password" required />
+    <form id="register-form" class="flex flex-col space-y-4">
+      <label for="reg-email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        Email:
+      </label>
+      <input
+        type="email"
+        id="reg-email"
+        required
+        class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 focus:ring-blue-500 focus:border-blue-500"
+      />
 
-    <button type="submit">Register</button>
-  </form>
+      <label for="reg-password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        Password:
+      </label>
+      <input
+        type="password"
+        id="reg-password"
+        required
+        class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 focus:ring-blue-500 focus:border-blue-500"
+      />
 
-  <script>
-    const form = document.getElementById("register-form");
-    form.addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      const email = document.getElementById("reg-email").value.trim();
-      const password = document.getElementById("reg-password").value;
-      
-      try {
-        const response = await fetch("/auth/register", {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({email, password}),
-        });
-        if (!response.ok) {
-          const err = await response.json();
-          alert("Registration Failed: " + (err.detail || response.statusText));
-          return;
+      <button
+        type="submit"
+        class="py-2 px-4 font-medium bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+      >
+        Register
+      </button>
+    </form>
+
+    <script>
+      const form = document.getElementById("register-form");
+      form.addEventListener("submit", async (ev) => {
+        ev.preventDefault();
+        const email = document.getElementById("reg-email").value.trim();
+        const password = document.getElementById("reg-password").value;
+        
+        try {
+          const response = await fetch("/auth/register", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({email, password}),
+          });
+          if (!response.ok) {
+            const err = await response.json();
+            alert("Registration Failed: " + (err.detail || response.statusText));
+            return;
+          }
+          alert("Registration successful. Logging you in...");
+          const loginResp = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+          });
+          if (!loginResp.ok) {
+            const err = await loginResp.json();
+            alert("Auto-login failed: " + (err.detail || loginResp.statusText));
+            return;
+          }
+          const loginData = await loginResp.json();
+          localStorage.setItem("token", loginData.access_token);
+          alert("Logged in!");
+          window.location.href = "/static/index.html";
+        } catch (error) {
+          console.error("Register error:", error);
+          alert("Failed to register");
         }
-        alert("Registration successful. Logging you in...");
-        const loginResp = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-        });
-        if (!loginResp.ok) {
-          const err = await loginResp.json();
-          alert("Auto-login failed: " + (err.detail || loginResp.statusText));
-          return;
-        }
-        const loginData = await loginResp.json();
-        localStorage.setItem("token", loginData.access_token);
-        alert("Logged in!");
-        window.location.href = "/static/index.html";
-      } catch (error) {
-        console.error("Register error:", error);
-        alert("Failed to register");
-      }
-    });
-  </script>
+      });
+    </script>
+  </main>
 </body>
 </html>

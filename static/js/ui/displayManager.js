@@ -1,4 +1,4 @@
-// chat.js/ui/displayManager.js full content with corrected lines 120-133
+// chat.js/ui/displayManager.js full content, with emojis replaced for safer TypeScript parsing
 
 import { safeMarkdownParse, injectMarkdownStyles } from '/static/js/ui/markdownParser.js';
 import { copyToClipboard } from '/static/js/utils/helpers.js';
@@ -68,7 +68,7 @@ export function displayMessage(content, role) {
   messageDiv.appendChild(contentDiv);
 
   // Insert small timestamp
-  const timeStamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  const timeStamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const timeSpan = document.createElement('span');
   timeSpan.className = 'block text-xs text-gray-400 mt-1';
   timeSpan.textContent = timeStamp;
@@ -117,7 +117,7 @@ export async function processServerResponseData(data, modelName = 'unknown') {
 
   // If the server returned usage info, you might want to update your usage display
   if (data.usage && typeof updateTokenUsage === 'function') {
-    // data.usage might have {prompt_tokens, completion_tokens, total_tokens} etc.
+    // data.usage might have { prompt_tokens, completion_tokens, total_tokens } etc.
     updateTokenUsage(data.usage);
   }
 }
@@ -151,40 +151,40 @@ export function loadConversationFromLocalStorage() {
   } catch (error) {
     console.warn('Could not load conversation from localStorage:', error);
   }
+}
 
-  export function loadOlderMessages() {
-    try {
-      const conversation = JSON.parse(localStorage.getItem('conversation')) || [];
-      const currentlyDisplayed = document.querySelectorAll('#chat-history > div');
-      const alreadyShownCount = currentlyDisplayed.length;
-      const olderBatch = conversation.slice(
-        Math.max(0, conversation.length - alreadyShownCount - 20),
-        Math.max(0, conversation.length - alreadyShownCount)
-      );
-      // Insert older messages at the *top* so user sees them above the existing ones
-      olderBatch.forEach(msg => {
-        const div = createMessageElement(msg.role);
-        const contentDiv = createContentElement(msg.content, msg.role);
-        div.appendChild(contentDiv);
-        const chatHistory = document.getElementById('chat-history');
-        if (chatHistory) {
-          chatHistory.insertBefore(div, chatHistory.firstChild);
-        }
-      });
-      updateLoadOlderButton(alreadyShownCount + olderBatch.length, conversation.length);
-    } catch (error) {
-      console.warn('[loadOlderMessages] error:', error);
-    }
+export function loadOlderMessages() {
+  try {
+    const conversation = JSON.parse(localStorage.getItem('conversation')) || [];
+    const currentlyDisplayed = document.querySelectorAll('#chat-history > div');
+    const alreadyShownCount = currentlyDisplayed.length;
+    const olderBatch = conversation.slice(
+      Math.max(0, conversation.length - alreadyShownCount - 20),
+      Math.max(0, conversation.length - alreadyShownCount)
+    );
+    // Insert older messages at the *top* so user sees them above the existing ones
+    olderBatch.forEach(msg => {
+      const div = createMessageElement(msg.role);
+      const contentDiv = createContentElement(msg.content, msg.role);
+      div.appendChild(contentDiv);
+      const chatHistory = document.getElementById('chat-history');
+      if (chatHistory) {
+        chatHistory.insertBefore(div, chatHistory.firstChild);
+      }
+    });
+    updateLoadOlderButton(alreadyShownCount + olderBatch.length, conversation.length);
+  } catch (error) {
+    console.warn('[loadOlderMessages] error:', error);
   }
+}
 
-  function updateLoadOlderButton(displayed, total) {
-    const btn = document.getElementById('load-older-btn');
-    if (!btn) return;
-    if (displayed < total) {
-      btn.classList.remove('hidden');
-    } else {
-      btn.classList.add('hidden');
-    }
+function updateLoadOlderButton(displayed, total) {
+  const btn = document.getElementById('load-older-btn');
+  if (!btn) return;
+  if (displayed < total) {
+    btn.classList.remove('hidden');
+  } else {
+    btn.classList.add('hidden');
   }
 }
 
@@ -197,10 +197,21 @@ async function storeMessageInDB(role, content) {
     return;
   }
   try {
-    await fetch(`/api/chat/conversations/store?session_id=${sessionId}&role=${encodeURIComponent(role)}&content=${encodeURIComponent(content)}`, {
-      method: 'POST',
-      credentials: 'include'
-    });
+    const response = await fetch(
+      `/api/chat/conversations/store?session_id=${sessionId}&role=${encodeURIComponent(role)}&content=${encodeURIComponent(content)}`,
+      {
+        method: 'POST',
+        credentials: 'include'
+      }
+    );
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        console.warn('You must be logged in to store conversation data. Please log in and try again.');
+      } else {
+        console.error('Failed to store conversation. HTTP ' + response.status);
+      }
+      return;
+    }
   } catch (error) {
     console.error('Failed to store conversation in DB:', error);
   }
@@ -210,7 +221,8 @@ async function storeMessageInDB(role, content) {
 function createDeveloperMessage(content, isFormattingMessage) {
   const messageDiv = document.createElement('div');
   // Updated class names for Tailwind
-  messageDiv.className = 'mx-auto max-w-xl bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-400 dark:border-yellow-600 p-3 text-yellow-800 dark:text-yellow-200 rounded my-2';
+  messageDiv.className =
+    'mx-auto max-w-xl bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-400 dark:border-yellow-600 p-3 text-yellow-800 dark:text-yellow-200 rounded my-2';
   messageDiv.setAttribute('role', 'alert');
   messageDiv.setAttribute('aria-live', 'assertive');
 
@@ -218,7 +230,7 @@ function createDeveloperMessage(content, isFormattingMessage) {
     const noticeDiv = document.createElement('div');
     noticeDiv.className = 'flex items-center';
     noticeDiv.innerHTML = `
-      <span aria-hidden="true" class="mr-2">⚙️</span>
+      <span aria-hidden="true" class="mr-2">[Gear]</span>
       <div>
         <strong>System:</strong>
         ${safeMarkdownParse(content)}
@@ -238,9 +250,11 @@ function createMessageElement(role) {
 
   // Apply Tailwind classes based on role
   if (role === 'user') {
-    messageDiv.className = 'ml-auto max-w-3xl rounded-lg rounded-br-none bg-blue-600 p-3 text-white shadow-md relative my-2';
+    messageDiv.className =
+      'ml-auto max-w-3xl rounded-lg rounded-br-none bg-blue-600 p-3 text-white shadow-md relative my-2';
   } else if (role === 'assistant') {
-    messageDiv.className = 'mr-auto max-w-3xl rounded-lg rounded-bl-none bg-white dark:bg-gray-700 p-3 border border-gray-200 dark:border-gray-600 shadow-sm text-gray-800 dark:text-gray-100 relative my-2';
+    messageDiv.className =
+      'mr-auto max-w-3xl rounded-lg rounded-bl-none bg-white dark:bg-gray-700 p-3 border border-gray-200 dark:border-gray-600 shadow-sm text-gray-800 dark:text-gray-100 relative my-2';
   }
 
   // Apply entrance animation styles with Tailwind
@@ -255,9 +269,8 @@ function createContentElement(content, role) {
   contentDiv.className = 'prose dark:prose-invert prose-sm max-w-none';
 
   // Always parse with safeMarkdownParse for security
-  const htmlContent = safeMarkdownParse(
-    typeof content === 'string' ? content : JSON.stringify(content)
-  );
+  const htmlContent =
+    typeof content === 'string' ? safeMarkdownParse(content) : safeMarkdownParse(JSON.stringify(content));
   contentDiv.innerHTML = htmlContent;
 
   // Turn any recognized file references into clickable links
@@ -274,8 +287,9 @@ function createContentElement(content, role) {
  */
 function createCopyButton(content) {
   const button = document.createElement('button');
-  button.className = 'absolute top-2 right-2 text-white dark:text-gray-300 opacity-60 hover:opacity-100 focus:opacity-100 transition-opacity';
-  button.innerHTML = '📋';
+  button.className =
+    'absolute top-2 right-2 text-white dark:text-gray-300 opacity-60 hover:opacity-100 focus:opacity-100 transition-opacity';
+  button.innerHTML = '[Clipboard]';
   button.title = 'Copy to clipboard';
   button.onclick = () =>
     copyToClipboard(typeof content === 'string' ? content : JSON.stringify(content));
@@ -289,8 +303,17 @@ export function highlightCodeBlocks(container) {
   container.querySelectorAll('pre code').forEach(block => {
     block.style.opacity = '0';
     // Apply Tailwind classes to code blocks
-    block.classList.add('block', 'p-4', 'overflow-x-auto', 'rounded', 'bg-gray-100', 'dark:bg-gray-800', 'text-sm', 'font-mono');
-    
+    block.classList.add(
+      'block',
+      'p-4',
+      'overflow-x-auto',
+      'rounded',
+      'bg-gray-100',
+      'dark:bg-gray-800',
+      'text-sm',
+      'font-mono'
+    );
+
     // Optional detection of language from text or class
     if (!block.className && block.parentElement.firstChild?.textContent) {
       const lang = block.parentElement.firstChild.textContent.trim();
@@ -336,8 +359,7 @@ function scheduleScroll(element) {
   };
 
   const scrollThreshold = isMobile ? 100 : 300;
-  const fromBottom =
-    chatHistory.scrollHeight - (chatHistory.scrollTop + chatHistory.clientHeight);
+  const fromBottom = chatHistory.scrollHeight - (chatHistory.scrollTop + chatHistory.clientHeight);
 
   if (fromBottom <= scrollThreshold) {
     setTimeout(() => {
@@ -397,11 +419,12 @@ export function updateTokenUsage(usage) {
   if (promptTokens) promptTokens.textContent = usage.prompt_tokens || 0;
   if (completionTokens) completionTokens.textContent = usage.completion_tokens || 0;
   if (totalTokens) totalTokens.textContent = usage.total_tokens || 0;
-  
+
   // Optional if these are provided
   if (reasoningTokens && usage.reasoning_tokens) {
     reasoningTokens.textContent = usage.reasoning_tokens;
   }
+  window.loadOlderMessages = loadOlderMessages;
   if (baseCompletionTokens && usage.base_completion_tokens) {
     baseCompletionTokens.textContent = usage.base_completion_tokens;
   }
