@@ -17,6 +17,35 @@ import { initializeConfig } from './config.js';
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Initializing Azure OpenAI Chat application...');
   
+  // Initialize the model manager early
+  import('./models.js').then(module => {
+    const { modelManager } = module;
+    modelManager.initialize().then(() => {
+      console.log('ModelManager initialized successfully');
+      
+      // Force populate the model dropdown
+      const modelSelect = document.getElementById('model-select');
+      if (modelSelect && modelSelect.options.length === 0) {
+        console.log('Manually populating model dropdown');
+        
+        // Add default options if the dropdown is empty
+        const defaultModels = [
+          { id: 'o1hp', description: 'Advanced reasoning model for complex tasks' },
+          { id: 'DeepSeek-R1', description: 'Model that supports chain-of-thought reasoning' }
+        ];
+        
+        defaultModels.forEach(model => {
+          const option = document.createElement('option');
+          option.value = model.id;
+          option.textContent = `${model.id} (${model.description})`;
+          modelSelect.appendChild(option);
+        });
+      }
+    }).catch(err => {
+      console.error('Error initializing ModelManager:', err);
+    });
+  });
+  
   initThemeSwitcher();
   
   // Initialize the sidebar tab system

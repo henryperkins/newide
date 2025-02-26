@@ -65,25 +65,7 @@ export function displayMessage(content, role) {
   
   // After content is added, set up event listeners for thinking process toggles
   if (role === 'assistant') {
-    setTimeout(() => {
-      contentDiv.querySelectorAll('.thinking-toggle').forEach(button => {
-        button.addEventListener('click', () => {
-          const container = button.closest('.thinking-process');
-          const content = container.querySelector('.thinking-content');
-          const isExpanded = button.getAttribute('aria-expanded') === 'true';
-          
-          if (isExpanded) {
-            content.style.display = 'none';
-            button.setAttribute('aria-expanded', 'false');
-            button.querySelector('.toggle-icon').textContent = '►';
-          } else {
-            content.style.display = 'block';
-            button.setAttribute('aria-expanded', 'true');
-            button.querySelector('.toggle-icon').textContent = '▼';
-          }
-        });
-      });
-    }, 100);
+    setupThinkingToggleListeners();
   }
 
   // We can attach a copy button for convenience
@@ -484,6 +466,29 @@ function addThinkingStyles() {
 
 // Call this function on page load
 addThinkingStyles();
+
+// Set up event listeners for thinking process toggles
+export function setupThinkingToggleListeners() {
+  setTimeout(() => {
+    document.querySelectorAll('.thinking-toggle').forEach(button => {
+      button.addEventListener('click', () => {
+        const container = button.closest('.thinking-process');
+        const content = container.querySelector('.thinking-content');
+        const isExpanded = button.getAttribute('aria-expanded') === 'true';
+        
+        if (isExpanded) {
+          content.style.display = 'none';
+          button.setAttribute('aria-expanded', 'false');
+          button.querySelector('.toggle-icon').textContent = '►';
+        } else {
+          content.style.display = 'block';
+          button.setAttribute('aria-expanded', 'true');
+          button.querySelector('.toggle-icon').textContent = '▼';
+        }
+      });
+    });
+  }, 100);
+}
 
 export function highlightCodeBlocks(container) {
   container.querySelectorAll('pre code').forEach(block => {
