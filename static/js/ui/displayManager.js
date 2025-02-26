@@ -137,14 +137,11 @@ export async function processServerResponseData(data, modelName = 'unknown') {
   // Check if the model name is already included in the content to avoid duplication
   const modelNameRegex = new RegExp(`\\(Using model: ${modelName}\\)`, 'i');
   if (!modelNameRegex.test(assistantContent)) {
-    // Handle specific model name correction for DeepSeek-R1
-    let displayModelName = modelName;
-    
     // Log the actual model name for debugging
     console.log(`Adding model label: ${modelName}`);
     
     // Append the model name as subtext only if it's not already there
-    assistantContent += `\n\n<span class="text-xs text-gray-500 dark:text-gray-400">(Using model: ${displayModelName})</span>`;
+    assistantContent += `\n\n<span class="text-xs text-gray-500 dark:text-gray-400">(Using model: ${modelName})</span>`;
   }
 
   // Inject global Markdown styles once
