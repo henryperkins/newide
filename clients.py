@@ -1,27 +1,30 @@
 import os
 import asyncio
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Union
 from urllib.parse import urlparse
 import socket
 from database import AsyncSessionLocal
 
+# Import both client types
 from openai import AzureOpenAI
+from azure.ai.inference import ChatCompletionsClient
+from azure.core.credentials import AzureKeyCredential
 from logging_config import logger
 import config
 
 # Removed direct database import, now handled by ConfigService
-# from database import get_db_session  # Now used *only* for config
 from services.config_service import ConfigService  # Use for database access.
 
 
 class ClientPool:
     """
-    Manages a pool of Azure OpenAI clients for different models using an async singleton pattern.
-    Model configurations are now stored in the database (app_configurations) under the key "model_configs".
+    Manages a pool of Azure OpenAI and Azure AI Inference clients for different models 
+    using an async singleton pattern.
+    Model configurations are stored in the database (app_configurations) under the key "model_configs".
     """
 
     _instance = None
-    _clients: Dict[str, AzureOpenAI] = {}
+    _clients: Dict[str, Union[AzureOpenAI, ChatCompletionsClient]] = {}
     _lock = asyncio.Lock()
 
     def __init__(self):
@@ -110,10 +113,6 @@ class ClientPool:
                     is_secret=True
                 )
                 logger.info("Created default model configurations")
-            else:
-                # Rest of initialization remains the same
-                # ... existing code ...
-                pass
 
             # Initialize clients from configs
             for model_name, model_config in db_model_configs.items():
@@ -134,7 +133,7 @@ class ClientPool:
             
             # Check if we have at least one client
             if not self._clients:
-                error_msg = "Failed to initialize any model clients. Check configuration and Azure OpenAI access."
+                error_msg = "Failed to initialize any model clients. Check configuration and Azure access."
                 logger.error(f"[ClientPool] {error_msg}")
                 raise ValueError(error_msg)
                 
@@ -144,10 +143,11 @@ class ClientPool:
             if not self._clients:
                 raise
 
-    def _create_client(self, model_name: str, model_config: Dict[str, Any]) -> AzureOpenAI:
+    def _create_client(self, model_name: str, model_config: Dict[str, Any]) -> Union[AzureOpenAI, ChatCompletionsClient]:
         """
-        Create an Azure OpenAI client with the given configuration.
-        If it lacks one or more required fields, we log a critical error instead of raising immediately.
+        Create an appropriate client for the given model:
+        - ChatCompletionsClient from azure.ai.inference for DeepSeek models
+        - AzureOpenAI from openai for o-series and other models
         """
         # Determine model type
         is_deepseek = config.is_deepseek_model(model_name)
@@ -156,65 +156,73 @@ class ClientPool:
         # Set retries based on model type
         max_retries = config.O_SERIES_MAX_RETRIES if is_o_series else 3
         
-        # Select the proper API key and endpoint based on model type
         if is_deepseek:
+            # Use Azure AI Inference for DeepSeek models
             api_key = os.getenv("AZURE_INFERENCE_CREDENTIAL", "")
             endpoint = model_config.get("azure_endpoint", config.AZURE_INFERENCE_ENDPOINT)
-            if not endpoint:
-                logger.critical(f"No Azure Inference endpoint configured for {model_name} model. Calls may fail!")
             api_version = model_config.get("api_version", config.DEEPSEEK_R1_DEFAULT_API_VERSION)
             
-            # Validate required config for DeepSeek
+            if not endpoint:
+                logger.critical(f"No Azure Inference endpoint configured for {model_name} model. Calls may fail!")
+                
             if not api_key:
                 logger.critical(f"Missing AZURE_INFERENCE_CREDENTIAL for {model_name} model. Calls may fail!")
+            
+            logger.info(f"Creating Azure AI Inference client for {model_name} at {endpoint}")
+            return ChatCompletionsClient(
+                endpoint=endpoint,
+                credential=AzureKeyCredential(api_key)
+            )
         else:
+            # Use Azure OpenAI for o-series and other models
             api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
             endpoint = model_config.get("azure_endpoint", config.AZURE_OPENAI_ENDPOINT)
+            api_version = model_config.get(
+                "api_version", 
+                config.MODEL_API_VERSIONS.get(model_name, config.AZURE_OPENAI_API_VERSION)
+            )
             
-            # Use model-specific API version with fallback to defaults
-            if is_o_series:
-                api_version = model_config.get("api_version", config.MODEL_API_VERSIONS.get(model_name, config.AZURE_OPENAI_API_VERSION))
-            else:
-                api_version = model_config.get("api_version", config.AZURE_OPENAI_API_VERSION)
-                
             if not endpoint:
                 logger.critical(f"No Azure endpoint configured for model '{model_name}'. Calls may fail!")
+            
+            if not api_key:
+                logger.critical(f"Missing AZURE_OPENAI_API_KEY for {model_name} model. Calls may fail!")
 
-        def ensure_protocol(url: str) -> str:
-            """Guarantee endpoint URLs have a protocol prefix."""
-            if not url.startswith(("http://", "https://")):
-                logger.warning(f"Auto-adding HTTPS protocol to endpoint: {url}")
-                return f"https://{url}"
-            return url
-
-        if endpoint:
-            endpoint = ensure_protocol(endpoint)
+            # Ensure endpoint has protocol
+            endpoint = self._ensure_protocol(endpoint)
             
             # Debug DNS resolution
-            parsed = urlparse(endpoint)
-            logger.info(f"Resolving DNS for: {parsed.hostname}")
-            try:
-                ip = socket.gethostbyname(parsed.hostname)
-                logger.info(f"Resolved {parsed.hostname} → {ip}")
-            except socket.gaierror as e:
-                logger.error(f"DNS resolution failed for {parsed.hostname}: {str(e)}")
-                # We do not raise here, to keep code consistent with the approach
-        else:
-            # No endpoint at all
-            endpoint = ""
+            if endpoint:
+                parsed = urlparse(endpoint)
+                logger.info(f"Resolving DNS for: {parsed.hostname}")
+                try:
+                    ip = socket.gethostbyname(parsed.hostname)
+                    logger.info(f"Resolved {parsed.hostname} → {ip}")
+                except socket.gaierror as e:
+                    logger.error(f"DNS resolution failed for {parsed.hostname}: {str(e)}")
+            else:
+                endpoint = ""
 
-        return AzureOpenAI(
-            api_key=api_key,
-            api_version=api_version,
-            azure_endpoint=endpoint,
-            azure_deployment=model_name,
-            max_retries=max_retries,
-            timeout=model_config.get("base_timeout", 60.0)
-        )
+            logger.info(f"Creating Azure OpenAI client for {model_name} at {endpoint}")
+            return AzureOpenAI(
+                api_key=api_key,
+                api_version=api_version,
+                azure_endpoint=endpoint,
+                azure_deployment=model_name,
+                max_retries=max_retries,
+                timeout=model_config.get("base_timeout", 60.0)
+            )
 
-    def get_client(self, model_name: Optional[str] = None) -> AzureOpenAI:
+    def _ensure_protocol(self, url: str) -> str:
+        """Guarantee endpoint URLs have a protocol prefix."""
+        if url and not url.startswith(("http://", "https://")):
+            logger.warning(f"Auto-adding HTTPS protocol to endpoint: {url}")
+            return f"https://{url}"
+        return url
+
+    def get_client(self, model_name: Optional[str] = None) -> Union[AzureOpenAI, ChatCompletionsClient]:
         """
-        Retrieve an already-initialized AzureOpenAI client object from the pool.
+        Retrieve an already-initialized client object from the pool.
         If no model_name is provided, fallback to config.AZURE_OPENAI_DEPLOYMENT_NAME.
         If requested model is not available, try default model, then any available model.
         """
@@ -249,7 +257,7 @@ class ClientPool:
             # If still no client, raise error
             available = list(self._clients.keys())
             raise ValueError(
-                f"No AzureOpenAI client available for '{model_name}' "
+                f"No client available for '{model_name}' "
                 f"or fallback '{config.AZURE_OPENAI_DEPLOYMENT_NAME}'.\n"
                 f"Initialized clients: {available}\n"
                 f"Verify that 'model_configs' in the DB includes an entry for '{model_name}' or the default."
@@ -313,6 +321,8 @@ class ClientPool:
                             model_config["name"] = model_name
                         elif field == "api_version":
                             model_config["api_version"] = (
+                                config.AZURE_INFERENCE
+								model_config["api_version"] = (
                                 config.AZURE_INFERENCE_API_VERSION 
                                 if model_name.lower() == "deepseek-r1" 
                                 else config.AZURE_OPENAI_API_VERSION
@@ -334,6 +344,16 @@ class ClientPool:
             except Exception as e:
                 logger.error(f"Failed to refresh client for {model_name}: {str(e)}")
                 # Also don't raise the outer exception
+
+    def get_client_type(self, model_name: Optional[str] = None) -> str:
+        """Utility method to check which client type is being used for a model"""
+        client = self.get_client(model_name)
+        if isinstance(client, ChatCompletionsClient):
+            return "Azure AI Inference"
+        elif isinstance(client, AzureOpenAI):
+            return "Azure OpenAI"
+        else:
+            return f"Unknown client type: {type(client).__name__}"
 
 
 # ------------------------------------------------------
@@ -359,9 +379,91 @@ async def get_client_pool() -> ClientPool:
         await init_client_pool()
     return _client_pool
     
-async def get_model_client(model_name: Optional[str] = None) -> AzureOpenAI:
+async def get_model_client(model_name: Optional[str] = None) -> Union[AzureOpenAI, ChatCompletionsClient]:
     """
     Convenience function to directly get a client for a given model name.
+    Returns either an AzureOpenAI client or ChatCompletionsClient based on model type.
     """
     pool = await get_client_pool()
     return pool.get_client(model_name)
+
+# Helper functions to make calls to the appropriate client
+async def complete_with_model(
+    model_name: str,
+    messages: list,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    max_completion_tokens: Optional[int] = None,
+    reasoning_effort: Optional[str] = None,
+    **kwargs
+) -> dict:
+    """
+    Make a completion request using the appropriate client based on model type.
+    Handles differences between Azure OpenAI and Azure AI Inference APIs.
+    """
+    client = await get_model_client(model_name)
+    
+    # Prepare parameters based on client type
+    if isinstance(client, ChatCompletionsClient):
+        # Using Azure AI Inference client for DeepSeek
+        try:
+            response = client.complete(
+                model=model_name,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                **kwargs
+            )
+            # Convert response to dict format similar to OpenAI
+            # This depends on the actual response structure - adjust as needed
+            return {
+                "id": response.id,
+                "model": response.model,
+                "choices": [
+                    {
+                        "index": choice.index,
+                        "message": {"role": choice.message.role, "content": choice.message.content},
+                        "finish_reason": choice.finish_reason
+                    } for choice in response.choices
+                ],
+                "usage": {
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens,
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error with Azure AI Inference client: {str(e)}")
+            raise
+    else:
+        # Using AzureOpenAI client for o-series models
+        try:
+            params = {
+                "messages": messages,
+                **kwargs
+            }
+            
+            # Add optional parameters if provided
+            if max_completion_tokens:
+                params["max_completion_tokens"] = max_completion_tokens
+            elif max_tokens:  # Fallback for models that use max_tokens
+                params["max_tokens"] = max_tokens
+                
+            if temperature is not None:
+                params["temperature"] = temperature
+                
+            if reasoning_effort and config.is_o_series_model(model_name):
+                params["reasoning_effort"] = reasoning_effort
+            
+            response = client.chat.completions.create(**params)
+            # Return the response as a dictionary
+            return response.model_dump()
+        except Exception as e:
+            logger.error(f"Error with Azure OpenAI client: {str(e)}")
+            raise
+
+# Check available models in the pool
+async def list_available_models():
+    """Return a list of all available models in the client pool."""
+    pool = await get_client_pool()
+    return list(pool._clients.keys())
