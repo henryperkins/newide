@@ -83,7 +83,7 @@ class ModelConfigModel(BaseModel):
     token_factor: float = 0.05
 
 
-@router.get("/models", response_model=Dict[str, ModelConfigModel])
+@router.get("/models", response_model=None)
 async def get_models(config_service=Depends(get_config_service)):
     """Get all model configurations"""
     try:
@@ -98,9 +98,12 @@ async def get_models(config_service=Depends(get_config_service)):
                 "o1hp": {
                     "name": "o1hp",
                     "description": "Azure OpenAI o1 high performance model",
-                    "max_tokens": 40000,
+                    "max_tokens": 200000,
+                    "max_completion_tokens": 5000,
                     "supports_streaming": False,
                     "supports_temperature": False,
+                    "requires_reasoning_effort": True,
+                    "reasoning_effort": "medium",
                     "api_version": config.AZURE_OPENAI_API_VERSION,
                     "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
                     "base_timeout": 120.0,
@@ -156,9 +159,12 @@ async def get_models(config_service=Depends(get_config_service)):
                 models["o1hp"] = {
                     "name": "o1hp",
                     "description": "Azure OpenAI o1 high performance model",
-                    "max_tokens": 40000,
+                    "max_tokens": 200000,
+                    "max_completion_tokens": 5000,
                     "supports_streaming": False,
                     "supports_temperature": False,
+                    "requires_reasoning_effort": True,
+                    "reasoning_effort": "medium",
                     "api_version": config.AZURE_OPENAI_API_VERSION,
                     "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
                     "base_timeout": 120.0,
@@ -172,6 +178,7 @@ async def get_models(config_service=Depends(get_config_service)):
                 print("DEBUG: Saved models with added o1hp")
 
         print(f"DEBUG: Returning models: {list(models.keys())}")
+        # Return the models directly, not wrapped in a "models" object
         return models
 
     except Exception as e:
@@ -307,10 +314,12 @@ async def switch_model_simple(
             "name": "o1hp",
             "description": "Advanced reasoning model for complex tasks",
             "max_tokens": 200000,
+            "max_completion_tokens": 5000,
             "supports_temperature": False,
             "supports_streaming": False,
             "supports_vision": True,
             "requires_reasoning_effort": True,
+            "reasoning_effort": "medium",
             "base_timeout": 120.0,
             "max_timeout": 300.0,
             "token_factor": 0.05,

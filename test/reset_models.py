@@ -2,6 +2,12 @@ import asyncio
 import json
 import ssl
 import sys
+import os
+import sys
+
+# Add the parent directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 import config
@@ -26,10 +32,14 @@ async def reset_models_config():
     model_configs = {
         "o1hp": {
             "name": "o1hp",
-            "description": "Azure OpenAI o1 high performance model",
-            "max_tokens": 40000,
-            "supports_streaming": False,
-            "supports_temperature": False,
+            "description": "Advanced reasoning model for complex tasks",
+            "max_tokens": 200000,  # Based on o1 documentation (input context window)
+            "max_completion_tokens": 5000,  # o-series uses max_completion_tokens
+            "supports_streaming": False,  # o1 doesn't support streaming (only o3-mini does)
+            "supports_temperature": False,  # o1 doesn't support temperature
+            "supports_vision": True,  # o1 supports vision
+            "requires_reasoning_effort": True,  # o1 supports reasoning effort
+            "reasoning_effort": "medium",  # Default reasoning effort
             "api_version": config.AZURE_OPENAI_API_VERSION,
             "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
             "base_timeout": 120.0,
@@ -38,10 +48,11 @@ async def reset_models_config():
         },
         "DeepSeek-R1": {
             "name": "DeepSeek-R1",
-            "description": "Reasoning-focused model with high performance in math, coding, and science",
+            "description": "Model that supports chain-of-thought reasoning with <think> tags",
             "max_tokens": 32000,
-            "supports_streaming": True,
-            "supports_temperature": True,
+            "supports_streaming": True,  # DeepSeek supports streaming
+            "supports_temperature": True,  # DeepSeek uses temperature parameter
+            "supports_json_response": False,  # DeepSeek doesn't support JSON response format
             "api_version": config.AZURE_INFERENCE_API_VERSION,
             "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
             "base_timeout": 120.0,

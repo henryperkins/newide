@@ -90,10 +90,12 @@ class ModelManager {
                 azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
                 api_version: "2025-01-01-preview",
                 max_tokens: 200000,
+                max_completion_tokens: 5000,
                 supports_temperature: false,
                 supports_streaming: false,
                 supports_vision: true,
                 requires_reasoning_effort: true,
+                reasoning_effort: "medium",
                 base_timeout: 120.0,
                 max_timeout: 300.0,
                 token_factor: 0.05
@@ -193,8 +195,16 @@ class ModelManager {
                 throw new Error(`Failed to fetch models: ${response.status} ${response.statusText}`);
             }
             
-            const models = await response.json();
-            console.log('Models received from API:', models);
+            let models = await response.json();
+            console.log('Raw models received from API:', models);
+            
+            // Handle both formats: direct models object or models wrapped in a "models" property
+            if (models.models) {
+                console.log('Models are wrapped in a "models" property, extracting...');
+                models = models.models;
+            }
+            
+            console.log('Processed models:', models);
             
             // Warn if DeepSeek-R1 is missing
             const hasDeepSeekR1 = Object.keys(models).includes("DeepSeek-R1");
@@ -323,9 +333,12 @@ class ModelManager {
             this.modelConfigs["o1hp"] = {
                 name: "o1hp",
                 description: "Azure OpenAI o1 high performance model",
-                max_tokens: 40000,
+                max_tokens: 200000,
+                max_completion_tokens: 5000,
                 supports_streaming: false,
                 supports_temperature: false,
+                requires_reasoning_effort: true,
+                reasoning_effort: "medium",
                 api_version: "2025-01-01-preview", 
                 azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
                 base_timeout: 120.0,
@@ -651,19 +664,86 @@ class ModelManager {
     }
 
     /**
-     * Switch active model. Calls a “switch_model” API route.
+     * Switch active model. Calls a "switch_model" API route.
      * @param {string} modelId 
      * @returns {Promise<boolean>} success
      */
     async switchModel(modelId) {
         console.log(`Attempting to switch to model: ${modelId}`);
         
-        // Validate existence
-        if (!this.modelConfigs[modelId]) {
-            console.error(`Model ${modelId} not found in configurations`);
-            this.showToast(`Model ${modelId} not available`, 'error');
-            return false;
+        // Normalize model ID for case-insensitive comparison
+        const normalizedModelId = modelId.toLowerCase();
+        
+        // Find the model in configurations (case-insensitive)
+        const matchingModelId = Object.keys(this.modelConfigs).find(
+            id => id.toLowerCase() === normalizedModelId
+        );
+        
+        if (!matchingModelId) {
+            console.log(`Model ${modelId} not found in configurations, attempting to create it`);
+            
+            // Special handling for known models
+            if (normalizedModelId === "deepseek-r1") {
+                // Create DeepSeek-R1 model if it doesn't exist
+                const deepseekR1Model = {
+                    name: "DeepSeek-R1",
+                    description: "Model that supports chain-of-thought reasoning with <think> tags",
+                    azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
+                    api_version: "2024-05-01-preview",
+                    max_tokens: 32000,
+                    supports_temperature: true,
+                    supports_streaming: true,
+                    supports_json_response: false,
+                    base_timeout: 120.0,
+                    max_timeout: 300.0,
+                    token_factor: 0.05
+                };
+                
+                try {
+                    await this.createModel("DeepSeek-R1", deepseekR1Model);
+                    console.log('DeepSeek-R1 model created successfully');
+                    // Add to local configs
+                    this.modelConfigs["DeepSeek-R1"] = deepseekR1Model;
+                } catch (error) {
+                    console.warn('Failed to create DeepSeek-R1 model via API, adding to local config:', error);
+                    this.modelConfigs["DeepSeek-R1"] = deepseekR1Model;
+                }
+            } else if (normalizedModelId === "o1hp") {
+                // Create o1hp model if it doesn't exist
+                const o1Model = {
+                    name: "o1hp",
+                    description: "Advanced reasoning model for complex tasks",
+                    azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
+                    api_version: "2025-01-01-preview",
+                    max_tokens: 200000,
+                    max_completion_tokens: 5000,
+                    supports_temperature: false,
+                    supports_streaming: false,
+                    supports_vision: true,
+                    requires_reasoning_effort: true,
+                    reasoning_effort: "medium",
+                    base_timeout: 120.0,
+                    max_timeout: 300.0,
+                    token_factor: 0.05
+                };
+                
+                try {
+                    await this.createModel("o1hp", o1Model);
+                    console.log('o1hp model created successfully');
+                    // Add to local configs
+                    this.modelConfigs["o1hp"] = o1Model;
+                } catch (error) {
+                    console.warn('Failed to create o1hp model via API, adding to local config:', error);
+                    this.modelConfigs["o1hp"] = o1Model;
+                }
+            } else {
+                this.showToast(`Model ${modelId} not available`, 'error');
+                return false;
+            }
         }
+        
+        // Use the matching model ID with correct case
+        const actualModelId = matchingModelId || modelId;
         
         try {
             this.showToast(`Switching to ${modelId}...`, 'info');
@@ -672,6 +752,29 @@ class ModelManager {
             const session = await fetch('/api/session').then(r => r.json());
             const sessionId = session?.id;
             
+            // Prepare parameters for the request
+            const params = {
+                model: modelId
+            };
+            
+            // Set appropriate parameters based on model type
+            if (modelId.startsWith('o1') || modelId.startsWith('o3')) {
+                // o-series models use max_completion_tokens instead of max_tokens
+                params.max_completion_tokens = 5000;
+                params.api_version = '2025-01-01-preview';
+                params.reasoning_effort = 'medium'; // Can be low, medium, high
+                // o-series doesn't support temperature, top_p, etc.
+            } else if (modelId === 'DeepSeek-R1') {
+                // DeepSeek-R1 uses standard parameters
+                params.max_tokens = 32000;
+                params.temperature = 0.7;
+                params.api_version = '2024-05-01-preview';
+            } else {
+                // Default for other models
+                params.max_tokens = 4000;
+                params.temperature = 0.7;
+            }
+
             // Switch model using simplified endpoint
             console.log(`Switching to model: ${modelId} with session_id: ${sessionId}`);
             const url = `/api/config/models/switch_model/${modelId}${
@@ -682,7 +785,7 @@ class ModelManager {
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({}) // Add empty body to ensure proper POST request
+                body: JSON.stringify(params)
             });
             
             if (!response.ok) {

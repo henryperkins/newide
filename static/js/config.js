@@ -289,39 +289,80 @@ function updateReasoningEffortDisplay() {
  */
 export async function updateModelSpecificUI(modelName) {
     try {
-        // Special handling for o1hp model - create it if it doesn't exist
-        if (modelName === "o1hp" && !modelManager.modelConfigs[modelName]) {
-            console.log("o1hp model not found in configurations, creating it");
-
-            // Create o1hp model configuration based on documentation
-            const o1Model = {
-                name: "o1hp",
-                description: "Advanced reasoning model for complex tasks",
-                azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
-                api_version: "2025-01-01-preview",
-                max_tokens: 200000, // Based on o1 documentation (input context window)
-                supports_temperature: false, // o1 doesn't support temperature
-                supports_streaming: false, // o1 doesn't support streaming (only o3-mini does)
-                supports_vision: true, // o1 supports vision
-                requires_reasoning_effort: true, // o1 supports reasoning effort
-                base_timeout: 120.0,
-                max_timeout: 300.0,
-                token_factor: 0.05
-            };
-
-            // Add the model to modelConfigs
-            modelManager.modelConfigs[modelName] = o1Model;
-            console.log("Created o1hp model configuration:", o1Model);
+        // Normalize model name for case-insensitive comparison
+        const normalizedModelName = modelName.toLowerCase();
+        
+        // Find the model in configurations (case-insensitive)
+        const matchingModelId = Object.keys(modelManager.modelConfigs).find(
+            id => id.toLowerCase() === normalizedModelName
+        );
+        
+        // If model not found, create it based on known types
+        if (!matchingModelId) {
+            console.log(`Model ${modelName} not found in configurations, attempting to create it`);
+            
+            // Special handling for o1hp model
+            if (normalizedModelName === "o1hp") {
+                console.log("Creating o1hp model configuration");
+                
+                // Create o1hp model configuration based on documentation
+                const o1Model = {
+                    name: "o1hp",
+                    description: "Advanced reasoning model for complex tasks",
+                    azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
+                    api_version: "2025-01-01-preview",
+                    max_tokens: 200000, // Based on o1 documentation (input context window)
+                    max_completion_tokens: 5000,
+                    supports_temperature: false, // o1 doesn't support temperature
+                    supports_streaming: false, // o1 doesn't support streaming (only o3-mini does)
+                    supports_vision: true, // o1 supports vision
+                    requires_reasoning_effort: true, // o1 supports reasoning effort
+                    reasoning_effort: "medium",
+                    base_timeout: 120.0,
+                    max_timeout: 300.0,
+                    token_factor: 0.05
+                };
+                
+                // Add the model to modelConfigs
+                modelManager.modelConfigs["o1hp"] = o1Model;
+                console.log("Created o1hp model configuration:", o1Model);
+            }
+            // Special handling for DeepSeek-R1 model
+            else if (normalizedModelName === "deepseek-r1") {
+                console.log("Creating DeepSeek-R1 model configuration");
+                
+                // Create DeepSeek-R1 model configuration based on documentation
+                const deepseekModel = {
+                    name: "DeepSeek-R1",
+                    description: "Model that supports chain-of-thought reasoning with <think> tags",
+                    azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
+                    api_version: "2024-05-01-preview",
+                    max_tokens: 32000,
+                    supports_temperature: true,
+                    supports_streaming: true,
+                    supports_json_response: false,
+                    base_timeout: 120.0,
+                    max_timeout: 300.0,
+                    token_factor: 0.05
+                };
+                
+                // Add the model to modelConfigs
+                modelManager.modelConfigs["DeepSeek-R1"] = deepseekModel;
+                console.log("Created DeepSeek-R1 model configuration:", deepseekModel);
+            }
         }
-
+        
+        // Use the matching model ID with correct case, or fall back to the original
+        const actualModelName = matchingModelId || modelName;
+        
         // Check if model exists in configurations after potential creation
-        if (!modelManager.modelConfigs[modelName]) {
-            console.warn(`Model ${modelName} not found in model configurations`);
+        if (!modelManager.modelConfigs[actualModelName]) {
+            console.warn(`Model ${modelName} not found in model configurations and could not be created`);
             return; // If we still don't have config, no further updates
         }
 
-        const modelConfig = modelManager.modelConfigs[modelName];
-        const isOSeries = modelName.toLowerCase().startsWith('o1') || modelName.toLowerCase().startsWith('o3');
+        const modelConfig = modelManager.modelConfigs[actualModelName];
+        const isOSeries = actualModelName.toLowerCase().startsWith('o1') || actualModelName.toLowerCase().startsWith('o3');
 
         // Update reasoning controls visibility
         const reasoningControls = document.getElementById('reasoning-controls');
@@ -353,7 +394,7 @@ export async function updateModelSpecificUI(modelName) {
             const featuresText = modelFeatures.length > 0 ? `with ${modelFeatures.join(' & ')}` : '';
 
             modelInfoSection.innerHTML = `
-                <p><strong>Model Info:</strong> Using ${modelName} model ${featuresText}</p>
+                <p><strong>Model Info:</strong> Using ${actualModelName} model ${featuresText}</p>
             `;
         }
 

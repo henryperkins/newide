@@ -41,8 +41,9 @@ class Settings(BaseSettings):
     # DeepSeek Inference Configuration
     AZURE_INFERENCE_ENDPOINT: str = os.getenv("AZURE_INFERENCE_ENDPOINT", "https://DeepSeek-R1D2.eastus2.models.ai.azure.com")
     AZURE_INFERENCE_CREDENTIAL: str = os.getenv("AZURE_INFERENCE_CREDENTIAL")
-    AZURE_INFERENCE_DEPLOYMENT: str = os.getenv("AZURE_INFERENCE_DEPLOYMENT", "DeepSeek-R1HP")
+    AZURE_INFERENCE_DEPLOYMENT: str = os.getenv("AZURE_INFERENCE_DEPLOYMENT", "DeepSeek-R1D2")
     AZURE_INFERENCE_API_VERSION: str = os.getenv("AZURE_INFERENCE_API_VERSION", "2024-05-01-preview")
+    
     # Azure OpenAI Configuration
     AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT")
     AZURE_OPENAI_API_KEY: str = os.getenv("AZURE_OPENAI_API_KEY")
@@ -139,15 +140,27 @@ AZURE_OPENAI_API_VERSION = settings.AZURE_OPENAI_API_VERSION
 # MODEL_CONFIGS has been removed from config.py and should be loaded from a database or external config.
 
 # DeepSeek-R1 specific settings with proper fallbacks
-DEEPSEEK_R1_DEFAULT_TEMPERATURE = 0.7
-DEEPSEEK_R1_DEFAULT_MAX_TOKENS = 32000
-DEEPSEEK_R1_DEFAULT_API_VERSION = "2024-05-01-preview"
+DEEPSEEK_R1_DEFAULT_TEMPERATURE = 0.7  # DeepSeek-R1 supports temperature parameter
+DEEPSEEK_R1_DEFAULT_MAX_TOKENS = 32000  # Max tokens for DeepSeek-R1
+DEEPSEEK_R1_DEFAULT_API_VERSION = "2024-05-01-preview"  # API version for DeepSeek-R1
 
-# Utility function to check if a model is DeepSeek-R1
+# o-series specific settings (o1, o3-mini)
+O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS = 5000  # o-series uses max_completion_tokens instead of max_tokens
+O_SERIES_DEFAULT_REASONING_EFFORT = "medium"  # Can be "low", "medium", or "high"
+O_SERIES_INPUT_TOKEN_LIMIT = 200000  # Input token limit for o-series models
+O_SERIES_OUTPUT_TOKEN_LIMIT = 100000  # Output token limit for o-series models
+
+# Utility functions to check model types
 def is_deepseek_model(model_name: str) -> bool:
     """Check if the model is a DeepSeek model based on name."""
     return model_name and model_name.lower().startswith("deepseek")
 
+def is_o_series_model(model_name: str) -> bool:
+    """Check if the model is an o-series model (o1, o3-mini, etc.)."""
+    if not model_name:
+        return False
+    model_lower = model_name.lower()
+    return model_lower.startswith("o1") or model_lower.startswith("o3")
 
 # Validate that the endpoints are set
 if not AZURE_OPENAI_ENDPOINT:
@@ -231,6 +244,9 @@ def build_azure_openai_url(deployment_name: str = None, api_version: str = None)
     if not api_version:
         if deployment_name == "DeepSeek-R1":
             api_version = os.getenv('AZURE_INFERENCE_API_VERSION', '2024-05-01-preview')
+        elif deployment_name and is_o_series_model(deployment_name):
+            # o-series models require specific API versions
+            api_version = os.getenv('AZURE_OPENAI_API_VERSION', '2025-01-01-preview')
         else:
             api_version = os.getenv('AZURE_OPENAI_API_VERSION', '2025-01-01-preview')
         
@@ -245,3 +261,30 @@ def build_azure_openai_url(deployment_name: str = None, api_version: str = None)
     final_url = f"{api_url}?api-version={api_version}"
     
     return final_url
+
+def get_model_parameters(model_name: str) -> dict:
+    """Return the appropriate parameters for a given model"""
+    base_params = {}
+    
+    if is_o_series_model(model_name):
+        # o-series models use max_completion_tokens instead of max_tokens
+        # They do not support temperature, top_p, presence_penalty, frequency_penalty
+        return {
+            "max_completion_tokens": O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
+            "reasoning_effort": O_SERIES_DEFAULT_REASONING_EFFORT,
+            "api_version": MODEL_API_VERSIONS.get(model_name, MODEL_API_VERSIONS["o1"])
+        }
+    elif is_deepseek_model(model_name):
+        # DeepSeek-R1 uses standard parameters
+        return {
+            "max_tokens": DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
+            "temperature": DEEPSEEK_R1_DEFAULT_TEMPERATURE,
+            "api_version": DEEPSEEK_R1_DEFAULT_API_VERSION
+        }
+    else:
+        # Default parameters for other models
+        return {
+            "max_tokens": 4096,
+            "temperature": 0.7,
+            "api_version": MODEL_API_VERSIONS["default"]
+        }

@@ -59,21 +59,25 @@ class ClientPool:
                 
                 o1_config = {
                     "name": default_o1,
-                    "max_tokens": 40000,
+                    "description": "Default Azure OpenAI o1 model",
+                    "max_tokens": 200000,
+                    "max_completion_tokens": config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
                     "supports_streaming": False,
                     "supports_temperature": False,
+                    "requires_reasoning_effort": True,
+                    "reasoning_effort": config.O_SERIES_DEFAULT_REASONING_EFFORT,
                     "base_timeout": config.O_SERIES_BASE_TIMEOUT,
                     "max_timeout": config.O_SERIES_MAX_TIMEOUT,
                     "token_factor": config.O_SERIES_TOKEN_FACTOR,
                     "api_version": config.AZURE_OPENAI_API_VERSION,
-                    "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
-                    "description": "Default Azure OpenAI o1 model"
+                    "azure_endpoint": config.AZURE_OPENAI_ENDPOINT
                 }
                 
                 # Create DeepSeek-R1 model config
                 deepseek_config = {
                     "name": "DeepSeek-R1",
-                    "max_tokens": 32000,
+                    "description": "Model that supports chain-of-thought reasoning with <think> tags",
+                    "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
                     "supports_streaming": True,
                     "supports_temperature": True,
                     "supports_json_response": False,
@@ -81,8 +85,7 @@ class ClientPool:
                     "max_timeout": 300.0,
                     "token_factor": 0.05,
                     "api_version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
-                    "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
-                    "description": "Model that supports chain-of-thought reasoning with <think> tags"
+                    "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT
                 }
                 
                 # Ensure the DeepSeek endpoint is set
@@ -113,15 +116,18 @@ class ClientPool:
                     logger.warning(f"Default o1 model {default_o1} missing, adding it")
                     db_model_configs[default_o1] = {
                         "name": default_o1,
-                        "max_tokens": 40000,
+                        "description": "Default Azure OpenAI o1 model",
+                        "max_tokens": 200000,
+                        "max_completion_tokens": config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
                         "supports_streaming": False,
                         "supports_temperature": False,
+                        "requires_reasoning_effort": True,
+                        "reasoning_effort": config.O_SERIES_DEFAULT_REASONING_EFFORT,
                         "base_timeout": config.O_SERIES_BASE_TIMEOUT,
                         "max_timeout": config.O_SERIES_MAX_TIMEOUT,
                         "token_factor": config.O_SERIES_TOKEN_FACTOR,
                         "api_version": config.AZURE_OPENAI_API_VERSION,
-                        "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
-                        "description": "Default Azure OpenAI o1 model"
+                        "azure_endpoint": config.AZURE_OPENAI_ENDPOINT
                     }
                     
                     # Update database
@@ -137,15 +143,15 @@ class ClientPool:
                     logger.warning("DeepSeek-R1 model missing, adding it")
                     db_model_configs["DeepSeek-R1"] = {
                         "name": "DeepSeek-R1",
-                        "max_tokens": 32000,
+                        "description": "Model that supports chain-of-thought reasoning with <think> tags",
+                        "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
                         "supports_streaming": True,
-                        "supports_temperature": True,  # Changed to TRUE - DeepSeek uses temperature parameter
+                        "supports_temperature": True,
                         "base_timeout": 120.0,
                         "max_timeout": 300.0,
                         "token_factor": 0.05,
                         "api_version": config.AZURE_INFERENCE_API_VERSION,
-                        "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
-                        "description": "Reasoning-focused model with high performance in math, coding, and science"
+                        "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT
                     }
                     
                     # Update database
@@ -223,9 +229,11 @@ class ClientPool:
         Create an Azure OpenAI client with the given configuration.
         If it lacks one or more required fields, we log a critical error instead of raising immediately.
         """
-
-        is_o_series = model_name.startswith("o") or not model_config.get("supports_temperature", True)
-        is_deepseek = model_name.lower().startswith("deepseek")
+        # Determine model type
+        is_deepseek = config.is_deepseek_model(model_name)
+        is_o_series = config.is_o_series_model(model_name)
+        
+        # Set retries based on model type
         max_retries = config.O_SERIES_MAX_RETRIES if is_o_series else 3
         
         # Select the proper API key and endpoint based on model type
@@ -242,7 +250,13 @@ class ClientPool:
         else:
             api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
             endpoint = model_config.get("azure_endpoint", config.AZURE_OPENAI_ENDPOINT)
-            api_version = model_config.get("api_version", config.AZURE_OPENAI_API_VERSION)
+            
+            # Use model-specific API version with fallback to defaults
+            if is_o_series:
+                api_version = model_config.get("api_version", config.MODEL_API_VERSIONS.get(model_name, config.AZURE_OPENAI_API_VERSION))
+            else:
+                api_version = model_config.get("api_version", config.AZURE_OPENAI_API_VERSION)
+                
             if not endpoint:
                 logger.critical(f"No Azure endpoint configured for model '{model_name}'. Calls may fail!")
 
