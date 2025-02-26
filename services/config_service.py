@@ -136,7 +136,17 @@ class ConfigService:
                 model_config["supports_streaming"] = False
             if "supports_temperature" not in model_config:
                 model_config["supports_temperature"] = False
-            
+            if "azure_endpoint" not in model_config:
+                if config.is_deepseek_model(model_id):
+                    model_config["azure_endpoint"] = config.AZURE_INFERENCE_ENDPOINT
+                else:
+                    model_config["azure_endpoint"] = config.AZURE_OPENAI_ENDPOINT
+            if "api_version" not in model_config:
+                if config.is_deepseek_model(model_id):
+                    model_config["api_version"] = config.AZURE_INFERENCE_API_VERSION
+                else:
+                    model_config["api_version"] = config.AZURE_OPENAI_API_VERSION
+                
             # Add o-series specific fields
             if config.is_o_series_model(model_id):
                 if "max_completion_tokens" not in model_config:
@@ -150,20 +160,17 @@ class ConfigService:
                 
                 # o-series models don't support temperature
                 model_config["supports_temperature"] = False
+                model_config["supports_streaming"] = False
             
             # DeepSeek-R1 specific fields
             if config.is_deepseek_model(model_id):
                 if "max_tokens" not in model_config or model_config["max_tokens"] != config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS:
                     model_config["max_tokens"] = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
                 model_config["supports_temperature"] = True
+                model_config["supports_streaming"] = True
                 model_config["api_version"] = config.DEEPSEEK_R1_DEFAULT_API_VERSION
                 
         return db_models
-
-    async def get_model_config(self, model_id: str) -> Optional[Dict[str, Any]]:
-        """Get configuration for a specific model"""
-        models = await self.get_model_configs()
-        return models.get(model_id)
 
     async def add_model_config(self, model_id: str, model_config: Dict[str, Any]) -> bool:
         """Add a new model configuration"""
@@ -176,7 +183,17 @@ class ConfigService:
             model_config["max_completion_tokens"] = config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
             model_config["requires_reasoning_effort"] = True
             model_config["reasoning_effort"] = config.O_SERIES_DEFAULT_REASONING_EFFORT
+            model_config["supports_streaming"] = False
             
+        # Ensure required fields are set
+        if "name" not in model_config:
+            model_config["name"] = model_id
+        if "azure_endpoint" not in model_config:
+            if config.is_deepseek_model(model_id):
+                model_config["azure_endpoint"] = config.AZURE_INFERENCE_ENDPOINT
+            else:
+                model_config["azure_endpoint"] = config.AZURE_OPENAI_ENDPOINT
+                
         # Add to models
         models[model_id] = model_config
         return await self.set_config("model_configs", models, "Model configurations", is_secret=True)

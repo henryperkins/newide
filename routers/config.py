@@ -83,7 +83,7 @@ class ModelConfigModel(BaseModel):
     token_factor: float = 0.05
 
 
-@router.get("/models", response_model=None)
+@router.get("/models", response_model=Dict[str, ModelConfigModel])
 async def get_models(config_service=Depends(get_config_service)):
     """Get all model configurations"""
     try:
@@ -98,12 +98,9 @@ async def get_models(config_service=Depends(get_config_service)):
                 "o1hp": {
                     "name": "o1hp",
                     "description": "Azure OpenAI o1 high performance model",
-                    "max_tokens": 200000,
-                    "max_completion_tokens": 5000,
+                    "max_tokens": 40000,
                     "supports_streaming": False,
                     "supports_temperature": False,
-                    "requires_reasoning_effort": True,
-                    "reasoning_effort": "medium",
                     "api_version": config.AZURE_OPENAI_API_VERSION,
                     "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
                     "base_timeout": 120.0,
@@ -159,12 +156,9 @@ async def get_models(config_service=Depends(get_config_service)):
                 models["o1hp"] = {
                     "name": "o1hp",
                     "description": "Azure OpenAI o1 high performance model",
-                    "max_tokens": 200000,
-                    "max_completion_tokens": 5000,
+                    "max_tokens": 40000,
                     "supports_streaming": False,
                     "supports_temperature": False,
-                    "requires_reasoning_effort": True,
-                    "reasoning_effort": "medium",
                     "api_version": config.AZURE_OPENAI_API_VERSION,
                     "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
                     "base_timeout": 120.0,
@@ -178,7 +172,6 @@ async def get_models(config_service=Depends(get_config_service)):
                 print("DEBUG: Saved models with added o1hp")
 
         print(f"DEBUG: Returning models: {list(models.keys())}")
-        # Return the models directly, not wrapped in a "models" object
         return models
 
     except Exception as e:
@@ -189,42 +182,152 @@ async def get_models(config_service=Depends(get_config_service)):
         )
 
 
-@router.get("/models/{model_id}", response_model=ModelConfigModel)
+@router.get("/models/{model_id}", response_model=None)
 async def get_model(model_id: str, config_service=Depends(get_config_service)):
     """Get a specific model configuration"""
-    model = await config_service.get_model_config(model_id)
-    if not model:
-        raise HTTPException(status_code=404, detail="Model not found")
-    return model
+    try:
+        # First check if the model exists in the configs
+        model_configs = await config_service.get_model_configs()
+
+        if model_id in model_configs:
+            return model_configs[model_id]
+
+        # If not in configs but is a known model, create it
+        if model_id == "DeepSeek-R1":
+            logger.info(f"Auto-creating DeepSeek-R1 model configuration")
+            deepseek_config = {
+                "name": "DeepSeek-R1",
+                "description": "Model that supports chain-of-thought reasoning with <think> tags",
+                "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
+                "supports_streaming": True,
+                "supports_temperature": True,
+                "base_timeout": 120.0,
+                "max_timeout": 300.0,
+                "token_factor": 0.05,
+                "api_version": config.AZURE_INFERENCE_API_VERSION,
+                "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
+            }
+
+            success = await config_service.add_model_config(model_id, deepseek_config)
+            if success:
+                return deepseek_config
+
+        elif model_id == "o1hp" or (
+            model_id.startswith("o1")
+            and model_id.lower() == config.AZURE_OPENAI_DEPLOYMENT_NAME.lower()
+        ):
+            logger.info(f"Auto-creating {model_id} model configuration")
+            o1_config = {
+                "name": model_id,
+                "description": "Advanced reasoning model for complex tasks",
+                "max_tokens": 200000,
+                "max_completion_tokens": 5000,
+                "supports_temperature": False,
+                "supports_streaming": False,
+                "supports_vision": True,
+                "requires_reasoning_effort": True,
+                "reasoning_effort": "medium",
+                "base_timeout": 120.0,
+                "max_timeout": 300.0,
+                "token_factor": 0.05,
+                "api_version": config.AZURE_OPENAI_API_VERSION,
+                "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
+            }
+
+            success = await config_service.add_model_config(model_id, o1_config)
+            if success:
+                return o1_config
+
+        # If we get here, the model doesn't exist and isn't a known type
+        raise HTTPException(status_code=404, detail=f"Model {model_id} not found")
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.exception(f"Error in get_model for {model_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Server error retrieving model configuration: {str(e)}",
+        )
 
 
 @router.post("/models/{model_id}")
 async def create_model(
-    model_id: str, model: ModelConfigModel, config_service=Depends(get_config_service)
+    model_id: str,
+    model: Optional[Dict[str, Any]] = None,
+    config_service=Depends(get_config_service),
 ):
-    """Create a new model configuration"""
+    """Create a new model configuration with better error handling"""
     try:
-        print(f"Creating model {model_id} with config: {model.dict()}")
-        existing = await config_service.get_model_config(model_id)
-        if existing:
-            raise HTTPException(status_code=400, detail="Model already exists")
+        logger.info(f"Creating model {model_id}")
 
-        success = await config_service.add_model_config(model_id, model.dict())
+        # Check if model exists first
+        model_configs = await config_service.get_model_configs()
+        if model_id in model_configs:
+            raise HTTPException(
+                status_code=400, detail=f"Model {model_id} already exists"
+            )
+
+        # If no model data is provided, create default based on model name
+        if not model:
+            if model_id == "DeepSeek-R1":
+                model = {
+                    "name": "DeepSeek-R1",
+                    "description": "Model that supports chain-of-thought reasoning with <think> tags",
+                    "max_tokens": 32000,
+                    "supports_streaming": True,
+                    "supports_temperature": True,
+                    "api_version": config.AZURE_INFERENCE_API_VERSION,
+                    "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
+                    "base_timeout": 120.0,
+                    "max_timeout": 300.0,
+                    "token_factor": 0.05,
+                }
+            elif model_id == "o1hp" or model_id.startswith("o1"):
+                model = {
+                    "name": model_id,
+                    "description": "Advanced reasoning model for complex tasks",
+                    "max_tokens": 200000,
+                    "max_completion_tokens": 5000,
+                    "supports_temperature": False,
+                    "supports_streaming": False,
+                    "supports_vision": True,
+                    "requires_reasoning_effort": True,
+                    "reasoning_effort": "medium",
+                    "base_timeout": 120.0,
+                    "max_timeout": 300.0,
+                    "token_factor": 0.05,
+                    "api_version": config.AZURE_OPENAI_API_VERSION,
+                    "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
+                }
+            else:
+                raise HTTPException(
+                    status_code=400, detail="Model data is required for custom models"
+                )
+
+        # Create the model
+        success = await config_service.add_model_config(model_id, model)
         if not success:
-            raise HTTPException(status_code=500, detail="Failed to create model")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to create model {model_id}"
+            )
 
-        # Refresh client pool
+        # Refresh client pool to include new model
         from clients import get_client_pool
 
         pool = await get_client_pool()
         await pool.refresh_client(model_id, config_service)
 
         return {"status": "created", "model_id": model_id}
+
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error creating model {model_id}: {str(e)}")
-        if isinstance(e, HTTPException):
-            raise
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"Error creating model {model_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error creating model {model_id}: {str(e)}"
+        )
 
 
 @router.put("/models/{model_id}")
@@ -314,12 +417,10 @@ async def switch_model_simple(
             "name": "o1hp",
             "description": "Advanced reasoning model for complex tasks",
             "max_tokens": 200000,
-            "max_completion_tokens": 5000,
             "supports_temperature": False,
             "supports_streaming": False,
             "supports_vision": True,
             "requires_reasoning_effort": True,
-            "reasoning_effort": "medium",
             "base_timeout": 120.0,
             "max_timeout": 300.0,
             "token_factor": 0.05,
@@ -337,11 +438,10 @@ async def switch_model_simple(
     # Store the selected model in the session
     if session_id:
         from database import AsyncSessionLocal
+        from sqlalchemy import update
+        from models import Session
 
         async with AsyncSessionLocal() as db_session:
-            from sqlalchemy import update
-            from models import Session
-
             await db_session.execute(
                 update(Session)
                 .where(Session.id == session_id)
@@ -391,6 +491,13 @@ async def switch_model(
                 .values(last_model=model_id)
             )
             await db_session.commit()
+
+    # Optionally refresh the client for this model
+    try:
+        await client_pool.refresh_client(model_id, config_service)
+    except Exception as e:
+        logger.warning(f"Could not refresh client for {model_id}: {str(e)}")
+        # Continue even if refresh fails - don't block model switching
 
     return {"success": True, "model": model_id}
 

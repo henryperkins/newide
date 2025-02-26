@@ -257,19 +257,83 @@ class ClientPool:
         return client
 
     async def refresh_client(self, model_name: str, config_service: ConfigService) -> None:
-        """Refresh a specific client with latest configuration."""
+        """Refresh a specific client with latest configuration with better error handling."""
         async with self._lock:
             try:
                 model_config = await config_service.get_model_config(model_name)
                 if not model_config:
-                    logger.warning(f"No configuration found for {model_name}")
-                    return
+                    logger.warning(f"No configuration found for {model_name}, attempting to create default configuration")
                     
+                    # Create default configuration based on model name
+                    if model_name.lower() == "deepseek-r1":
+                        model_config = {
+                            "name": "DeepSeek-R1",
+                            "description": "Model that supports chain-of-thought reasoning with <think> tags",
+                            "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
+                            "supports_streaming": True,
+                            "supports_temperature": True,
+                            "base_timeout": 120.0,
+                            "max_timeout": 300.0,
+                            "token_factor": 0.05,
+                            "api_version": config.AZURE_INFERENCE_API_VERSION,
+                            "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
+                        }
+                        
+                        # Try to add to config
+                        await config_service.add_model_config("DeepSeek-R1", model_config)
+                    elif model_name.startswith("o1") or model_name.lower() == config.AZURE_OPENAI_DEPLOYMENT_NAME.lower():
+                        model_config = {
+                            "name": model_name,
+                            "description": "Advanced reasoning model for complex tasks",
+                            "max_tokens": 200000,
+                            "max_completion_tokens": 5000,
+                            "supports_temperature": False,
+                            "supports_streaming": False,
+                            "supports_vision": True,
+                            "requires_reasoning_effort": True,
+                            "reasoning_effort": "medium",
+                            "base_timeout": 120.0,
+                            "max_timeout": 300.0,
+                            "token_factor": 0.05,
+                            "api_version": config.AZURE_OPENAI_API_VERSION,
+                            "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
+                        }
+                        
+                        # Try to add to config
+                        await config_service.add_model_config(model_name, model_config)
+                    else:
+                        logger.error(f"Cannot create default configuration for unknown model: {model_name}")
+                        return
+                
+                # Ensure model_config has all required fields
+                required_fields = ["name", "api_version", "azure_endpoint"]
+                for field in required_fields:
+                    if field not in model_config or not model_config[field]:
+                        if field == "name":
+                            model_config["name"] = model_name
+                        elif field == "api_version":
+                            model_config["api_version"] = (
+                                config.AZURE_INFERENCE_API_VERSION 
+                                if model_name.lower() == "deepseek-r1" 
+                                else config.AZURE_OPENAI_API_VERSION
+                            )
+                        elif field == "azure_endpoint":
+                            model_config["azure_endpoint"] = (
+                                config.AZURE_INFERENCE_ENDPOINT 
+                                if model_name.lower() == "deepseek-r1" 
+                                else config.AZURE_OPENAI_ENDPOINT
+                            )
+                
                 # Update or create client
-                self._clients[model_name] = self._create_client(model_name, model_config)
-                logger.info(f"Refreshed client for model: {model_name}")
+                try:
+                    self._clients[model_name] = self._create_client(model_name, model_config)
+                    logger.info(f"Refreshed client for model: {model_name}")
+                except Exception as client_error:
+                    logger.error(f"Failed to create client for {model_name}: {str(client_error)}")
+                    # Don't raise here - we'll continue even if client creation fails
             except Exception as e:
                 logger.error(f"Failed to refresh client for {model_name}: {str(e)}")
+                # Also don't raise the outer exception
 
 
 # ------------------------------------------------------

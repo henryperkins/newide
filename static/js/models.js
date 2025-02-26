@@ -148,30 +148,109 @@ class ModelManager {
     }
 
     /**
-     * Create a new model (API call).
+     * Create a new model (API call) with better fallback handling.
      * @param {string} modelId 
      * @param {Object} modelData 
      */
     async createModel(modelId, modelData) {
-        // Check if model exists first
-        const existsResponse = await fetch(`/api/config/models/${modelId}`);
-        if (existsResponse.ok) {
-            console.log(`Model ${modelId} already exists, skipping creation`);
-            return await existsResponse.json();
+        try {
+            console.log(`Attempting to create model ${modelId}`);
+            
+            // Try to check if model exists first
+            try {
+                const existsResponse = await fetch(`/api/config/models/${modelId}`);
+                
+                if (existsResponse.ok) {
+                    console.log(`Model ${modelId} already exists, skipping creation`);
+                    // Update local config
+                    const existingModel = await existsResponse.json();
+                    this.modelConfigs[modelId] = existingModel;
+                    return existingModel;
+                }
+                
+                // If 404, we continue with creation
+                if (existsResponse.status !== 404) {
+                    console.warn(`Unexpected response when checking if model exists: ${existsResponse.status}`);
+                    // We'll still try to create the model
+                }
+            } catch (checkError) {
+                console.warn(`Error checking if model ${modelId} exists:`, checkError);
+                // Continue anyway - try to create
+            }
+            
+            // Ensure modelData has all required fields
+            const requiredFields = ["name", "supports_streaming", "supports_temperature", "api_version", "azure_endpoint"];
+            for (const field of requiredFields) {
+                if (!modelData[field]) {
+                    if (field === "name") {
+                        modelData.name = modelId;
+                    } else if (field === "api_version") {
+                        modelData.api_version = modelId.toLowerCase() === "deepseek-r1" 
+                            ? "2024-05-01-preview" 
+                            : "2025-01-01-preview";
+                    } else if (field === "azure_endpoint") {
+                        modelData.azure_endpoint = modelId.toLowerCase() === "deepseek-r1"
+                            ? "https://DeepSeek-R1D2.eastus2.models.ai.azure.com"
+                            : "https://aoai-east-2272068338224.cognitiveservices.azure.com";
+                    } else if (field === "supports_streaming") {
+                        modelData.supports_streaming = modelId.toLowerCase() === "deepseek-r1";
+                    } else if (field === "supports_temperature") {
+                        modelData.supports_temperature = modelId.toLowerCase() === "deepseek-r1";
+                    }
+                }
+            }
+            
+            // Create the model via API
+            try {
+                const response = await fetch(`/api/config/models/${modelId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(modelData)
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log(`Model ${modelId} created successfully:`, result);
+                    
+                    // Update local model configs
+                    this.modelConfigs[modelId] = modelData;
+                    return result;
+                } else {
+                    const errorText = await response.text();
+                    console.error(`Failed to create model ${modelId}: ${errorText}`);
+                    
+                    // Even if API call fails, add to local config
+                    this.modelConfigs[modelId] = modelData;
+                    
+                    // Don't throw error - we'll continue with local model
+                    return { 
+                        status: "created_locally_only",
+                        warning: "Added to local configuration but API call failed"
+                    };
+                }
+            } catch (createError) {
+                console.error(`Error creating model ${modelId}:`, createError);
+                
+                // Add to local configs even if API call fails
+                this.modelConfigs[modelId] = modelData;
+                
+                // Don't throw error - we'll continue with local model
+                return { 
+                    status: "created_locally_only",
+                    warning: "Added to local configuration but API call failed"
+                };
+            }
+        } catch (error) {
+            console.error(`Unexpected error in createModel for ${modelId}:`, error);
+            
+            // Always add to local configs as fallback
+            this.modelConfigs[modelId] = modelData;
+            
+            return { 
+                status: "created_locally_only",
+                warning: "Added to local configuration but encountered errors"
+            };
         }
-
-        const response = await fetch(`/api/config/models/${modelId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(modelData)
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Failed to create model ${modelId}: ${errorText}`);
-        }
-
-        return await response.json();
     }
 
     /**
@@ -665,24 +744,24 @@ class ModelManager {
     }
 
     /**
-     * Switch active model. Calls a "switch_model" API route.
+     * Switch active model. Calls a "switch_model" API route with correct parameters.
      * @param {string} modelId 
      * @returns {Promise<boolean>} success
      */
     async switchModel(modelId) {
         console.log(`Attempting to switch to model: ${modelId}`);
-
+        
         // Normalize model ID for case-insensitive comparison
         const normalizedModelId = modelId.toLowerCase();
-
+        
         // Find the model in configurations (case-insensitive)
         const matchingModelId = Object.keys(this.modelConfigs).find(
             id => id.toLowerCase() === normalizedModelId
         );
-
+        
         if (!matchingModelId) {
             console.log(`Model ${modelId} not found in configurations, attempting to create it`);
-
+            
             // Special handling for known models
             if (normalizedModelId === "deepseek-r1") {
                 // Create DeepSeek-R1 model if it doesn't exist
@@ -699,7 +778,7 @@ class ModelManager {
                     max_timeout: 300.0,
                     token_factor: 0.05
                 };
-        
+                
                 try {
                     await this.createModel("DeepSeek-R1", deepseekR1Model);
                     console.log('DeepSeek-R1 model created successfully');
@@ -727,7 +806,7 @@ class ModelManager {
                     max_timeout: 300.0,
                     token_factor: 0.05
                 };
-        
+                
                 try {
                     await this.createModel("o1hp", o1Model);
                     console.log('o1hp model created successfully');
@@ -742,63 +821,77 @@ class ModelManager {
                 return false;
             }
         }
-
+        
         // Use the matching model ID with correct case
         const actualModelId = matchingModelId || modelId;
-
+        
         try {
             this.showToast(`Switching to ${modelId}...`, 'info');
-
+            
             // Fetch session to get session_id
             const session = await fetch('/api/session').then(r => r.json());
             const sessionId = session?.id;
-
-            // Prepare parameters for the request
-            const params = {
-                model_id: modelId
-            };
-
-            // Set appropriate parameters based on model type
-            if (modelId.toLowerCase().startsWith('o1') || modelId.toLowerCase().startsWith('o3')) {
-                // o-series models use max_completion_tokens instead of max_tokens
-                params.max_completion_tokens = 5000;
-                params.api_version = '2025-01-01-preview';
-                params.reasoning_effort = 'medium'; // can be low, medium, high
-                // o-series doesn't support temperature, top_p, etc.
-            } else if (modelId.toLowerCase() === 'deepseek-r1') {
-                // DeepSeek-R1 uses standard parameters
-                params.max_tokens = 32000;
-                params.temperature = 0.7;
-                params.api_version = '2024-05-01-preview';
-            } else {
-                // Default for other models
-                params.max_tokens = 4000;
-                params.temperature = 0.7;
+            
+            // Get the complete model configuration that's stored locally
+            const modelConfig = this.modelConfigs[actualModelId];
+            if (!modelConfig) {
+                this.showToast(`Model configuration missing for ${modelId}`, 'error');
+                return false;
             }
-
-            // Add session_id if available
-            if (sessionId) {
-                params.session_id = sessionId;
-            }
-
-            // Switch model using the proper API endpoint
-            console.log(`Switching to model: ${modelId} with params:`, params);
-
-            const response = await fetch(`/api/config/models/switch`, {
+            
+            // Use the simplified API endpoint that requires less parameters
+            console.log(`Using simplified switch model endpoint for: ${modelId}`);
+            let response = await fetch(`/api/config/models/switch_model/${modelId}${
+                sessionId ? `?session_id=${sessionId}` : ''
+            }`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(params)
+                headers: { 'Content-Type': 'application/json' }
             });
-
+            
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Failed to switch model: ${errorText}`);
+                // If the simplified endpoint fails, try the full endpoint with complete model config
+                console.log(`Simplified endpoint failed, trying complete model config for: ${modelId}`);
+                
+                // Clone the model config to avoid modifying the original
+                const modelData = Object.assign({}, modelConfig);
+                
+                // Add session_id to request if available
+                if (sessionId) {
+                    modelData.session_id = sessionId;
+                }
+                
+                // Use the full switch endpoint with complete model config
+                response = await fetch(`/api/config/models/${modelId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(modelData)
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to switch model: ${errorText}`);
+                }
+                
+                // Now call switch model to activate it
+                response = await fetch(`/api/config/models/switch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model_id: modelId,
+                        session_id: sessionId
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to activate model after update: ${errorText}`);
+                }
             }
-
+            
             // Locally record the current model
             this.currentModel = modelId;
             this.showToast(`Now using model: ${modelId}`, 'success');
-
+            
             // Adjust UI for new model
             this.updateModelSpecificUI(modelId);
             return true;
