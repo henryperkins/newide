@@ -1,4 +1,5 @@
-// Model configuration and management
+// models.js
+
 class ModelManager {
     constructor() {
         this.currentModel = null;
@@ -484,9 +485,7 @@ class ModelManager {
         }
         
         try {
-            // We assume your backend can handle the same POST for both create and update.
-            // If your backend requires PUT for update, you can switch here by checking `formMode`.
-            
+            // We assume your backend can handle POST for both create and update
             const response = await fetch(`/api/config/models/${modelId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -607,13 +606,14 @@ class ModelManager {
             
             // Switch model using simplified endpoint
             console.log(`Switching to model: ${modelId} with session_id: ${sessionId}`);
-            const url = `/api/config/models/switch_model/${modelId}${sessionId ? `?session_id=${sessionId}` : ''}`;
+            const url = `/api/config/models/switch_model/${modelId}${
+                sessionId ? `?session_id=${sessionId}` : ''
+            }`;
             console.log(`Using simplified endpoint URL: ${url}`);
             
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
-                // No body needed if params are in URL
             });
             
             if (!response.ok) {
@@ -674,11 +674,12 @@ class ModelManager {
 
     /**
      * Initialize UI components for model management (form, list, etc.).
+     * (This is the updated method you requested.)
      */
     initModelManagement() {
         console.log('Initializing model management UI');
 
-        // Hook up “Add Model” button
+        // Hook up "Add Model" button
         const addModelBtn = document.getElementById('add-model-btn');
         if (addModelBtn) {
             console.log('Add Model button found, attaching event listener');
@@ -704,7 +705,7 @@ class ModelManager {
             console.error('Add Model button not found');
         }
         
-        // Hook up “Cancel” button in form
+        // Hook up "Cancel" button in form
         const cancelBtn = document.getElementById('model-form-cancel');
         if (cancelBtn) {
             cancelBtn.className = 'btn-secondary text-sm px-4 py-2 rounded-md touch-action-manipulation';
@@ -746,6 +747,25 @@ class ModelManager {
             
             console.log('Available models for dropdown:', Object.keys(this.modelConfigs));
             
+            // Ensure we have at least the default models in local config
+            if (!this.modelConfigs["o1hp"]) {
+                console.log("Adding o1hp to model configs for dropdown");
+                this.modelConfigs["o1hp"] = {
+                    name: "o1hp",
+                    description: "Advanced reasoning model for complex tasks",
+                    supports_streaming: false
+                };
+            }
+            
+            if (!this.modelConfigs["DeepSeek-R1"]) {
+                console.log("Adding DeepSeek-R1 to model configs for dropdown");
+                this.modelConfigs["DeepSeek-R1"] = {
+                    name: "DeepSeek-R1",
+                    description: "Model that supports chain-of-thought reasoning",
+                    supports_streaming: true
+                };
+            }
+            
             // Populate with current models
             for (const [id, config] of Object.entries(this.modelConfigs)) {
                 const option = document.createElement('option');
@@ -754,7 +774,7 @@ class ModelManager {
                 modelSelect.appendChild(option);
             }
             
-            // Set the dropdown to the server’s last-used model
+            // Set the dropdown to the server's last-used model
             this.getCurrentModelFromServer().then(currentModel => {
                 if (currentModel) {
                     this.currentModel = currentModel;
@@ -763,7 +783,7 @@ class ModelManager {
                 }
             });
             
-            // Listen for changes
+            // Listen for changes in the model dropdown
             modelSelect.addEventListener('change', async (e) => {
                 await this.switchModel(e.target.value);
             });

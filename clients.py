@@ -157,6 +157,7 @@ class ClientPool:
                     )
 
             logger.info(f"Found model_configs keys: {list(db_model_configs.keys())}")
+            logger.debug("Full model_configs content: %s", db_model_configs)
 
             # Initialize clients from configs
             for model_name, model_config in db_model_configs.items():
@@ -181,8 +182,9 @@ class ClientPool:
                         has_default_client = True
                         
                     logger.info(f"Initialized client for model: {model_name}")
+                    logger.debug("Client configuration used: %s", model_config)
                 except Exception as e:
-                    # Collect error but continue with other models
+                    logger.error("Detailed error initializing client:", exc_info=True)
                     error_msg = f"Failed to initialize client for '{model_name}': {str(e)}"
                     initialization_errors.append(error_msg)
                     logger.error(f"[ClientPool] {error_msg}")
