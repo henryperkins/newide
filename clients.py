@@ -321,8 +321,6 @@ class ClientPool:
                             model_config["name"] = model_name
                         elif field == "api_version":
                             model_config["api_version"] = (
-                                config.AZURE_INFERENCE
-								model_config["api_version"] = (
                                 config.AZURE_INFERENCE_API_VERSION 
                                 if model_name.lower() == "deepseek-r1" 
                                 else config.AZURE_OPENAI_API_VERSION
