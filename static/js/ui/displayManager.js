@@ -120,13 +120,13 @@ export async function processServerResponseData(data, modelName = 'unknown') {
   let assistantContent = data?.choices?.[0]?.message?.content || data.response || '';
 
   // For DeepSeek models, preserve thinking tags and display them nicely
-  if (modelName.toLowerCase().includes('deepseek-r1')) {
+  if (modelName.toLowerCase().includes('deepseek') || modelName.toLowerCase() === 'deepseek-r1') {
     const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
     let match;
     
     // Check if we have thinking tags
     if (assistantContent.match(thinkRegex)) {
-      console.log("DeepSeek thinking tags detected in content");
+      console.log(`DeepSeek thinking tags detected in content for model: ${modelName}`);
       
       // Process and format the thinking content
       let processedContent = assistantContent;
@@ -152,8 +152,18 @@ export async function processServerResponseData(data, modelName = 'unknown') {
     }
   }
 
-  // Optionally append the model name as subtext:
-  assistantContent += `\n\n<span class="text-xs text-gray-500 dark:text-gray-400">(Using model: ${modelName})</span>`;
+  // Check if the model name is already included in the content to avoid duplication
+  const modelNameRegex = new RegExp(`\\(Using model: ${modelName}\\)`, 'i');
+  if (!modelNameRegex.test(assistantContent)) {
+    // Handle specific model name correction for DeepSeek-R1
+    let displayModelName = modelName;
+    
+    // Log the actual model name for debugging
+    console.log(`Adding model label: ${modelName}`);
+    
+    // Append the model name as subtext only if it's not already there
+    assistantContent += `\n\n<span class="text-xs text-gray-500 dark:text-gray-400">(Using model: ${displayModelName})</span>`;
+  }
 
   // Inject global Markdown styles once
   injectMarkdownStyles();
@@ -260,10 +270,9 @@ async function storeMessageInDB(role, content) {
       } else {
         console.error('Failed to store conversation. HTTP ' + response.status);
       }
-      return;
     }
   } catch (error) {
-    console.error('Failed to store conversation in DB:', error);
+    console.error('Error storing message in DB:', error);
   }
 }
 

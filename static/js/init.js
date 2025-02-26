@@ -9,6 +9,7 @@ import { configureMarkdown } from './ui/markdownParser.js';
 import { loadConversationFromLocalStorage, loadOlderMessages } from './ui/displayManager.js';
 import StatsDisplay from './ui/statsDisplay.js';
 import fileManager from './fileManager.js';
+import { initializeConfig } from './config.js';
 
 /**
  * Initialize the application when the DOM is fully loaded
@@ -51,6 +52,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize mobile UI enhancements
   initMobileUI();
   
+  // Initialize app configuration
+  initializeConfig().catch(err => {
+    console.error('Error during config initialization:', err);
+  });
+
   console.log('Application initialization complete');
 });
 
