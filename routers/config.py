@@ -118,6 +118,7 @@ async def get_models(config_service=Depends(get_config_service)):
             
             # Refresh client pool
             from clients import get_client_pool
+            
             pool = await get_client_pool()
             await pool.refresh_client("DeepSeek-R1", config_service)
         

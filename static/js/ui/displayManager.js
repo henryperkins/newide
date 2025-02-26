@@ -468,21 +468,31 @@ addThinkingStyles();
 export function setupThinkingToggleListeners() {
   setTimeout(() => {
     document.querySelectorAll('.thinking-toggle').forEach(button => {
-      button.addEventListener('click', () => {
-        const container = button.closest('.thinking-process');
-        const content = container.querySelector('.thinking-content');
-        const isExpanded = button.getAttribute('aria-expanded') === 'true';
-        
-        if (isExpanded) {
-          content.style.display = 'none';
-          button.setAttribute('aria-expanded', 'false');
-          button.querySelector('.toggle-icon').textContent = '►';
-        } else {
-          content.style.display = 'block';
-          button.setAttribute('aria-expanded', 'true');
-          button.querySelector('.toggle-icon').textContent = '▼';
-        }
-      });
+      // Remove existing listeners to prevent duplicates
+      button.replaceWith(button.cloneNode(true));
+      
+      // Get the freshly cloned button
+      const newButton = document.querySelector(
+        `.thinking-toggle[aria-expanded="${button.getAttribute('aria-expanded')}"]`
+      );
+      
+      if (newButton) {
+        newButton.addEventListener('click', () => {
+          const container = newButton.closest('.thinking-process');
+          const content = container.querySelector('.thinking-content');
+          const isExpanded = newButton.getAttribute('aria-expanded') === 'true';
+          
+          if (isExpanded) {
+            content.style.display = 'none';
+            newButton.setAttribute('aria-expanded', 'false');
+            newButton.querySelector('.toggle-icon').textContent = '►';
+          } else {
+            content.style.display = 'block';
+            newButton.setAttribute('aria-expanded', 'true');
+            newButton.querySelector('.toggle-icon').textContent = '▼';
+          }
+        });
+      }
     });
   }, 100);
 }

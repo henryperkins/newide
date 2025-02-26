@@ -196,7 +196,7 @@ async def process_chat_message(
     
     # Check if this is an o-series model or DeepSeek model
     is_o_series = model_name.lower().startswith('o1') or model_name.lower().startswith('o3')
-    is_deepseek = model_name.lower() == 'deepseek-r1'
+    is_deepseek = config.is_deepseek_model(model_name)
     
     if is_o_series:
         # For o-series models, use reasoning_effort and max_completion_tokens
@@ -217,11 +217,14 @@ async def process_chat_message(
                 messages[0]["content"] = "Formatting re-enabled - use markdown code blocks. " + messages[0].get("content", "")
     elif is_deepseek:
         # For DeepSeek-R1, use temperature and max_tokens as per documentation
-        params["temperature"] = chat_message.temperature if chat_message.temperature is not None else 0.7
+        params["temperature"] = (
+            chat_message.temperature if chat_message.temperature is not None 
+            else config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
+        )
         
         # DeepSeek uses max_tokens, not max_completion_tokens
-        max_tokens = getattr(chat_message, "max_completion_tokens", 4096)
-        params["max_tokens"] = min(max_tokens, model_config.get("max_tokens", 4096))
+        max_tokens = getattr(chat_message, "max_completion_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS)
+        params["max_tokens"] = min(max_tokens, model_config.get("max_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS))
         
         # DeepSeek-R1 uses system role
         # Add formatting re-enabled to message if not already present
@@ -229,6 +232,9 @@ async def process_chat_message(
             first_role = messages[0].get("role")
             if first_role == "system" and not messages[0].get("content", "").startswith("Formatting re-enabled"):
                 messages[0]["content"] = "Formatting re-enabled - use markdown code blocks. " + messages[0].get("content", "")
+                
+        # Remove any unsupported parameters that might cause issues with DeepSeek
+        params.pop('response_format', None)  # DeepSeek doesn't support response_format
     else:
         # For standard models, use temperature and max_tokens
         params["temperature"] = (

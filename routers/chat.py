@@ -252,14 +252,21 @@ async def stream_chat_response(
                 },
             )
 
-        # Get model configs from database
+        # Get model configs from database with better error handling
         try:
             model_configs = await config_service.get_config("model_configs")
             model_config = model_configs.get(model_name, {}) if model_configs else {}
+            
+            # For DeepSeek, ensure streaming is supported
+            if model_name == "DeepSeek-R1" and not model_config.get("supports_streaming", False):
+                logger.warning(f"DeepSeek-R1 model configured without streaming support, but it should support streaming")
+                # Force enable streaming for DeepSeek-R1
+                model_config["supports_streaming"] = True
+                
         except Exception as e:
             logger.error(f"Error getting model configurations: {str(e)}")
             model_config = {}
-            
+                
         if not model_config.get("supports_streaming", False):
             raise HTTPException(
                 status_code=400,

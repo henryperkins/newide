@@ -27,8 +27,8 @@ let reasoningContainer = null;
 export async function handleStreamingResponse(response, controller, config, statsDisplay) {
   console.log('[streaming.js] Starting SSE streaming...');
 
-  const slug = (config?.selectedModel || '').toLowerCase();
-  const showReasoning = slug.includes('deepseek-r1');
+  const modelName = (config?.selectedModel || '').toLowerCase();
+  const showReasoning = modelName.includes('deepseek');
 
   // Build SSE endpoint from the initial response's URL, e.g.:
   // "https://.../chat/completions" -> "https://.../chat/completions/stream"
@@ -172,10 +172,23 @@ function createMessageContainer(classes = '') {
 /* ---------- Real-time chain-of-thought parsing ---------- */
 
 function parseChunkForReasoning(text) {
+  // Create the buffers if they don't exist
+  if (typeof mainTextBuffer === 'undefined') {
+    mainTextBuffer = '';
+  }
+  if (typeof reasoningBuffer === 'undefined') {
+    reasoningBuffer = '';
+  }
+  if (typeof isThinking === 'undefined') {
+    isThinking = false;
+  }
+
+  // Process the text chunk
   while (text) {
     if (!isThinking) {
       const thinkStart = text.indexOf('<think>');
       if (thinkStart === -1) {
+        // No thinking tag, just regular text
         mainTextBuffer += text;
         text = '';
         if (mainContainer) {
@@ -183,7 +196,7 @@ function parseChunkForReasoning(text) {
           mainContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
       } else {
-        // Everything before <think> is normal text
+        // Found opening thinking tag
         mainTextBuffer += text.slice(0, thinkStart);
         if (mainContainer) {
           mainContainer.innerHTML = safeMarkdownParse(mainTextBuffer);
@@ -196,6 +209,7 @@ function parseChunkForReasoning(text) {
     } else {
       const thinkEnd = text.indexOf('</think>');
       if (thinkEnd === -1) {
+        // Still in thinking mode but no closing tag yet
         reasoningBuffer += text;
         text = '';
         if (reasoningContainer) {
@@ -208,6 +222,7 @@ function parseChunkForReasoning(text) {
           });
         }
       } else {
+        // Found closing thinking tag
         reasoningBuffer += text.slice(0, thinkEnd);
         if (reasoningContainer) {
           reasoningContainer.innerHTML = safeMarkdownParse(

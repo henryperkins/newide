@@ -104,11 +104,12 @@ class ModelManager {
             const deepseekR1Model = {
                 name: "DeepSeek-R1",
                 description: "Model that supports chain-of-thought reasoning with <think> tags",
-                azure_endpoint: "https://aoai-east-inference.cognitiveservices.azure.com",
+                azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
                 api_version: "2024-05-01-preview",
                 max_tokens: 32000,
-                supports_temperature: true,
+                supports_temperature: true,  // DeepSeek uses temperature parameter
                 supports_streaming: true,
+                supports_json_response: false,  // DeepSeek doesn't support JSON response format
                 base_timeout: 120.0,
                 max_timeout: 300.0,
                 token_factor: 0.05

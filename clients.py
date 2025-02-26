@@ -4,6 +4,7 @@ import asyncio
 from typing import Dict, Optional, Any
 from urllib.parse import urlparse
 import socket
+from database import AsyncSessionLocal
 
 from openai import AzureOpenAI
 from logging_config import logger
@@ -12,7 +13,6 @@ import config
 # Removed direct database import, now handled by ConfigService
 # from database import get_db_session  # Now used *only* for config
 from services.config_service import ConfigService  # Use for database access.
-from fastapi import Depends  # Import Depends
 
 
 class ClientPool:
@@ -76,13 +76,14 @@ class ClientPool:
                     "name": "DeepSeek-R1",
                     "max_tokens": 32000,
                     "supports_streaming": True,
-                    "supports_temperature": True,  # Changed to TRUE - DeepSeek uses temperature parameter
+                    "supports_temperature": True,
+                    "supports_json_response": False,
                     "base_timeout": 120.0,
                     "max_timeout": 300.0,
                     "token_factor": 0.05,
-                    "api_version": config.AZURE_INFERENCE_API_VERSION,
+                    "api_version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
                     "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
-                    "description": "Reasoning-focused model with high performance in math, coding, and science"
+                    "description": "Model that supports chain-of-thought reasoning with <think> tags"
                 }
                 
                 # Ensure the DeepSeek endpoint is set
@@ -231,7 +232,12 @@ class ClientPool:
             if not endpoint:
                 logger.error(f"No Azure Inference endpoint configured for {model_name} model")
                 raise ValueError(f"Missing Azure Inference endpoint for {model_name} model")
-            api_version = model_config.get("api_version", config.AZURE_INFERENCE_API_VERSION)
+            api_version = model_config.get("api_version", config.DEEPSEEK_R1_DEFAULT_API_VERSION)
+            
+            # Validate required config for DeepSeek
+            if not api_key:
+                logger.error(f"Missing AZURE_INFERENCE_CREDENTIAL for {model_name} model")
+                raise ValueError(f"Missing API credential for {model_name} model")
         else:
             api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
             endpoint = model_config.get("azure_endpoint", config.AZURE_OPENAI_ENDPOINT)
@@ -336,8 +342,6 @@ class ClientPool:
 
 _client_pool = None
 
-
-from database import AsyncSessionLocal
 
 async def init_client_pool():
     """Initialize the global client pool at application startup."""

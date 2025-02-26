@@ -1,8 +1,8 @@
 # config.py
-from typing import ClassVar, Dict, Literal, Any, Optional
+from typing import Dict, Literal
 import os
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from logging_config import logger
@@ -138,6 +138,17 @@ AZURE_OPENAI_API_KEY = settings.AZURE_OPENAI_API_KEY
 AZURE_OPENAI_API_VERSION = settings.AZURE_OPENAI_API_VERSION
 # MODEL_CONFIGS has been removed from config.py and should be loaded from a database or external config.
 
+# DeepSeek-R1 specific settings with proper fallbacks
+DEEPSEEK_R1_DEFAULT_TEMPERATURE = 0.7
+DEEPSEEK_R1_DEFAULT_MAX_TOKENS = 32000
+DEEPSEEK_R1_DEFAULT_API_VERSION = "2024-05-01-preview"
+
+# Utility function to check if a model is DeepSeek-R1
+def is_deepseek_model(model_name: str) -> bool:
+    """Check if the model is a DeepSeek model based on name."""
+    return model_name and model_name.lower().startswith("deepseek")
+
+
 # Validate that the endpoints are set
 if not AZURE_OPENAI_ENDPOINT:
     logger.warning("AZURE_OPENAI_ENDPOINT is not set. This will cause issues with o-series models.")
@@ -207,7 +218,7 @@ def build_azure_openai_url(deployment_name: str = None, api_version: str = None)
     # Determine which endpoint to use based on the model
     if deployment_name == "DeepSeek-R1":
         endpoint = os.getenv('AZURE_INFERENCE_ENDPOINT',
-                           'https://aoai-east-inference.cognitiveservices.azure.com')
+                           'https://DeepSeek-R1D2.eastus2.models.ai.azure.com')
         if not endpoint:
             raise ValueError("AZURE_INFERENCE_ENDPOINT environment variable is not set")
     else:
