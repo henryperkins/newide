@@ -25,6 +25,9 @@ class ModelManager {
             // Then refresh models list
             await this.refreshModelsList();
 
+            // Ensure local models exist regardless of API response
+            this.ensureLocalModelConfigs();
+
             // Log model configs for debugging
             console.log('ModelManager fetched model configs:', Object.keys(this.modelConfigs));
 
@@ -35,8 +38,8 @@ class ModelManager {
             }
         } catch (error) {
             console.error('Error initializing models:', error);
-            // Attempt to create default models if none exist
-            await this.ensureDefaultModels();
+            // Ensure local models exist even on error
+            this.ensureLocalModelConfigs();
         }
     }
 
@@ -301,6 +304,9 @@ class ModelManager {
             // Update local store - IMPORTANT: This is where the models are stored
             this.modelConfigs = models;
             console.log('Updated modelConfigs:', this.modelConfigs);
+
+            // Ensure required models exist locally regardless of API response
+            this.ensureLocalModelConfigs();
 
             // Clear container
             listContainer.innerHTML = '';
@@ -751,79 +757,15 @@ class ModelManager {
     async switchModel(modelId) {
         console.log(`Attempting to switch to model: ${modelId}`);
         
-        // Normalize model ID for case-insensitive comparison
-        const normalizedModelId = modelId.toLowerCase();
+        // Ensure local configs exist - this makes the code more resilient
+        this.ensureLocalModelConfigs();
         
-        // Find the model in configurations (case-insensitive)
-        const matchingModelId = Object.keys(this.modelConfigs).find(
-            id => id.toLowerCase() === normalizedModelId
-        );
-        
-        if (!matchingModelId) {
-            console.log(`Model ${modelId} not found in configurations, attempting to create it`);
-            
-            // Special handling for known models
-            if (normalizedModelId === "deepseek-r1") {
-                // Create DeepSeek-R1 model if it doesn't exist
-                const deepseekR1Model = {
-                    name: "DeepSeek-R1",
-                    description: "Model that supports chain-of-thought reasoning with <think> tags",
-                    azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
-                    api_version: "2024-05-01-preview", // Correct API version
-                    max_tokens: 32000,
-                    supports_temperature: true,
-                    supports_streaming: true,
-                    supports_json_response: false,
-                    base_timeout: 120.0,
-                    max_timeout: 300.0,
-                    token_factor: 0.05
-                };
-                
-                try {
-                    await this.createModel("DeepSeek-R1", deepseekR1Model);
-                    console.log('DeepSeek-R1 model created successfully');
-                    // Add to local configs
-                    this.modelConfigs["DeepSeek-R1"] = deepseekR1Model;
-                } catch (error) {
-                    console.warn('Failed to create DeepSeek-R1 model via API, adding to local config:', error);
-                    this.modelConfigs["DeepSeek-R1"] = deepseekR1Model;
-                }
-            } else if (normalizedModelId === "o1hp") {
-                // Create o1hp model if it doesn't exist
-                const o1Model = {
-                    name: "o1hp",
-                    description: "Advanced reasoning model for complex tasks",
-                    azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
-                    api_version: "2025-01-01-preview",
-                    max_tokens: 200000,
-                    max_completion_tokens: 5000,
-                    supports_temperature: false,
-                    supports_streaming: false, // o1 doesn't support streaming
-                    supports_vision: true,
-                    requires_reasoning_effort: true,
-                    reasoning_effort: "medium",
-                    base_timeout: 120.0,
-                    max_timeout: 300.0,
-                    token_factor: 0.05
-                };
-                
-                try {
-                    await this.createModel("o1hp", o1Model);
-                    console.log('o1hp model created successfully');
-                    // Add to local configs
-                    this.modelConfigs["o1hp"] = o1Model;
-                } catch (error) {
-                    console.warn('Failed to create o1hp model via API, adding to local config:', error);
-                    this.modelConfigs["o1hp"] = o1Model;
-                }
-            } else {
-                this.showToast(`Model ${modelId} not available`, 'error');
-                return false;
-            }
+        // Validate existence
+        if (!this.modelConfigs[modelId]) {
+            console.error(`Model ${modelId} not found in configurations`);
+            this.showToast(`Model ${modelId} not available`, 'error');
+            return false;
         }
-        
-        // Use the matching model ID with correct case
-        const actualModelId = matchingModelId || modelId;
         
         try {
             this.showToast(`Switching to ${modelId}...`, 'info');
@@ -832,68 +774,27 @@ class ModelManager {
             const session = await fetch('/api/session').then(r => r.json());
             const sessionId = session?.id;
             
-            // Get the complete model configuration that's stored locally
-            const modelConfig = this.modelConfigs[actualModelId];
-            if (!modelConfig) {
-                this.showToast(`Model configuration missing for ${modelId}`, 'error');
-                return false;
-            }
+            // Update model-specific UI before making the API call
+            this.updateModelSpecificUI(modelId);
             
-            // Use the simplified API endpoint that requires less parameters
-            console.log(`Using simplified switch model endpoint for: ${modelId}`);
-            let response = await fetch(`/api/config/models/switch_model/${modelId}${
+            // Switch model using simplified endpoint
+            const url = `/api/config/models/switch_model/${modelId}${
                 sessionId ? `?session_id=${sessionId}` : ''
-            }`, {
+            }`;
+            
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
             
             if (!response.ok) {
-                // If the simplified endpoint fails, try the full endpoint with complete model config
-                console.log(`Simplified endpoint failed, trying complete model config for: ${modelId}`);
-                
-                // Clone the model config to avoid modifying the original
-                const modelData = Object.assign({}, modelConfig);
-                
-                // Add session_id to request if available
-                if (sessionId) {
-                    modelData.session_id = sessionId;
-                }
-                
-                // Use the full switch endpoint with complete model config
-                response = await fetch(`/api/config/models/${modelId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(modelData)
-                });
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Failed to switch model: ${errorText}`);
-                }
-                
-                // Now call switch model to activate it
-                response = await fetch(`/api/config/models/switch`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        model_id: modelId,
-                        session_id: sessionId
-                    })
-                });
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Failed to activate model after update: ${errorText}`);
-                }
+                const errorText = await response.text();
+                throw new Error(`Failed to switch model: ${errorText}`);
             }
             
             // Locally record the current model
             this.currentModel = modelId;
             this.showToast(`Now using model: ${modelId}`, 'success');
-            
-            // Adjust UI for new model
-            this.updateModelSpecificUI(modelId);
             return true;
         } catch (error) {
             console.error('Error switching model:', error);
@@ -1076,6 +977,56 @@ class ModelManager {
             console.error('Error getting current model:', error);
             return null;
         }
+    }
+
+    /**
+     * Ensure local model configurations exist regardless of API response
+     */
+    ensureLocalModelConfigs() {
+        console.log('Ensuring local model configurations exist');
+        
+        // Always make sure these models exist in the local config
+        const requiredModels = {
+          "o1hp": {
+            name: "o1hp",
+            description: "Azure OpenAI o1 high performance model",
+            max_tokens: 40000,
+            supports_streaming: false,
+            supports_temperature: false,
+            api_version: "2025-01-01-preview",
+            azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
+            base_timeout: 120.0,
+            max_timeout: 300.0,
+            token_factor: 0.05
+          },
+          "DeepSeek-R1": {
+            name: "DeepSeek-R1",
+            description: "Model that supports chain-of-thought reasoning with <think> tags",
+            max_tokens: 32000,
+            supports_streaming: true,
+            supports_temperature: true,
+            api_version: "2024-05-01-preview",
+            azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
+            base_timeout: 120.0,
+            max_timeout: 300.0,
+            token_factor: 0.05
+          }
+        };
+        
+        // Add missing required models to modelConfigs
+        for (const [modelId, config] of Object.entries(requiredModels)) {
+          if (!this.modelConfigs[modelId]) {
+            console.log(`Adding missing model ${modelId} to local configs`);
+            this.modelConfigs[modelId] = config;
+            
+            // Try to create the model on the server asynchronously
+            this.createModel(modelId, config).catch(err => {
+              console.warn(`Failed to create ${modelId} on server: ${err.message}`);
+            });
+          }
+        }
+        
+        return this.modelConfigs;
     }
 }
 

@@ -1,9 +1,37 @@
 # utils.py
 import tiktoken
 import os
-from typing import Optional, List, Dict
+import json
+from typing import Optional, List, Dict, Union
 import config
 from logging_config import logger
+from azure.core.exceptions import HttpResponseError
+
+
+# Add a helper function to handle different client types
+def handle_client_error(error: Exception) -> dict:
+    """Parse and handle errors from different client types consistently"""
+    if isinstance(error, HttpResponseError):
+        # Azure AI Inference errors
+        status_code = error.status_code
+        error_message = str(error)
+
+        if hasattr(error, "response") and hasattr(error.response, "_content"):
+            try:
+                error_content = json.loads(error.response._content.decode("utf-8"))
+                if "error" in error_content:
+                    error_message = error_content["error"].get("message", error_message)
+            except Exception as e:
+                logger.warning(f"Failed to parse error content: {str(e)}")
+
+        return {
+            "status_code": status_code,
+            "message": error_message,
+            "type": "azure_inference_error",
+        }
+    else:
+        # Generic error handling
+        return {"status_code": 500, "message": str(error), "type": "unknown_error"}
 
 
 def resolve_api_version(deployment_name: str) -> str:
@@ -13,19 +41,21 @@ def resolve_api_version(deployment_name: str) -> str:
     a default '2025-01-01-preview' if not found.
     """
     # First check if it's in our config's MODEL_API_VERSIONS
-    if hasattr(config, 'MODEL_API_VERSIONS') and deployment_name in config.MODEL_API_VERSIONS:
+    if (
+        hasattr(config, "MODEL_API_VERSIONS")
+        and deployment_name in config.MODEL_API_VERSIONS
+    ):
         return config.MODEL_API_VERSIONS[deployment_name]
-    
+
     # Else use the static version matrix
     version_matrix = {
         "o1-prod": "2025-01-01-preview",
-        "o3-mini": "2025-01-01-preview", 
+        "o3-mini": "2025-01-01-preview",
         "deepseek-r1": "2025-01-01-preview",
-        "gpt-4":   "2023-12-01"
+        "gpt-4": "2023-12-01",
     }
     return version_matrix.get(
-        deployment_name.lower(),
-        os.getenv("DEFAULT_API_VERSION", "2025-01-01-preview")
+        deployment_name.lower(), os.getenv("DEFAULT_API_VERSION", "2025-01-01-preview")
     )
 
 
@@ -35,27 +65,12 @@ def validate_streaming(model_id: str) -> bool:
     We parse out a 'base model' from model_id by prefix.
     """
     STREAMING_MODEL_REGISTRY = {
-        "o3-mini": {
-            "supports_streaming": True,
-            "max_streams": 5
-        },
-        "o1-2025": {
-            "supports_streaming": True,
-            "max_streams": 5
-        },
-        "o1-prod": {
-            "supports_streaming": False
-        },
-        "deepseek-r1": {
-            "supports_streaming": True,
-            "max_streams": 5
-        },
-        "gpt-4": {
-            "supports_streaming": True
-        },
-        "gpt-35-turbo": {
-            "supports_streaming": True
-        }
+        "o3-mini": {"supports_streaming": True, "max_streams": 5},
+        "o1-2025": {"supports_streaming": True, "max_streams": 5},
+        "o1-prod": {"supports_streaming": False},
+        "deepseek-r1": {"supports_streaming": True, "max_streams": 5},
+        "gpt-4": {"supports_streaming": True},
+        "gpt-35-turbo": {"supports_streaming": True},
     }
 
     if not model_id:
@@ -68,7 +83,9 @@ def validate_streaming(model_id: str) -> bool:
         base_model = "o3-mini"
     elif model_id.startswith("o1-2025"):
         base_model = "o1-2025"
-    elif (model_id.startswith("o1-prod") or model_id.startswith("o1-")) and "preview" not in model_id:
+    elif (
+        model_id.startswith("o1-prod") or model_id.startswith("o1-")
+    ) and "preview" not in model_id:
         base_model = "o1-prod"
     elif model_id.startswith("gpt-4"):
         base_model = "gpt-4"
@@ -82,7 +99,7 @@ def validate_streaming(model_id: str) -> bool:
 def count_tokens(content, model: Optional[str] = None) -> int:
     """
     Count tokens for either text or vision-based content.
-    
+
     - If 'content' is a list of items (vision or otherwise), delegate to count_vision_tokens.
     - Otherwise, treat 'content' as a string and do tiktoken-based counting.
     """
@@ -144,8 +161,7 @@ def calculate_model_timeout(messages, model_name, reasoning_effort="medium"):
 
     if is_o_series:
         effort_multiplier = config.REASONING_EFFORT_MULTIPLIERS.get(
-            reasoning_effort, 
-            config.REASONING_EFFORT_MULTIPLIERS["medium"]
+            reasoning_effort, config.REASONING_EFFORT_MULTIPLIERS["medium"]
         )
         calculated_timeout = max(
             config.O_SERIES_BASE_TIMEOUT,

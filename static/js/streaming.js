@@ -28,10 +28,8 @@ export async function handleStreamingResponse(response, controller, config, stat
   console.log('[streaming.js] Starting SSE streaming...');
 
   const modelName = (config?.selectedModel || '').toLowerCase();
-  
-  // Only show reasoning for DeepSeek models that have <think> tags
   const showReasoning = modelName.includes('deepseek');
-  
+    
   // Verify the model actually supports streaming
   const supportsStreaming = config?.models?.[modelName]?.supports_streaming || 
                             modelName.includes('deepseek'); // DeepSeek-R1 supports streaming

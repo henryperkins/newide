@@ -177,9 +177,38 @@ async def get_models(config_service=Depends(get_config_service)):
     except Exception as e:
         print(f"ERROR in get_models: {str(e)}")
         logger.error(f"Error in get_models: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Error retrieving model configurations: {str(e)}"
+
+        # Instead of raising an exception, return default models
+        default_models = {
+            "o1hp": {
+                "name": "o1hp",
+                "description": "Azure OpenAI o1 high performance model",
+                "max_tokens": 40000,
+                "supports_streaming": False,
+                "supports_temperature": False,
+                "api_version": config.AZURE_OPENAI_API_VERSION,
+                "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
+                "base_timeout": 120.0,
+                "max_timeout": 300.0,
+                "token_factor": 0.05,
+            },
+            "DeepSeek-R1": {
+                "name": "DeepSeek-R1",
+                "description": "Model that supports chain-of-thought reasoning with <think> tags",
+                "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
+                "api_version": config.AZURE_INFERENCE_API_VERSION,
+                "max_tokens": 32000,
+                "supports_streaming": True,
+                "supports_temperature": True,
+                "base_timeout": 120.0,
+                "max_timeout": 300.0,
+                "token_factor": 0.05,
+            },
+        }
+        print(
+            f"DEBUG: Returning default models due to error: {list(default_models.keys())}"
         )
+        return default_models
 
 
 @router.get("/models/{model_id}", response_model=None)

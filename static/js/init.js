@@ -17,6 +17,57 @@ import { initializeConfig } from './config.js';
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Initializing Azure OpenAI Chat application...');
   
+  // Add special checks for model dropdown
+  const modelSelect = document.getElementById('model-select');
+  if (modelSelect) {
+    console.log(`Initial model dropdown options: ${modelSelect.options.length}`);
+    
+    // Add event listener to report when options change
+    const observer = new MutationObserver((mutations) => {
+      console.log(`Model dropdown options changed: ${modelSelect.options.length}`);
+    });
+    
+    observer.observe(modelSelect, {childList: true});
+    
+    // Force check if model dropdown is empty after 2 seconds
+    setTimeout(() => {
+      if (modelSelect.options.length === 0) {
+        console.warn('Model dropdown is still empty after 2 seconds, forcing population');
+        import('./models.js').then(module => {
+          const { modelManager } = module;
+          // Force repopulation of model dropdown
+          modelManager.ensureLocalModelConfigs();
+          
+          // Manually populate dropdown if still empty
+          const models = modelManager.modelConfigs;
+          if (Object.keys(models).length > 0 && modelSelect.options.length === 0) {
+            console.log('Manually populating model dropdown with:', Object.keys(models));
+            
+            // Clear dropdown first
+            modelSelect.innerHTML = '';
+            
+            // Add each model as an option
+            for (const [id, config] of Object.entries(models)) {
+              const option = document.createElement('option');
+              option.value = id;
+              option.textContent = `${id}${config.description ? ` (${config.description})` : ''}`;
+              modelSelect.appendChild(option);
+            }
+            
+            // Set a default selection if possible
+            if (models["DeepSeek-R1"]) {
+              modelSelect.value = "DeepSeek-R1";
+              modelManager.updateModelSpecificUI("DeepSeek-R1");
+            } else if (models["o1hp"]) {
+              modelSelect.value = "o1hp";
+              modelManager.updateModelSpecificUI("o1hp");
+            }
+          }
+        });
+      }
+    }, 2000);
+  }
+  
   // Initialize the model manager early
   import('./models.js').then(module => {
     const { modelManager } = module;

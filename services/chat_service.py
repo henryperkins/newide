@@ -1,23 +1,22 @@
-# chat_service.py
-
-import time
+import json
 import uuid
+import time
 from time import perf_counter
-from typing import Any, Dict, List, Optional
+from typing import Optional, List, Dict, Any, Union
+import os
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+from azure.ai.inference import ChatCompletionsClient
+from azure.core.exceptions import HttpResponseError
 
-# AzureOpenAI & specific error handling
-from openai import AzureOpenAI
-from openai import OpenAIError
+from openai import AzureOpenAI, OpenAIError
 
-import openai
 from logging_config import logger
 import config
 from models import Conversation
 from pydantic_models import ChatMessage
-
+from azure.core.credentials import AzureKeyCredential
 
 def create_error_response(
     status_code: int,
@@ -26,10 +25,7 @@ def create_error_response(
     error_type: str = "service_error",
     inner_error: str = "",
 ):
-    """
-    Example function to create a uniform error response dict.
-    If you prefer to raise HTTPException, you can do that instead.
-    """
+    """Parse and handle errors from different client types consistently"""
     return {
         "status_code": status_code,
         "detail": {
@@ -54,16 +50,19 @@ class TokenManager:
         """Get token limits for a specific model from database or use default."""
         from services.config_service import ConfigService
         from database import AsyncSessionLocal
-        
+
         try:
             async with AsyncSessionLocal() as config_db:
                 config_service = ConfigService(config_db)
                 model_configs = await config_service.get_config("model_configs")
-            model_config = model_configs.get(model_name, {}) if model_configs else {}
-        except Exception:
-            model_config = {}
-            
-        max_tokens = model_config.get("max_tokens", 4096)
+        except Exception as e:
+            logger.error(f"Error fetching model_configs: {str(e)}")
+            model_configs = {}
+
+        if not model_configs:
+            logger.warning("No model configurations found in the database.")
+
+        max_tokens = model_configs.get(model_name, {}).get("max_tokens", 4096)
         return {
             "max_tokens": max_tokens,
             "max_context_tokens": int(max_tokens * 0.8),
@@ -73,7 +72,7 @@ class TokenManager:
     def count_tokens(text_content: str) -> int:
         """
         Naive token count for demonstration.
-        Replace with GPT token counting (e.g. tiktoken) if you need accuracy.
+        Replace with GPT token counting (e.g., tiktoken) if you need accuracy.
         """
         return len(text_content.split())
 
@@ -97,11 +96,11 @@ class TokenManager:
 async def process_chat_message(
     chat_message: ChatMessage,
     db_session: AsyncSession,
-    azure_client: AzureOpenAI,
+    azure_client: Union[AzureOpenAI, ChatCompletionsClient],
     model_name: Optional[str] = None,
 ) -> dict:
     """
-    Processes a single chat message, calling AzureOpenAI to get a response,
+    Processes a single chat message, calling the appropriate client to get a response,
     and stores conversation data in the DB.
     """
     start_time = perf_counter()
@@ -109,162 +108,224 @@ async def process_chat_message(
 
     model_name = model_name or config.AZURE_OPENAI_DEPLOYMENT_NAME
 
-    from services.config_service import ConfigService
-    from database import AsyncSessionLocal
-    
+    # Get model configurations from database with better error handling
     try:
+        from services.config_service import ConfigService
+        from database import AsyncSessionLocal
+
         async with AsyncSessionLocal() as config_db:
             config_service = ConfigService(config_db)
             model_configs = await config_service.get_config("model_configs")
         if not model_configs or model_name not in model_configs:
-            logger.warning(f"Model '{model_name}' is not defined in database model_configs")
+            logger.warning(
+                f"Model '{model_name}' not defined in database model_configs"
+            )
     except Exception as e:
         logger.error(f"Error fetching model_configs: {str(e)}")
+        model_configs = {}
 
-    logger.info(f"[session {session_id}] Processing chat request for model: {model_name}")
-    user_content = chat_message.message or ""
+    # Check if this is a DeepSeek model
+    is_deepseek = model_name.lower() == "deepseek-r1" or config.is_deepseek_model(
+        model_name
+    )
 
-    messages = []
-    if getattr(chat_message, "developer_config", None):
-        messages.append({"role": "system", "content": chat_message.developer_config})
+    # Prepare parameters based on client type and model
+    messages = chat_message.messages
+    temperature = chat_message.temperature
+    max_tokens = chat_message.max_completion_tokens
 
-    existing_history = await fetch_conversation_history(db_session, session_id)
-    max_count = 15
-    if len(existing_history) > max_count:
-        older_part = existing_history[:-max_count]
-        summary_text = await summarize_messages(older_part)
-        existing_history = existing_history[-max_count:]
-        existing_history.insert(0, {"role": "system", "content": summary_text})
+    # Determine which client type we're using
+    is_inference_client = isinstance(azure_client, ChatCompletionsClient)
 
-    messages.extend(existing_history)
-    messages.append({"role": "user", "content": user_content})
+    # Set up parameters based on client type and model
+    params = {
+        "messages": messages,
+        "temperature": temperature if temperature is not None else 0.7,
+        "max_tokens": max_tokens if max_tokens is not None else 4096,
+    }
 
-    token_info = await TokenManager.get_model_limits(model_name)
-    context_tokens = TokenManager.sum_context_tokens(messages)
-    if context_tokens >= token_info["max_context_tokens"]:
-        logger.warning(
-            f"[session {session_id}] Context tokens ({context_tokens}) "
-            f"approaching or exceeding limit ({token_info['max_context_tokens']})."
-        )
-
-    params = {"messages": messages, "model": model_name, "stream": False}
-
-    async with AsyncSessionLocal() as config_db:
-        config_service = ConfigService(config_db)
-        db_model_configs = await config_service.get_config("model_configs")
-    model_config = db_model_configs.get(model_name, {}) if db_model_configs else {}
-
-    is_o_series = model_name.lower().startswith('o1') or model_name.lower().startswith('o3')
-    is_deepseek = model_name.lower() == "deepseek-r1" or config.is_deepseek_model(model_name)
-    
-    if is_o_series:
-        # o-series models use reasoning_effort and max_completion_tokens
-        reasoning_effort = getattr(chat_message, "reasoning_effort", "medium")
-        params["reasoning_effort"] = reasoning_effort
-        
-        # Use max_completion_tokens for o-series models, with proper fallback
-        max_completion_tokens = getattr(chat_message, "max_completion_tokens", 
-                                        model_config.get("max_completion_tokens", 4096))
-        params["max_completion_tokens"] = max_completion_tokens
-        
-        # For o-series, convert system role to developer
-        if messages and messages[0].get("role") == "system":
-            messages[0]["role"] = "developer"
-            
-        # Add formatting prefix to developer messages if needed
-        if messages:
-            first_role = messages[0].get("role")
-            first_content = messages[0].get("content", "")
-            if first_role == "developer" and not first_content.startswith("Formatting re-enabled"):
-                messages[0]["content"] = "Formatting re-enabled - use markdown code blocks. " + first_content
-    elif is_deepseek:
-        # DeepSeek models use temperature and max_tokens
-        params["temperature"] = (
-            chat_message.temperature if chat_message.temperature is not None
-            else config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
-        )
-        
-        # Use max_tokens for DeepSeek models with a clearer variable name
-        deepseek_max_tokens = getattr(chat_message, "max_tokens", 
-                                     config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS)
-        params["max_tokens"] = min(deepseek_max_tokens, 
-                                  model_config.get("max_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS))
-
-        # Add formatting prefix to system messages for DeepSeek if needed
-        if messages:
-            first_role = messages[0].get("role")
-            first_content = messages[0].get("content", "")
-            if first_role == "system" and not first_content.startswith("Formatting re-enabled"):
-                messages[0]["content"] = "Formatting re-enabled - use markdown code blocks. " + first_content
-
-        # Remove response_format for DeepSeek if present
-        params.pop('response_format', None)
+    if is_inference_client and is_deepseek:
+        # Additional parameters for DeepSeek
+        params["temperature"] = config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
+        params["max_tokens"] = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+    elif is_inference_client:
+        raise ValueError("Unsupported model for inference client: " + model_name)
     else:
-        # Standard models use temperature and max_tokens
-        params["temperature"] = (
-            chat_message.temperature if chat_message.temperature is not None else 0.7
-        )
-        params["max_tokens"] = min(
-            getattr(chat_message, "max_completion_tokens", 1024),
-            model_config.get("max_tokens", 4096)
-        )
-
-    if getattr(chat_message, "include_files", False) and chat_message.file_ids:
-        pass
+        # OpenAI client
+        if not is_deepseek:
+            params["reasoning_effort"] = (
+                chat_message.reasoning_effort
+                if chat_message.reasoning_effort
+                else "medium"
+            )
 
     try:
-        response = azure_client.chat.completions.create(**params)
-    except OpenAIError as e:
-        logger.exception(f"[session {session_id}] AzureOpenAI API call failed: {str(e)}")
+        if is_inference_client and is_deepseek:
+            # Azure AI Inference client for DeepSeek
+            response = azure_client.complete(
+                model=model_name,
+                messages=params["messages"],
+                temperature=params["temperature"],
+                max_tokens=params["max_tokens"],
+            )
 
-        error_code = getattr(e, "code", "api_error")
+            # Extract content from response
+            if not response.choices or len(response.choices) == 0:
+                logger.warning(
+                    f"[session {session_id}] No choices returned from Azure AI Inference."
+                )
+                content = ""
+            else:
+                content = response.choices[0].message.content
+
+            # Extract usage info
+            usage_data = {
+                "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
+                "completion_tokens": getattr(response.usage, "completion_tokens", 0),
+                "total_tokens": getattr(response.usage, "total_tokens", 0),
+            }
+        else:
+            # OpenAI client for o-series models
+            if not is_deepseek:
+                params["reasoning_effort"] = (
+                    chat_message.reasoning_effort
+                    if chat_message.reasoning_effort
+                    else "medium"
+                )
+            response = azure_client.chat.completions.create(**params)
+
+            # Extract content
+            if not response.choices or len(response.choices) == 0:
+                logger.warning(
+                    f"[session {session_id}] No choices returned from AzureOpenAI."
+                )
+                content = ""
+            else:
+                content = response.choices[0].message.content
+
+            # Extract usage
+            usage_raw = getattr(response, "usage", None)
+            usage_data = {}
+            if usage_raw:
+                usage_data = {
+                    "prompt_tokens": getattr(usage_raw, "prompt_tokens", 0),
+                    "completion_tokens": getattr(usage_raw, "completion_tokens", 0),
+                    "total_tokens": getattr(usage_raw, "total_tokens", 0),
+                }
+
+    except HttpResponseError as e:
+        # Handle Azure AI Inference errors
+        logger.exception(
+            f"[session {session_id}] Azure AI Inference call failed: {str(e)}"
+        )
+
+        error_code = getattr(e, "status_code", "api_error")
         error_message = str(e)
-        if getattr(e, "response", None) and getattr(e.response, "data", None):
-            error_message = f"{error_message}. Details: {e.response.data}"
 
         err = create_error_response(
             status_code=503,
             code=error_code,
-            message="Error during Azure OpenAI call",
+            message="Error during Azure AI Inference call",
+            error_type="api_call_error",
+            inner_error=error_message,
+        )
+        logger.critical(f"Handled Azure AI error gracefully. {err['detail']}")
+        return err
+
+    except OpenAIError as e:
+        # Error handling for OpenAI
+        logger.exception(f"[session {session_id}] AzureOpenAI call failed: {str(e)}")
+
+        error_code = getattr(e, "code", "api_error")
+        error_message = str(e)
+
+        err = create_error_response(
+            status_code=503,
+            code=error_code,
+            message="Error during AzureOpenAI call",
             error_type="api_call_error",
             inner_error=error_message,
         )
         logger.critical(f"Handled AzureOpenAI error gracefully. {err['detail']}")
         return err
+
     except Exception as e:
-        logger.exception(f"[session {session_id}] An unexpected error occurred: {str(e)}")
+        # Generic error handling
+        logger.exception(f"[session {session_id}] Unexpected error occurred: {str(e)}")
 
         err = create_error_response(
             status_code=500,
             code="internal_server_error",
             message="An unexpected error occurred during processing.",
-            error_type="internal_server_error",
-            inner_error="Internal server error"
+            error_type="unknown_error",
+            inner_error="Internal server error",
         )
-        logger.critical(f"Handled unexpected processing error gracefully. {err['detail']}")
+        logger.critical(f"Handled unexpected error gracefully. {err['detail']}")
         return err
 
-    if not response.choices or len(response.choices) == 0:
-        logger.warning(f"[session {session_id}] No choices returned from AzureOpenAI.")
-        content = ""
-    else:
-        content = response.choices[0].message.content
-        if model_name == "DeepSeek-R1" and content:
-            logger.debug(f"[session {session_id}] DeepSeek response received with <think> tags: {('<think>' in content)}")
+    full_content = content
 
-    elapsed = perf_counter() - start_time
-    logger.info(f"[session {session_id}] Chat completion finished in {elapsed:.2f}s")
+    # Process and format content for display
+    formatted_content = full_content
 
-    usage_raw = getattr(response, "usage", None)
-    usage_data = {}
-    if usage_raw:
-        usage_data = {
-            "prompt_tokens": getattr(usage_raw, "prompt_tokens", 0),
-            "completion_tokens": getattr(usage_raw, "completion_tokens", 0),
-            "total_tokens": getattr(usage_raw, "total_tokens", 0),
-        }
-    
-    resp_data = {
+    # Format DeepSeek thinking tags if present
+    if model_name == "DeepSeek-R1" and full_content:
+        import re
+
+        # Use a triple-quoted raw string literal for the regex pattern.
+        thinkRegex = r"""<details style="margin: 0\.5rem 0 1\.5rem; padding: 0\.75rem; border: 1px solid var\(--background-modifier-border\); border-radius: 4px; background-color: var\(--background-secondary\)">
+            <summary style="cursor: pointer; color: var\(--text-muted\); font-size: 0\.8em; margin-bottom: 0\.5rem; user-select: none">Thought for a second</summary>
+            <div class="text-muted" style="margin-top: 0\.75rem; padding: 0\.75rem; border-radius: 4px; background-color: var\(--background-primary\)">([\s\S]*?)</div>
+        </details>"""
+
+        # Replace the matched thinking block with formatted HTML.
+        def replace_thinking(match_obj):
+            thinking_text = match_obj.group(1)
+            return f"""<div class="thinking-process">
+                  <div class="thinking-header">
+                    <button class="thinking-toggle" aria-expanded="true">
+                      <span class="toggle-icon">▼</span> Thinking Process
+                    </button>
+                  </div>
+                  <div class="thinking-content">
+                    <pre class="thinking-pre">{thinking_text}</pre>
+                  </div>
+                </div>"""
+
+        formatted_content = re.sub(
+            thinkRegex, replace_thinking, formatted_content, count=1
+        )
+
+    # Create user message
+    user_msg = Conversation(
+        session_id=session_id,
+        role="user",
+        content=chat_message.message,
+        model=model_name,
+    )
+
+    # Create assistant message with formatted content and raw response
+    assistant_msg = Conversation(
+        session_id=session_id,
+        role="assistant",
+        content=full_content,
+        formatted_content=formatted_content,
+        model=model_name,
+        raw_response={"streaming": False, "final_content": full_content},
+    )
+
+    # Store messages in database
+    await save_conversation(
+        db_session,
+        session_id,
+        model_name,
+        chat_message.message,
+        full_content,
+        formatted_content,
+        response,
+    )
+
+    return {
         "id": f"chatcmpl-{uuid.uuid4()}",
         "object": "chat.completion",
         "created": int(time.time()),
@@ -278,30 +339,6 @@ async def process_chat_message(
         ],
         "usage": usage_data,
     }
-
-    formatted_content = content
-    if model_name == "DeepSeek-R1" and content:
-        import re
-        thinkRegex = r'<think>([\s\S]*?)<\/think>'
-        matches = re.findall(thinkRegex, content)
-        for i, match in enumerate(matches):
-            thinking_html = (
-                '<div class="thinking-process">'
-                '  <div class="thinking-header">'
-                '    <button class="thinking-toggle" aria-expanded="true">'
-                '      <span class="toggle-icon">▼</span> Thinking Process'
-                '    </button>'
-                '  </div>'
-                '  <div class="thinking-content">'
-                f'    <pre class="thinking-pre">{match}</pre>'
-                '  </div>'
-                '</div>'
-            )
-            formatted_content = formatted_content.replace(f'<think>{match}</think>', thinking_html, 1)
-
-    await save_conversation(db_session, session_id, model_name, user_content, content, formatted_content, response)
-
-    return resp_data
 
 
 async def fetch_conversation_history(
@@ -317,17 +354,13 @@ async def fetch_conversation_history(
             SELECT role, content
             FROM conversations
             WHERE session_id = :session_id
-            ORDER BY timestamp ASC
+            ORDER BY id ASC
         """
         ),
         {"session_id": session_id},
     )
     rows = result.mappings().all()
-
-    history = []
-    for row in rows:
-        history.append({"role": row.role, "content": row.content})
-    return history
+    return [{"role": row.role, "content": row.content} for row in rows]
 
 
 async def save_conversation(
@@ -336,65 +369,58 @@ async def save_conversation(
     model_name: str,
     user_text: str,
     assistant_text: str,
-    formatted_assistant_text: str = None,
-    raw_response: Any = None,
+    formatted_assistant_text: str,
+    raw_response: Any,
 ):
     """
-    Save user and assistant messages to DB, optionally update session last_activity.
+    Save user and assistant messages to the database.
     """
     try:
         user_msg = Conversation(
             session_id=session_id,
             role="user",
             content=user_text,
-            model=model_name
+            model=model_name,
         )
+
         assistant_msg = Conversation(
             session_id=session_id,
             role="assistant",
             content=assistant_text,
-            formatted_content=formatted_assistant_text if formatted_assistant_text else assistant_text,
+            formatted_content=formatted_assistant_text,
             model=model_name,
-            raw_response=(raw_response.model_dump() if hasattr(raw_response, "model_dump") else
-                          (raw_response.__dict__ if raw_response else None))
+            raw_response={"streaming": False, "final_content": assistant_text},
         )
 
         db_session.add(user_msg)
         db_session.add(assistant_msg)
-
-        await db_session.execute(
-            text(
-                """
-                UPDATE sessions
-                SET last_activity = NOW(),
-                    last_model = :model_name
-                WHERE id = :session_id
-            """
-            ),
-            {"session_id": session_id, "model_name": model_name},
-        )
-
         await db_session.commit()
-
     except Exception as e:
         logger.error(f"Failed to save conversation to the database: {str(e)}")
         await db_session.rollback()
         raise
-    finally:
-        await db_session.close()
 
 
 async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
     """
     Summarize older messages into a single system message.
     """
-    combined_text = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in messages)
+    if not messages:
+        return ""
+
+    combined_text = "\n".join(
+        f"{m['role'].capitalize()}: {m['content']}" for m in messages
+    )
     try:
-        response = openai.Completion.create(
+        response = AzureOpenAI(
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            api_base=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+        ).completions.create(
             engine="text-davinci-003",
             prompt=f"Summarize the following chat:\n\n{combined_text}\n\nBrief Summary:",
-            max_tokens=150
+            max_tokens=150,
         )
-        return response["choices"][0]["text"].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return "Summary of older messages: [Error fallback] " + str(e)

@@ -155,6 +155,9 @@ export async function processServerResponseData(data, modelName = 'unknown') {
     // data.usage might have { prompt_tokens, completion_tokens, total_tokens } etc.
     updateTokenUsage(data.usage);
   }
+
+  // After processing, setup the toggle listeners
+  setupThinkingToggleListeners();
 }
 
 /**

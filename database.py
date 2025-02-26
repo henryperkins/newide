@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
 from sqlalchemy import text
 from fastapi import Depends
 import config
+from typing import AsyncGenerator
 
 # Create an SSL context for Azure Database for PostgreSQL
 ssl_context = ssl.create_default_context()
@@ -106,7 +107,7 @@ class VectorStore(Base):
 class FileCitation(Base):
     """ORM model for file citations in conversation."""
     __tablename__ = "file_citations"
-    
+
     id = Column(PGUUID, primary_key=True)
     conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete='CASCADE'), nullable=False)
     file_id = Column(PGUUID, ForeignKey("uploaded_files.id", ondelete='SET NULL'), nullable=True)
@@ -115,7 +116,8 @@ class FileCitation(Base):
     created_at = Column(DateTime(timezone=True), server_default=text("NOW()"))
     file_metadata = Column(JSONB, nullable=True)  # Renamed from metadata
 
-async def get_db_session() -> AsyncSession:
+
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """
     Dependency to provide an async database session.
 

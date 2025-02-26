@@ -58,7 +58,7 @@ export async function sendMessage() {
     try {
       if (sendButton) {
         sendButton.disabled = true;
-        sendButton.innerHTML = '<span class="animate-spin mr-1">🔄</span> Sending...';
+        sendButton.innerHTML = '<span class="animate-spin inline-block mr-2">&#8635;</span> Sending...';
       }
     } catch (btnErr) {
       console.warn('[sendMessage] Error updating button state:', btnErr);
@@ -68,13 +68,15 @@ export async function sendMessage() {
     if (!sessionId) {
       const initialized = await initializeSession();
       if (!initialized) {
-        throw new Error("Failed to initialize session");
+        throw new Error('Failed to initialize session');
       }
     }
 
     // Disable input while request is in flight - with error handling
     try { 
-      if (userInput) userInput.disabled = true;
+      if (userInput) {
+        userInput.disabled = true;
+      }
     } catch (inputErr) {
       console.warn('[sendMessage] Error disabling input:', inputErr);
     }
@@ -115,7 +117,7 @@ export async function sendMessage() {
     // Get model details for streaming decision
     const modelName = modelConfig?.name?.toLowerCase();
     const supportsStreaming = modelConfig?.capabilities?.supports_streaming === true || 
-                              modelName.includes('deepseek'); // DeepSeek models support streaming
+                              modelName?.includes('deepseek'); // DeepSeek models support streaming
 
     // Check if the model supports streaming and user has enabled it
     if (supportsStreaming && streamingEnabled) {
@@ -125,24 +127,34 @@ export async function sendMessage() {
         console.warn(`Model ${modelName} doesn't support streaming. Using standard request.`);
       }
       
-      // Non-streaming: parse final JSON and display
-      const data = await response.json();
-      if (!response.ok) {
-        console.error('[sendMessage] API Error details:', data);
-        if (response.status === 401 || response.status === 403) {
-          showNotification('Please log in to continue.', 'warning');
-        } else if (response.status === 404) {
-          showNotification('The requested endpoint was not found. Check your server configuration.', 'warning');
+      try {
+        // IMPORTANT: First clone the response to read it multiple times if needed
+        const responseClone = response.clone();
+        
+        // Non-streaming: parse final JSON and display
+        const data = await responseClone.json();
+        
+        if (!response.ok) {
+          console.error('[sendMessage] API Error details:', data);
+          if (response.status === 401 || response.status === 403) {
+            showNotification('Please log in to continue.', 'warning');
+          } else if (response.status === 404) {
+            showNotification('The requested endpoint was not found. Check your server configuration.', 'warning');
+          }
+          throw new Error(
+            `HTTP error! status: ${response.status}, details: ${JSON.stringify(data)}`
+          );
         }
-        throw new Error(
-          `HTTP error! status: ${response.status}, details: ${JSON.stringify(data)}`
-        );
-      }
 
-      // Possibly update stats usage if data.usage is present
-      // Then handle final assistant content in displayManager
-      const modelName = data.model || modelConfig?.name || 'unknown';
-      processServerResponseData(data, modelName);
+        // Possibly update stats usage if data.usage is present
+        // Then handle final assistant content in displayManager
+        const modelName = data.model || modelConfig?.name || 'unknown';
+        processServerResponseData(data, modelName);
+      } catch (parseError) {
+        console.error('[sendMessage] Error parsing response:', parseError);
+        showNotification('Error processing response from server', 'error');
+        throw parseError;
+      }
     }
 
   } catch (err) {
@@ -155,7 +167,10 @@ export async function sendMessage() {
         sendButton.innerHTML = initialButtonText;
       }
       removeTypingIndicator();
-      if (userInput) userInput.disabled = false;
+      if (userInput) {
+        userInput.disabled = false;
+        userInput.focus();
+      }
     } catch (finalErr) {
       console.error('[sendMessage] Error in finally block:', finalErr);
     }
@@ -220,11 +235,8 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
   const config = await getCurrentConfig();
 
   // Deployment name is necessary for Azure; ensure it's configured
-  const deploymentName = config.deploymentName;
-  if (!deploymentName) {
-    throw new Error('No valid deployment name found in configuration.');
-  }
-
+  const deploymentName = config.deploymentName || modelConfig?.name || "o1hp";
+  
   // Initialize session if needed
   if (!sessionId) {
     await initializeSession();
@@ -238,34 +250,38 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
   const isDeepSeek = modelName.includes('deepseek');
   const isOSeries = modelName.startsWith('o1') || modelName.startsWith('o3');
 
-  // Basic request body
-  const requestBody = {
-      model: modelConfig?.name || 'o1hp',
-      messages: [
-          {
-              role: 'user',
-              content: messageContent
-          }
-      ],
-      session_id: sessionId
-  };
-
-  // Insert developer or system prompt if present
+  // IMPORTANT: Structure the messages array properly
+  const messages = [];
+  
+  // Add developer/system prompt if present
   if (developerConfig) {
     if (isOSeries) {
       // o-series models use "developer" role
-      requestBody.messages.unshift({
+      messages.push({
         role: "developer",
         content: developerConfig
       });
     } else {
       // Other models use "system" role
-      requestBody.messages.unshift({
-        role: "system",
+      messages.push({
+        role: "system", 
         content: developerConfig
       });
     }
   }
+  
+  // Always add the user's message
+  messages.push({
+    role: 'user',
+    content: messageContent
+  });
+
+  // Basic request body - FIX: Structure according to OpenAI/Azure API expectations
+  const requestBody = {
+    model: modelConfig?.name || deploymentName, // Make sure model is always specified
+    messages: messages,                         // Use the messages array we constructed
+    session_id: sessionId
+  };
 
   // Set model-specific parameters
   if (isOSeries) {
@@ -273,7 +289,7 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
     requestBody.reasoning_effort = reasoningEffort || 'medium';
     
     // o-series uses max_completion_tokens, not max_tokens
-    if (modelConfig.capabilities?.max_completion_tokens) {
+    if (modelConfig?.capabilities?.max_completion_tokens) {
       requestBody.max_completion_tokens = modelConfig.capabilities.max_completion_tokens;
     } else {
       requestBody.max_completion_tokens = 5000; // Default value
@@ -284,7 +300,7 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
   } else if (isDeepSeek) {
     // DeepSeek-R1 model - uses temperature (NOT reasoning_effort)
     requestBody.temperature = 0.7; // Default from documentation
-    if (modelConfig.capabilities?.max_tokens) {
+    if (modelConfig?.capabilities?.max_tokens) {
       requestBody.max_tokens = modelConfig.capabilities.max_tokens;
     } else {
       requestBody.max_tokens = 32000; // Default for DeepSeek-R1
@@ -296,54 +312,63 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
     delete requestBody.max_completion_tokens;
   } else {
     // Standard model
-    if (modelConfig.capabilities?.temperature !== undefined) {
+    if (modelConfig?.capabilities?.temperature !== undefined) {
       requestBody.temperature = modelConfig.capabilities.temperature;
     } else {
       requestBody.temperature = 0.7; // Default temperature
     }
     
     // Standard models use max_tokens, not max_completion_tokens
-    if (modelConfig.capabilities?.max_tokens) {
+    if (modelConfig?.capabilities?.max_tokens) {
       requestBody.max_tokens = modelConfig.capabilities.max_tokens;
     } else {
       requestBody.max_tokens = 4000; // Default value
     }
   }
 
-  // Example: read from config data
-  const apiKey = config.azureOpenAI?.apiKey;
-  if (!apiKey) {
-    throw new Error('Azure OpenAI API key not configured');
-  }
-
   // Select API version based on model type
   let apiVersion;
   if (isDeepSeek) {
-    apiVersion = modelConfig.api_version || '2024-05-01-preview'; // DeepSeek API version
+    apiVersion = modelConfig?.api_version || '2024-05-01-preview'; // DeepSeek API version
   } else if (isOSeries) {
-    apiVersion = modelConfig.api_version || '2025-01-01-preview'; // o-series API version
+    apiVersion = modelConfig?.api_version || '2025-01-01-preview'; // o-series API version
   } else {
-    apiVersion = modelConfig.api_version || '2025-01-01-preview'; // Default API version
+    apiVersion = modelConfig?.api_version || '2025-01-01-preview'; // Default API version
   }
 
   // Build the URL 
   const url = await buildAzureOpenAIUrl(deploymentName, apiVersion);
+
+  // Log request for debugging
+  console.log('[makeApiRequest] Request URL:', url);
+  console.log('[makeApiRequest] Sending payload:', JSON.stringify(requestBody, null, 2));
 
   const init = {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      'api-key': apiKey
+      'api-key': config.azureOpenAI?.apiKey || ''
     },
     signal: controller.signal,
     body: JSON.stringify(requestBody)
   };
 
-  console.log('[makeApiRequest] Sending payload:', JSON.stringify(requestBody, null, 2));
-
-  const response = await fetch(url, init);
-  return response;
+  try {
+    const response = await fetch(url, init);
+    
+    if (!response.ok) {
+      console.error('[makeApiRequest] Error response:', response.status, response.statusText);
+      const errorData = await response.json().catch(() => ({}));
+      console.error('[makeApiRequest] Error details:', errorData);
+      // Important: Don't throw here, just return the response for downstream handling
+    }
+    
+    return response;
+  } catch (error) {
+    console.error('[makeApiRequest] Fetch error:', error);
+    throw error;
+  }
 }
 
 /**
@@ -436,7 +461,37 @@ function logDeepSeekModelInfo(modelConfig) {
  * Build the API endpoint for chat completion
  */
 async function buildAzureOpenAIUrl(deploymentName, apiVersion) {
-  // Use local API endpoint instead of direct Azure endpoint
-  // This ensures all requests go through our backend API
-  return `/api/chat?api-version=${apiVersion}`;
+  const config = await getCurrentConfig();
+  
+  // Check if this is a DeepSeek model (needs Azure Inference endpoint)
+  const isDeepSeek = (deploymentName || '').toLowerCase().includes('deepseek');
+  
+  let baseUrl;
+  if (isDeepSeek) {
+    // For DeepSeek models, use Azure Inference endpoint
+    baseUrl = config?.azureInference?.endpoint || "https://DeepSeek-R1D2.eastus2.models.ai.azure.com";
+    if (!apiVersion) {
+      apiVersion = "2024-05-01-preview"; // Default API version for DeepSeek
+    }
+  } else {
+    // For other models, use Azure OpenAI endpoint
+    baseUrl = config?.azureOpenAI?.endpoint || "https://aoai-east-2272068338224.cognitiveservices.azure.com";
+    if (!apiVersion) {
+      apiVersion = "2025-01-01-preview"; // Default API version for other models
+    }
+  }
+  
+  if (!baseUrl) {
+    throw new Error('Missing endpoint configuration - check environment variables');
+  }
+
+  // Make sure deploymentName is defined
+  const actualDeployment = deploymentName || config?.deploymentName || "o1hp";
+  
+  const url = new URL(
+    `openai/deployments/${actualDeployment}/chat/completions`, 
+    baseUrl
+  );
+  url.searchParams.append('api-version', apiVersion);
+  return url.toString();
 }
