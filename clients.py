@@ -1,4 +1,3 @@
-# clients.py
 import os
 import asyncio
 from typing import Dict, Optional, Any
@@ -218,9 +217,13 @@ class ClientPool:
             # Only re-raise if we couldn't initialize any clients
             if not self._clients:
                 raise
-                
+
     def _create_client(self, model_name: str, model_config: Dict[str, Any]) -> AzureOpenAI:
-        """Create an Azure OpenAI client with the given configuration"""
+        """
+        Create an Azure OpenAI client with the given configuration.
+        If it lacks one or more required fields, we log a critical error instead of raising immediately.
+        """
+
         is_o_series = model_name.startswith("o") or not model_config.get("supports_temperature", True)
         is_deepseek = model_name.lower().startswith("deepseek")
         max_retries = config.O_SERIES_MAX_RETRIES if is_o_series else 3
@@ -230,43 +233,42 @@ class ClientPool:
             api_key = os.getenv("AZURE_INFERENCE_CREDENTIAL", "")
             endpoint = model_config.get("azure_endpoint", config.AZURE_INFERENCE_ENDPOINT)
             if not endpoint:
-                logger.error(f"No Azure Inference endpoint configured for {model_name} model")
-                raise ValueError(f"Missing Azure Inference endpoint for {model_name} model")
+                logger.critical(f"No Azure Inference endpoint configured for {model_name} model. Calls may fail!")
             api_version = model_config.get("api_version", config.DEEPSEEK_R1_DEFAULT_API_VERSION)
             
             # Validate required config for DeepSeek
             if not api_key:
-                logger.error(f"Missing AZURE_INFERENCE_CREDENTIAL for {model_name} model")
-                raise ValueError(f"Missing API credential for {model_name} model")
+                logger.critical(f"Missing AZURE_INFERENCE_CREDENTIAL for {model_name} model. Calls may fail!")
         else:
             api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
             endpoint = model_config.get("azure_endpoint", config.AZURE_OPENAI_ENDPOINT)
             api_version = model_config.get("api_version", config.AZURE_OPENAI_API_VERSION)
-
-        # Validate endpoint is not None
-        if not endpoint:
-            logger.error(f"No Azure endpoint configured for model '{model_name}'")
-            raise ValueError(f"Missing Azure endpoint for model '{model_name}'")
+            if not endpoint:
+                logger.critical(f"No Azure endpoint configured for model '{model_name}'. Calls may fail!")
 
         def ensure_protocol(url: str) -> str:
-            """Guarantee endpoint URLs have a protocol prefix"""
+            """Guarantee endpoint URLs have a protocol prefix."""
             if not url.startswith(("http://", "https://")):
                 logger.warning(f"Auto-adding HTTPS protocol to endpoint: {url}")
                 return f"https://{url}"
             return url
 
-        endpoint = ensure_protocol(endpoint)
-        
-        # Debug DNS resolution
-        parsed = urlparse(endpoint)
-        logger.info(f"Resolving DNS for: {parsed.hostname}")
-        try:
-            ip = socket.gethostbyname(parsed.hostname)
-            logger.info(f"Resolved {parsed.hostname} → {ip}")
-        except socket.gaierror as e:
-            logger.error(f"DNS resolution failed for {parsed.hostname}: {str(e)}")
-            raise
-        
+        if endpoint:
+            endpoint = ensure_protocol(endpoint)
+            
+            # Debug DNS resolution
+            parsed = urlparse(endpoint)
+            logger.info(f"Resolving DNS for: {parsed.hostname}")
+            try:
+                ip = socket.gethostbyname(parsed.hostname)
+                logger.info(f"Resolved {parsed.hostname} → {ip}")
+            except socket.gaierror as e:
+                logger.error(f"DNS resolution failed for {parsed.hostname}: {str(e)}")
+                # We do not raise here, to keep code consistent with the approach
+        else:
+            # No endpoint at all
+            endpoint = ""
+
         return AzureOpenAI(
             api_key=api_key,
             api_version=api_version,
@@ -321,7 +323,7 @@ class ClientPool:
         return client
 
     async def refresh_client(self, model_name: str, config_service: ConfigService) -> None:
-        """Refresh a specific client with latest configuration"""
+        """Refresh a specific client with latest configuration."""
         async with self._lock:
             try:
                 model_config = await config_service.get_model_config(model_name)

@@ -5,6 +5,7 @@ from logging_config import logger
 from database import get_db_session  # For injection
 from models import AppConfiguration
 from fastapi import Depends
+import config  # Add this import
 
 class ConfigService:
     """
@@ -86,9 +87,27 @@ class ConfigService:
             
     async def get_model_configs(self) -> Dict[str, Any]:
         """Get all model configurations"""
-        db_models = await self.get_config("model_configs") or {}
+        db_models = (await self.get_config("model_configs")) or {}
         
-        # Ensure all models have required fields 
+        # Ensure DeepSeek-R1 exists with correct casing
+        deepseek_key = next((k for k in db_models.keys() if k.lower() == 'deepseek-r1'), None)
+        if not deepseek_key:
+            db_models["DeepSeek-R1"] = {
+                "name": "DeepSeek-R1",
+                "description": "Model that supports chain-of-thought reasoning with <think> tags",
+                "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
+                "api_version": config.AZURE_INFERENCE_API_VERSION,
+                "max_tokens": 32000,
+                "supports_temperature": True,
+                "supports_streaming": True
+            }
+            await self.set_config("model_configs", db_models, "Model configurations", is_secret=True)
+        elif deepseek_key != "DeepSeek-R1":
+            # Fix casing if needed
+            db_models["DeepSeek-R1"] = db_models.pop(deepseek_key)
+            await self.set_config("model_configs", db_models, "Model configurations", is_secret=True)
+        
+        # Ensure all models have required fields
         for model_id, config in db_models.items():
             if "name" not in config:
                 config["name"] = model_id

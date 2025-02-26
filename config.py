@@ -122,8 +122,8 @@ required_settings = [
 
 for setting in required_settings:
     if not getattr(settings, setting):
-        logger.error(f"Required setting {setting} is not configured")
-        raise ValueError(f"Required environment variable {setting} is not set")
+        logger.critical(f"Required setting {setting} is missing. Proceeding with caution — some functionality may fail.")
+        # Instead of raising an immediate ValueError here, we continue, though it may cause subsequent 500 errors
 
 # -----------------------------------------------
 # Export constants from Settings

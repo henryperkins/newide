@@ -16,7 +16,13 @@ class ModelManager {
     async initialize() {
         try {
             console.log('Initializing ModelManager');
-            // Fetch models from server
+            // First ensure default models exist
+            await this.ensureDefaultModels();
+            
+            // Wait 500ms for backend to process
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Then refresh models list
             await this.refreshModelsList();
             
             // Log model configs for debugging
@@ -144,6 +150,13 @@ class ModelManager {
      * @param {Object} modelData 
      */
     async createModel(modelId, modelData) {
+        // Check if model exists first
+        const existsResponse = await fetch(`/api/config/models/${modelId}`);
+        if (existsResponse.ok) {
+            console.log(`Model ${modelId} already exists, skipping creation`);
+            return await existsResponse.json();
+        }
+
         const response = await fetch(`/api/config/models/${modelId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -164,7 +177,7 @@ class ModelManager {
     async refreshModelsList() {
         const listContainer = document.getElementById('models-list');
         if (!listContainer) {
-            console.error('Models list container not found in DOM');
+            console.error('Models list container not found');
             return;
         }
         
@@ -176,32 +189,28 @@ class ModelManager {
         try {
             console.log('Fetching models from API...');
             const response = await fetch('/api/config/models');
-            console.log('API response status:', response.status);
-            
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('API error response:', errorText);
-                throw new Error(
-                    `HTTP error! status: ${response.status}, details: ${errorText}`
-                );
+                throw new Error(`Failed to fetch models: ${response.status} ${response.statusText}`);
             }
             
             const models = await response.json();
-            console.log('Models received:', models);
-            console.log('Available models:', Object.keys(models));
+            console.log('Models received from API:', models);
             
             // Warn if DeepSeek-R1 is missing
-            const hasDeepSeekR1 = Object.keys(models).some(
-                key => key.toLowerCase() === 'deepseek-r1'
-            );
+            const hasDeepSeekR1 = Object.keys(models).includes("DeepSeek-R1");
+            const hasO1hp = Object.keys(models).includes("o1hp");
+            
             if (!hasDeepSeekR1) {
-                console.warn(
-                    'DeepSeek-R1 not found in API response. You can create or register it in the Azure deployment settings.'
-                );
+                console.warn('DeepSeek-R1 not found in API response. You can create or register it in the Azure deployment settings.');
             }
             
-            // Update local store
+            if (!hasO1hp) {
+                console.warn('o1hp not found in API response. You can create or register it in the Azure deployment settings.');
+            }
+            
+            // Update local store - IMPORTANT: This is where the models are stored
             this.modelConfigs = models;
+            console.log('Updated modelConfigs:', this.modelConfigs);
             
             // Clear container
             listContainer.innerHTML = '';
@@ -213,11 +222,41 @@ class ModelManager {
                     <div class="text-gray-500 dark:text-gray-400 text-sm p-4 text-center">
                         No models configured.
                     </div>`;
+                    
+                // Since we have no models, manually create the essential ones
+                console.log('Creating default models in local config...');
+                this.modelConfigs["o1hp"] = {
+                    name: "o1hp",
+                    description: "Azure OpenAI o1 high performance model",
+                    max_tokens: 40000,
+                    supports_streaming: false,
+                    supports_temperature: false,
+                    api_version: "2025-01-01-preview",
+                    azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
+                    base_timeout: 120.0,
+                    max_timeout: 300.0,
+                    token_factor: 0.05
+                };
+                
+                this.modelConfigs["DeepSeek-R1"] = {
+                    name: "DeepSeek-R1",
+                    description: "Model that supports chain-of-thought reasoning with <think> tags",
+                    max_tokens: 32000,
+                    supports_streaming: true,
+                    supports_temperature: true,
+                    api_version: "2024-05-01-preview",
+                    azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
+                    base_timeout: 120.0,
+                    max_timeout: 300.0,
+                    token_factor: 0.05
+                };
+                
+                console.log('Created default models in local config:', this.modelConfigs);
                 return;
             }
             
             // Build a card for each model
-            for (const [id, config] of Object.entries(models)) {
+            for (const [id, modelConfig] of Object.entries(models)) {
                 const card = document.createElement('div');
                 card.className = `
                     border border-gray-200 dark:border-gray-700
@@ -230,7 +269,7 @@ class ModelManager {
                         <div class="mb-2 sm:mb-0">
                             <h3 class="font-medium text-base">${id}</h3>
                             <p class="text-sm text-gray-500 dark:text-gray-400">
-                                ${config.description || 'No description'}
+                                ${modelConfig.description || 'No description'}
                             </p>
                         </div>
                         <div class="flex space-x-2">
@@ -249,11 +288,11 @@ class ModelManager {
                     <div class="grid grid-cols-2 gap-2 mt-2 text-xs sm:text-sm text-gray-600 dark:text-gray-300">
                         <div>
                             <span class="font-medium">Tokens:</span> 
-                            ${config.max_tokens?.toLocaleString() || 'Default'}
+                            ${modelConfig.max_tokens?.toLocaleString() || 'Default'}
                         </div>
                         <div>
                             <span class="font-medium">Streaming:</span> 
-                            ${config.supports_streaming ? 'Yes' : 'No'}
+                            ${modelConfig.supports_streaming ? 'Yes' : 'No'}
                         </div>
                     </div>
                 `;
@@ -264,22 +303,50 @@ class ModelManager {
             this.attachModelActionListeners();
             
         } catch (error) {
-            console.error('Error refreshing models list:', error);
+            console.error('Error loading models:', error);
             listContainer.innerHTML = `
-                <div class="text-red-500 dark:text-red-400 p-4 rounded-md border border-red-300 
-                            dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-center">
-                    <p class="font-medium mb-1">Error loading models</p>
-                    <p class="text-sm">${error.message || 'Unknown error'}</p>
-                    <button id="retry-models-btn"
-                            class="mt-2 px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700">
-                        Retry
-                    </button>
-                </div>`;
+                <div class="text-red-500 dark:text-red-400 text-sm p-4 text-center">
+                    Failed to load models: ${error.message}
+                </div>
+                <button id="retry-models-btn" class="btn-primary mx-auto block mt-2 text-sm">
+                    Retry
+                </button>
+            `;
             
-            const retryBtn = document.getElementById('retry-models-btn');
-            if (retryBtn) {
-                retryBtn.addEventListener('click', () => this.refreshModelsList());
-            }
+            // Add a retry button
+            document.getElementById('retry-models-btn')?.addEventListener('click', () => {
+                this.refreshModelsList();
+            });
+            
+            // Create default models locally as fallback
+            console.log('Creating fallback models in local config due to API error...');
+            this.modelConfigs["o1hp"] = {
+                name: "o1hp",
+                description: "Azure OpenAI o1 high performance model",
+                max_tokens: 40000,
+                supports_streaming: false,
+                supports_temperature: false,
+                api_version: "2025-01-01-preview", 
+                azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
+                base_timeout: 120.0,
+                max_timeout: 300.0,
+                token_factor: 0.05
+            };
+            
+            this.modelConfigs["DeepSeek-R1"] = {
+                name: "DeepSeek-R1",
+                description: "Model that supports chain-of-thought reasoning with <think> tags",
+                max_tokens: 32000,
+                supports_streaming: true,
+                supports_temperature: true,
+                api_version: "2024-05-01-preview",
+                azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
+                base_timeout: 120.0,
+                max_timeout: 300.0,
+                token_factor: 0.05
+            };
+            
+            console.log('Created fallback models in local config:', this.modelConfigs);
         }
     }
 
@@ -614,7 +681,8 @@ class ModelManager {
             
             const response = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}) // Add empty body to ensure proper POST request
             });
             
             if (!response.ok) {

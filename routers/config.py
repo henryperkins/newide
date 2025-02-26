@@ -1,6 +1,9 @@
 import config
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 from services.config_service import get_config_service, ConfigService
 from pydantic import BaseModel, Field, validator
@@ -55,17 +58,15 @@ async def get_all_configs(config_service=Depends(get_config_service)) -> dict:
     Return configuration data in the format needed by the frontend
     (deploymentName, azureOpenAI -> apiKey, models -> {deploymentName:{endpoint:...}}).
     """
-    # Return the required shape directly from environment/config settings:
+    # Get model configurations from database
+    model_configs = await config_service.get_model_configs()
+
+    # Return the required shape with model configs from database
     return {
         "deploymentName": config.AZURE_OPENAI_DEPLOYMENT_NAME,
         "selectedModel": config.AZURE_OPENAI_DEPLOYMENT_NAME,
         "azureOpenAI": {"apiKey": config.AZURE_OPENAI_API_KEY},
-        "models": {
-            config.AZURE_OPENAI_DEPLOYMENT_NAME: {
-                "endpoint": config.AZURE_OPENAI_ENDPOINT,
-                "api_version": config.AZURE_OPENAI_API_VERSION,
-            }
-        },
+        "models": model_configs,
     }
 
 
@@ -86,51 +87,99 @@ class ModelConfigModel(BaseModel):
 async def get_models(config_service=Depends(get_config_service)):
     """Get all model configurations"""
     try:
+        print("DEBUG: Starting get_models endpoint")
         models = await config_service.get_model_configs()
-        print(f"Retrieved models: {models}")
-        
-        # Ensure DeepSeek-R1 is in the models list
-        if "DeepSeek-R1" not in models:
-            print("DeepSeek-R1 not found in models, adding it")
-            deepseek_config = {
-                "name": "DeepSeek-R1",
-                "description": "Model that supports chain-of-thought reasoning with <think> tags",
-                "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
-                "api_version": "2024-05-01-preview",
-                "max_tokens": 32000,
-                "supports_temperature": True,
-                "supports_streaming": True,
-                "base_timeout": 120.0,
-                "max_timeout": 300.0,
-                "token_factor": 0.05
+        print(f"DEBUG: Retrieved models from config_service: {models}")
+
+        # If models is None or empty, create default models
+        if not models:
+            print("DEBUG: No models found, creating defaults")
+            models = {
+                "o1hp": {
+                    "name": "o1hp",
+                    "description": "Azure OpenAI o1 high performance model",
+                    "max_tokens": 40000,
+                    "supports_streaming": False,
+                    "supports_temperature": False,
+                    "api_version": config.AZURE_OPENAI_API_VERSION,
+                    "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
+                    "base_timeout": 120.0,
+                    "max_timeout": 300.0,
+                    "token_factor": 0.05,
+                },
+                "DeepSeek-R1": {
+                    "name": "DeepSeek-R1",
+                    "description": "Model that supports chain-of-thought reasoning with <think> tags",
+                    "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
+                    "api_version": config.AZURE_INFERENCE_API_VERSION,
+                    "max_tokens": 32000,
+                    "supports_streaming": True,
+                    "supports_temperature": True,
+                    "base_timeout": 120.0,
+                    "max_timeout": 300.0,
+                    "token_factor": 0.05,
+                },
             }
-            
-            # Add DeepSeek-R1 to models
-            models["DeepSeek-R1"] = deepseek_config
-            
-            # Save updated models to database
+            # Save default models to database
             await config_service.set_config(
-                "model_configs",
-                models,
-                "Updated with DeepSeek-R1 model",
-                is_secret=True
+                "model_configs", models, "Default model configurations", is_secret=True
             )
-            
-            # Refresh client pool
-            from clients import get_client_pool
-            
-            pool = await get_client_pool()
-            await pool.refresh_client("DeepSeek-R1", config_service)
-        
-        # Debug output to see what we're returning
-        model_names = list(models.keys())
-        print(f"Returning models: {model_names}")
-        
+            print(f"DEBUG: Created and saved default models: {list(models.keys())}")
+        else:
+            # Check if DeepSeek-R1 exists, if not add it
+            if "DeepSeek-R1" not in models:
+                print("DEBUG: Adding missing DeepSeek-R1 to models")
+                models["DeepSeek-R1"] = {
+                    "name": "DeepSeek-R1",
+                    "description": "Model that supports chain-of-thought reasoning with <think> tags",
+                    "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
+                    "api_version": config.AZURE_INFERENCE_API_VERSION,
+                    "max_tokens": 32000,
+                    "supports_streaming": True,
+                    "supports_temperature": True,
+                    "base_timeout": 120.0,
+                    "max_timeout": 300.0,
+                    "token_factor": 0.05,
+                }
+                # Save updated models to database
+                await config_service.set_config(
+                    "model_configs",
+                    models,
+                    "Updated with DeepSeek-R1 model",
+                    is_secret=True,
+                )
+                print("DEBUG: Saved models with added DeepSeek-R1")
+
+            # Check if o1hp exists, if not add it
+            if "o1hp" not in models:
+                print("DEBUG: Adding missing o1hp to models")
+                models["o1hp"] = {
+                    "name": "o1hp",
+                    "description": "Azure OpenAI o1 high performance model",
+                    "max_tokens": 40000,
+                    "supports_streaming": False,
+                    "supports_temperature": False,
+                    "api_version": config.AZURE_OPENAI_API_VERSION,
+                    "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
+                    "base_timeout": 120.0,
+                    "max_timeout": 300.0,
+                    "token_factor": 0.05,
+                }
+                # Save updated models to database
+                await config_service.set_config(
+                    "model_configs", models, "Updated with o1hp model", is_secret=True
+                )
+                print("DEBUG: Saved models with added o1hp")
+
+        print(f"DEBUG: Returning models: {list(models.keys())}")
         return models
+
     except Exception as e:
-        print(f"Error retrieving models: {str(e)}")
-        # Return empty dict instead of raising error to avoid UI disruption
-        return {}
+        print(f"ERROR in get_models: {str(e)}")
+        logger.error(f"Error in get_models: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error retrieving model configurations: {str(e)}"
+        )
 
 
 @router.get("/models/{model_id}", response_model=ModelConfigModel)
@@ -211,7 +260,6 @@ async def delete_model(model_id: str, config_service=Depends(get_config_service)
     return {"status": "deleted", "model_id": model_id}
 
 
-# Add a simplified endpoint with directly specified parameters
 @router.post("/models/switch_model/{model_id}")
 async def switch_model_simple(
     model_id: str,
@@ -220,14 +268,16 @@ async def switch_model_simple(
     config_service: ConfigService = Depends(get_config_service),
 ):
     """Switch the active model for the current session - simplified endpoint"""
-    print(f"DEBUG - switch_model_simple called with model_id={model_id}, session_id={session_id}")
-    
-    if not model_id:
-        raise HTTPException(status_code=400, detail="Model ID is required")
-        
+    print(
+        f"DEBUG - switch_model_simple called with model_id={model_id}, session_id={session_id}"
+    )
+
+    if not model_id or model_id == "models":  # Prevent the "models" error
+        raise HTTPException(status_code=400, detail="Valid model ID is required")
+
     # Verify model exists in configs
     model_configs = await config_service.get_model_configs()
-    
+
     # For DeepSeek-R1, create it if needed
     if model_id == "DeepSeek-R1" and model_id not in model_configs:
         print("Creating DeepSeek-R1 model in configs")
@@ -241,32 +291,62 @@ async def switch_model_simple(
             "token_factor": 0.05,
             "api_version": config.AZURE_INFERENCE_API_VERSION,
             "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
-            "description": "Model that supports chain-of-thought reasoning with <think> tags"
+            "description": "Model that supports chain-of-thought reasoning with <think> tags",
         }
-        await config_service.add_model_config(model_id, deepseek_config)
+        success = await config_service.add_model_config(model_id, deepseek_config)
+        if not success:
+            raise HTTPException(
+                status_code=500, detail="Failed to create DeepSeek-R1 model"
+            )
         model_configs = await config_service.get_model_configs()
-    
+
+    # For o1hp, create it if needed
+    if model_id == "o1hp" and model_id not in model_configs:
+        print("Creating o1hp model in configs")
+        o1_config = {
+            "name": "o1hp",
+            "description": "Advanced reasoning model for complex tasks",
+            "max_tokens": 200000,
+            "supports_temperature": False,
+            "supports_streaming": False,
+            "supports_vision": True,
+            "requires_reasoning_effort": True,
+            "base_timeout": 120.0,
+            "max_timeout": 300.0,
+            "token_factor": 0.05,
+            "api_version": config.AZURE_OPENAI_API_VERSION,
+            "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
+        }
+        success = await config_service.add_model_config(model_id, o1_config)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to create o1hp model")
+        model_configs = await config_service.get_model_configs()
+
     if model_id not in model_configs:
         raise HTTPException(status_code=404, detail=f"Model {model_id} not found")
-        
+
     # Store the selected model in the session
     if session_id:
         from database import AsyncSessionLocal
+
         async with AsyncSessionLocal() as db_session:
             from sqlalchemy import update
             from models import Session
+
             await db_session.execute(
                 update(Session)
                 .where(Session.id == session_id)
                 .values(last_model=model_id)
             )
             await db_session.commit()
-            
+
     return {"success": True, "model": model_id}
+
 
 class ModelSwitchRequest(BaseModel):
     model_id: str
     session_id: Optional[str] = None
+
 
 @router.post("/models/switch")
 async def switch_model(
@@ -304,3 +384,29 @@ async def switch_model(
             await db_session.commit()
 
     return {"success": True, "model": model_id}
+
+
+@router.get("/models/debug", tags=["debug"])
+async def debug_models(config_service=Depends(get_config_service)):
+    """Debug endpoint to check model configurations"""
+    try:
+        # Get raw configs without processing
+        raw_config = await config_service.get_config("model_configs")
+
+        # Get database connection status
+        db_status = "Connected" if config_service.db else "Not Connected"
+
+        return {
+            "status": "ok",
+            "db_connection": db_status,
+            "raw_configs": raw_config,
+            "env_defaults": {
+                "AZURE_OPENAI_ENDPOINT": config.AZURE_OPENAI_ENDPOINT,
+                "AZURE_INFERENCE_ENDPOINT": config.AZURE_INFERENCE_ENDPOINT,
+                "default_model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
+            },
+        }
+    except Exception as e:
+        import traceback
+
+        return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}

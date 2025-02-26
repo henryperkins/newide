@@ -712,4 +712,31 @@
   #chat-history {
     background-color: oklch(28.822% 0.022 277.508) !important; /* --color-base-100 */
   }
+
+  /* Dark theme fixes for chat interface */
+  html[data-theme="dark"] body,
+  html[data-theme="dark"] main,
+  html[data-theme="dark"] #chat-history,
+  html[data-theme="dark"] .bg-white {
+    background-color: oklch(28.822% 0.022 277.508) !important; 
+    color: oklch(97.747% 0.007 106.545) !important;
+  }
+  
+  /* Chat-specific containers in dark mode */
+  html[data-theme="dark"] .chat-container,
+  html[data-theme="dark"] #chat-history {
+    background-color: oklch(28.822% 0.022 277.508) !important;
+  }
+  
+  /* Override any bg-white classes when in dark mode */
+  html[data-theme="dark"] [class*="bg-white"] {
+    background-color: oklch(28.822% 0.022 277.508) !important;
+  }
+  
+  /* Force dark mode as fallback */
+  .dark body,
+  .dark main,
+  .dark #chat-history {
+    background-color: oklch(28.822% 0.022 277.508) !important;
+  }
 }
