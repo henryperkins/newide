@@ -158,40 +158,56 @@ async def process_chat_message(
     is_deepseek = model_name.lower() == "deepseek-r1" or config.is_deepseek_model(model_name)
     
     if is_o_series:
+        # o-series models use reasoning_effort and max_completion_tokens
         reasoning_effort = getattr(chat_message, "reasoning_effort", "medium")
         params["reasoning_effort"] = reasoning_effort
         
-        max_completion_tokens = getattr(chat_message, "max_completion_tokens", 4096)
+        # Use max_completion_tokens for o-series models, with proper fallback
+        max_completion_tokens = getattr(chat_message, "max_completion_tokens", 
+                                        model_config.get("max_completion_tokens", 4096))
         params["max_completion_tokens"] = max_completion_tokens
         
+        # For o-series, convert system role to developer
         if messages and messages[0].get("role") == "system":
             messages[0]["role"] = "developer"
+            
+        # Add formatting prefix to developer messages if needed
         if messages:
             first_role = messages[0].get("role")
             first_content = messages[0].get("content", "")
             if first_role == "developer" and not first_content.startswith("Formatting re-enabled"):
                 messages[0]["content"] = "Formatting re-enabled - use markdown code blocks. " + first_content
     elif is_deepseek:
+        # DeepSeek models use temperature and max_tokens
         params["temperature"] = (
             chat_message.temperature if chat_message.temperature is not None
             else config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
         )
-        max_tokens = getattr(chat_message, "max_completion_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS)
-        params["max_tokens"] = min(max_tokens, model_config.get("max_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS))
+        
+        # Use max_tokens for DeepSeek models with a clearer variable name
+        deepseek_max_tokens = getattr(chat_message, "max_tokens", 
+                                     config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS)
+        params["max_tokens"] = min(deepseek_max_tokens, 
+                                  model_config.get("max_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS))
 
+        # Add formatting prefix to system messages for DeepSeek if needed
         if messages:
             first_role = messages[0].get("role")
             first_content = messages[0].get("content", "")
             if first_role == "system" and not first_content.startswith("Formatting re-enabled"):
                 messages[0]["content"] = "Formatting re-enabled - use markdown code blocks. " + first_content
 
+        # Remove response_format for DeepSeek if present
         params.pop('response_format', None)
     else:
+        # Standard models use temperature and max_tokens
         params["temperature"] = (
             chat_message.temperature if chat_message.temperature is not None else 0.7
         )
-        max_completion_tokens = getattr(chat_message, "max_completion_tokens", 1024)
-        params["max_tokens"] = min(max_completion_tokens, model_config.get("max_tokens", 4096))
+        params["max_tokens"] = min(
+            getattr(chat_message, "max_completion_tokens", 1024),
+            model_config.get("max_tokens", 4096)
+        )
 
     if getattr(chat_message, "include_files", False) and chat_message.file_ids:
         pass

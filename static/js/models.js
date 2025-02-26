@@ -40,14 +40,11 @@ class ModelManager {
         }
     }
     
-    /**
-     * Verify that at least one default model is present.
-     * Creates “o1hp” and “DeepSeek-R1” if none exist.
-     */
-    async ensureDefaultModels() {
+    // Corrected model configuration to match Azure OpenAI documentation
+    async function ensureDefaultModels() {
         console.log('Checking for default models...');
         
-        // If we already have at least one model, only ensure “o1hp” is present.
+        // If we already have at least one model, only ensure "o1hp" is present.
         if (Object.keys(this.modelConfigs).length > 0) {
             console.log('Models already exist, no defaults needed');
             
@@ -60,10 +57,12 @@ class ModelManager {
                     azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
                     api_version: "2025-01-01-preview",
                     max_tokens: 200000,
+                    max_completion_tokens: 5000,
                     supports_temperature: false,
-                    supports_streaming: false,
+                    supports_streaming: false, // o1 doesn't support streaming
                     supports_vision: true,
                     requires_reasoning_effort: true,
+                    reasoning_effort: "medium",
                     base_timeout: 120.0,
                     max_timeout: 300.0,
                     token_factor: 0.05
@@ -92,7 +91,7 @@ class ModelManager {
                 max_tokens: 200000,
                 max_completion_tokens: 5000,
                 supports_temperature: false,
-                supports_streaming: false,
+                supports_streaming: false, // o1 doesn't support streaming
                 supports_vision: true,
                 requires_reasoning_effort: true,
                 reasoning_effort: "medium",
@@ -113,11 +112,11 @@ class ModelManager {
                 name: "DeepSeek-R1",
                 description: "Model that supports chain-of-thought reasoning with <think> tags",
                 azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
-                api_version: "2024-05-01-preview",
-                max_tokens: 32000,
+                api_version: "2024-05-01-preview", // DeepSeek uses different API version
+                max_tokens: 32000, // Different max_tokens for DeepSeek
                 supports_temperature: true,  // DeepSeek uses temperature parameter
-                supports_streaming: true,
-                supports_json_response: false,  // DeepSeek doesn't support JSON response format
+                supports_streaming: true, // DeepSeek supports streaming
+                supports_json_response: false, 
                 base_timeout: 120.0,
                 max_timeout: 300.0,
                 token_factor: 0.05
@@ -752,37 +751,18 @@ class ModelManager {
             const session = await fetch('/api/session').then(r => r.json());
             const sessionId = session?.id;
             
-            // Prepare parameters for the request
+            // Prepare parameters for the request - FIXED: use model_id instead of model
             const params = {
-                model: modelId
+                model_id: modelId, // FIXED: Changed from 'model' to 'model_id'
+                session_id: sessionId // Add session_id directly if available
             };
             
-            // Set appropriate parameters based on model type
-            if (modelId.startsWith('o1') || modelId.startsWith('o3')) {
-                // o-series models use max_completion_tokens instead of max_tokens
-                params.max_completion_tokens = 5000;
-                params.api_version = '2025-01-01-preview';
-                params.reasoning_effort = 'medium'; // Can be low, medium, high
-                // o-series doesn't support temperature, top_p, etc.
-            } else if (modelId === 'DeepSeek-R1') {
-                // DeepSeek-R1 uses standard parameters
-                params.max_tokens = 32000;
-                params.temperature = 0.7;
-                params.api_version = '2024-05-01-preview';
-            } else {
-                // Default for other models
-                params.max_tokens = 4000;
-                params.temperature = 0.7;
-            }
-
-            // Switch model using simplified endpoint
-            console.log(`Switching to model: ${modelId} with session_id: ${sessionId}`);
-            const url = `/api/config/models/switch_model/${modelId}${
-                sessionId ? `?session_id=${sessionId}` : ''
-            }`;
-            console.log(`Using simplified endpoint URL: ${url}`);
+            // Model-specific settings will be applied on the server side
             
-            const response = await fetch(url, {
+            // Switch model using the proper API endpoint - FIXED: use /api/config/models/switch
+            console.log(`Switching to model: ${modelId} with params:`, params);
+            
+            const response = await fetch(`/api/config/models/switch`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(params)
@@ -803,10 +783,32 @@ class ModelManager {
         } catch (error) {
             console.error('Error switching model:', error);
             this.showToast('Failed to switch model', 'error');
+            
+            // Try the simplified endpoint as fallback for backward compatibility
+            try {
+                console.log("Attempting fallback to simplified endpoint...");
+                const url = `/api/config/models/switch_model/${modelId}${
+                    sessionId ? `?session_id=${sessionId}` : ''
+                }`;
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    this.currentModel = modelId;
+                    this.showToast(`Now using model: ${modelId}`, 'success');
+                    this.updateModelSpecificUI(modelId);
+                    return true;
+                }
+            } catch (fallbackError) {
+                console.error('Fallback also failed:', fallbackError);
+            }
+            
             return false;
         }
     }
-    
     /**
      * Update various UI elements (streaming toggle, reason controls, etc.) 
      * based on the newly selected model’s capabilities.
@@ -1058,6 +1060,8 @@ function addMobileStyles() {
                 height: 20px;
             }
         }
+    `;
+    document.head.appendChild(style);
     `;
     document.head.appendChild(style);
 }

@@ -256,17 +256,17 @@ async def stream_chat_response(
         try:
             model_configs = await config_service.get_config("model_configs")
             model_config = model_configs.get(model_name, {}) if model_configs else {}
-            
+
             # For DeepSeek, ensure streaming is supported
             if model_name == "DeepSeek-R1" and not model_config.get("supports_streaming", False):
                 logger.warning(f"DeepSeek-R1 model configured without streaming support, but it should support streaming")
                 # Force enable streaming for DeepSeek-R1
                 model_config["supports_streaming"] = True
-                
+
         except Exception as e:
             logger.error(f"Error getting model configurations: {str(e)}")
             model_config = {}
-                
+
         if not model_config.get("supports_streaming", False):
             raise HTTPException(
                 status_code=400,
@@ -347,8 +347,10 @@ async def generate_stream_chunks(
         model_config = model_configs.get(model_name, {}) if model_configs else {}
 
     # Check if this is an o-series model (reasoning model) or DeepSeek model
-    is_o_series = model_name.lower().startswith('o1') or model_name.lower().startswith('o3')
-    is_deepseek = model_name.lower().startswith('deepseek')
+    is_o_series = model_name.lower().startswith("o1") or model_name.lower().startswith(
+        "o3"
+    )
+    is_deepseek = model_name.lower().startswith("deepseek")
 
     params = {
         "messages": [{"role": "user", "content": message}],
@@ -359,26 +361,38 @@ async def generate_stream_chunks(
     if is_o_series:
         # For o-series models, use reasoning_effort and max_completion_tokens
         params["reasoning_effort"] = reasoning_effort
-        params["max_completion_tokens"] = model_config.get("max_tokens", 4096)
-        
+
+        # Use max_completion_tokens, not max_tokens for o-series
+        params["max_completion_tokens"] = model_config.get(
+            "max_completion_tokens", 5000
+        )
+
         # For o-series models, add a developer message with formatting re-enabled
-        params["messages"].insert(0, {
-            "role": "developer",
-            "content": "Formatting re-enabled - use markdown code blocks."
-        })
+        params["messages"].insert(
+            0,
+            {
+                "role": "developer",
+                "content": "Formatting re-enabled - use markdown code blocks.",
+            },
+        )
     elif is_deepseek:
         # For DeepSeek-R1, use temperature and max_tokens according to documentation
         params["temperature"] = 0.7  # Default temperature from documentation
-        params["max_tokens"] = model_config.get("max_tokens", 4096)
-        
+        params["max_tokens"] = model_config.get("max_tokens", 32000)
+
         # DeepSeek-R1 uses system role
-        params["messages"].insert(0, {
-            "role": "system",
-            "content": "Formatting re-enabled - use markdown code blocks."
-        })
+        params["messages"].insert(
+            0,
+            {
+                "role": "system",
+                "content": "Formatting re-enabled - use markdown code blocks.",
+            },
+        )
     else:
         # For standard models, use temperature and max_tokens
-        params["temperature"] = 0.7  # Example default; consider making this configurable
+        params["temperature"] = (
+            0.7  # Example default; consider making this configurable
+        )
         params["max_tokens"] = model_config.get("max_tokens", 4096)
 
     full_content = ""
@@ -428,17 +442,18 @@ async def generate_stream_chunks(
         if full_content:
             # Process and format content for display
             formatted_content = full_content
-            
+
             # Format DeepSeek thinking tags if present
             if model_name == "DeepSeek-R1" and full_content:
                 import re
-                thinkRegex = r'<think>([\s\S]*?)<\/think>'
-                
+
+                thinkRegex = r"<think>([\s\S]*?)<\/think>"
+
                 matches = re.findall(thinkRegex, full_content)
-                
+
                 # Apply formatting to each thinking block
                 for i, match in enumerate(matches):
-                    thinking_html = f'''<div class="thinking-process">
+                    thinking_html = f"""<div class="thinking-process">
                       <div class="thinking-header">
                         <button class="thinking-toggle" aria-expanded="true">
                           <span class="toggle-icon">▼</span> Thinking Process
@@ -447,11 +462,13 @@ async def generate_stream_chunks(
                       <div class="thinking-content">
                         <pre class="thinking-pre">{match}</pre>
                       </div>
-                    </div>'''
-                    
+                    </div>"""
+
                     # Replace the original thinking tags with the formatted HTML
-                    formatted_content = formatted_content.replace(f'<think>{match}</think>', thinking_html, 1)
-            
+                    formatted_content = formatted_content.replace(
+                        f"<think>{match}</think>", thinking_html, 1
+                    )
+
             # Create user message
             user_msg = Conversation(
                 session_id=session_id,
@@ -459,7 +476,7 @@ async def generate_stream_chunks(
                 content=message,
                 model=model_name,
             )
-            
+
             # Create assistant message with formatted content and raw response
             assistant_msg = Conversation(
                 session_id=session_id,
@@ -469,9 +486,9 @@ async def generate_stream_chunks(
                 model=model_name,
                 # We don't have the complete raw response for streaming,
                 # but we can store the final accumulated chunk data
-                raw_response={"streaming": True, "final_content": full_content}
+                raw_response={"streaming": True, "final_content": full_content},
             )
-            
+
             # Store messages in database
             db.add(user_msg)
             db.add(assistant_msg)

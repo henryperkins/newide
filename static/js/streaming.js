@@ -28,12 +28,28 @@ export async function handleStreamingResponse(response, controller, config, stat
   console.log('[streaming.js] Starting SSE streaming...');
 
   const modelName = (config?.selectedModel || '').toLowerCase();
+  
+  // Only show reasoning for DeepSeek models that have <think> tags
   const showReasoning = modelName.includes('deepseek');
-
-  // Build SSE endpoint from the initial response's URL, e.g.:
-  // "https://.../chat/completions" -> "https://.../chat/completions/stream"
-  const streamUrl = response.url.replace('/chat/completions', '/chat/completions/stream');
-  console.log('[streaming.js] SSE endpoint:', streamUrl);
+  
+  // Verify the model actually supports streaming
+  const supportsStreaming = config?.models?.[modelName]?.supports_streaming || 
+                            modelName.includes('deepseek'); // DeepSeek-R1 supports streaming
+  
+  if (!supportsStreaming) {
+    console.warn(`Model ${modelName} doesn't support streaming. Falling back to non-streaming mode.`);
+    // Fall back to non-streaming mode
+    const data = await response.json();
+    if (typeof processServerResponseData === 'function') {
+      processServerResponseData(data, modelName);
+    } else {
+      // Simple fallback if processServerResponseData isn't available
+      if (data.choices && data.choices.length > 0) {
+        displayMessage(data.choices[0].message.content, 'assistant');
+      }
+    }
+    return;
+  }
 
   // Reset buffers/state
   mainTextBuffer = '';
@@ -41,6 +57,29 @@ export async function handleStreamingResponse(response, controller, config, stat
   isThinking = false;
   mainContainer = null;
   reasoningContainer = null;
+
+  // Build SSE endpoint from the initial response's URL
+  const streamUrl = response.url.replace('/chat/completions', '/chat/stream');
+  console.log('[streaming.js] SSE endpoint:', streamUrl);
+
+  // Prepare request body from original response
+  let streamBody;
+  try {
+    // Try to get the original request body
+    const originalBody = JSON.parse(response.config?.data || '{}');
+    streamBody = JSON.stringify({
+      message: originalBody.messages?.find(m => m.role === 'user')?.content || '',
+      session_id: originalBody.session_id,
+      model: originalBody.model,
+      reasoning_effort: originalBody.reasoning_effort || 'medium'
+    });
+  } catch (err) {
+    console.warn('[streaming.js] Could not parse original request body:', err);
+    streamBody = JSON.stringify({
+      message: "Continue our conversation",
+      session_id: config.sessionId
+    });
+  }
 
   const eventSource = new EventSource(streamUrl);
   const streamStart = Date.now();

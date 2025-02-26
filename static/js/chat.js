@@ -112,12 +112,19 @@ export async function sendMessage() {
       modelConfig
     });
 
-    // If streaming is supported and user toggled streaming, handle SSE
-    const isDeepSeek = modelConfig?.name?.toLowerCase().includes('deepseek');
-    const isGenericStreaming = !!modelConfig?.supportsStreaming;
-    if ((isDeepSeek || isGenericStreaming) && streamingEnabled) {
+    // Get model details for streaming decision
+    const modelName = modelConfig?.name?.toLowerCase();
+    const supportsStreaming = modelConfig?.capabilities?.supports_streaming === true || 
+                              modelName.includes('deepseek'); // DeepSeek models support streaming
+
+    // Check if the model supports streaming and user has enabled it
+    if (supportsStreaming && streamingEnabled) {
       await handleStreamingResponse(response, controller, config, statsDisplay);
     } else {
+      if (streamingEnabled && !supportsStreaming) {
+        console.warn(`Model ${modelName} doesn't support streaming. Using standard request.`);
+      }
+      
       // Non-streaming: parse final JSON and display
       const data = await response.json();
       if (!response.ok) {
@@ -226,9 +233,14 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
     }
   }
 
+  // Determine model type for parameter selection
+  const modelName = modelConfig?.name?.toLowerCase() || '';
+  const isDeepSeek = modelName.includes('deepseek');
+  const isOSeries = modelName.startsWith('o1') || modelName.startsWith('o3');
+
   // Basic request body
   const requestBody = {
-      model: modelConfig?.name || 'o1model-east2',
+      model: modelConfig?.name || 'o1hp',
       messages: [
           {
               role: 'user',
@@ -240,34 +252,61 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
 
   // Insert developer or system prompt if present
   if (developerConfig) {
-    const roleName = isO1Model(modelConfig) ? 'developer' : 'system';
-    requestBody.messages.unshift({
-      role: roleName,
-      content: developerConfig
-    });
+    if (isOSeries) {
+      // o-series models use "developer" role
+      requestBody.messages.unshift({
+        role: "developer",
+        content: developerConfig
+      });
+    } else {
+      // Other models use "system" role
+      requestBody.messages.unshift({
+        role: "system",
+        content: developerConfig
+      });
+    }
   }
 
   // Set model-specific parameters
-  if (isO1Model(modelConfig)) {
-    // O1 model - uses reasoning_effort
+  if (isOSeries) {
+    // O-series models - use reasoning_effort
     requestBody.reasoning_effort = reasoningEffort || 'medium';
+    
+    // o-series uses max_completion_tokens, not max_tokens
     if (modelConfig.capabilities?.max_completion_tokens) {
       requestBody.max_completion_tokens = modelConfig.capabilities.max_completion_tokens;
+    } else {
+      requestBody.max_completion_tokens = 5000; // Default value
     }
-    if (modelConfig.capabilities?.fixed_temperature !== undefined) {
-      requestBody.temperature = modelConfig.capabilities.fixed_temperature;
-    }
-  } else if (isDeepSeekModel(modelConfig)) {
+    
+    // o-series doesn't use temperature
+    delete requestBody.temperature;
+  } else if (isDeepSeek) {
     // DeepSeek-R1 model - uses temperature (NOT reasoning_effort)
-    // According to documentation in deepseek-reference.md
     requestBody.temperature = 0.7; // Default from documentation
     if (modelConfig.capabilities?.max_tokens) {
       requestBody.max_tokens = modelConfig.capabilities.max_tokens;
+    } else {
+      requestBody.max_tokens = 32000; // Default for DeepSeek-R1
     }
+    
+    // DeepSeek doesn't use reasoning_effort
+    delete requestBody.reasoning_effort;
+    // DeepSeek doesn't use max_completion_tokens
+    delete requestBody.max_completion_tokens;
   } else {
     // Standard model
     if (modelConfig.capabilities?.temperature !== undefined) {
       requestBody.temperature = modelConfig.capabilities.temperature;
+    } else {
+      requestBody.temperature = 0.7; // Default temperature
+    }
+    
+    // Standard models use max_tokens, not max_completion_tokens
+    if (modelConfig.capabilities?.max_tokens) {
+      requestBody.max_tokens = modelConfig.capabilities.max_tokens;
+    } else {
+      requestBody.max_tokens = 4000; // Default value
     }
   }
 
@@ -277,10 +316,17 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
     throw new Error('Azure OpenAI API key not configured');
   }
 
-  // e.g. if your getModelSettings() returns { name: "gpt-4", api_version: "2025-01-01-preview" }
-  const apiVersion = modelConfig.api_version || '2025-01-01-preview';
+  // Select API version based on model type
+  let apiVersion;
+  if (isDeepSeek) {
+    apiVersion = modelConfig.api_version || '2024-05-01-preview'; // DeepSeek API version
+  } else if (isOSeries) {
+    apiVersion = modelConfig.api_version || '2025-01-01-preview'; // o-series API version
+  } else {
+    apiVersion = modelConfig.api_version || '2025-01-01-preview'; // Default API version
+  }
 
-  // Build the URL (some utility function you'd have)
+  // Build the URL 
   const url = await buildAzureOpenAIUrl(deploymentName, apiVersion);
 
   const init = {
@@ -331,7 +377,9 @@ function createAbortController(timeoutDuration) {
  * Retrieves timeouts for low/medium/high effort, adjusting if needed for special models.
  */
 async function getTimeoutDurations(modelConfig) {
-  const isDeepSeek = modelConfig?.name?.toLowerCase().includes('deepseek');
+  const modelName = modelConfig?.name?.toLowerCase() || '';
+  const isDeepSeek = modelName.includes('deepseek');
+  const isOSeries = modelName.startsWith('o1') || modelName.startsWith('o3');
 
   if (isDeepSeek) {
     return {
@@ -339,9 +387,15 @@ async function getTimeoutDurations(modelConfig) {
       medium: 60000, // 60s
       high: 120000   // 120s
     };
+  } else if (isOSeries) {
+    return {
+      low: 60000,     // 60s 
+      medium: 120000, // 120s
+      high: 300000    // 300s - O-series models can take much longer
+    };
   }
 
-  // Default timeouts for non-DeepSeek
+  // Default timeouts for standard models
   return {
     low: 15000,
     medium: 30000,
@@ -354,7 +408,7 @@ async function getTimeoutDurations(modelConfig) {
  */
 function isO1Model(modelConfig) {
   const name = modelConfig?.name?.toLowerCase() || '';
-  return name.includes('o1model') || name.includes('o1-preview');
+  return name.startsWith('o1') || name.startsWith('o3');
 }
 
 /**
