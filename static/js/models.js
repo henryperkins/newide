@@ -18,16 +18,16 @@ class ModelManager {
             console.log('Initializing ModelManager');
             // First ensure default models exist
             await this.ensureDefaultModels();
-            
+
             // Wait 500ms for backend to process
             await new Promise(resolve => setTimeout(resolve, 500));
-            
+
             // Then refresh models list
             await this.refreshModelsList();
-            
+
             // Log model configs for debugging
             console.log('ModelManager fetched model configs:', Object.keys(this.modelConfigs));
-            
+
             // Build model management UI if not already done
             if (!this.isInitialized) {
                 this.initModelManagement();
@@ -39,15 +39,17 @@ class ModelManager {
             await this.ensureDefaultModels();
         }
     }
-    
-    // Corrected model configuration to match Azure OpenAI documentation
-    async function ensureDefaultModels() {
+
+    /**
+     * Corrected model configuration to match Azure OpenAI documentation
+     */
+    async ensureDefaultModels() {
         console.log('Checking for default models...');
-        
+
         // If we already have at least one model, only ensure "o1hp" is present.
         if (Object.keys(this.modelConfigs).length > 0) {
             console.log('Models already exist, no defaults needed');
-            
+
             // Specifically check for o1hp
             if (!this.modelConfigs["o1hp"]) {
                 console.log('o1hp model not found, creating it');
@@ -67,7 +69,7 @@ class ModelManager {
                     max_timeout: 300.0,
                     token_factor: 0.05
                 };
-                
+
                 try {
                     await this.createModel("o1hp", o1Model);
                     console.log('o1hp model created successfully');
@@ -78,7 +80,7 @@ class ModelManager {
             }
             return;
         }
-        
+
         // If no models exist at all, create defaults
         console.log('No models found, creating defaults');
         try {
@@ -106,7 +108,7 @@ class ModelManager {
                 console.warn('Failed to create o1hp model via API, adding to local config:', error);
                 this.modelConfigs["o1hp"] = o1Model;
             }
-            
+
             // DeepSeek-R1
             const deepseekR1Model = {
                 name: "DeepSeek-R1",
@@ -116,7 +118,7 @@ class ModelManager {
                 max_tokens: 32000, // Different max_tokens for DeepSeek
                 supports_temperature: true,  // DeepSeek uses temperature parameter
                 supports_streaming: true, // DeepSeek supports streaming
-                supports_json_response: false, 
+                supports_json_response: false,
                 base_timeout: 120.0,
                 max_timeout: 300.0,
                 token_factor: 0.05
@@ -128,11 +130,11 @@ class ModelManager {
                 console.warn('Failed to create DeepSeek-R1 model via API, adding to local config:', error);
                 this.modelConfigs["DeepSeek-R1"] = deepseekR1Model;
             }
-            
+
             // Refresh
             await this.refreshModelsList();
             console.log('Default models created');
-            
+
         } catch (error) {
             console.error('Error creating default models:', error);
             const listContainer = document.getElementById('models-list');
@@ -144,7 +146,7 @@ class ModelManager {
             }
         }
     }
-    
+
     /**
      * Create a new model (API call).
      * @param {string} modelId 
@@ -163,12 +165,12 @@ class ModelManager {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(modelData)
         });
-        
+
         if (!response.ok) {
             const errorText = await response.text();
             throw new Error(`Failed to create model ${modelId}: ${errorText}`);
         }
-        
+
         return await response.json();
     }
 
@@ -181,49 +183,49 @@ class ModelManager {
             console.error('Models list container not found');
             return;
         }
-        
+
         listContainer.innerHTML = `
             <div class="text-gray-500 dark:text-gray-400 text-sm p-4 text-center">
                 Loading models...
             </div>`;
-        
+
         try {
             console.log('Fetching models from API...');
             const response = await fetch('/api/config/models');
             if (!response.ok) {
                 throw new Error(`Failed to fetch models: ${response.status} ${response.statusText}`);
             }
-            
+
             let models = await response.json();
             console.log('Raw models received from API:', models);
-            
+
             // Handle both formats: direct models object or models wrapped in a "models" property
             if (models.models) {
                 console.log('Models are wrapped in a "models" property, extracting...');
                 models = models.models;
             }
-            
+
             console.log('Processed models:', models);
-            
+
             // Warn if DeepSeek-R1 is missing
             const hasDeepSeekR1 = Object.keys(models).includes("DeepSeek-R1");
             const hasO1hp = Object.keys(models).includes("o1hp");
-            
+
             if (!hasDeepSeekR1) {
                 console.warn('DeepSeek-R1 not found in API response. You can create or register it in the Azure deployment settings.');
             }
-            
+
             if (!hasO1hp) {
                 console.warn('o1hp not found in API response. You can create or register it in the Azure deployment settings.');
             }
-            
+
             // Update local store - IMPORTANT: This is where the models are stored
             this.modelConfigs = models;
             console.log('Updated modelConfigs:', this.modelConfigs);
-            
+
             // Clear container
             listContainer.innerHTML = '';
-            
+
             // If no models, show a message
             if (Object.keys(models).length === 0) {
                 console.log('No models found in response');
@@ -231,7 +233,7 @@ class ModelManager {
                     <div class="text-gray-500 dark:text-gray-400 text-sm p-4 text-center">
                         No models configured.
                     </div>`;
-                    
+            
                 // Since we have no models, manually create the essential ones
                 console.log('Creating default models in local config...');
                 this.modelConfigs["o1hp"] = {
@@ -246,7 +248,7 @@ class ModelManager {
                     max_timeout: 300.0,
                     token_factor: 0.05
                 };
-                
+
                 this.modelConfigs["DeepSeek-R1"] = {
                     name: "DeepSeek-R1",
                     description: "Model that supports chain-of-thought reasoning with <think> tags",
@@ -259,11 +261,11 @@ class ModelManager {
                     max_timeout: 300.0,
                     token_factor: 0.05
                 };
-                
+
                 console.log('Created default models in local config:', this.modelConfigs);
                 return;
             }
-            
+
             // Build a card for each model
             for (const [id, modelConfig] of Object.entries(models)) {
                 const card = document.createElement('div');
@@ -307,10 +309,10 @@ class ModelManager {
                 `;
                 listContainer.appendChild(card);
             }
-            
+
             // Hook up edit/delete event listeners
             this.attachModelActionListeners();
-            
+
         } catch (error) {
             console.error('Error loading models:', error);
             listContainer.innerHTML = `
@@ -321,12 +323,12 @@ class ModelManager {
                     Retry
                 </button>
             `;
-            
+
             // Add a retry button
             document.getElementById('retry-models-btn')?.addEventListener('click', () => {
                 this.refreshModelsList();
             });
-            
+
             // Create default models locally as fallback
             console.log('Creating fallback models in local config due to API error...');
             this.modelConfigs["o1hp"] = {
@@ -344,7 +346,7 @@ class ModelManager {
                 max_timeout: 300.0,
                 token_factor: 0.05
             };
-            
+
             this.modelConfigs["DeepSeek-R1"] = {
                 name: "DeepSeek-R1",
                 description: "Model that supports chain-of-thought reasoning with <think> tags",
@@ -357,7 +359,7 @@ class ModelManager {
                 max_timeout: 300.0,
                 token_factor: 0.05
             };
-            
+
             console.log('Created fallback models in local config:', this.modelConfigs);
         }
     }
@@ -369,7 +371,7 @@ class ModelManager {
     attachModelActionListeners() {
         const listContainer = document.getElementById('models-list');
         if (!listContainer) return;
-        
+
         // Edit button
         listContainer.querySelectorAll('.edit-model-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -379,12 +381,12 @@ class ModelManager {
                 setTimeout(() => {
                     btn.classList.remove('bg-blue-100', 'dark:bg-blue-800');
                 }, 200);
-                
+    
                 const modelId = btn.getAttribute('data-model-id');
                 this.showModelForm('edit', modelId);
             });
         });
-        
+
         // Delete button
         listContainer.querySelectorAll('.delete-model-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
@@ -394,15 +396,15 @@ class ModelManager {
                 setTimeout(() => {
                     btn.classList.remove('bg-red-100', 'dark:bg-red-800');
                 }, 200);
-                
+    
                 const modelId = btn.getAttribute('data-model-id');
-                
+    
                 if (confirm(`Are you sure you want to delete the model "${modelId}"?`)) {
                     await this.deleteModel(modelId);
                 }
             });
         });
-        
+
         // Make entire card clickable for edit
         listContainer.querySelectorAll('.border').forEach(card => {
             card.addEventListener('click', () => {
@@ -419,19 +421,19 @@ class ModelManager {
      */
     async deleteModel(modelId) {
         try {
-            // Show “loading” styling on the container
+            // Show "loading" styling on the container
             const listContainer = document.getElementById('models-list');
             if (listContainer) {
                 listContainer.classList.add('opacity-50', 'pointer-events-none');
             }
-            
+
             const response = await fetch(`/api/config/models/${modelId}`, { method: 'DELETE' });
-            
-            // Remove “loading” styling
+
+            // Remove "loading" styling
             if (listContainer) {
                 listContainer.classList.remove('opacity-50', 'pointer-events-none');
             }
-            
+
             if (response.ok) {
                 this.showToast(`Model ${modelId} deleted successfully`);
                 await this.refreshModelsList();
@@ -447,7 +449,7 @@ class ModelManager {
     }
 
     /**
-     * Display the “add or edit model” form.
+     * Display the "add or edit model" form.
      * @param {'add'|'edit'} mode
      * @param {string|null} modelId
      */
@@ -457,24 +459,24 @@ class ModelManager {
         const formTitle = document.getElementById('model-form-title');
         const formMode = document.getElementById('model-form-mode');
         const formIdField = document.getElementById('model-form-id');
-        
+
         if (!formContainer || !formTitle || !formMode || !formIdField) {
             console.error('Model form elements not found in DOM');
             return;
         }
-        
+
         // Reset entire form
         document.getElementById('model-form').reset();
-        
+
         // Set form mode & title
         formMode.value = mode;
         formTitle.textContent = (mode === 'add') ? 'Add New Model' : 'Edit Model';
-        
+
         // Populate if editing an existing model
         if (mode === 'edit' && modelId && this.modelConfigs[modelId]) {
             const config = this.modelConfigs[modelId];
             formIdField.value = modelId;
-            
+
             document.getElementById('model-name').value = modelId;
             document.getElementById('model-name').disabled = true; // ID cannot change
             document.getElementById('model-description').value = config.description || '';
@@ -487,17 +489,17 @@ class ModelManager {
             // Clear ID field for a new model
             formIdField.value = '';
             document.getElementById('model-name').disabled = false;
-            
+
             // Reasonable defaults for a new model
             document.getElementById('model-endpoint').value =
                 'https://aoai-east-2272068338224.cognitiveservices.azure.com';
             document.getElementById('model-api-version').value = '2025-01-01-preview';
             document.getElementById('model-max-tokens').value = '4096';
         }
-        
+
         // Show the form container
         formContainer.classList.remove('hidden');
-        
+
         // Scroll into view on mobile
         if (window.innerWidth < 768) {
             setTimeout(() => {
@@ -507,7 +509,7 @@ class ModelManager {
     }
 
     /**
-     * Hide the “add or edit model” form.
+     * Hide the "add or edit model" form.
      */
     hideModelForm() {
         const formContainer = document.getElementById('model-form-container');
@@ -517,29 +519,29 @@ class ModelManager {
     }
 
     /**
-     * Handler for the Model Form “Save” button.
+     * Handler for the Model Form "Save" button.
      * Sends data to server if valid.
      */
     async handleModelFormSubmit(e) {
         e.preventDefault();
         console.log('Model form submitted');
-        
+
         const formMode = document.getElementById('model-form-mode').value;
         const formIdField = document.getElementById('model-form-id');
-        
+
         // If adding, modelId is from the 'name' field; if editing, from hidden input
         const modelId = (formMode === 'add')
             ? document.getElementById('model-name').value
             : formIdField.value;
-        
+
         console.log(`Form mode: ${formMode}, Model ID: ${modelId}`);
-        
+
         // Very basic form validation
         if (!modelId) {
             this.showFormError('model-name', 'Model name is required');
             return;
         }
-        
+
         // Collect data
         const modelData = {
             name: modelId,
@@ -555,7 +557,7 @@ class ModelManager {
             token_factor: 0.05
         };
         console.log('Model data to submit:', modelData);
-        
+
         // Show loading state on the submit button
         const form = document.getElementById('model-form');
         const submitBtn = form.querySelector('button[type="submit"]');
@@ -563,7 +565,7 @@ class ModelManager {
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="inline-block animate-spin mr-2">↻</span> Saving...';
         }
-        
+
         try {
             // We assume your backend can handle POST for both create and update
             const response = await fetch(`/api/config/models/${modelId}`, {
@@ -571,7 +573,7 @@ class ModelManager {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(modelData)
             });
-            
+
             if (response.ok) {
                 // Refresh the model list and hide the form
                 this.showToast(`Model ${modelId} saved successfully`);
@@ -592,28 +594,28 @@ class ModelManager {
             }
         }
     }
-    
+
     /**
      * Show a field-level or global form error with minimal fuss.
      */
     showFormError(fieldId, message) {
         // Remove existing error messages
         document.querySelectorAll('.error-message').forEach(el => el.remove());
-        
+
         const errorEl = document.createElement('div');
         errorEl.className = `
             error-message text-red-500 text-sm mt-1 p-2 bg-red-50 dark:bg-red-900/20 
             border border-red-200 dark:border-red-800 rounded
         `;
         errorEl.textContent = message;
-        
+
         if (fieldId) {
             const field = document.getElementById(fieldId);
             if (field) {
                 field.classList.add('border-red-500');
                 field.parentNode.appendChild(errorEl);
                 field.focus();
-                
+        
                 // Remove error styling after user changes the field
                 field.addEventListener('input', () => {
                     field.classList.remove('border-red-500');
@@ -632,7 +634,7 @@ class ModelManager {
             }
         }
     }
-    
+
     /**
      * Simple toast notification (mobile-friendly).
      * @param {string} message 
@@ -641,7 +643,7 @@ class ModelManager {
     showToast(message, type = 'success') {
         // Remove any existing toasts
         document.querySelectorAll('.toast-notification').forEach(el => el.remove());
-        
+
         const toast = document.createElement('div');
         toast.className = `
             toast-notification fixed top-4 left-1/2 transform -translate-x-1/2 z-50 
@@ -653,7 +655,7 @@ class ModelManager {
         `;
         toast.textContent = message;
         document.body.appendChild(toast);
-        
+
         // Remove after a short delay
         setTimeout(() => {
             toast.classList.remove('animate-fade-in');
@@ -669,18 +671,18 @@ class ModelManager {
      */
     async switchModel(modelId) {
         console.log(`Attempting to switch to model: ${modelId}`);
-        
+
         // Normalize model ID for case-insensitive comparison
         const normalizedModelId = modelId.toLowerCase();
-        
+
         // Find the model in configurations (case-insensitive)
         const matchingModelId = Object.keys(this.modelConfigs).find(
             id => id.toLowerCase() === normalizedModelId
         );
-        
+
         if (!matchingModelId) {
             console.log(`Model ${modelId} not found in configurations, attempting to create it`);
-            
+
             // Special handling for known models
             if (normalizedModelId === "deepseek-r1") {
                 // Create DeepSeek-R1 model if it doesn't exist
@@ -688,7 +690,7 @@ class ModelManager {
                     name: "DeepSeek-R1",
                     description: "Model that supports chain-of-thought reasoning with <think> tags",
                     azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
-                    api_version: "2024-05-01-preview",
+                    api_version: "2024-05-01-preview", // Correct API version
                     max_tokens: 32000,
                     supports_temperature: true,
                     supports_streaming: true,
@@ -697,7 +699,7 @@ class ModelManager {
                     max_timeout: 300.0,
                     token_factor: 0.05
                 };
-                
+        
                 try {
                     await this.createModel("DeepSeek-R1", deepseekR1Model);
                     console.log('DeepSeek-R1 model created successfully');
@@ -717,7 +719,7 @@ class ModelManager {
                     max_tokens: 200000,
                     max_completion_tokens: 5000,
                     supports_temperature: false,
-                    supports_streaming: false,
+                    supports_streaming: false, // o1 doesn't support streaming
                     supports_vision: true,
                     requires_reasoning_effort: true,
                     reasoning_effort: "medium",
@@ -725,7 +727,7 @@ class ModelManager {
                     max_timeout: 300.0,
                     token_factor: 0.05
                 };
-                
+        
                 try {
                     await this.createModel("o1hp", o1Model);
                     console.log('o1hp model created successfully');
@@ -740,75 +742,73 @@ class ModelManager {
                 return false;
             }
         }
-        
+
         // Use the matching model ID with correct case
         const actualModelId = matchingModelId || modelId;
-        
+
         try {
             this.showToast(`Switching to ${modelId}...`, 'info');
-            
+
             // Fetch session to get session_id
             const session = await fetch('/api/session').then(r => r.json());
             const sessionId = session?.id;
-            
-            // Prepare parameters for the request - FIXED: use model_id instead of model
+
+            // Prepare parameters for the request
             const params = {
-                model_id: modelId, // FIXED: Changed from 'model' to 'model_id'
-                session_id: sessionId // Add session_id directly if available
+                model_id: modelId
             };
-            
-            // Model-specific settings will be applied on the server side
-            
-            // Switch model using the proper API endpoint - FIXED: use /api/config/models/switch
+
+            // Set appropriate parameters based on model type
+            if (modelId.toLowerCase().startsWith('o1') || modelId.toLowerCase().startsWith('o3')) {
+                // o-series models use max_completion_tokens instead of max_tokens
+                params.max_completion_tokens = 5000;
+                params.api_version = '2025-01-01-preview';
+                params.reasoning_effort = 'medium'; // can be low, medium, high
+                // o-series doesn't support temperature, top_p, etc.
+            } else if (modelId.toLowerCase() === 'deepseek-r1') {
+                // DeepSeek-R1 uses standard parameters
+                params.max_tokens = 32000;
+                params.temperature = 0.7;
+                params.api_version = '2024-05-01-preview';
+            } else {
+                // Default for other models
+                params.max_tokens = 4000;
+                params.temperature = 0.7;
+            }
+
+            // Add session_id if available
+            if (sessionId) {
+                params.session_id = sessionId;
+            }
+
+            // Switch model using the proper API endpoint
             console.log(`Switching to model: ${modelId} with params:`, params);
-            
+
             const response = await fetch(`/api/config/models/switch`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(params)
             });
-            
+
             if (!response.ok) {
                 const errorText = await response.text();
                 throw new Error(`Failed to switch model: ${errorText}`);
             }
-            
+
             // Locally record the current model
             this.currentModel = modelId;
             this.showToast(`Now using model: ${modelId}`, 'success');
-            
+
             // Adjust UI for new model
             this.updateModelSpecificUI(modelId);
             return true;
         } catch (error) {
             console.error('Error switching model:', error);
             this.showToast('Failed to switch model', 'error');
-            
-            // Try the simplified endpoint as fallback for backward compatibility
-            try {
-                console.log("Attempting fallback to simplified endpoint...");
-                const url = `/api/config/models/switch_model/${modelId}${
-                    sessionId ? `?session_id=${sessionId}` : ''
-                }`;
-                
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                if (response.ok) {
-                    this.currentModel = modelId;
-                    this.showToast(`Now using model: ${modelId}`, 'success');
-                    this.updateModelSpecificUI(modelId);
-                    return true;
-                }
-            } catch (fallbackError) {
-                console.error('Fallback also failed:', fallbackError);
-            }
-            
             return false;
         }
     }
+
     /**
      * Update various UI elements (streaming toggle, reason controls, etc.) 
      * based on the newly selected model’s capabilities.
@@ -816,8 +816,8 @@ class ModelManager {
     updateModelSpecificUI(modelId) {
         const config = this.modelConfigs[modelId];
         if (!config) return;
-        
-        // Show/hide reasoning controls for “o” series
+
+        // Show/hide reasoning controls for "o" series
         const reasoningControls = document.getElementById('reasoning-controls');
         if (reasoningControls) {
             if (modelId.toLowerCase().startsWith('o1') || modelId.toLowerCase().startsWith('o3')) {
@@ -826,7 +826,7 @@ class ModelManager {
                 reasoningControls.classList.add('hidden');
             }
         }
-        
+
         // Update streaming toggle if present
         const streamingToggle = document.getElementById('enable-streaming');
         if (streamingToggle) {
@@ -835,8 +835,8 @@ class ModelManager {
                 streamingToggle.checked = false;
             }
         }
-        
-        // Update “Model Info” text
+
+        // Update "Model Info" text
         const modelInfo = document.querySelector('.hidden.md\\:block.text-sm p strong');
         if (modelInfo && modelInfo.parentElement) {
             modelInfo.parentElement.innerHTML = `
@@ -862,12 +862,12 @@ class ModelManager {
                 shadow-sm flex items-center justify-center space-x-2 touch-action-manipulation
             `;
             addModelBtn.innerHTML = `<span>Add Model</span><span aria-hidden="true">+</span>`;
-            
+
             addModelBtn.addEventListener('click', () => {
                 console.log('Add Model button clicked');
                 this.showModelForm('add');
             });
-            
+
             // Touch feedback on mobile
             addModelBtn.addEventListener('touchstart', () => {
                 addModelBtn.classList.add('bg-blue-700');
@@ -878,19 +878,19 @@ class ModelManager {
         } else {
             console.error('Add Model button not found');
         }
-        
+
         // Hook up "Cancel" button in form
         const cancelBtn = document.getElementById('model-form-cancel');
         if (cancelBtn) {
             cancelBtn.className = 'btn-secondary text-sm px-4 py-2 rounded-md touch-action-manipulation';
             cancelBtn.addEventListener('click', () => this.hideModelForm());
         }
-        
+
         // Hook up form submission
         const modelForm = document.getElementById('model-form');
         if (modelForm) {
             modelForm.addEventListener('submit', (e) => this.handleModelFormSubmit(e));
-            
+
             // Make form controls touch-friendly
             const formControls = modelForm.querySelectorAll('input, select, textarea');
             formControls.forEach(control => {
@@ -902,14 +902,14 @@ class ModelManager {
                     `;
                 }
             });
-            
+
             // Make the submit button touch-friendly
             const submitBtn = modelForm.querySelector('button[type="submit"]');
             if (submitBtn) {
                 submitBtn.className = 'btn-primary text-sm px-4 py-2 rounded-md touch-action-manipulation';
             }
         }
-        
+
         // Finally, load the models list
         this.refreshModelsList();
 
@@ -918,9 +918,9 @@ class ModelManager {
         if (modelSelect) {
             // Clear existing options
             modelSelect.innerHTML = '';
-            
+
             console.log('Available models for dropdown:', Object.keys(this.modelConfigs));
-            
+
             // Ensure we have at least the default models in local config
             if (!this.modelConfigs["o1hp"]) {
                 console.log("Adding o1hp to model configs for dropdown");
@@ -930,7 +930,7 @@ class ModelManager {
                     supports_streaming: false
                 };
             }
-            
+
             if (!this.modelConfigs["DeepSeek-R1"]) {
                 console.log("Adding DeepSeek-R1 to model configs for dropdown");
                 this.modelConfigs["DeepSeek-R1"] = {
@@ -939,7 +939,7 @@ class ModelManager {
                     supports_streaming: true
                 };
             }
-            
+
             // Populate with current models
             for (const [id, config] of Object.entries(this.modelConfigs)) {
                 const option = document.createElement('option');
@@ -947,7 +947,7 @@ class ModelManager {
                 option.textContent = `${id}${config.description ? ` (${config.description})` : ''}`;
                 modelSelect.appendChild(option);
             }
-            
+
             // Set the dropdown to the server's last-used model
             this.getCurrentModelFromServer().then(currentModel => {
                 if (currentModel) {
@@ -956,7 +956,7 @@ class ModelManager {
                     this.updateModelSpecificUI(currentModel);
                 }
             });
-            
+
             // Listen for changes in the model dropdown
             modelSelect.addEventListener('change', async (e) => {
                 await this.switchModel(e.target.value);
@@ -964,7 +964,7 @@ class ModelManager {
             console.log('Model select dropdown initialized with options');
         }
     }
-    
+
     /**
      * Get the current model from the server (usually stored in session).
      * @returns {Promise<string|null>}
@@ -973,7 +973,7 @@ class ModelManager {
         try {
             const response = await fetch('/api/session');
             if (!response.ok) return null;
-            
+
             const session = await response.json();
             if (session && session.last_model) {
                 return session.last_model;
@@ -995,7 +995,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modelManager.initialize().catch(err => {
         console.error('Error initializing ModelManager on page load:', err);
     });
-    
+
     // Inject mobile styling
     addMobileStyles();
 });
@@ -1010,30 +1010,30 @@ function addMobileStyles() {
             min-height: 44px;
             min-width: 44px;
         }
-        
+
         .touch-action-manipulation {
             touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
         }
-        
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translate(-50%, -20px); }
             to   { opacity: 1; transform: translate(-50%, 0); }
         }
-        
+
         @keyframes fadeOut {
             from { opacity: 1; transform: translate(-50%, 0); }
             to   { opacity: 0; transform: translate(-50%, -20px); }
         }
-        
+
         .animate-fade-in {
             animation: fadeIn 0.3s ease forwards;
         }
-        
+
         .animate-fade-out {
             animation: fadeOut 0.3s ease forwards;
         }
-        
+
         /* Mobile form enhancements */
         @media (max-width: 640px) {
             #model-form input,
@@ -1042,26 +1042,24 @@ function addMobileStyles() {
                 padding: 0.75rem;
                 margin-bottom: 0.75rem;
             }
-            
+
             #model-form label {
                 display: block;
                 margin-bottom: 0.5rem;
                 font-weight: 500;
             }
-            
+
             #model-form .error-message {
                 padding: 0.75rem;
                 margin-bottom: 1rem;
             }
-            
+
             /* Larger checkboxes */
             #model-form input[type="checkbox"] {
                 width: 20px;
                 height: 20px;
             }
         }
-    `;
-    document.head.appendChild(style);
     `;
     document.head.appendChild(style);
 }
