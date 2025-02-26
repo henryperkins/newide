@@ -17,7 +17,7 @@ async def reset_models_config():
         connect_args={"ssl": ssl_context}
     )
     
-    # Create a complete model config for o1hp
+    # Create a complete model config for o1hp and DeepSeek-R1
     model_configs = {
         "o1hp": {
             "name": "o1hp",
@@ -27,6 +27,18 @@ async def reset_models_config():
             "supports_temperature": False,
             "api_version": config.AZURE_OPENAI_API_VERSION,
             "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
+            "base_timeout": 120.0,
+            "max_timeout": 300.0,
+            "token_factor": 0.05
+        },
+        "DeepSeek-R1": {
+            "name": "DeepSeek-R1",
+            "description": "Reasoning-focused model with high performance in math, coding, and science",
+            "max_tokens": 32000,
+            "supports_streaming": True,
+            "supports_temperature": True,
+            "api_version": config.AZURE_INFERENCE_API_VERSION,
+            "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
             "base_timeout": 120.0,
             "max_timeout": 300.0,
             "token_factor": 0.05

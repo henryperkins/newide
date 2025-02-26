@@ -15,6 +15,7 @@ class SessionResponse(BaseModel):
     created_at: str
     expires_in: int
 
+
 router = APIRouter()
 
 async def initialize_session_services(session_id: str, azure_client: Any):
@@ -52,6 +53,16 @@ async def create_session(background_tasks: BackgroundTasks, db_session: AsyncSes
         created_at=datetime.utcnow().isoformat(),
         expires_in=config.SESSION_TIMEOUT_MINUTES * 60
     )
+
+# Provide a simple GET /api/session endpoint so that references to fetch('/api/session')
+# don't 404. Here we simply return a minimal response indicating no active session
+# unless the project chooses to link it to a user's cookie or other param in the future.
+
+@router.get("", response_model=dict)
+async def get_current_session():
+    # If there's logic to find a session from a cookie or token, that would go here.
+    # For simplicity, returning a placeholder indicating no session found.
+    return {"id": None, "last_model": None, "message": "No active session. Call '/api/session/create' to generate a new session."}
 
 # Also support POST method
 router.post("/create", response_model=SessionResponse)(create_session)

@@ -6,6 +6,7 @@ import { showNotification, showTypingIndicator, removeTypingIndicator, handleMes
 import { displayMessage, processServerResponseData } from '/static/js/ui/displayManager.js';
 import { handleStreamingResponse } from '/static/js/streaming.js';
 import StatsDisplay from '/static/js/ui/statsDisplay.js'; // If you're instantiating StatsDisplay here
+import { modelManager } from './models.js';
 
 // Example: if you want a single StatsDisplay instance for the entire app
 // you might do this once. Or do so in init.js and import statsDisplay from there.
@@ -18,7 +19,7 @@ window.addEventListener('send-message', () => {
 });
 
 /**
- * Main request logic for chat:
+ *  Main request logic for chat:
  * - Called when user presses "Send" in UI
  * - Gathers user input, handles streaming or non-streaming requests
  * - Displays final message(s) and stats
@@ -88,6 +89,9 @@ export async function sendMessage() {
     const config = await getCurrentConfig();
     const modelConfig = await getModelSettings();
 
+    // Log model info for debugging DeepSeek issues
+    logDeepSeekModelInfo(modelConfig);
+    
     // Decide a typical request timeout based on "reasoningEffort" or "serverCalculatedTimeout"
     const effortLevel = config?.reasoningEffort || 'medium';
     const timeout = (await getTimeoutDurations(modelConfig))[effortLevel] || 30000;
@@ -361,6 +365,17 @@ function isDeepSeekModel(modelConfig) {
   return name.includes('deepseek');
   // Note: DeepSeek models use temperature parameter, not reasoning_effort
   // This matches the API documentation in deepseek-reference.md
+}
+
+// Debug helper for DeepSeek models
+function logDeepSeekModelInfo(modelConfig) {
+  if (isDeepSeekModel(modelConfig)) {
+    console.log('DeepSeek model detected:', {
+      name: modelConfig.name,
+      supports_temperature: modelConfig.supports_temperature,
+      supports_streaming: modelConfig.supports_streaming
+    });
+  }
 }
 
 /**

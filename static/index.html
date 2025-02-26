@@ -37,7 +37,7 @@
 <body class="h-full bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
     <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:p-4 focus:bg-blue-600 focus:text-white focus:z-50">Skip to main content</a>
 
-    <main class="h-screen max-w-[1400px] mx-auto bg-white dark:bg-gray-900 grid grid-rows-[auto,1fr,auto] relative">
+    <main class="h-screen max-w-[1400px] mx-auto grid grid-rows-[auto,1fr,auto] relative chat-container">
         <header class="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 p-2 border-b border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
             <div class="flex items-center justify-between w-full md:w-auto">
                 <h1 class="text-lg font-semibold">Azure OpenAI o1 Chat</h1>
@@ -153,9 +153,10 @@
               Load Older Messages
             </button>
 
+            <!-- Replace it with: -->
             <section 
                 id="chat-history" 
-                class="flex-1 p-4 overflow-y-auto flex flex-col space-y-4 bg-white dark:bg-gray-900 scroll-smooth" 
+                class="flex-1 p-4 overflow-y-auto flex flex-col space-y-4 scroll-smooth" 
                 role="log" 
                 aria-live="polite">
                 <!-- Messages injected via JavaScript -->
@@ -293,15 +294,14 @@
             <!-- Configuration Panel -->
             <div id="config-content" class="h-full overflow-y-auto p-4" role="tabpanel">
                 <div class="space-y-6">
-                    <div>
-                        <label for="model-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">AI Model:</label>
-                        <select
-                            id="model-select"
-                            class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none">
-                            <option value="DeepSeek-R1" selected>DeepSeek-R1 (General Purpose)</option>
-                            <option value="o1hp">Azure o1 (Advanced Reasoning)</option>
-                        </select>
-                    </div>
+                <div>
+                    <label for="model-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">AI Model:</label>
+                    <select
+                        id="model-select"
+                        class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none">
+                        <!-- Options will be populated by ModelManager -->
+                    </select>
+                </div>
 
                     <div>
                         <label for="developer-config" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assistant Settings:</label>

@@ -219,7 +219,7 @@ class ClientPool:
     def _create_client(self, model_name: str, model_config: Dict[str, Any]) -> AzureOpenAI:
         """Create an Azure OpenAI client with the given configuration"""
         is_o_series = model_name.startswith("o") or not model_config.get("supports_temperature", True)
-        is_deepseek = model_name.lower() == "deepseek-r1"
+        is_deepseek = model_name.lower().startswith("deepseek")
         max_retries = config.O_SERIES_MAX_RETRIES if is_o_series else 3
         
         # Select the proper API key and endpoint based on model type
@@ -227,8 +227,8 @@ class ClientPool:
             api_key = os.getenv("AZURE_INFERENCE_CREDENTIAL", "")
             endpoint = model_config.get("azure_endpoint", config.AZURE_INFERENCE_ENDPOINT)
             if not endpoint:
-                logger.error(f"No Azure Inference endpoint configured for DeepSeek-R1 model")
-                raise ValueError(f"Missing Azure Inference endpoint for DeepSeek-R1 model")
+                logger.error(f"No Azure Inference endpoint configured for {model_name} model")
+                raise ValueError(f"Missing Azure Inference endpoint for {model_name} model")
             api_version = model_config.get("api_version", config.AZURE_INFERENCE_API_VERSION)
         else:
             api_key = os.getenv("AZURE_OPENAI_API_KEY", "")

@@ -39,10 +39,10 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_HUMAN: str = os.getenv("MAX_FILE_SIZE_HUMAN", "512MB")
 
     # DeepSeek Inference Configuration
-    AZURE_INFERENCE_ENDPOINT: str = os.getenv("AZURE_INFERENCE_ENDPOINT")
+    AZURE_INFERENCE_ENDPOINT: str = os.getenv("AZURE_INFERENCE_ENDPOINT", "https://DeepSeek-R1D2.eastus2.models.ai.azure.com")
     AZURE_INFERENCE_CREDENTIAL: str = os.getenv("AZURE_INFERENCE_CREDENTIAL")
     AZURE_INFERENCE_DEPLOYMENT: str = os.getenv("AZURE_INFERENCE_DEPLOYMENT", "DeepSeek-R1HP")
-    AZURE_INFERENCE_API_VERSION: str = os.getenv("AZURE_INFERENCE_API_VERSION", "2025-01-01-preview")
+    AZURE_INFERENCE_API_VERSION: str = os.getenv("AZURE_INFERENCE_API_VERSION", "2024-05-01-preview")
     # Azure OpenAI Configuration
     AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT")
     AZURE_OPENAI_API_KEY: str = os.getenv("AZURE_OPENAI_API_KEY")
@@ -171,7 +171,7 @@ MODEL_API_VERSIONS: Dict[str, str] = {
     "o3-mini":    "2025-01-01-preview",
     "o1-preview": "2025-01-01-preview",
     "o1-mini":    "2025-01-01-preview",
-    "DeepSeek-R1": "2025-01-01-preview",
+    "DeepSeek-R1": "2024-05-01-preview",
     "default":    "2025-01-01-preview"
 }
 
@@ -219,7 +219,7 @@ def build_azure_openai_url(deployment_name: str = None, api_version: str = None)
     # Use default API version if none provided, selecting the appropriate version for the model
     if not api_version:
         if deployment_name == "DeepSeek-R1":
-            api_version = os.getenv('AZURE_INFERENCE_API_VERSION', '2025-01-01-preview')
+            api_version = os.getenv('AZURE_INFERENCE_API_VERSION', '2024-05-01-preview')
         else:
             api_version = os.getenv('AZURE_OPENAI_API_VERSION', '2025-01-01-preview')
         

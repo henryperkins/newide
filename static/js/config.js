@@ -1,11 +1,13 @@
 /* static/js/config.js */
 
+import { modelManager } from './models.js';
+
 const fallbackConfig = {
     reasoningEffort: "medium",
     developerConfig: "Formatting re-enabled - use markdown code blocks",
     includeFiles: false,
-    selectedModel: "o1model-east2", 
-    deploymentName: "o1model-east2",
+    selectedModel: "o1hp",
+    deploymentName: "o1hp",
     azureOpenAI: {
         apiKey: "",  // Will be populated from server response
         endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
@@ -36,48 +38,52 @@ function getValidatedElement(elementId) {
     return element;
 }
 
+/**
+ * Get the current configuration from the server
+ */
+export async function getCurrentConfig() {
+    try {
+        const response = await fetch('/api/config');
+        if (!response.ok) {
+            throw new Error(`Failed to load config: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Error loading config:', error);
+        return {
+            selectedModel: 'o1hp',
+            reasoningEffort: 'medium'
+        };
+    }
+}
+
+/**
+ * Initialize config-related UI elements
+ */
 export async function initializeConfig() {
     try {
         const appConfig = await getCurrentConfig();
         updateReasoningEffortDisplay();
         await updateModelSpecificUI(appConfig.selectedModel);
 
-        // Attach a change listener to the model-select dropdown so that
-        // selecting a different model updates the config and UI
+        // Attach a change listener to the model-select dropdown
         const modelSelectEl = document.getElementById('model-select');
         if (modelSelectEl) {
             modelSelectEl.addEventListener('change', async (e) => {
                 const newModel = e.target.value;
-                // Update config
-                await updateConfig('selectedModel', newModel);
-                // Refresh UI for the newly selected model
-                await updateModelSpecificUI(newModel);
-                console.log(`Model switched to: ${newModel}`);
+
+                // Use ModelManager to switch model
+                const success = await modelManager.switchModel(newModel);
+
+                if (!success) {
+                    // Revert to previous selection if switch failed
+                    modelSelectEl.value = appConfig.selectedModel;
+                    console.error('Failed to switch model, reverting selection');
+                }
             });
         }
     } catch (error) {
         console.error('Failed to initialize UI elements:', error);
-    }
-}
-
-export async function getCurrentConfig() {
-    try {
-        if (!cachedConfig?.azureOpenAI?.apiKey || Date.now() - lastFetchTime > 300000) {
-            console.debug('Fetching config from /api/config/');
-            const response = await fetch('/api/config/');
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const responseData = await response.json();
-            cachedConfig = { ...fallbackConfig, ...responseData };
-            lastFetchTime = Date.now();
-        }
-        return cachedConfig;
-    } catch (error) {
-        console.error('Using fallback config. Error details:', error);
-        return fallbackConfig;
     }
 }
 
@@ -86,7 +92,7 @@ export async function updateConfig(key, value) {
     if (typeof key === 'object' && key !== null) {
         const updates = key;
         let allSuccess = true;
-        
+
         for (const [k, v] of Object.entries(updates)) {
             try {
                 if (typeof k !== 'string' || !k.trim()) {
@@ -94,7 +100,7 @@ export async function updateConfig(key, value) {
                     allSuccess = false;
                     continue;
                 }
-                
+
                 // Format value based on config key
                 let formattedValue = v;
                 if (k === 'reasoningEffort') {
@@ -107,17 +113,17 @@ export async function updateConfig(key, value) {
                 } else if (k === 'selectedModel' || k === 'developerConfig') {
                     formattedValue = String(v);
                 }
-                
+
                 const response = await fetch(`/api/config/${k}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         value: formattedValue,
                         description: '',
                         is_secret: false
                     })
                 });
-                
+
                 if (!response.ok) {
                     const error = await response.json();
                     throw new Error(error.detail || 'Failed to update config');
@@ -148,22 +154,22 @@ export async function updateConfig(key, value) {
         } else if (key === 'selectedModel' || key === 'developerConfig') {
             formattedValue = String(value);
         }
-        
+
         const response = await fetch(`/api/config/${key}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 value: formattedValue,
                 description: '',
                 is_secret: false
             })
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.detail || 'Failed to update config');
         }
-        
+
         return true;
     } catch (error) {
         console.error('Failed to update config:', error);
@@ -174,32 +180,32 @@ export async function updateConfig(key, value) {
 
 // Add methods to get model configurations
 export async function getModelConfigurations() {
-  try {
-    const response = await fetch('/api/config/models');
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    try {
+        const response = await fetch('/api/config/models');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching model configurations:', error);
+        return {};
     }
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching model configurations:', error);
-    return {};
-  }
 }
 
 export async function getModelConfiguration(modelId) {
-  try {
-    const response = await fetch(`/api/config/models/${modelId}`);
-    if (!response.ok) {
-      if (response.status === 404) {
+    try {
+        const response = await fetch(`/api/config/models/${modelId}`);
+        if (!response.ok) {
+            if (response.status === 404) {
+                return null;
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`Error fetching configuration for model ${modelId}:`, error);
         return null;
-      }
-      throw new Error(`HTTP error! status: ${response.status}`);
     }
-    return await response.json();
-  } catch (error) {
-    console.error(`Error fetching configuration for model ${modelId}:`, error);
-    return null;
-  }
 }
 
 export async function getModelSettings() {
@@ -219,7 +225,7 @@ export async function getModelSettings() {
     } catch (error) {
         console.error('Failed to get model settings:', error);
         return {
-            name: "o1model-east2",
+            name: "o1hp",
             api_version: "2025-01-01-preview",
             capabilities: {
                 requires_reasoning_effort: true,
@@ -242,55 +248,118 @@ export async function getResponseFormatting() {
     return modelCfg.response_format || {};
 }
 
-export function updateReasoningEffortDisplay() {
-    const slider = getValidatedElement(REASONING_EFFORT_CONFIG.SLIDER_ID);
-    const effortDisplay = getValidatedElement(REASONING_EFFORT_CONFIG.DISPLAY_ID);
+/**
+ * Update the reasoning effort display based on slider value
+ */
+function updateReasoningEffortDisplay() {
+    const slider = document.getElementById('reasoning-effort-slider');
+    const display = document.getElementById('reasoning-effort-display');
+    const description = document.getElementById('effort-description-text');
 
-    if (!slider || !effortDisplay) {
-        console.error('Reasoning effort UI elements missing');
-        if (effortDisplay) effortDisplay.textContent = 'Medium';
-        return;
+    if (slider && display) {
+        const updateDisplay = () => {
+            const value = parseInt(slider.value);
+            let text, desc;
+
+            switch (value) {
+                case 1:
+                    text = 'Low';
+                    desc = 'Low: Faster responses (30-60s) with less depth';
+                    break;
+                case 3:
+                    text = 'High';
+                    desc = 'High: Thorough processing (4-7min) for complex problems';
+                    break;
+                default:
+                    text = 'Medium';
+                    desc = 'Medium: Balanced processing time (1-3min) and quality';
+            }
+
+            display.textContent = text;
+            if (description) description.textContent = desc;
+        };
+
+        updateDisplay();
+        slider.addEventListener('input', updateDisplay);
     }
-
-    const minValue = Math.min(...Object.values(REASONING_EFFORT_CONFIG.LEVEL_VALUES));
-    const maxValue = Math.max(...Object.values(REASONING_EFFORT_CONFIG.LEVEL_VALUES));
-    const clampedValue = Math.max(minValue, Math.min(maxValue, parseInt(slider.value, 10)));
-    if (clampedValue !== parseInt(slider.value, 10)) {
-        slider.value = clampedValue;
-    }
-
-    const effortLabels = Object.keys(REASONING_EFFORT_CONFIG.LEVEL_VALUES).length > 0
-        ? Object.keys(REASONING_EFFORT_CONFIG.LEVEL_VALUES)
-        : ['low', 'medium', 'high'];
-
-    const valueIndex = Math.max(
-        0,
-        Math.min(
-            parseInt(slider.value, 10) - REASONING_EFFORT_CONFIG.LEVEL_VALUES.LOW,
-            effortLabels.length - 1
-        )
-    );
-    const selectedLabel = effortLabels[valueIndex];
-
-    effortDisplay.textContent =
-        selectedLabel.charAt(0).toUpperCase() + selectedLabel.slice(1);
-
-    slider.setAttribute('aria-valuenow', slider.value);
-    slider.setAttribute('aria-valuetext', selectedLabel);
 }
 
-export async function updateModelSpecificUI(model) {
-    const modelCfg = await getModelSettings();
-    const reasoningControls = document.getElementById('reasoning-controls');
-    const streamingToggle = document.getElementById('enable-streaming');
+/**
+ * Update model-specific UI elements based on the selected model
+ */
+export async function updateModelSpecificUI(modelName) {
+    try {
+        // Special handling for o1hp model - create it if it doesn't exist
+        if (modelName === "o1hp" && !modelManager.modelConfigs[modelName]) {
+            console.log("o1hp model not found in configurations, creating it");
 
-    const requiresEffort = modelCfg.capabilities?.requires_reasoning_effort ?? true;
-    if (reasoningControls) {
-        reasoningControls.style.display = requiresEffort ? 'block' : 'none';
-    }
+            // Create o1hp model configuration based on documentation
+            const o1Model = {
+                name: "o1hp",
+                description: "Advanced reasoning model for complex tasks",
+                azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
+                api_version: "2025-01-01-preview",
+                max_tokens: 200000, // Based on o1 documentation (input context window)
+                supports_temperature: false, // o1 doesn't support temperature
+                supports_streaming: false, // o1 doesn't support streaming (only o3-mini does)
+                supports_vision: true, // o1 supports vision
+                requires_reasoning_effort: true, // o1 supports reasoning effort
+                base_timeout: 120.0,
+                max_timeout: 300.0,
+                token_factor: 0.05
+            };
 
-    if (streamingToggle) {
-        streamingToggle.disabled = !(modelCfg.capabilities?.supports_streaming ?? false);
+            // Add the model to modelConfigs
+            modelManager.modelConfigs[modelName] = o1Model;
+            console.log("Created o1hp model configuration:", o1Model);
+        }
+
+        // Check if model exists in configurations after potential creation
+        if (!modelManager.modelConfigs[modelName]) {
+            console.warn(`Model ${modelName} not found in model configurations`);
+            return; // If we still don't have config, no further updates
+        }
+
+        const modelConfig = modelManager.modelConfigs[modelName];
+        const isOSeries = modelName.toLowerCase().startsWith('o1') || modelName.toLowerCase().startsWith('o3');
+
+        // Update reasoning controls visibility
+        const reasoningControls = document.getElementById('reasoning-controls');
+        if (reasoningControls) {
+            if (isOSeries) {
+                reasoningControls.classList.remove('hidden');
+            } else {
+                reasoningControls.classList.add('hidden');
+            }
+        }
+
+        // Update streaming toggle based on model capability
+        const streamingToggle = document.getElementById('enable-streaming');
+        if (streamingToggle) {
+            streamingToggle.disabled = !modelConfig.supports_streaming;
+            if (!modelConfig.supports_streaming) {
+                streamingToggle.checked = false;
+            }
+        }
+
+        // Update model info text
+        const modelInfoSection = document.querySelector('.hidden.md\\:block.text-sm.text-gray-600');
+        if (modelInfoSection) {
+            const modelFeatures = [];
+            if (isOSeries) modelFeatures.push('advanced reasoning');
+            if (modelConfig.supports_streaming) modelFeatures.push('streaming');
+            if (modelConfig.supports_vision) modelFeatures.push('vision');
+
+            const featuresText = modelFeatures.length > 0 ? `with ${modelFeatures.join(' & ')}` : '';
+
+            modelInfoSection.innerHTML = `
+                <p><strong>Model Info:</strong> Using ${modelName} model ${featuresText}</p>
+            `;
+        }
+
+        // Update any other UI elements that depend on model configuration
+    } catch (error) {
+        console.error('Error updating model-specific UI:', error);
     }
 }
 
@@ -343,3 +412,6 @@ export const config = {
 };
 
 export const CONFIG_VERSION = '1.0.0';
+
+// Initialize config when DOM is ready
+document.addEventListener('DOMContentLoaded', initializeConfig);
