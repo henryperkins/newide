@@ -98,8 +98,8 @@ async def get_all_configs(
 class ModelConfigModel(BaseModel):
     name: str
     max_tokens: int
-    supports_streaming: bool
-    supports_temperature: bool
+    supports_streaming: Optional[bool] = False
+    supports_temperature: Optional[bool] = False
     api_version: str
     azure_endpoint: str
     description: str = ""
@@ -330,7 +330,7 @@ async def create_model(
                     "name": "DeepSeek-R1",
                     "description": "Model that supports chain-of-thought reasoning with <think> tags",
                     "max_tokens": 32000,
-                    "supports_streaming": True,
+                    "supports_streaming": True,  # Explicitly enable streaming for DeepSeek-R1
                     "supports_temperature": True,
                     "api_version": config.AZURE_INFERENCE_API_VERSION,
                     "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
@@ -360,6 +360,11 @@ async def create_model(
                     status_code=400, detail="Model data is required for custom models"
                 )
 
+        # Default streaming to True for DeepSeek-R1 if not provided
+        if model_id.lower() == "deepseek-r1":
+            model.setdefault("supports_streaming", True)
+            model.setdefault("supports_temperature", True)
+            
         # Create the model
         success = await config_service.add_model_config(model_id, model)
         if not success:

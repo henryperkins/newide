@@ -91,6 +91,22 @@ POST /chat/completions?api-version=2024-05-01-preview
 - `Authorization`: Bearer <api_key>
 - `Content-Type`: application/json
 
+### Streaming Support
+DeepSeek-R1 supports streaming responses. To use streaming:
+
+```json
+{
+  "stream": true  // In API requests
+}
+```
+
+In model configuration:
+```json
+{
+  "supports_streaming": true  // Required for UI/routing logic
+}
+```
+
 ### Response Format
 ```json
 {

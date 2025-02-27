@@ -899,7 +899,7 @@ class ModelManager {
                 name: "DeepSeek-R1",
                 description: "Model that supports chain-of-thought reasoning with <think> tags",
                 max_tokens: 32000,
-                supports_streaming: true,
+                supports_streaming: true,  // Explicitly enable streaming for DeepSeek-R1
                 supports_temperature: true,
                 api_version: "2024-05-01-preview",
                 azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",

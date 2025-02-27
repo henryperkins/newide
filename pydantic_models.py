@@ -72,6 +72,7 @@ class CreateChatCompletionRequest(BaseModel):
     response_format: Optional[Dict[str, str]] = None
     max_completion_tokens: Optional[int] = None
     temperature: Optional[float] = None
+    stream: Optional[bool] = None  # Add explicit stream parameter
 
 
 # -------------------------------------------------------------------------

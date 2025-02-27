@@ -99,7 +99,7 @@ class ConfigService:
                 "api_version": config.AZURE_INFERENCE_API_VERSION,
                 "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
                 "supports_temperature": True,
-                "supports_streaming": True,
+                "supports_streaming": True,  # Explicitly enable streaming for DeepSeek-R1
                 "base_timeout": 120.0,
                 "max_timeout": 300.0,
                 "token_factor": 0.05
@@ -170,7 +170,7 @@ class ConfigService:
                 if "max_tokens" not in model_config or model_config["max_tokens"] != config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS:
                     model_config["max_tokens"] = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
                 model_config["supports_temperature"] = True
-                model_config["supports_streaming"] = True
+                model_config["supports_streaming"] = True  # Always ensure streaming is enabled for DeepSeek-R1
                 model_config["api_version"] = config.DEEPSEEK_R1_DEFAULT_API_VERSION
                 
         return db_models
