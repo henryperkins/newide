@@ -29,3 +29,14 @@ logs/
 opt/google/chrome/chrome
 opt/google/chrome/chrome
 opt/google/chrome/chrome
+docs/
+docs
+DigiCertGlobalRootCA.crt.pem
+certs
+certs/
+migrations
+migrations/
+test
+test/
+todo
+todo/
