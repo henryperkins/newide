@@ -905,6 +905,8 @@ class ModelManager {
                 azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
                 base_timeout: 120.0,
                 max_timeout: 300.0,
+                token_factor: 0.05,
+                max_timeout: 300.0,
                 token_factor: 0.05
             }
         };
