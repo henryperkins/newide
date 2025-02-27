@@ -3,649 +3,592 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="description" content="Azure OpenAI Chat Application - Interact with Azure OpenAI models">
+    <meta name="theme-color" content="#282a36">
     
-    <!-- Favicon -->
+    <title>Azure OpenAI Chat</title>
+    
+    <!-- Favicon and app icons -->
     <link rel="icon" href="/static/img/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/img/apple-touch-icon.png">
+    <link rel="manifest" href="/static/site.webmanifest">
     
-    <title>Azure OpenAI o1 Chat</title>
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/static/css/tailwind.compiled.css" as="style">
+    <link rel="preload" href="/static/fonts/inter/inter-500.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/fonts/jetbrains-mono/jetbrains-mono-400.woff2" as="font" type="font/woff2" crossorigin>
     
-    <!-- Styles - referencing compiled Tailwind -->
+    <!-- Styles -->
     <link rel="stylesheet" href="/static/css/tailwind.compiled.css">
     <link rel="stylesheet" href="/static/css/prism.css">
 
     <!-- Libraries -->
-    <script src="/static/lib/markdown-it.min.js"></script>
-    <script src="/static/lib/purify.min.js"></script>
-    <script src="/static/lib/prism.min.js"></script>
-
-    <!-- Touch icons & Manifest -->
-    <link rel="apple-touch-icon" sizes="180x180" href="/static/img/apple-touch-icon.png">
-    <link rel="apple-touch-icon-precomposed" sizes="180x180" href="/static/img/apple-touch-icon-precomposed.png">
-    <link rel="manifest" href="/static/site.webmanifest">
-
-    <!-- Core Modules -->
-    <script type="module" defer src="/static/js/debugging.js"></script>
-    <script type="module" defer src="/static/js/session.js"></script>
-    <script type="module" defer src="/static/js/config.js"></script>
-    <script type="module" defer src="/static/js/models.js"></script>
-    <script type="module" defer src="/static/js/utils/helpers.js"></script>
-    <script type="module" defer src="/static/js/ui/markdownParser.js"></script>
-    <script type="module" defer src="/static/js/ui/notificationManager.js"></script>
-    <script type="module" defer src="/static/js/ui/displayManager.js"></script>
-    <script type="module" defer src="/static/js/fileManager.js"></script>
+    <script src="/static/lib/markdown-it.min.js" defer></script>
+    <script src="/static/lib/purify.min.js" defer></script>
+    <script src="/static/lib/prism.min.js" defer></script>
 </head>
-<body class="h-full bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:p-4 focus:bg-blue-600 focus:text-white focus:z-50">Skip to main content</a>
+<body class="h-full bg-white dark:bg-dark-500 text-gray-900 dark:text-white">
+    <!-- Skip link for accessibility -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
 
-    <main class="h-screen max-w-[1400px] mx-auto grid grid-rows-[auto,1fr,auto] relative chat-container">
-        <header class="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 p-2 border-b border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
-            <div class="flex items-center justify-between w-full md:w-auto">
-                <h1 class="text-lg font-semibold">Azure OpenAI o1 Chat</h1>
-                <!-- Mobile-only controls -->
-                <div class="flex items-center space-x-2 md:hidden">
-                    <button id="mobile-stats-toggle" aria-label="Toggle statistics" class="p-1 text-sm bg-gray-200 dark:bg-gray-700 rounded">
-                        📊
+    <div class="h-screen max-w-[1600px] mx-auto grid grid-rows-[auto,1fr,auto] relative">
+        <!-- App Header -->
+        <header class="bg-white dark:bg-dark-600 border-b border-gray-300 dark:border-dark-400 shadow-sm z-20">
+            <div class="container mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <!-- App Title and Model Info -->
+                <div class="flex items-center space-x-3">
+                    <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">
+                        Azure OpenAI Chat
+                    </h1>
+                    <span class="hidden md:inline-block px-2 py-1 bg-primary-100 dark:bg-primary-900/20 text-primary-800 dark:text-primary-300 text-xs font-medium rounded-full">
+                        <span id="model-badge">DeepSeek-R1</span>
+                    </span>
+                </div>
+                
+                <!-- Controls - Desktop -->
+                <div class="hidden md:flex items-center space-x-4">
+                    <div id="performance-stats" class="grid grid-cols-3 gap-3 p-2 text-xs bg-gray-100 dark:bg-dark-700 rounded-md border border-gray-200 dark:border-dark-500">
+                        <!-- Stats will be populated by JS -->
+                    </div>
+                    
+                    <div class="flex items-center space-x-2">
+                        <button id="font-size-down" class="btn btn-secondary btn-icon" aria-label="Decrease font size">
+                            <span aria-hidden="true">A-</span>
+                        </button>
+                        <button id="font-size-up" class="btn btn-secondary btn-icon" aria-label="Increase font size">
+                            <span aria-hidden="true">A+</span>
+                        </button>
+                        <button id="theme-toggle" class="btn btn-secondary btn-icon" aria-label="Toggle dark mode">
+                            <span class="sr-only">Toggle dark mode</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 block dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Controls - Mobile -->
+                <div class="flex md:hidden items-center space-x-3">
+                    <button id="mobile-stats-toggle" aria-label="Toggle statistics" class="btn btn-secondary btn-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
                     </button>
-                    <button id="mobile-font-toggle" aria-label="Font size" class="p-1 text-sm bg-gray-200 dark:bg-gray-700 rounded">
-                        Aa
+                    <button id="mobile-theme-toggle" aria-label="Toggle dark mode" class="btn btn-secondary btn-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 block dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                    </button>
+                    <button id="mobile-sidebar-toggle" aria-label="Open settings" class="btn btn-secondary btn-icon" aria-expanded="false" aria-controls="sidebar">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
                     </button>
                 </div>
-            </div>
-            
-            <!-- Desktop-only info -->
-            <div class="hidden md:block text-sm text-gray-600 dark:text-gray-400">
-                <p><strong>Model Info:</strong> Using Azure OpenAI o1 model (no streaming)</p>
-            </div>
-            
-            <!-- Stats - hidden on mobile by default -->
-            <div class="performance-stats hidden md:flex" id="performance-stats">
-                <!-- Stats will be injected here -->
-                <div class="stat-item">
-                  <span class="stat-label">Chunks</span>
-                  <span class="stat-value" id="chunks-value">0</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">Partial Tokens</span>
-                  <span class="stat-value" id="partial-tokens-value">0</span>
-                </div>
-            </div>
-            
-            <!-- Desktop font controls -->
-            <div class="hidden md:flex items-center space-x-2">
-              <button id="font-size-down"
-                class="btn-secondary"
-                title="Decrease font size">
-                A-
-              </button>
-              <button id="font-size-up"
-                class="btn-secondary"
-                title="Increase font size">
-                A+
-              </button>
             </div>
 
-            <!-- Theme toggle will be injected here by JavaScript -->
+            <!-- Mobile-only stats panel -->
+            <div id="mobile-stats-panel" class="hidden md:hidden p-3 bg-gray-50 dark:bg-dark-700 border-b border-gray-200 dark:border-dark-500">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="flex flex-col">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Prompt Tokens</span>
+                        <span id="mobile-prompt-tokens" class="font-mono font-medium">0</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Completion Tokens</span>
+                        <span id="mobile-completion-tokens" class="font-mono font-medium">0</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Total Tokens</span>
+                        <span id="mobile-total-tokens" class="font-mono font-medium">0</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Generation Speed</span>
+                        <span id="mobile-tokens-per-second" class="font-mono font-medium">0 t/s</span>
+                    </div>
+                </div>
+                
+                <!-- Mobile font controls -->
+                <div class="flex justify-center items-center space-x-3 mt-3 pt-2 border-t border-gray-200 dark:border-dark-400">
+                    <button id="mobile-font-down" class="btn btn-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
+                        </svg>
+                        <span>A</span>
+                    </button>
+                    <span class="text-sm text-gray-500 dark:text-gray-400">Text Size</span>
+                    <button id="mobile-font-up" class="btn btn-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>A</span>
+                    </button>
+                </div>
+            </div>
         </header>
 
-        <!-- Add mobile stats panel (initially hidden) -->
-        <div id="mobile-stats-panel" class="hidden md:hidden p-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700">
-            <div class="grid grid-cols-2 gap-2 text-xs">
-                <div class="flex items-center justify-between">
-                    <span class="flex items-center text-gray-500 dark:text-gray-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z" />
-                        </svg>
-                        Prompt
-                    </span>
-                    <span id="mobile-prompt-tokens" class="font-mono">0</span>
+        <main id="main-content" class="flex relative overflow-hidden">
+            <!-- Chat Section -->
+            <div class="flex-1 flex flex-col relative overflow-hidden">
+                <!-- Message History -->
+                <div id="chat-history" class="flex-1 p-4 overflow-y-auto flex flex-col space-y-4 scroll-smooth" role="log" aria-live="polite">
+                    <!-- Messages injected via JavaScript -->
+                    
+                    <!-- Welcome Message (optional, shown when no conversation exists) -->
+                    <div class="message-system">
+                        <h2 class="text-lg font-semibold mb-2">Welcome to Azure OpenAI Chat</h2>
+                        <p>This chat application uses Azure OpenAI's powerful language models to provide intelligent responses.</p>
+                        <p class="mt-2">Type a message below to get started!</p>
+                    </div>
                 </div>
-                <div class="flex items-center justify-between">
-                    <span class="flex items-center text-gray-500 dark:text-gray-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clip-rule="evenodd" />
-                        </svg>
-                        Completion
-                    </span>
-                    <span id="mobile-completion-tokens" class="font-mono">0</span>
-                </div>
-                <div class="flex items-center justify-between font-medium">
-                    <span class="flex items-center text-gray-500 dark:text-gray-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
-                        </svg>
-                        Total
-                    </span>
-                    <span id="mobile-total-tokens" class="font-mono">0</span>
-                </div>
-                <div class="flex items-center justify-between">
-                    <span class="flex items-center text-gray-500 dark:text-gray-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                        </svg>
-                        Speed
-                    </span>
-                    <span id="mobile-tokens-per-second" class="font-mono">0 t/s</span>
+
+                <!-- Input Area -->
+                <div class="border-t border-gray-200 dark:border-dark-400 bg-white dark:bg-dark-600 safe-area-inset-bottom">
+                    <!-- "Load Older Messages" button (initially hidden) -->
+                    <div class="flex justify-center py-2 px-4">
+                        <button id="load-older-btn" class="btn btn-secondary hidden">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12" />
+                            </svg>
+                            Load Older Messages
+                        </button>
+                    </div>
+                    
+                    <!-- Input and Send -->
+                    <div class="flex items-end space-x-2 p-3">
+                        <div class="relative flex-1">
+                            <textarea 
+                                id="user-input" 
+                                placeholder="Type your message..."
+                                aria-label="Your message"
+                                rows="1"
+                                class="form-input w-full py-3 resize-none touch-input mobile-text-optimized"
+                            ></textarea>
+                            
+                            <!-- Character count (optional) -->
+                            <div id="char-count" class="absolute bottom-2 right-2 text-xs text-gray-400 dark:text-gray-500 hidden">
+                                0
+                            </div>
+                        </div>
+                        
+                        <div class="flex-shrink-0">
+                            <button 
+                                id="send-button" 
+                                type="button"
+                                class="relative h-12 w-12 flex items-center justify-center bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white rounded-full touch-action-manipulation shadow-md"
+                                aria-label="Send message"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                                </svg>
+                                <!-- Extended touch target -->
+                                <span id="send-tap-target" class="absolute -inset-4"></span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Token Usage Panel -->
+                    <div class="token-usage" id="token-usage-panel">
+                        <div class="token-summary" id="token-usage-toggle">
+                            <div class="flex items-center space-x-4">
+                                <div class="token-label">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                    </svg>
+                                    <span>Token Usage</span>
+                                </div>
+                                
+                                <span id="total-tokens-badge" class="token-value">0</span>
+                            </div>
+                            <svg id="token-chevron" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                        
+                        <div class="token-details mt-3 space-y-2">
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div>
+                                    <div class="token-label">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
+                                        <span>Prompt</span>
+                                    </div>
+                                    <span id="prompt-tokens" class="token-value">0</span>
+                                </div>
+                                
+                                <div>
+                                    <div class="token-label">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span>Completion</span>
+                                    </div>
+                                    <span id="completion-tokens" class="token-value">0</span>
+                                </div>
+                                
+                                <div>
+                                    <div class="token-label">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                        </svg>
+                                        <span>Reasoning</span>
+                                    </div>
+                                    <span id="reasoning-tokens" class="token-value">0</span>
+                                </div>
+                                
+                                <div>
+                                    <div class="token-label">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                        </svg>
+                                        <span>Rate</span>
+                                    </div>
+                                    <span id="tokens-per-second" class="token-value">0 t/s</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <!-- Mobile font controls -->
-            <div class="flex justify-center mt-2">
-                <button id="mobile-font-down" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-l-md flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clip-rule="evenodd" />
-                    </svg>
-                    <span class="ml-1">A</span>
-                </button>
-                <button id="mobile-font-up" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-r-md flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
-                    </svg>
-                    <span class="ml-1">A</span>
-                </button>
-            </div>
-        </div>
 
-        <div class="flex flex-col h-full overflow-hidden">
-            <!-- Chat History -->
-            <button 
-              id="load-older-btn" 
-              class="btn-secondary hidden my-2 mx-auto"
-              aria-label="Load older messages">
-              Load Older Messages
-            </button>
-
-            <!-- Replace it with: -->
-            <section 
-                id="chat-history" 
-                class="flex-1 p-4 overflow-y-auto flex flex-col space-y-4 scroll-smooth" 
-                role="log" 
-                aria-live="polite">
-                <!-- Messages injected via JavaScript -->
-            </section>
-
-            <!-- Input Area -->
-            <section class="border-t border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                <!-- Input and Send - with better touch handling -->
-                <div class="flex space-x-2 items-end p-2 relative">
-                    <textarea 
-                        id="user-input" 
-                        placeholder="Type your message..."
-                        aria-label="Your message"
-                        rows="1"
-                        class="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                    ></textarea>
-                    <button 
-                        id="send-button" 
-                        type="button"
-                        class="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-md touch-action-manipulation"
-                        aria-label="Send message"
-                        onclick="window.universalSendMessage ? window.universalSendMessage() : null"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clip-rule="evenodd" />
+            <!-- Sidebar -->
+            <aside id="sidebar" class="fixed inset-y-0 right-0 w-80 md:w-96 bg-white dark:bg-dark-600 border-l border-gray-300 dark:border-dark-400 shadow-xl md:shadow-none transform translate-x-full md:static md:translate-x-0 transition-transform duration-300 z-40">
+                <!-- Sidebar Header with close button -->
+                <div class="p-4 border-b border-gray-200 dark:border-dark-400 flex justify-between items-center">
+                    <h2 class="text-lg font-semibold">Settings</h2>
+                    <button id="close-sidebar" class="md:hidden btn btn-icon btn-secondary" aria-label="Close settings">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
                 
-                <!-- Token Usage -->
-                <div class="token-usage-compact p-2 text-xs border-t border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800" aria-label="Token usage statistics">
-                    <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
-                        <div class="flex justify-between items-center">
-                            <span class="flex items-center text-gray-500 dark:text-gray-400">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z" />
-                                </svg>
-                                Prompt
-                            </span>
-                            <span id="prompt-tokens" class="font-mono text-gray-800 dark:text-gray-200">0</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="flex items-center text-gray-500 dark:text-gray-400">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clip-rule="evenodd" />
-                                </svg>
-                                Completion
-                            </span>
-                            <span id="completion-tokens" class="font-mono text-gray-800 dark:text-gray-200">0</span>
-                        </div>
-                        <div class="flex justify-between items-center font-medium">
-                            <span class="flex items-center text-gray-500 dark:text-gray-400">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
-                                </svg>
-                                Total
-                            </span>
-                            <span id="total-tokens" class="font-mono text-gray-800 dark:text-gray-200">0</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="flex items-center text-gray-500 dark:text-gray-400">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
-                                </svg>
-                                Reasoning
-                            </span>
-                            <span id="reasoning-tokens" class="font-mono text-gray-800 dark:text-gray-200">0</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="flex items-center text-gray-500 dark:text-gray-400">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M3 12v3c0 1.657 3.134 3 7 3s7-1.343 7-3v-3c0 1.657-3.134 3-7 3s-7-1.343-7-3z" />
-                                    <path d="M3 7v3c0 1.657 3.134 3 7 3s7-1.343 7-3V7c0 1.657-3.134 3-7 3S3 8.657 3 7z" />
-                                    <path d="M17 5c0 1.657-3.134 3-7 3S3 6.657 3 5s3.134-3 7-3 7 1.343 7 3z" />
-                                </svg>
-                                Base
-                            </span>
-                            <span id="base-completion-tokens" class="font-mono text-gray-800 dark:text-gray-200">0</span>
-                        </div>
-                    </div>
-                    <!-- Token usage toggle will be injected here by JavaScript -->
+                <!-- Tab Navigation -->
+                <div class="border-b border-gray-200 dark:border-dark-400">
+                    <nav class="flex" role="tablist" aria-label="Settings tabs">
+                        <button 
+                            id="config-tab" 
+                            class="flex-1 py-3 px-4 text-center text-sm font-medium border-b-2 border-primary-500 text-primary-700 dark:text-primary-300" 
+                            role="tab" 
+                            aria-selected="true" 
+                            aria-controls="config-content"
+                            data-target-tab="config-content">
+                            Configuration
+                        </button>
+                        <button 
+                            id="files-tab" 
+                            class="flex-1 py-3 px-4 text-center text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" 
+                            role="tab" 
+                            aria-selected="false" 
+                            aria-controls="files-content"
+                            data-target-tab="files-content">
+                            Files
+                        </button>
+                        <button 
+                            id="conversations-tab" 
+                            class="flex-1 py-3 px-4 text-center text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" 
+                            role="tab" 
+                            aria-selected="false" 
+                            aria-controls="conversations-content"
+                            data-target-tab="conversations-content">
+                            History
+                        </button>
+                    </nav>
                 </div>
-            </section>
-        </div>
-
-        <!-- Sidebar -->
-        <aside class="fixed top-0 right-0 h-full w-80 transform translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:relative md:z-auto bg-white dark:bg-gray-800 border-l border-gray-300 dark:border-gray-700 shadow-lg md:shadow-none overflow-hidden">
-            <!-- Add close button for mobile -->
-            <button id="close-sidebar" class="absolute top-3 left-3 md:hidden p-2 rounded-full bg-gray-200 dark:bg-gray-700 z-10">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                </svg>
-            </button>
-            
-            <!-- Tab navigation - adjust for better touch targets -->
-            <div class="flex border-b border-gray-300 dark:border-gray-700 mt-12 md:mt-0" role="tablist">
-                <button 
-                    class="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400" 
-                    id="config-tab"
-                    role="tab" 
-                    data-target-tab="config-content"
-                    aria-selected="true"
-                    aria-controls="config-content">
-                    Configuration
-                </button>
-                <button 
-                    class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                    id="files-tab"
-                    data-target-tab="files-content"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="files-content">
-                    Files &amp; Context
-                </button>
-                <button 
-                    class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                    id="conversations-tab"
-                    data-target-tab="conversations-content"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="conversations-content">
-                    Conversations
-                </button>
-                <button 
-                    class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                    id="models-tab"
-                    data-target-tab="models-content"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="models-content">
-                    Models
-                </button>
-            </div>
-
-            <!-- Configuration Panel -->
-            <div id="config-content" class="h-full overflow-y-auto p-4" role="tabpanel">
-                <div class="space-y-6">
-                <div>
-                    <label for="model-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">AI Model:</label>
-                    <select
-                        id="model-select"
-                        class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none">
-                        <!-- Options will be populated by ModelManager -->
-                    </select>
-                </div>
-
-                    <div>
-                        <label for="developer-config" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assistant Settings:</label>
-                        <input 
-                            type="text" 
-                            id="developer-config"
-                            value="Formatting re-enabled - use markdown code blocks"
-                            aria-describedby="config-help"
-                            class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none"
-                        >
-                        <p id="config-help" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            Customize the assistant's response format
-                        </p>
-                    </div>
-
-                    <div id="reasoning-controls">
-                        <label for="reasoning-effort-slider" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Reasoning Effort: 
-                            <span id="reasoning-effort-display" class="font-normal">Medium</span>
-                        </label>
-                        <input 
-                            type="range" 
-                            id="reasoning-effort-slider"
-                            min="1" 
-                            max="3" 
-                            value="2"
-                            aria-valuetext="Medium"
-                            class="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                        >
-                        <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            <p id="effort-description-text">
+                
+                <!-- Tab Panels -->
+                <div class="overflow-y-auto h-[calc(100%-8.5rem)]">
+                    <!-- Configuration Tab -->
+                    <div id="config-content" class="p-4 space-y-6" role="tabpanel" aria-labelledby="config-tab">
+                        <div>
+                            <label for="model-select" class="form-label">AI Model</label>
+                            <select id="model-select" class="form-input">
+                                <option value="DeepSeek-R1">DeepSeek-R1 (Default)</option>
+                                <option value="o1hp">o1hp (Advanced Reasoning)</option>
+                                <!-- Options will be populated by ModelManager -->
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label for="developer-config" class="form-label">
+                                System Message
+                                <span class="text-gray-500 dark:text-gray-400 text-xs ml-1">(Optional)</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                id="developer-config"
+                                value="Formatting re-enabled - use markdown code blocks"
+                                aria-describedby="config-help"
+                                class="form-input"
+                            >
+                            <p id="config-help" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Customize how the AI responds and formats answers
+                            </p>
+                        </div>
+                        
+                        <div id="reasoning-controls">
+                            <label for="reasoning-effort-slider" class="form-label flex justify-between">
+                                <span>Reasoning Effort</span>
+                                <span id="reasoning-effort-display" class="text-primary-600 dark:text-primary-400">Medium</span>
+                            </label>
+                            <div class="relative mt-2">
+                                <input 
+                                    type="range" 
+                                    id="reasoning-effort-slider"
+                                    min="1" 
+                                    max="3" 
+                                    value="2"
+                                    aria-valuetext="Medium"
+                                    class="w-full h-2 bg-gray-200 dark:bg-dark-400 rounded-full appearance-none cursor-pointer"
+                                >
+                                <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    <span>Low</span>
+                                    <span>Medium</span>
+                                    <span>High</span>
+                                </div>
+                            </div>
+                            <p id="effort-description-text" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                                 Medium: Balanced processing time (1-3min) and quality
                             </p>
                         </div>
-                    </div>
-
-                    <div class="flex items-center">
-                        <label class="inline-flex items-center">
-                            <input 
-                                type="checkbox" 
-                                id="enable-streaming"
-                                class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            > 
-                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Enable Streaming</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Files Panel -->
-            <div id="files-content" class="h-full overflow-y-auto p-4 hidden" role="tabpanel" aria-hidden="true">
-                <div class="space-y-4">
-                    <div class="flex justify-between bg-gray-100 dark:bg-gray-800 p-2 rounded-md">
-                        <button class="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
-                            <span class="mr-2">📁</span>
-                            Upload Files
-                        </button>
-                        <div>
-                            <label class="inline-flex items-center">
+                        
+                        <div class="flex items-center">
+                            <label class="flex items-center cursor-pointer">
                                 <input 
                                     type="checkbox" 
-                                    id="azure-search" 
-                                    class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                >
-                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                                  Azure Search
-                                  <span class="relative group ml-1 text-blue-500 cursor-pointer" aria-label="More info">
-                                    ℹ️
-                                    <div class="absolute hidden group-hover:block bg-white dark:bg-gray-800 text-xs p-2 mt-1 border border-gray-300 dark:border-gray-700 rounded shadow-md max-w-xs -left-2">
-                                      If enabled, your files are indexed in Azure Search for advanced queries...
-                                    </div>
-                                  </span>
-                                </span>
+                                    id="enable-streaming"
+                                    class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                > 
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Enable Streaming</span>
                             </label>
                         </div>
                     </div>
+                    
+                    <!-- Files Tab -->
+                    <div id="files-content" class="p-4 space-y-4 hidden" role="tabpanel" aria-labelledby="files-tab" aria-hidden="true">
+                        <div class="flex justify-between items-center p-3 bg-gray-50 dark:bg-dark-700 rounded-lg">
+                            <button class="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 touch-action-manipulation">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                                Upload Files
+                            </button>
+                            <div>
+                                <label class="inline-flex items-center cursor-pointer">
+                                    <input 
+                                        type="checkbox" 
+                                        id="azure-search" 
+                                        class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                    >
+                                    <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Azure Search</span>
+                                </label>
+                                <button class="ml-1 text-gray-500 group relative" aria-label="Learn about Azure Search">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span class="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block bg-gray-800 text-white text-xs p-2 rounded w-60">
+                                        Azure Search allows deeper analysis of your documents using Azure's search capabilities
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
 
-                    <div class="flex flex-col sm:flex-row sm:justify-between gap-2 text-xs p-2 bg-gray-100 dark:bg-gray-800 rounded-md text-gray-600 dark:text-gray-400">
-                        <span>Files: <span id="total-files" class="font-mono">0</span></span>
-                        <span>Size: <span id="total-size" class="font-mono">0 B</span></span>
-                        <span>Tokens: <span id="estimated-tokens" class="font-mono">0</span></span>
+                        <div class="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-dark-700 rounded-lg text-xs text-gray-600 dark:text-gray-400">
+                            <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Files: <span id="total-files" class="font-mono">0</span>
+                            </div>
+                            <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                                </svg>
+                                Size: <span id="total-size" class="font-mono">0 B</span>
+                            </div>
+                            <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                                </svg>
+                                Tokens: <span id="estimated-tokens" class="font-mono">0</span>
+                            </div>
+                        </div>
+
+                        <div class="border-2 border-dashed border-gray-300 dark:border-dark-500 rounded-lg p-6 text-center flex-1 touch-action-manipulation">
+                            <p class="text-gray-500 dark:text-gray-400 mb-2">No files uploaded.</p>
+                            <p class="text-xs text-gray-400 dark:text-gray-500">Drop files here to add context.</p>
+                        </div>
+
+                        <input 
+                            type="file" 
+                            id="file-input"
+                            accept=".txt,.md,.json,.js,.py,.html,.css,.pdf,.docx,.doc,.csv,.xlsx"
+                            multiple 
+                            class="hidden">
                     </div>
-
-                    <div class="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center flex-1">
-                        <p class="text-gray-500 dark:text-gray-400 mb-2">No files uploaded.</p>
-                        <p class="text-xs text-gray-400 dark:text-gray-500">Drop files here to add context.</p>
+                    
+                    <!-- Conversation History Tab -->
+                    <div id="conversations-content" class="p-4 space-y-4 hidden" role="tabpanel" aria-labelledby="conversations-tab" aria-hidden="true">
+                        <h3 class="text-lg font-semibold">Conversation Management</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                            Save current conversation or load a previous one
+                        </p>
+                        
+                        <div class="flex flex-wrap gap-2">
+                            <button id="save-convo-btn" class="btn btn-primary">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                </svg>
+                                Save Conversation
+                            </button>
+                            <button id="clear-convo-btn" class="btn btn-danger">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Clear Conversation
+                            </button>
+                        </div>
+                        
+                        <div class="border-t border-gray-200 dark:border-dark-400 my-4 pt-4">
+                            <label for="conversation-list" class="form-label">
+                                Saved Conversations
+                            </label>
+                            <select id="conversation-list" class="form-input">
+                                <option value="">-- Select a conversation --</option>
+                                <!-- Options will be populated by JavaScript -->
+                            </select>
+                        </div>
+                        
+                        <div id="conversation-list-container" class="mt-4 space-y-2">
+                            <!-- Saved conversations will be listed here -->
+                            <p class="text-sm text-gray-500 dark:text-gray-400 text-center">No saved conversations found</p>
+                        </div>
                     </div>
-
-                    <input 
-                        type="file" 
-                        id="file-input"
-                        accept=".txt,.md,.json,.js,.py,.html,.css,.pdf,.docx,.doc"
-                        multiple 
-                        class="hidden">
                 </div>
-            </div>
-            <div id="conversations-content" class="h-full overflow-y-auto p-4 hidden" role="tabpanel" aria-hidden="true">
-                <h2 class="text-lg font-semibold mb-2">Conversation Management</h2>
-                <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                    Manage or switch between saved conversations.
-                </p>
-                <button id="save-convo-btn" class="btn-primary mb-2">
-                    Save Conversation
-                </button>
-                <button id="clear-convo-btn" class="btn-danger mb-2 ml-2">
-                    Clear Conversation
-                </button>
-                <hr class="my-4" />
-                <div>
-                    <label for="conversation-list" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Load a saved conversation:
-                    </label>
-                    <select id="conversation-list" class="form-select w-full">
-                        <option value="">-- Select --</option>
-                    </select>
-                </div>
-            </div>
+            </aside>
             
-            <!-- Model Management Panel -->
-            <div id="models-content" class="h-full overflow-y-auto p-4 hidden" role="tabpanel" aria-hidden="true">
-                <div class="space-y-4">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-lg font-semibold">Model Management</h2>
-                        <button id="add-model-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md shadow-sm touch-action-manipulation">
-                            <span>Add Model</span>
-                        </button>
-                    </div>
-                    
-                    <!-- Models list - Content will be populated by JavaScript -->
-                    <div id="models-list" class="space-y-2">
-                        <div class="text-gray-500 dark:text-gray-400 text-sm p-4 text-center">Loading models...</div>
-                    </div>
-                    
-                    <!-- Model form container - Initially hidden -->
-                    <div id="model-form-container" class="hidden border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-gray-50 dark:bg-gray-800 shadow-md">
-                        <h3 class="text-md font-medium mb-3" id="model-form-title">Add New Model</h3>
-                        <form id="model-form" class="space-y-3">
-                            <input type="hidden" id="model-form-mode" value="add">
-                            <input type="hidden" id="model-form-id" value="">
-                            
-                            <div>
-                                <label for="model-name" class="block text-sm font-medium">Model ID/Name</label>
-                                <input type="text" id="model-name" class="form-input w-full p-2 md:p-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none" required>
-                                <p class="text-xs text-gray-500 mt-1">Used for deployment name (e.g., "gpt-4" or "o1hp")</p>
-                            </div>
-                            
-                            <div>
-                                <label for="model-description" class="block text-sm font-medium">Description</label>
-                                <input type="text" id="model-description" class="form-input w-full p-2 md:p-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none">
-                            </div>
-                            
-                            <div>
-                                <label for="model-endpoint" class="block text-sm font-medium">Azure Endpoint</label>
-                                <input type="url" id="model-endpoint" class="form-input w-full p-2 md:p-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none" required>
-                            </div>
-                            
-                            <div>
-                                <label for="model-api-version" class="block text-sm font-medium">API Version</label>
-                                <input type="text" id="model-api-version" class="form-input w-full p-2 md:p-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none" value="2025-01-01-preview" required>
-                            </div>
-                            
-                            <div>
-                                <label for="model-max-tokens" class="block text-sm font-medium">Max Tokens</label>
-                                <input type="number" id="model-max-tokens" class="form-input w-full p-2 md:p-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none" min="1024" max="128000" value="4096" required>
-                            </div>
-                            
-                            <div class="flex flex-col sm:flex-row sm:space-x-8 space-y-3 sm:space-y-0">
-                                <div class="flex items-center">
-                                    <input type="checkbox" id="model-supports-temperature" class="h-5 w-5 md:h-4 md:w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <label for="model-supports-temperature" class="ml-2 text-sm">Supports Temperature</label>
-                                </div>
-                                <div class="flex items-center">
-                                    <input type="checkbox" id="model-supports-streaming" class="h-5 w-5 md:h-4 md:w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <label for="model-supports-streaming" class="ml-2 text-sm">Supports Streaming</label>
-                                </div>
-                            </div>
-                            
-                            <div class="pt-2 flex justify-end space-x-2">
-                                <button type="button" id="model-form-cancel" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500">Cancel</button>
-                                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">Save</button>
-                            </div>
-                        </form>
-                    </div>
+            <!-- Sidebar Overlay (for mobile) -->
+            <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden" aria-hidden="true"></div>
+        </main>
+
+        <!-- Error Display -->
+        <div id="error-display" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="alert alert-danger max-w-md w-full mx-4">
+                <h3 class="text-lg font-bold mb-2">Error</h3>
+                <p id="error-message">An unexpected error occurred.</p>
+                <div class="mt-4 flex justify-end">
+                    <button class="btn btn-secondary">Dismiss</button>
                 </div>
             </div>
-        </aside>
+        </div>
 
-        <!-- Add modal overlay for mobile -->
-        <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden"></div>
-
-        <!-- Adjust mobile sidebar toggle -->
+        <!-- Notification Container -->
+        <div id="notification-container" class="fixed top-4 right-4 z-50 space-y-2 pointer-events-none"></div>
+        
+        <!-- Mobile-only Action Button (fixed to bottom right) -->
         <button 
-            class="fixed bottom-24 right-4 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 md:hidden z-50"
-            aria-label="Settings"
-            aria-controls="config-content files-content"
-            aria-expanded="false">
-            <span class="sr-only">Toggle settings</span>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+            class="fixed bottom-24 right-4 bg-primary-600 text-white p-3 rounded-full shadow-lg hover:bg-primary-700 md:hidden z-10 touch-action-manipulation"
+            id="mobile-action-btn"
+            aria-label="Actions"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
             </svg>
         </button>
-    </main>
+    </div>
 
-    <!-- Error Display -->
-    <div id="error-display" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg max-w-md w-full mx-4 border-l-4 border-red-500">
-            <h3 class="text-lg font-bold text-red-600 dark:text-red-400 mb-2">Error</h3>
-            <p class="text-gray-800 dark:text-gray-200" id="error-message">An unexpected error occurred.</p>
-            <button class="mt-4 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-2 rounded">Dismiss</button>
+    <!-- Mobile Action Menu (hidden by default) -->
+    <div id="mobile-action-menu" class="fixed inset-x-0 bottom-0 bg-white dark:bg-dark-600 rounded-t-xl shadow-xl z-50 transform translate-y-full transition-transform hidden safe-area-inset-bottom">
+        <div class="p-4 space-y-4">
+            <div class="flex justify-between items-center border-b border-gray-200 dark:border-dark-400 pb-2">
+                <h2 class="text-lg font-semibold">Actions</h2>
+                <button id="close-mobile-menu" class="btn btn-icon btn-secondary" aria-label="Close menu">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <button class="btn btn-secondary flex flex-col items-center justify-center py-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+                    <span>Save Chat</span>
+                </button>
+                
+                <button class="btn btn-secondary flex flex-col items-center justify-center py-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>Regenerate</span>
+                </button>
+                
+                <button class="btn btn-secondary flex flex-col items-center justify-center py-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <span>Upload File</span>
+                </button>
+                
+                <button class="btn btn-danger flex flex-col items-center justify-center py-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>Clear Chat</span>
+                </button>
+            </div>
         </div>
     </div>
 
-    <!-- Notification Container -->
-    <div id="notification-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
-
-    <!-- Initialization & New Modules -->
-    <!-- Inline the basic send functionality to be sure it works -->
+    <!-- Service worker for PWA support -->
     <script>
-      // Universal send message handler - works without modules
-      function universalSendMessage() {
-        console.log("Universal send handler triggered");
-        // Try to call the send function directly first
-        try {
-          if (typeof sendMessage === 'function') {
-            sendMessage();
-            return false;
-          }
-        } catch (err) {
-          console.log("Direct call to sendMessage failed, using event system");
+        // Very basic inline script to handle immediate interactions
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/static/js/utils/service-worker.js')
+                    .then(function(registration) {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(function(error) {
+                        console.log('ServiceWorker registration failed: ', error);
+                    });
+            });
         }
         
-        // Fallback to event system
-        window.dispatchEvent(new CustomEvent('send-message'));
-        return false;
-      }
-      
-      // Make universalSendMessage globally available
-      window.universalSendMessage = universalSendMessage;
-      
-      // This function runs immediately, before any modules load
-      (function setupSendButton() {
-        console.log("Immediate send button setup running");
-        
-        // Set a global variable that modules can check
-        window.sendButtonInitialized = false;
-        window.triggerSendMessage = universalSendMessage;
-        
-        function initSendButton() {
-          const sendButton = document.getElementById('send-button');
-          const sendTapTarget = document.getElementById('send-tap-target');
-          const userInput = document.getElementById('user-input');
-          
-          if (!sendButton) {
-            console.error("Send button not found");
-            return false;
-          }
-          
-          console.log("Setting up send button handlers - native DOM");
-          
-          // Ensure onclick is set with the globally available function
-          sendButton.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            window.universalSendMessage();
-            return false;
-          };
-          
-          // Add multiple event types for better mobile capture
-          ['mousedown', 'touchstart', 'pointerdown', 'click'].forEach(function(event) {
-            sendButton.addEventListener(event, function(e) {
-              console.log("Send button " + event + " triggered");
-              e.preventDefault();
-              e.stopPropagation();
-              window.universalSendMessage();
-            }, {capture: true, passive: false});
-            
-            // Also add to the larger tap target
-            if (sendTapTarget) {
-              sendTapTarget.addEventListener(event, function(e) {
-                console.log("Tap target " + event + " triggered");
-                e.preventDefault();
-                e.stopPropagation();
-                window.universalSendMessage();
-              }, {capture: true, passive: false});
+        // Universal send message handler (basic functionality)
+        function universalSendMessage() {
+            console.log("Universal send handler triggered");
+            // Try to call the send function directly first
+            try {
+                if (typeof sendMessage === 'function') {
+                    sendMessage();
+                    return false;
+                }
+            } catch (err) {
+                console.log("Direct call to sendMessage failed, using event system");
             }
-          });
-          
-          // Enter key handler for input field
-          if (userInput) {
-            userInput.addEventListener('keypress', function(e) {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                window.universalSendMessage();
-              }
-            });
-          }
-          
-          window.sendButtonInitialized = true;
-          return true;
+            
+            // Fallback to event system
+            window.dispatchEvent(new CustomEvent('send-message'));
+            return false;
         }
         
-        // Try immediately
-        if (document.readyState === 'complete' || document.readyState === 'interactive') {
-          initSendButton();
-        }
-        
-        // Also try on DOMContentLoaded
-        document.addEventListener('DOMContentLoaded', function() {
-          initSendButton();
-        });
-        
-        // Final fallback - try after a delay and repeat to ensure it works
-        window.addEventListener('load', function() {
-          // Try multiple times with increasing delays
-          [100, 500, 1000, 2000].forEach(function(delay) {
-            setTimeout(function() {
-              if (!window.sendButtonInitialized) {
-                console.warn("Send button not initialized yet - retrying after " + delay + "ms");
-                initSendButton();
-              }
-            }, delay);
-          });
-        });
-      })();
+        // Make universalSendMessage globally available
+        window.universalSendMessage = universalSendMessage;
     </script>
     
-    <!-- Load the module scripts after our core functionality is set up -->
-    <script type="module" src="/static/js/init.js"></script>
-    <script type="module" src="/static/js/chat.js"></script>
-    <script type="module" src="/static/js/streaming.js"></script>
-    
-    <script>
-      // Register service worker for PWA support
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/static/js/utils/service-worker.js')
-            .then(function(registration) {
-              console.log('ServiceWorker registration successful with scope: ', registration.scope);
-            })
-            .catch(function(error) {
-              console.log('ServiceWorker registration failed: ', error);
-            });
-        });
-      }
-    </script>
+    <!-- Core Modules (deferred for better performance) -->
+    <script type="module" src="/static/js/init.js" defer></script>
+    <script type="module" src="/static/js/chat.js" defer></script>
+    <script type="module" src="/static/js/streaming.js" defer></script>
 </body>
 </html>
