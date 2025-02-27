@@ -99,7 +99,10 @@ class ConfigService:
                 "api_version": config.AZURE_INFERENCE_API_VERSION,
                 "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
                 "supports_temperature": True,
-                "supports_streaming": True
+                "supports_streaming": True,
+                "base_timeout": 120.0,
+                "max_timeout": 300.0,
+                "token_factor": 0.05
             }
             await self.set_config("model_configs", db_models, "Model configurations", is_secret=True)
         elif deepseek_key != "DeepSeek-R1":
@@ -185,7 +188,13 @@ class ConfigService:
             model_config["reasoning_effort"] = config.O_SERIES_DEFAULT_REASONING_EFFORT
             model_config["supports_streaming"] = False
             
-        # Ensure required fields are set
+        # Ensure all required fields are set
+        required_fields = {
+            'name', 'max_tokens', 'supports_streaming',
+            'supports_temperature', 'api_version', 'azure_endpoint'
+        }
+        
+        # Add default values for missing required fields
         if "name" not in model_config:
             model_config["name"] = model_id
         if "azure_endpoint" not in model_config:
@@ -193,6 +202,28 @@ class ConfigService:
                 model_config["azure_endpoint"] = config.AZURE_INFERENCE_ENDPOINT
             else:
                 model_config["azure_endpoint"] = config.AZURE_OPENAI_ENDPOINT
+        if "api_version" not in model_config:
+            if config.is_deepseek_model(model_id):
+                model_config["api_version"] = config.AZURE_INFERENCE_API_VERSION
+            else:
+                model_config["api_version"] = config.AZURE_OPENAI_API_VERSION
+        if "max_tokens" not in model_config:
+            if config.is_deepseek_model(model_id):
+                model_config["max_tokens"] = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+            else:
+                model_config["max_tokens"] = 4096
+        if "supports_streaming" not in model_config:
+            model_config["supports_streaming"] = config.is_deepseek_model(model_id)
+        if "supports_temperature" not in model_config:
+            model_config["supports_temperature"] = config.is_deepseek_model(model_id)
+        
+        # Add required numeric fields with defaults
+        if "base_timeout" not in model_config:
+            model_config["base_timeout"] = 120.0
+        if "max_timeout" not in model_config:
+            model_config["max_timeout"] = 300.0
+        if "token_factor" not in model_config:
+            model_config["token_factor"] = 0.05
                 
         # Add to models
         models[model_id] = model_config
@@ -209,6 +240,20 @@ class ConfigService:
             model_config["max_completion_tokens"] = config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
             model_config["requires_reasoning_effort"] = True
             model_config["reasoning_effort"] = config.O_SERIES_DEFAULT_REASONING_EFFORT
+        
+        # Ensure required numeric fields are present
+        if "base_timeout" not in model_config:
+            model_config["base_timeout"] = 120.0
+        if "max_timeout" not in model_config:
+            model_config["max_timeout"] = 300.0
+        if "token_factor" not in model_config:
+            model_config["token_factor"] = 0.05
+            
+        # Preserve existing values for required fields if not provided
+        existing_config = models[model_id]
+        for field in ['name', 'max_tokens', 'supports_streaming', 'supports_temperature', 'api_version', 'azure_endpoint']:
+            if field not in model_config:
+                model_config[field] = existing_config.get(field)
             
         models[model_id] = model_config
         return await self.set_config("model_configs", models, "Model configurations", is_secret=True)
@@ -220,6 +265,11 @@ class ConfigService:
             return False
         del models[model_id]
         return await self.set_config("model_configs", models, "Model configurations", is_secret=True)
+        
+    async def get_model_config(self, model_id: str) -> Optional[Dict[str, Any]]:
+        """Get a specific model configuration"""
+        models = await self.get_model_configs()
+        return models.get(model_id)
 
 def get_config_service(db=Depends(get_db_session)):
     """

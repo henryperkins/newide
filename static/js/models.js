@@ -941,11 +941,27 @@ class ModelManager {
             // Track this API call
             this.pendingModelActions[modelId] = 'create';
             
+            // Ensure all required fields are present
+            const completeConfig = {
+                ...modelConfig,
+                // Add missing required fields with defaults if not present
+                base_timeout: modelConfig.base_timeout || 120.0,
+                max_timeout: modelConfig.max_timeout || 300.0,
+                token_factor: modelConfig.token_factor || 0.05,
+                // Ensure these are present
+                name: modelConfig.name || modelId,
+                max_tokens: modelConfig.max_tokens || (modelId.toLowerCase() === "deepseek-r1" ? 32000 : 40000),
+                supports_streaming: modelConfig.supports_streaming !== undefined ? modelConfig.supports_streaming : 
+                                   (modelId.toLowerCase() === "deepseek-r1"),
+                supports_temperature: modelConfig.supports_temperature !== undefined ? modelConfig.supports_temperature : 
+                                     (modelId.toLowerCase() === "deepseek-r1")
+            };
+            
             // Use relative URL to ensure we're connecting to the current server
             const response = await fetch(`/api/config/models/${modelId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(modelConfig),
+                body: JSON.stringify(completeConfig),
                 // Ensure we're not using cached responses
                 cache: 'no-cache'
             });
