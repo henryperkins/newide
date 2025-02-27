@@ -3,6 +3,7 @@
 import { initializeSession, sessionId, getLastUserMessage, setLastUserMessage } from '/static/js/session.js';
 import { getCurrentConfig, getModelSettings } from '/static/js/config.js';
 import { showNotification, showTypingIndicator, removeTypingIndicator, handleMessageError } from '/static/js/ui/notificationManager.js';
+import { updateTokenUsage } from '/static/js/utils/helpers.js';
 import { displayMessage, processServerResponseData } from '/static/js/ui/displayManager.js';
 import { handleStreamingResponse } from '/static/js/streaming.js';
 import StatsDisplay from '/static/js/ui/statsDisplay.js'; // If you're instantiating StatsDisplay here
@@ -372,20 +373,50 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
     body: JSON.stringify(requestBody)
   };
 
-  try {
-    const response = await fetch(url, init);
-    
-    if (!response.ok) {
-          console.error('[makeApiRequest] Error response:', response.status, response.statusText);
-          // Skip reading response body here so the caller can parse it once
-          console.warn('[makeApiRequest] Skipping response.json() to avoid using the body multiple times.');
+  // Implement retry logic with exponential backoff for rate limit errors
+  const maxRetries = 3;
+  let retryCount = 0;
+  let retryDelay = 2000; // Start with 2 seconds
+
+  while (retryCount <= maxRetries) {
+    try {
+      const response = await fetch(url, init);
+      
+      // If we get a 429, implement retry with exponential backoff
+      if (response.status === 429) {
+        if (retryCount < maxRetries) {
+          console.warn(`[makeApiRequest] Rate limited (429). Retrying in ${retryDelay/1000}s... (Attempt ${retryCount + 1}/${maxRetries})`);
+          
+          // Show a temporary notification about retrying
+          if (typeof showNotification === 'function') {
+            showNotification(`Rate limited by Azure. Retrying in ${retryDelay/1000}s... (${retryCount + 1}/${maxRetries})`, 'warning', retryDelay);
+          }
+          
+          // Wait for the retry delay
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          
+          // Increase the retry delay exponentially (2s, 4s, 8s, etc.)
+          retryDelay *= 2;
+          retryCount++;
+          continue;
+        }
+      }
+      
+      if (!response.ok) {
+        console.error('[makeApiRequest] Error response:', response.status, response.statusText);
+        // Skip reading response body here so the caller can parse it once
+        console.warn('[makeApiRequest] Skipping response.json() to avoid using the body multiple times.');
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('[makeApiRequest] Fetch error:', error);
+      throw error;
     }
-    
-    return response;
-  } catch (error) {
-    console.error('[makeApiRequest] Fetch error:', error);
-    throw error;
   }
+  
+  // If we've exhausted all retries, throw an error
+  throw new Error(`Rate limit exceeded after ${maxRetries} retries. Please try again later.`);
 }
 
 /**

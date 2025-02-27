@@ -40,7 +40,57 @@ export function handleApplicationError(error, context = 'application') {
  */
 export async function handleMessageError(error) {
   console.error('[handleMessageError]', error);
-
+  
+  // Remove typing indicator if it's still showing
+  removeTypingIndicator();
+  
+  // Check for rate limit errors (429)
+  if (error.message && error.message.includes('429')) {
+    // Extract the Azure error details if available
+    let detailMessage = 'The Azure AI service is currently rate limited. Please wait a moment and try again.';
+    
+    try {
+      // Try to extract more specific details from the error message
+      const detailsMatch = error.message.match(/details: (.*?)(?:\}|$)/);
+      if (detailsMatch && detailsMatch[1]) {
+        const details = JSON.parse(detailsMatch[1] + '}');
+        if (details.detail) {
+          detailMessage = 'Azure AI Rate Limit: ' + details.detail.split('\n')[0];
+        }
+      }
+    } catch (e) {
+      console.warn('Could not parse error details:', e);
+    }
+    
+    // Show a user-friendly rate limit message
+    showNotification(detailMessage, 'warning', 10000); // Show for 10 seconds
+    
+    // Add a retry button to the notification
+    const notification = document.querySelector('.notification');
+    if (notification) {
+      const retryBtn = document.createElement('button');
+      retryBtn.className = 'retry-btn ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600';
+      retryBtn.textContent = 'Retry';
+      retryBtn.onclick = () => {
+        notification.remove();
+        // Get the last message from the input or session
+        const lastMessage = document.getElementById('user-input').value || 
+                           window.getLastUserMessage?.() || 
+                           'Continue our conversation';
+        
+        // Wait a moment before retrying
+        setTimeout(() => {
+          if (window.sendMessage) {
+            window.sendMessage();
+          }
+        }, 1000);
+      };
+      notification.appendChild(retryBtn);
+    }
+    
+    return;
+  }
+  
   let errorMessage = 'An unexpected error occurred';
   let errorDetails = [];
 
