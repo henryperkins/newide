@@ -1,706 +1,485 @@
-// tailwind.config.js
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    './static/**/*.html',
-    './static/**/*.js',
-    './templates/**/*.html',
+    "./static/**/*.{html,js}",
+    "./templates/**/*.{html,py}",  // If you have a templates directory
+    // More specific patterns instead of the broad "./**/*.{html,js,py}"
+    "./*.{html,py}" // For files in the root directory
   ],
   safelist: [
-    'selection:bg-primary-900/20',
-    'selection:bg-primary-100',
-    'selection:text-primary-900',
-    'selection:text-dracula-foreground',
+    // Add specific ring utilities that might be used dynamically
+    'ring-primary-500/60',
+    'ring-primary-400/60',
+    'focus:ring-primary-500',
+    'focus:ring-primary-500/60',
+    'focus:ring-2',
+    'ring-2',
   ],
-  darkMode: 'class', // Use class-based dark mode for explicit control
+  darkMode: 'class', // Consistent dark mode approach
   theme: {
     extend: {
-      // Enable selection variant with opacity modifiers
-      opacity: {
-        '20': '0.2', // Add explicit 20% opacity if not already defined
-        '60': '0.6', // Add 60% opacity for ring utilities
-      },
-      ringOpacity: {
-        '60': '0.6', // Explicitly add ring opacity
-      },
-      // Consistent color system with Dracula theme
       colors: {
+        // Define primary design system colors with proper naming
         primary: {
-          50:  'oklch(97% 0.03 348)',
-          100: 'oklch(94% 0.05 348)',
-          200: 'oklch(90% 0.07 348)',
-          300: 'oklch(85% 0.10 348)',
-          400: 'oklch(80% 0.15 348)',
-          500: 'oklch(75% 0.18 347)', // Dracula pink
-          600: 'oklch(70% 0.17 346)',
-          700: 'oklch(65% 0.16 345)',
-          800: 'oklch(60% 0.13 345)',
-          900: 'oklch(50% 0.10 345)',
-          950: 'oklch(40% 0.08 345)',
+          50: 'oklch(97% 0.029 276)',
+          100: 'oklch(94% 0.048 276)',
+          200: 'oklch(89% 0.078 276)',
+          300: 'oklch(83% 0.107 276)',
+          400: 'oklch(76% 0.126 276)',
+          500: 'oklch(68% 0.140 276)', // Base primary color
+          600: 'oklch(60% 0.135 276)',
+          700: 'oklch(52% 0.130 276)',
+          800: 'oklch(44% 0.118 276)',
+          900: 'oklch(36% 0.095 276)',
+          950: 'oklch(28% 0.075 276)',
         },
+        // Secondary accent color
         secondary: {
-          50:  'oklch(96% 0.03 302)',
-          100: 'oklch(92% 0.05 302)',
-          200: 'oklch(88% 0.07 302)',
-          300: 'oklch(84% 0.09 302)',
-          400: 'oklch(80% 0.12 302)',
-          500: 'oklch(74% 0.15 302)', // Dracula purple
-          600: 'oklch(68% 0.13 301)',
-          700: 'oklch(60% 0.12 300)',
-          800: 'oklch(50% 0.10 300)',
-          900: 'oklch(40% 0.08 300)',
-          950: 'oklch(30% 0.06 300)',
+          50: 'oklch(97% 0.029 333)',
+          100: 'oklch(94% 0.048 333)',
+          200: 'oklch(89% 0.078 333)',
+          300: 'oklch(83% 0.107 333)',
+          400: 'oklch(76% 0.126 333)',
+          500: 'oklch(68% 0.140 333)', // Base secondary color
+          600: 'oklch(60% 0.135 333)',
+          700: 'oklch(52% 0.130 333)',
+          800: 'oklch(44% 0.118 333)',
+          900: 'oklch(36% 0.095 333)',
+          950: 'oklch(28% 0.075 333)',
         },
-        accent: {
-          50:  'oklch(98% 0.03 67)',
-          100: 'oklch(95% 0.05 67)',
-          200: 'oklch(92% 0.07 67)',
-          300: 'oklch(88% 0.09 67)',
-          400: 'oklch(85% 0.12 67)',
-          500: 'oklch(83% 0.12 67)', // Dracula yellow
-          600: 'oklch(75% 0.11 66)',
-          700: 'oklch(65% 0.10 65)',
-          800: 'oklch(55% 0.09 65)',
-          900: 'oklch(45% 0.08 65)',
-          950: 'oklch(35% 0.06 65)',
-        },
-        dracula: {
-          background: 'oklch(29% 0.02 278)',
-          currentLine: 'oklch(27% 0.02 278)',
-          selection: 'oklch(39% 0.03 276)',
-          foreground: 'oklch(98% 0.01 107)',
-          comment: 'oklch(39% 0.03 276)',
-          cyan: 'oklch(88% 0.09 213)',
-          green: 'oklch(87% 0.22 148)',
-          orange: 'oklch(96% 0.13 113)',
-          pink: 'oklch(75% 0.18 347)',
-          purple: 'oklch(74% 0.15 302)',
-          red: 'oklch(68% 0.21 24)',
-          yellow: 'oklch(83% 0.12 67)',
-        },
-        surface: {
-          DEFAULT: 'white',
-          50: 'white',
-          100: 'oklch(98% 0.005 0)',
-          200: 'oklch(96% 0.005 0)',
-          300: 'oklch(94% 0.005 0)',
-          400: 'oklch(92% 0.005 0)',
-          500: 'oklch(90% 0.005 0)',
-        },
+        // Neutral colors for text and backgrounds
         dark: {
-          DEFAULT: 'oklch(29% 0.02 278)', // Dracula background
-          50: 'oklch(39% 0.03 276)',       // Dracula selection
-          100: 'oklch(37% 0.03 276)',
-          200: 'oklch(35% 0.03 276)',
-          300: 'oklch(33% 0.03 276)',
-          400: 'oklch(31% 0.02 277)',
-          500: 'oklch(29% 0.02 278)',     // Dracula background
-          600: 'oklch(27% 0.02 277)',     // Dracula current line
-          700: 'oklch(25% 0.019 278)',    // Dracula deeper dark
-          800: 'oklch(22% 0.019 278)',
-          900: 'oklch(18% 0.018 278)',
-          950: 'oklch(15% 0.018 278)',
+          50: 'oklch(98% 0.005 276)',
+          100: 'oklch(95% 0.008 276)',
+          200: 'oklch(86% 0.010 276)',
+          300: 'oklch(76% 0.012 276)',
+          400: 'oklch(67% 0.015 276)',
+          500: 'oklch(54% 0.018 276)',
+          600: 'oklch(42% 0.019 276)',
+          700: 'oklch(32% 0.020 276)',
+          800: 'oklch(24% 0.018 276)',
+          900: 'oklch(18% 0.014 276)',
+          950: 'oklch(13% 0.010 276)',
+        },
+        // Consistent semantic colors
+        success: {
+          50: 'oklch(96% 0.05 145)',
+          100: 'oklch(93% 0.08 145)',
+          500: 'oklch(65% 0.22 145)',
+          700: 'oklch(45% 0.18 145)',
+          900: 'oklch(33% 0.12 145)',
+        },
+        warning: {
+          50: 'oklch(97% 0.05 85)',
+          100: 'oklch(94% 0.08 85)',
+          500: 'oklch(75% 0.20 85)',
+          700: 'oklch(60% 0.18 85)',
+          900: 'oklch(40% 0.12 85)',
+        },
+        error: {
+          50: 'oklch(97% 0.05 30)',
+          100: 'oklch(94% 0.08 30)',
+          500: 'oklch(65% 0.25 30)',
+          700: 'oklch(50% 0.22 30)',
+          900: 'oklch(35% 0.15 30)',
         },
       },
-      // Standardized typography scales
       fontFamily: {
-        'sans': ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-        'mono': ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
       },
       fontSize: {
-        'xs':  ['0.75rem', { lineHeight: '1rem' }],     // 12px
-        'sm':  ['0.875rem', { lineHeight: '1.25rem' }], // 14px
-        'base': ['1rem', { lineHeight: '1.5rem' }],     // 16px
-        'lg':  ['1.125rem', { lineHeight: '1.75rem' }], // 18px
-        'xl':  ['1.25rem', { lineHeight: '1.75rem' }],  // 20px
-        '2xl': ['1.5rem', { lineHeight: '2rem' }],      // 24px
-        '3xl': ['1.875rem', { lineHeight: '2.25rem' }], // 30px
-        '4xl': ['2.25rem', { lineHeight: '2.5rem' }],   // 36px
-        '5xl': ['3rem', { lineHeight: '1' }],           // 48px
+        // Ensure consistent typographic scale
+        xs: ['0.75rem', { lineHeight: '1rem' }],
+        sm: ['0.875rem', { lineHeight: '1.25rem' }],
+        base: ['1rem', { lineHeight: '1.5rem' }],
+        lg: ['1.125rem', { lineHeight: '1.75rem' }],
+        xl: ['1.25rem', { lineHeight: '1.75rem' }],
+        '2xl': ['1.5rem', { lineHeight: '2rem' }],
+        '3xl': ['1.875rem', { lineHeight: '2.25rem' }],
       },
-      // Consistent spacing and sizing
       spacing: {
-        '4xs': '0.125rem', // 2px
-        '3xs': '0.1875rem', // 3px
-        '2xs': '0.25rem',  // 4px  
-        'xs':  '0.5rem',   // 8px
-        'sm':  '0.75rem',  // 12px
-        'md':  '1rem',     // 16px
-        'lg':  '1.5rem',   // 24px
-        'xl':  '2rem',     // 32px
-        '2xl': '2.5rem',   // 40px
-        '3xl': '3rem',     // 48px
-        '4xl': '4rem',     // 64px
+        // Ensure consistent spacing
+        '0': '0',
+        '1': '0.25rem',
+        '2': '0.5rem',
+        '3': '0.75rem',
+        '4': '1rem',
+        '5': '1.25rem',
+        '6': '1.5rem',
+        '8': '2rem',
+        '10': '2.5rem',
+        '12': '3rem',
+        '16': '4rem',
+        '20': '5rem',
+        '24': '6rem',
+        '32': '8rem',
+        '40': '10rem',
+        '48': '12rem',
+        '56': '14rem',
+        '64': '16rem',
       },
-      borderRadius: {
-        'xs':  '0.125rem', // 2px
-        'sm':  '0.25rem',  // 4px
-        'md':  '0.375rem', // 6px
-        'lg':  '0.5rem',   // 8px
-        'xl':  '0.75rem',  // 12px
-        '2xl': '1rem',     // 16px
-        '3xl': '1.5rem',   // 24px
-        '4xl': '2rem',     // 32px
-      },
-      screens: {
-        'xs': '360px',     // Small mobile
-        'sm': '640px',     // Mobile
-        'md': '768px',     // Tablet
-        'lg': '1024px',    // Desktop
-        'xl': '1280px',    // Large desktop
-        '2xl': '1536px',   // Extra large desktop
-      },
-      boxShadow: {
-        'sm': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-        'md': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        'lg': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-        'xl': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-        'inner': 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)',
-        'focus': '0 0 0 3px rgba(164, 144, 255, 0.45)',
-        'focus-error': '0 0 0 3px rgba(220, 38, 38, 0.35)',
-        'dark-focus': '0 0 0 3px rgba(189, 147, 249, 0.45)',
-      },
-      // Animations
       animation: {
-        'fade-in': 'fadeIn 0.2s ease-in forwards',
-        'fade-out': 'fadeOut 0.2s ease-out forwards',
-        'slide-in-right': 'slideInRight 0.3s ease-out',
-        'slide-out-right': 'slideOutRight 0.3s ease-in',
-        'slide-in-bottom': 'slideInBottom 0.3s ease-out',
-        'slide-out-bottom': 'slideOutBottom 0.3s ease-in',
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'spin-slow': 'spin 2s linear infinite',
+        'spin': 'spin 1s linear infinite',
+        'fade-in': 'fadeIn 0.3s ease-in-out',
+        'fade-out': 'fadeOut 0.3s ease-in-out',
+        'slide-in-right': 'slideInRight 0.3s ease-in-out',
+        'slide-out-right': 'slideOutRight 0.3s ease-in-out',
       },
       keyframes: {
         fadeIn: {
-          '0%': { opacity: 0 },
-          '100%': { opacity: 1 },
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
         },
         fadeOut: {
-          '0%': { opacity: 1 },
-          '100%': { opacity: 0 },
+          '0%': { opacity: '1' },
+          '100%': { opacity: '0' },
         },
         slideInRight: {
-          '0%': { transform: 'translateX(100%)', opacity: 0 },
-          '100%': { transform: 'translateX(0)', opacity: 1 },
+          '0%': { transform: 'translateX(100%)' },
+          '100%': { transform: 'translateX(0)' },
         },
         slideOutRight: {
-          '0%': { transform: 'translateX(0)', opacity: 1 },
-          '100%': { transform: 'translateX(100%)', opacity: 0 },
-        },
-        slideInBottom: {
-          '0%': { transform: 'translateY(20px)', opacity: 0 },
-          '100%': { transform: 'translateY(0)', opacity: 1 },
-        },
-        slideOutBottom: {
-          '0%': { transform: 'translateY(0)', opacity: 1 },
-          '100%': { transform: 'translateY(20px)', opacity: 0 },
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(100%)' },
         },
       },
-      // Typography plugin customizations for markdown
-      typography: (theme) => ({
-        DEFAULT: {
-          css: {
-            maxWidth: 'none',
-            color: theme('colors.gray.900'),
-            a: {
-              color: theme('colors.primary.600'),
-              '&:hover': {
-                color: theme('colors.primary.700'),
-              },
-            },
-            code: {
-              color: theme('colors.purple.600'),
-              backgroundColor: theme('colors.gray.100'),
-              borderRadius: theme('borderRadius.sm'),
-              padding: `${theme('spacing.2xs')} ${theme('spacing.xs')}`,
-              fontWeight: '400',
-              fontFamily: theme('fontFamily.mono'),
-            },
-            'code::before': {
-              content: '""',
-            },
-            'code::after': {
-              content: '""',
-            },
-            pre: {
-              backgroundColor: theme('colors.gray.100'),
-              color: theme('colors.gray.900'),
-              borderRadius: theme('borderRadius.md'),
-              padding: theme('spacing.md'),
-              fontSize: theme('fontSize.sm[0]'),
-              fontFamily: theme('fontFamily.mono'),
-              fontWeight: '400',
-              lineHeight: '1.6',
-              overflowX: 'auto',
-            },
-            'pre code': {
-              backgroundColor: 'transparent',
-              color: 'inherit',
-              fontSize: 'inherit',
-              fontWeight: 'inherit',
-              lineHeight: 'inherit',
-              padding: '0',
-            },
-            blockquote: {
-              color: theme('colors.gray.600'),
-              borderLeftColor: theme('colors.gray.300'),
-              fontStyle: 'normal',
-            },
-            // More additions to typography plugin...
-          },
-        },
-        dark: {
-          css: {
-            color: theme('colors.dracula.foreground'),
-            a: {
-              color: theme('colors.dracula.pink'),
-              '&:hover': {
-                color: theme('colors.dracula.purple'),
-              },
-            },
-            strong: {
-              color: theme('colors.dracula.orange'),
-            },
-            h1: { color: theme('colors.dracula.foreground') },
-            h2: { color: theme('colors.dracula.foreground') },
-            h3: { color: theme('colors.dracula.foreground') },
-            h4: { color: theme('colors.dracula.foreground') },
-            h5: { color: theme('colors.dracula.foreground') },
-            h6: { color: theme('colors.dracula.foreground') },
-            code: {
-              color: theme('colors.dracula.green'),
-              backgroundColor: theme('colors.dracula.currentLine'),
-            },
-            pre: {
-              backgroundColor: theme('colors.dracula.currentLine'),
-              color: theme('colors.dracula.foreground'),
-            },
-            blockquote: {
-              color: theme('colors.dracula.comment'),
-              borderLeftColor: theme('colors.dracula.purple'),
-            },
-            // More dark mode typography overrides...
-          },
-        },
-      }),
+      boxShadow: {
+        sm: '0 1px 2px 0 oklch(0% 0 0 / 0.05)',
+        DEFAULT: '0 1px 3px 0 oklch(0% 0 0 / 0.1), 0 1px 2px -1px oklch(0% 0 0 / 0.1)',
+        md: '0 4px 6px -1px oklch(0% 0 0 / 0.1), 0 2px 4px -2px oklch(0% 0 0 / 0.1)',
+        lg: '0 10px 15px -3px oklch(0% 0 0 / 0.1), 0 4px 6px -4px oklch(0% 0 0 / 0.1)',
+        xl: '0 20px 25px -5px oklch(0% 0 0 / 0.1), 0 8px 10px -6px oklch(0% 0 0 / 0.1)',
+      },
+      borderRadius: {
+        'sm': '0.125rem',
+        DEFAULT: '0.25rem',
+        'md': '0.375rem',
+        'lg': '0.5rem',
+        'xl': '0.75rem',
+        '2xl': '1rem',
+        'full': '9999px',
+      },
     },
   },
-  // Core plugin configurations
-  corePlugins: {
-    // Ensure selection variant is enabled
-    selection: true,
-  },
-  // Configure variants
-  variants: {
-    extend: {
-      // Enable opacity modifiers for selection variant
-      backgroundColor: ['selection'],
-      textColor: ['selection'],
-    },
-  },
-  // Plugin configurations
+  // Component extraction for consistent UI elements
   plugins: [
-    require('@tailwindcss/typography'), // For markdown content styling
-    require('@tailwindcss/forms'),      // For form input styling
-    function({ addVariant, matchUtilities, theme }) {
-      // Add selection variant with opacity support
-      addVariant('selection', ['&::selection', '&::-moz-selection']);
-      
-      // Add explicit support for opacity modifiers with selection variant
-      matchUtilities(
-        {
-          'selection-bg': (value) => ({
-            '&::selection': { backgroundColor: value },
-            '&::-moz-selection': { backgroundColor: value },
-          }),
-          'selection-text': (value) => ({
-            '&::selection': { color: value },
-            '&::-moz-selection': { color: value },
-          }),
-        },
-        { values: theme('colors') }
-      );
-    },
-    function({ addComponents, theme }) {
-      // Add consistent component classes
+    function({ addComponents }) {
       addComponents({
-        // Button components
         '.btn': {
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          borderRadius: theme('borderRadius.md'),
-          padding: `${theme('spacing.xs')} ${theme('spacing.md')}`,
-          fontSize: theme('fontSize.sm[0]'),
           fontWeight: '500',
-          transition: 'all 0.2s',
+          fontSize: '0.875rem',
+          padding: '0.5rem 1rem',
+          borderRadius: '0.375rem',
+          transition: 'all 150ms ease-in-out',
           cursor: 'pointer',
-          '&:focus': {
-            outline: 'none',
-            boxShadow: theme('boxShadow.focus'),
+          '&:focus-visible': {
+            outline: '2px solid oklch(68% 0.14 276)',
+            outlineOffset: '2px',
           },
           '&:disabled': {
             opacity: '0.65',
-            cursor: 'not-allowed',
+            pointerEvents: 'none',
           },
         },
         '.btn-primary': {
-          backgroundColor: theme('colors.primary.600'),
+          backgroundColor: 'oklch(68% 0.14 276)',
           color: 'white',
           '&:hover:not(:disabled)': {
-            backgroundColor: theme('colors.primary.700'),
+            backgroundColor: 'oklch(60% 0.135 276)',
           },
           '&:active:not(:disabled)': {
-            backgroundColor: theme('colors.primary.800'),
+            backgroundColor: 'oklch(52% 0.13 276)',
           },
         },
         '.btn-secondary': {
-          backgroundColor: theme('colors.gray.100'),
-          color: theme('colors.gray.800'),
+          backgroundColor: 'oklch(95% 0.008 276)',
+          color: 'oklch(42% 0.019 276)',
+          border: '1px solid oklch(86% 0.01 276)',
           '.dark &': {
-            backgroundColor: theme('colors.dark.600'),
-            color: theme('colors.gray.200'),
+            backgroundColor: 'oklch(32% 0.02 276)',
+            color: 'oklch(95% 0.008 276)',
+            border: '1px solid oklch(42% 0.019 276)',
           },
           '&:hover:not(:disabled)': {
-            backgroundColor: theme('colors.gray.200'),
+            backgroundColor: 'oklch(90% 0.01 276)',
             '.dark &': {
-              backgroundColor: theme('colors.dark.500'),
+              backgroundColor: 'oklch(36% 0.022 276)',
             },
           },
           '&:active:not(:disabled)': {
-            backgroundColor: theme('colors.gray.300'),
+            backgroundColor: 'oklch(86% 0.012 276)',
             '.dark &': {
-              backgroundColor: theme('colors.dark.400'),
+              backgroundColor: 'oklch(42% 0.024 276)',
             },
           },
         },
         '.btn-danger': {
-          backgroundColor: theme('colors.red.600'),
+          backgroundColor: 'oklch(65% 0.25 30)',
           color: 'white',
           '&:hover:not(:disabled)': {
-            backgroundColor: theme('colors.red.700'),
+            backgroundColor: 'oklch(58% 0.23 30)',
           },
           '&:active:not(:disabled)': {
-            backgroundColor: theme('colors.red.800'),
-          },
-        },
-        '.btn-success': {
-          backgroundColor: theme('colors.green.600'),
-          color: 'white',
-          '&:hover:not(:disabled)': {
-            backgroundColor: theme('colors.green.700'),
-          },
-          '&:active:not(:disabled)': {
-            backgroundColor: theme('colors.green.800'),
+            backgroundColor: 'oklch(50% 0.22 30)',
           },
         },
         '.btn-icon': {
-          padding: theme('spacing.xs'),
-          minHeight: theme('spacing.lg'),
-          minWidth: theme('spacing.lg'),
-        },
-        // Form components
-        '.form-input': {
-          appearance: 'none',
-          borderWidth: '1px',
-          borderColor: theme('colors.gray.300'),
-          borderRadius: theme('borderRadius.md'),
-          padding: `${theme('spacing.xs')} ${theme('spacing.sm')}`,
-          fontSize: theme('fontSize.base'),
-          lineHeight: theme('lineHeight.normal'),
-          color: theme('colors.gray.700'),
-          backgroundColor: 'white',
-          minHeight: '2.75rem',
-          '&:focus': {
-            outline: 'none',
-            borderColor: theme('colors.primary.400'),
-            boxShadow: theme('boxShadow.focus'),
-          },
-          '&:disabled': {
-            backgroundColor: theme('colors.gray.100'),
-            opacity: '0.65',
-          },
-          '&::placeholder': {
-            color: theme('colors.gray.400'),
-            opacity: '1',
-          },
-          '.dark &': {
-            borderColor: theme('colors.dark.400'),
-            backgroundColor: theme('colors.dark.700'),
-            color: 'white',
-            '&:focus': {
-              borderColor: theme('colors.primary.500'),
-              boxShadow: theme('boxShadow.dark-focus'),
-            },
-            '&:disabled': {
-              backgroundColor: theme('colors.dark.600'),
-            },
-            '&::placeholder': {
-              color: theme('colors.gray.500'),
-            },
-          },
+          padding: '0.5rem',
+          borderRadius: '0.375rem',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         },
         '.form-label': {
           display: 'block',
-          marginBottom: theme('spacing.xs'),
-          fontSize: theme('fontSize.sm[0]'),
+          marginBottom: '0.5rem',
+          fontSize: '0.875rem',
           fontWeight: '500',
-          color: theme('colors.gray.700'),
+          color: 'oklch(42% 0.019 276)',
           '.dark &': {
-            color: theme('colors.gray.300'),
+            color: 'oklch(86% 0.01 276)',
           },
         },
-        // Card components
-        '.card': {
-          backgroundColor: 'white',
-          borderRadius: theme('borderRadius.lg'),
-          boxShadow: theme('boxShadow.md'),
-          overflow: 'hidden',
-          '.dark &': {
-            backgroundColor: theme('colors.dark.600'),
-          },
-        },
-        '.card-header': {
-          padding: theme('spacing.md'),
-          borderBottom: `1px solid ${theme('colors.gray.200')}`,
-          '.dark &': {
-            borderColor: theme('colors.dark.400'),
-          },
-        },
-        '.card-body': {
-          padding: theme('spacing.md'),
-        },
-        '.card-footer': {
-          padding: theme('spacing.md'),
-          borderTop: `1px solid ${theme('colors.gray.200')}`,
-          '.dark &': {
-            borderColor: theme('colors.dark.400'),
-          },
-        },
-        // Alert/notification components
-        '.alert': {
-          position: 'relative',
-          padding: theme('spacing.md'),
-          marginBottom: theme('spacing.md'),
-          borderWidth: '1px',
-          borderRadius: theme('borderRadius.md'),
-        },
-        '.alert-info': {
-          backgroundColor: theme('colors.blue.50'),
-          borderColor: theme('colors.blue.200'),
-          color: theme('colors.blue.800'),
-          '.dark &': {
-            backgroundColor: 'rgba(3, 105, 161, 0.2)',
-            borderColor: theme('colors.blue.800'),
-            color: theme('colors.blue.200'),
-          },
-        },
-        '.alert-success': {
-          backgroundColor: theme('colors.green.50'),
-          borderColor: theme('colors.green.200'),
-          color: theme('colors.green.800'),
-          '.dark &': {
-            backgroundColor: 'rgba(21, 128, 61, 0.2)',
-            borderColor: theme('colors.green.800'),
-            color: theme('colors.green.200'),
-          },
-        },
-        '.alert-warning': {
-          backgroundColor: theme('colors.yellow.50'),
-          borderColor: theme('colors.yellow.200'),
-          color: theme('colors.yellow.800'),
-          '.dark &': {
-            backgroundColor: 'rgba(161, 98, 7, 0.2)',
-            borderColor: theme('colors.yellow.800'),
-            color: theme('colors.yellow.200'),
-          },
-        },
-        '.alert-danger': {
-          backgroundColor: theme('colors.red.50'),
-          borderColor: theme('colors.red.200'),
-          color: theme('colors.red.800'),
-          '.dark &': {
-            backgroundColor: 'rgba(185, 28, 28, 0.2)',
-            borderColor: theme('colors.red.800'),
-            color: theme('colors.red.200'),
-          },
-        },
-        // Toast notifications
-        '.toast': {
-          position: 'fixed',
-          borderRadius: theme('borderRadius.md'),
-          padding: theme('spacing.md'),
-          boxShadow: theme('boxShadow.lg'),
-          maxWidth: '24rem',
-          zIndex: 50,
-          display: 'flex',
-          alignItems: 'center',
-        },
-        // Chat message components
-        '.message-user': {
-          borderRadius: theme('borderRadius.xl'),
-          borderBottomRightRadius: theme('borderRadius.sm'),
-          backgroundColor: theme('colors.primary.500'),
-          color: 'white',
-          padding: theme('spacing.md'),
-          maxWidth: '85%',
-          marginLeft: 'auto',
-          marginRight: theme('spacing.md'),
-          marginBottom: theme('spacing.md'),
-          boxShadow: theme('boxShadow.md'),
-        },
-        '.message-assistant': {
-          borderRadius: theme('borderRadius.xl'),
-          borderBottomLeftRadius: theme('borderRadius.sm'),
-          backgroundColor: 'white',
-          color: theme('colors.gray.800'),
-          padding: theme('spacing.md'),
-          maxWidth: '85%',
-          marginRight: 'auto',
-          marginLeft: theme('spacing.md'),
-          marginBottom: theme('spacing.md'),
-          boxShadow: theme('boxShadow.md'),
-          '.dark &': {
-            backgroundColor: theme('colors.dark.600'),
-            color: 'white',
-          },
-        },
-        '.message-thinking': {
-          borderRadius: theme('borderRadius.xl'),
-          borderBottomLeftRadius: theme('borderRadius.sm'),
-          backgroundColor: theme('colors.blue.50'),
-          color: theme('colors.gray.800'),
-          padding: theme('spacing.md'),
-          maxWidth: '85%',
-          marginRight: 'auto',
-          marginLeft: theme('spacing.md'),
-          marginBottom: theme('spacing.md'),
-          boxShadow: theme('boxShadow.md'),
-          '.dark &': {
-            backgroundColor: 'rgba(59, 130, 246, 0.15)',
-            color: 'white',
-          },
-        },
-        '.message-system': {
-          borderRadius: theme('borderRadius.md'),
-          backgroundColor: theme('colors.yellow.50'),
-          color: theme('colors.yellow.800'),
-          padding: theme('spacing.md'),
-          maxWidth: '90%',
-          margin: `${theme('spacing.md')} auto`,
-          borderLeftWidth: '4px',
-          borderColor: theme('colors.yellow.400'),
-          '.dark &': {
-            backgroundColor: 'rgba(202, 138, 4, 0.15)',
-            color: theme('colors.yellow.200'),
-            borderColor: theme('colors.yellow.600'),
-          },
-        },
-        // Modal component
-        '.modal-overlay': {
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          zIndex: 40,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: theme('spacing.md'),
-        },
-        '.modal': {
-          backgroundColor: 'white',
-          borderRadius: theme('borderRadius.lg'),
-          boxShadow: theme('boxShadow.xl'),
-          maxWidth: '500px',
+        '.form-input': {
           width: '100%',
-          maxHeight: '90vh',
-          overflow: 'auto',
-          zIndex: 50,
+          padding: '0.625rem 0.75rem',
+          fontSize: '0.875rem',
+          lineHeight: '1.25rem',
+          backgroundColor: 'white',
+          color: 'oklch(32% 0.02 276)',
+          borderRadius: '0.375rem',
+          border: '1px solid oklch(76% 0.012 276)',
+          boxShadow: '0 1px 2px 0 oklch(0% 0 0 / 0.05)',
+          transition: 'border-color 150ms ease-in-out, box-shadow 150ms ease-in-out',
           '.dark &': {
-            backgroundColor: theme('colors.dark.600'),
+            backgroundColor: 'oklch(24% 0.018 276)',
+            color: 'oklch(95% 0.008 276)',
+            border: '1px solid oklch(42% 0.019 276)',
+          },
+          '&:focus': {
+            outline: 'none',
+            borderColor: 'oklch(68% 0.14 276)',
+            boxShadow: '0 0 0 3px oklch(68% 0.14 276 / 0.25)',
+          },
+          '&:disabled': {
+            backgroundColor: 'oklch(95% 0.008 276)',
+            cursor: 'not-allowed',
+            '.dark &': {
+              backgroundColor: 'oklch(36% 0.022 276)',
+            },
           },
         },
-        '.modal-header': {
-          padding: theme('spacing.md'),
-          borderBottom: `1px solid ${theme('colors.gray.200')}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          '.dark &': {
-            borderColor: theme('colors.dark.400'),
-          },
-        },
-        '.modal-body': {
-          padding: theme('spacing.md'),
-        },
-        '.modal-footer': {
-          padding: theme('spacing.md'),
-          borderTop: `1px solid ${theme('colors.gray.200')}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          gap: theme('spacing.sm'),
-          '.dark &': {
-            borderColor: theme('colors.dark.400'),
-          },
-        },
-      });
-    },
-    function({ addUtilities, theme }) {
-      // Add consistent touch utilities
-      addUtilities({
         '.touch-target': {
           minHeight: '44px',
           minWidth: '44px',
         },
-        '.touch-action-none': {
-          touchAction: 'none',
-        },
-        '.touch-action-manipulation': {
-          touchAction: 'manipulation',
-          WebkitTapHighlightColor: 'transparent',
-        },
-        '.focus-visible-ring': {
-          '&:focus-visible': {
-            outline: 'none',
-            boxShadow: theme('boxShadow.focus'),
-          },
-        },
-        '.focus-visible-ring-danger': {
-          '&:focus-visible': {
-            outline: 'none',
-            boxShadow: theme('boxShadow.focus-error'),
-          },
-        },
-        '.sr-only': {
-          position: 'absolute',
-          width: '1px',
-          height: '1px',
-          padding: '0',
-          margin: '-1px',
+        '.card': {
+          backgroundColor: 'white',
+          borderRadius: '0.5rem',
+          boxShadow: '0 1px 3px 0 oklch(0% 0 0 / 0.1), 0 1px 2px -1px oklch(0% 0 0 / 0.1)',
           overflow: 'hidden',
-          clip: 'rect(0, 0, 0, 0)',
-          whiteSpace: 'nowrap',
-          borderWidth: '0',
+          '.dark &': {
+            backgroundColor: 'oklch(24% 0.018 276)',
+          },
         },
-        '.sr-only-focusable': {
-          '&:not(:focus)': {
-            position: 'absolute',
-            width: '1px',
-            height: '1px',
-            padding: '0',
-            margin: '-1px',
-            overflow: 'hidden',
-            clip: 'rect(0, 0, 0, 0)',
-            whiteSpace: 'nowrap',
-            borderWidth: '0',
+        '.notification': {
+          backgroundColor: 'white',
+          borderRadius: '0.5rem',
+          boxShadow: '0 4px 6px -1px oklch(0% 0 0 / 0.1), 0 2px 4px -2px oklch(0% 0 0 / 0.1)',
+          padding: '1rem',
+          marginBottom: '0.5rem',
+          display: 'flex',
+          alignItems: 'flex-start',
+          width: '100%',
+          maxWidth: '28rem',
+          pointer: 'auto',
+          '.dark &': {
+            backgroundColor: 'oklch(24% 0.018 276)',
+          },
+        },
+        '.message': {
+          padding: '1rem',
+          borderRadius: '0.75rem',
+          marginBottom: '1rem',
+          maxWidth: '80%',
+          position: 'relative',
+          '.dark &': {
+            color: 'oklch(95% 0.008 276)',
+          },
+          '&.user-message': {
+            backgroundColor: 'oklch(68% 0.14 276)',
+            color: 'white',
+            alignSelf: 'flex-end',
+            marginLeft: 'auto',
+          },
+          '&.assistant-message': {
+            backgroundColor: 'oklch(95% 0.008 276)',
+            color: 'oklch(32% 0.02 276)',
+            alignSelf: 'flex-start',
+            marginRight: 'auto',
+            '.dark &': {
+              backgroundColor: 'oklch(32% 0.02 276)',
+              color: 'oklch(95% 0.008 276)',
+            },
+          },
+          '&.system-message': {
+            backgroundColor: 'oklch(94% 0.08 85)',
+            color: 'oklch(40% 0.12 85)',
+            width: '100%',
+            maxWidth: '36rem',
+            margin: '0 auto 1rem auto',
+            '.dark &': {
+              backgroundColor: 'oklch(40% 0.12 85 / 0.2)',
+              color: 'oklch(94% 0.08 85)',
+            },
+          },
+        },
+        '.mobile-text-optimized': {
+          '@media (max-width: 640px)': {
+            fontSize: '16px',
+          },
+        },
+        '.safe-area-inset-bottom': {
+          paddingBottom: 'env(safe-area-inset-bottom, 0)',
+        },
+        '.token-usage': {
+          padding: '0.75rem',
+          fontSize: '0.75rem',
+          borderTop: '1px solid oklch(86% 0.01 276)',
+          backgroundColor: 'oklch(98% 0.005 276)',
+          transition: 'all 0.3s ease',
+          overflow: 'hidden',
+          '.dark &': {
+            backgroundColor: 'oklch(24% 0.018 276)',
+            borderTop: '1px solid oklch(42% 0.019 276)',
+          },
+        },
+        '.token-summary': {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+        },
+        '.token-label': {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.375rem',
+          color: 'oklch(54% 0.018 276)',
+          '.dark &': {
+            color: 'oklch(76% 0.012 276)',
+          },
+        },
+        '.token-value': {
+          fontFamily: '"JetBrains Mono", monospace',
+          fontWeight: '500',
+          color: 'oklch(42% 0.019 276)',
+          '.dark &': {
+            color: 'oklch(86% 0.01 276)',
+          },
+        },
+        '.thinking-process': {
+          margin: '1rem 0',
+          border: '1px solid oklch(86% 0.01 276)',
+          borderRadius: '0.375rem',
+          overflow: 'hidden',
+          '.dark &': {
+            border: '1px solid oklch(42% 0.019 276)',
+          },
+        },
+        '.thinking-header': {
+          backgroundColor: 'oklch(94% 0.048 276 / 0.2)',
+          padding: '0.5rem 1rem',
+          borderTopLeftRadius: '0.375rem',
+          borderTopRightRadius: '0.375rem',
+          '.dark &': {
+            backgroundColor: 'oklch(60% 0.135 276 / 0.2)',
+          },
+        },
+        '.thinking-toggle': {
+          fontWeight: '500',
+          color: 'oklch(60% 0.135 276)',
+          display: 'flex',
+          alignItems: 'center',
+          width: '100%',
+          textAlign: 'left',
+          cursor: 'pointer',
+          '.dark &': {
+            color: 'oklch(76% 0.126 276)',
+          },
+        },
+        '.thinking-content': {
+          backgroundColor: 'oklch(97% 0.029 276 / 0.2)',
+          padding: '1rem',
+          overflowX: 'auto',
+          borderBottomLeftRadius: '0.375rem',
+          borderBottomRightRadius: '0.375rem',
+          '.dark &': {
+            backgroundColor: 'oklch(52% 0.13 276 / 0.1)',
+          },
+        },
+        '.thinking-pre': {
+          margin: '0',
+          whiteSpace: 'pre-wrap',
+          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: '0.875rem',
+          color: 'oklch(42% 0.019 276)',
+          '.dark &': {
+            color: 'oklch(86% 0.01 276)',
           },
         },
       });
+    },
+    // Add new plugin for ring opacity support
+    function({ addUtilities, theme }) {
+      const colors = theme('colors');
+      const opacities = theme('opacity', {
+        '0': '0',
+        '5': '0.05',
+        '10': '0.1',
+        '20': '0.2',
+        '25': '0.25',
+        '30': '0.3',
+        '40': '0.4',
+        '50': '0.5',
+        '60': '0.6',
+        '70': '0.7',
+        '75': '0.75',
+        '80': '0.8',
+        '90': '0.9',
+        '95': '0.95',
+        '100': '1',
+      });
+      
+      // Generate custom ring utilities with opacity modifiers for OKLCH colors
+      const ringOpacityUtilities = {};
+      
+      // Loop through colors and create ring utilities with opacity variants
+      Object.entries(colors).forEach(([colorName, colorValues]) => {
+        if (typeof colorValues === 'object') {
+          Object.entries(colorValues).forEach(([shade, value]) => {
+            // Only process OKLCH colors
+            if (typeof value === 'string' && value.includes('oklch')) {
+              Object.entries(opacities).forEach(([opKey, opValue]) => {
+                // Create the utility with opacity modifier
+                ringOpacityUtilities[`.ring-${colorName}-${shade}\\/${opKey}`] = {
+                  '--tw-ring-color': `${value.replace(')', '')} / ${opValue})`,
+                };
+                
+                // Also add focus variants
+                ringOpacityUtilities[`.focus\\:ring-${colorName}-${shade}\\/${opKey}:focus`] = {
+                  '--tw-ring-color': `${value.replace(')', '')} / ${opValue})`,
+                };
+              });
+            }
+          });
+        }
+      });
+      
+      addUtilities(ringOpacityUtilities);
     },
   ],
 };

@@ -79,6 +79,7 @@ function buildTailwind() {
   
   const command = getCommand();
   log(`Building Tailwind CSS in ${isProduction ? 'production' : 'development'} mode`);
+  log(`Using updated configuration with ring opacity support`);
   
   if (isVerbose) {
     log(`Executing command: ${command}`);

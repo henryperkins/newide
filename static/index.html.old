@@ -27,51 +27,57 @@
     <script src="/static/lib/purify.min.js" defer></script>
     <script src="/static/lib/prism.min.js" defer></script>
 </head>
-<body class="h-full bg-dark-50 dark:bg-dark-900 text-dark-900 dark:text-dark-50">
+<body class="h-full bg-white dark:bg-dark-500 text-gray-900 dark:text-white">
     <!-- Skip link for accessibility -->
     <a href="#main-content" class="skip-link">Skip to main content</a>
 
-    <div class="h-screen max-w-screen-2xl mx-auto grid grid-rows-[auto,1fr,auto] relative">
+    <div class="h-screen max-w-[1600px] mx-auto grid grid-rows-[auto,1fr,auto] relative">
         <!-- App Header -->
-        <header class="bg-white dark:bg-dark-800 border-b border-dark-200 dark:border-dark-700 shadow-sm z-20">
+        <header class="bg-white dark:bg-dark-600 border-b border-gray-300 dark:border-dark-400 shadow-sm z-20">
             <div class="container mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                 <!-- App Title and Model Info -->
                 <div class="flex items-center space-x-3">
                     <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">
                         Azure OpenAI Chat
                     </h1>
-                    <span class="hidden sm:inline-flex px-2 py-1 bg-primary-100 dark:bg-primary-900/20 text-primary-800 dark:text-primary-300 text-xs font-medium rounded-full items-center">
+                    <span class="hidden md:inline-block px-2 py-1 bg-primary-100 dark:bg-primary-900/20 text-primary-800 dark:text-primary-300 text-xs font-medium rounded-full">
                         <span id="model-badge">DeepSeek-R1</span>
                     </span>
                 </div>
                 
-                <!-- Controls - Always visible, responsive layout -->
-                <div class="flex items-center gap-2 sm:gap-4">
-                    <!-- Stats - Compact on mobile, expanded on desktop -->
-                    <div id="performance-stats" class="hidden xs:grid grid-cols-2 sm:grid-cols-3 gap-1 sm:gap-3 p-1 sm:p-2 text-xs bg-dark-100 dark:bg-dark-800 rounded-md border border-dark-200 dark:border-dark-700">
+                <!-- Controls - Desktop -->
+                <div class="hidden md:flex items-center space-x-4">
+                    <div id="performance-stats" class="grid grid-cols-3 gap-3 p-2 text-xs bg-gray-100 dark:bg-dark-700 rounded-md border border-gray-200 dark:border-dark-500">
                         <!-- Stats will be populated by JS -->
                     </div>
                     
-                    <!-- Expand/Collapse Stats on Mobile -->
-                    <button id="mobile-stats-toggle" aria-label="Toggle statistics" class="btn btn-icon btn-secondary xs:hidden touch-target">
+                    <div class="flex items-center space-x-2">
+                        <button id="font-size-down" class="btn btn-secondary btn-icon" aria-label="Decrease font size">
+                            <span aria-hidden="true">A-</span>
+                        </button>
+                        <button id="font-size-up" class="btn btn-secondary btn-icon" aria-label="Increase font size">
+                            <span aria-hidden="true">A+</span>
+                        </button>
+                        <button id="theme-toggle" class="btn btn-secondary btn-icon" aria-label="Toggle dark mode">
+                            <span class="sr-only">Toggle dark mode</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 block dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Controls - Mobile -->
+                <div class="flex md:hidden items-center space-x-3">
+                    <button id="mobile-stats-toggle" aria-label="Toggle statistics" class="btn btn-secondary btn-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
                     </button>
-                    
-                    <!-- Font Size Controls - Hidden on Mobile -->
-                    <div class="hidden sm:flex items-center space-x-2">
-                        <button id="font-size-down" class="btn btn-icon btn-secondary touch-target" aria-label="Decrease font size">
-                            <span aria-hidden="true">A-</span>
-                        </button>
-                        <button id="font-size-up" class="btn btn-icon btn-secondary touch-target" aria-label="Increase font size">
-                            <span aria-hidden="true">A+</span>
-                        </button>
-                    </div>
-                    
-                    <!-- Theme Toggle - Always Visible -->
-                    <button id="theme-toggle" class="btn btn-icon btn-secondary touch-target" aria-label="Toggle dark mode">
-                        <span class="sr-only">Toggle dark mode</span>
+                    <button id="mobile-theme-toggle" aria-label="Toggle dark mode" class="btn btn-secondary btn-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                         </svg>
@@ -79,9 +85,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                         </svg>
                     </button>
-                    
-                    <!-- Sidebar Toggle - Always Visible -->
-                    <button id="sidebar-toggle" class="btn btn-icon btn-secondary touch-target" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle settings">
+                    <button id="mobile-sidebar-toggle" aria-label="Open settings" class="btn btn-secondary btn-icon" aria-expanded="false" aria-controls="sidebar">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -91,36 +95,36 @@
             </div>
 
             <!-- Mobile-only stats panel -->
-            <div id="mobile-stats-panel" class="hidden sm:hidden p-3 bg-dark-100 dark:bg-dark-800 border-b border-dark-200 dark:border-dark-700">
+            <div id="mobile-stats-panel" class="hidden md:hidden p-3 bg-gray-50 dark:bg-dark-700 border-b border-gray-200 dark:border-dark-500">
                 <div class="grid grid-cols-2 gap-3">
                     <div class="flex flex-col">
-                        <span class="text-xs text-dark-500 dark:text-dark-400">Prompt Tokens</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Prompt Tokens</span>
                         <span id="mobile-prompt-tokens" class="font-mono font-medium">0</span>
                     </div>
                     <div class="flex flex-col">
-                        <span class="text-xs text-dark-500 dark:text-dark-400">Completion Tokens</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Completion Tokens</span>
                         <span id="mobile-completion-tokens" class="font-mono font-medium">0</span>
                     </div>
                     <div class="flex flex-col">
-                        <span class="text-xs text-dark-500 dark:text-dark-400">Total Tokens</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Total Tokens</span>
                         <span id="mobile-total-tokens" class="font-mono font-medium">0</span>
                     </div>
                     <div class="flex flex-col">
-                        <span class="text-xs text-dark-500 dark:text-dark-400">Generation Speed</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Generation Speed</span>
                         <span id="mobile-tokens-per-second" class="font-mono font-medium">0 t/s</span>
                     </div>
                 </div>
                 
                 <!-- Mobile font controls -->
-                <div class="flex justify-center items-center space-x-3 mt-3 pt-2 border-t border-dark-200 dark:border-dark-700">
-                    <button id="mobile-font-down" class="btn btn-secondary touch-target">
+                <div class="flex justify-center items-center space-x-3 mt-3 pt-2 border-t border-gray-200 dark:border-dark-400">
+                    <button id="mobile-font-down" class="btn btn-secondary">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
                         </svg>
                         <span>A</span>
                     </button>
-                    <span class="text-sm text-dark-500 dark:text-dark-400">Text Size</span>
-                    <button id="mobile-font-up" class="btn btn-secondary touch-target">
+                    <span class="text-sm text-gray-500 dark:text-gray-400">Text Size</span>
+                    <button id="mobile-font-up" class="btn btn-secondary">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                         </svg>
@@ -137,8 +141,8 @@
                 <div id="chat-history" class="flex-1 p-4 overflow-y-auto flex flex-col space-y-4 scroll-smooth" role="log" aria-live="polite">
                     <!-- Messages injected via JavaScript -->
                     
-                    <!-- Welcome Message (shown when no conversation exists) -->
-                    <div class="message system-message">
+                    <!-- Welcome Message (optional, shown when no conversation exists) -->
+                    <div class="message-system">
                         <h2 class="text-lg font-semibold mb-2">Welcome to Azure OpenAI Chat</h2>
                         <p>This chat application uses Azure OpenAI's powerful language models to provide intelligent responses.</p>
                         <p class="mt-2">Type a message below to get started!</p>
@@ -146,7 +150,7 @@
                 </div>
 
                 <!-- Input Area -->
-                <div class="border-t border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-800 safe-area-inset-bottom">
+                <div class="border-t border-gray-200 dark:border-dark-400 bg-white dark:bg-dark-600 safe-area-inset-bottom">
                     <!-- "Load Older Messages" button (initially hidden) -->
                     <div class="flex justify-center py-2 px-4">
                         <button id="load-older-btn" class="btn btn-secondary hidden">
@@ -165,11 +169,11 @@
                                 placeholder="Type your message..."
                                 aria-label="Your message"
                                 rows="1"
-                                class="form-input w-full py-3 resize-none touch-action-manipulation mobile-text-optimized"
+                                class="form-input w-full py-3 resize-none touch-input mobile-text-optimized"
                             ></textarea>
                             
-                            <!-- Character count -->
-                            <div id="char-count" class="absolute bottom-2 right-2 text-xs text-dark-400 dark:text-dark-500">
+                            <!-- Character count (optional) -->
+                            <div id="char-count" class="absolute bottom-2 right-2 text-xs text-gray-400 dark:text-gray-500 hidden">
                                 0
                             </div>
                         </div>
@@ -178,12 +182,14 @@
                             <button 
                                 id="send-button" 
                                 type="button"
-                                class="btn btn-primary h-12 w-12 rounded-full shadow-md touch-target flex items-center justify-center"
+                                class="relative h-12 w-12 flex items-center justify-center bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white rounded-full touch-action-manipulation shadow-md"
                                 aria-label="Send message"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                     <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                                 </svg>
+                                <!-- Extended touch target -->
+                                <span id="send-tap-target" class="absolute -inset-4"></span>
                             </button>
                         </div>
                     </div>
@@ -201,16 +207,16 @@
                                 
                                 <span id="total-tokens-badge" class="token-value">0</span>
                             </div>
-                            <svg id="token-chevron" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-dark-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg id="token-chevron" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                             </svg>
                         </div>
                         
-                        <div class="token-details mt-3 space-y-2 hidden" id="token-details">
+                        <div class="token-details mt-3 space-y-2">
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 <div>
                                     <div class="token-label">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                                         </svg>
                                         <span>Prompt</span>
@@ -220,7 +226,7 @@
                                 
                                 <div>
                                     <div class="token-label">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-success-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
                                         <span>Completion</span>
@@ -230,7 +236,7 @@
                                 
                                 <div>
                                     <div class="token-label">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-secondary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                                         </svg>
                                         <span>Reasoning</span>
@@ -240,7 +246,7 @@
                                 
                                 <div>
                                     <div class="token-label">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-warning-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                                         </svg>
                                         <span>Rate</span>
@@ -254,11 +260,11 @@
             </div>
 
             <!-- Sidebar -->
-            <aside id="sidebar" class="fixed inset-y-0 right-0 w-[320px] md:w-[384px] bg-white dark:bg-dark-800 border-l border-dark-200 dark:border-dark-700 shadow-xl md:shadow-none transform translate-x-full md:static md:translate-x-0 transition-transform duration-300 z-40 flex flex-col">
+            <aside id="sidebar" class="fixed inset-y-0 right-0 w-80 md:w-96 bg-white dark:bg-dark-600 border-l border-gray-300 dark:border-dark-400 shadow-xl md:shadow-none transform translate-x-full md:static md:translate-x-0 transition-transform duration-300 z-40">
                 <!-- Sidebar Header with close button -->
-                <div class="p-4 border-b border-dark-200 dark:border-dark-700 flex justify-between items-center">
+                <div class="p-4 border-b border-gray-200 dark:border-dark-400 flex justify-between items-center">
                     <h2 class="text-lg font-semibold">Settings</h2>
-                    <button id="close-sidebar" class="md:hidden btn btn-icon btn-secondary touch-target" aria-label="Close settings">
+                    <button id="close-sidebar" class="md:hidden btn btn-icon btn-secondary" aria-label="Close settings">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -266,7 +272,7 @@
                 </div>
                 
                 <!-- Tab Navigation -->
-                <div class="border-b border-dark-200 dark:border-dark-700">
+                <div class="border-b border-gray-200 dark:border-dark-400">
                     <nav class="flex" role="tablist" aria-label="Settings tabs">
                         <button 
                             id="config-tab" 
@@ -279,7 +285,7 @@
                         </button>
                         <button 
                             id="files-tab" 
-                            class="flex-1 py-3 px-4 text-center text-sm font-medium border-b-2 border-transparent text-dark-500 hover:text-dark-700 dark:text-dark-400 dark:hover:text-dark-200" 
+                            class="flex-1 py-3 px-4 text-center text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" 
                             role="tab" 
                             aria-selected="false" 
                             aria-controls="files-content"
@@ -287,37 +293,34 @@
                             Files
                         </button>
                         <button 
-                            id="models-tab" 
-                            class="flex-1 py-3 px-4 text-center text-sm font-medium border-b-2 border-transparent text-dark-500 hover:text-dark-700 dark:text-dark-400 dark:hover:text-dark-200" 
+                            id="conversations-tab" 
+                            class="flex-1 py-3 px-4 text-center text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" 
                             role="tab" 
                             aria-selected="false" 
-                            aria-controls="models-content"
-                            data-target-tab="models-content">
-                            Models
+                            aria-controls="conversations-content"
+                            data-target-tab="conversations-content">
+                            History
                         </button>
                     </nav>
                 </div>
                 
                 <!-- Tab Panels -->
-                <div class="overflow-y-auto flex-1">
+                <div class="overflow-y-auto h-[calc(100%-8.5rem)]">
                     <!-- Configuration Tab -->
                     <div id="config-content" class="p-4 space-y-6" role="tabpanel" aria-labelledby="config-tab">
-                        <div class="space-y-2">
+                        <div>
                             <label for="model-select" class="form-label">AI Model</label>
                             <select id="model-select" class="form-input">
                                 <option value="DeepSeek-R1">DeepSeek-R1 (Default)</option>
                                 <option value="o1hp">o1hp (Advanced Reasoning)</option>
                                 <!-- Options will be populated by ModelManager -->
                             </select>
-                            <p class="text-xs text-dark-500 dark:text-dark-400">
-                                Select the AI model you want to chat with
-                            </p>
                         </div>
                         
-                        <div class="space-y-2">
+                        <div>
                             <label for="developer-config" class="form-label">
                                 System Message
-                                <span class="text-dark-500 dark:text-dark-400 text-xs ml-1">(Optional)</span>
+                                <span class="text-gray-500 dark:text-gray-400 text-xs ml-1">(Optional)</span>
                             </label>
                             <input 
                                 type="text" 
@@ -326,12 +329,12 @@
                                 aria-describedby="config-help"
                                 class="form-input"
                             >
-                            <p id="config-help" class="text-xs text-dark-500 dark:text-dark-400">
+                            <p id="config-help" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 Customize how the AI responds and formats answers
                             </p>
                         </div>
                         
-                        <div id="reasoning-controls" class="space-y-2">
+                        <div id="reasoning-controls">
                             <label for="reasoning-effort-slider" class="form-label flex justify-between">
                                 <span>Reasoning Effort</span>
                                 <span id="reasoning-effort-display" class="text-primary-600 dark:text-primary-400">Medium</span>
@@ -344,89 +347,84 @@
                                     max="3" 
                                     value="2"
                                     aria-valuetext="Medium"
-                                    class="w-full h-2 bg-dark-200 dark:bg-dark-700 rounded-full appearance-none cursor-pointer"
+                                    class="w-full h-2 bg-gray-200 dark:bg-dark-400 rounded-full appearance-none cursor-pointer"
                                 >
-                                <div class="flex justify-between text-xs text-dark-500 dark:text-dark-400 mt-1">
+                                <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
                                     <span>Low</span>
                                     <span>Medium</span>
                                     <span>High</span>
                                 </div>
                             </div>
-                            <p id="effort-description-text" class="text-xs text-dark-500 dark:text-dark-400">
+                            <p id="effort-description-text" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                                 Medium: Balanced processing time (1-3min) and quality
                             </p>
                         </div>
                         
-                        <div class="space-y-2">
-                            <div class="flex items-center space-x-2">
+                        <div class="flex items-center">
+                            <label class="flex items-center cursor-pointer">
                                 <input 
                                     type="checkbox" 
                                     id="enable-streaming"
-                                    class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded"
+                                    class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                                 > 
-                                <label for="enable-streaming" class="text-sm text-dark-700 dark:text-dark-300">
-                                    Enable Streaming
-                                </label>
-                            </div>
-                            <p class="text-xs text-dark-500 dark:text-dark-400 ml-6">
-                                See responses as they're generated (not available for all models)
-                            </p>
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Enable Streaming</span>
+                            </label>
                         </div>
                     </div>
                     
                     <!-- Files Tab -->
                     <div id="files-content" class="p-4 space-y-4 hidden" role="tabpanel" aria-labelledby="files-tab" aria-hidden="true">
-                        <div class="flex justify-between items-center p-3 bg-dark-100 dark:bg-dark-700 rounded-lg">
-                            <button class="btn btn-secondary flex items-center text-sm font-medium touch-target">
+                        <div class="flex justify-between items-center p-3 bg-gray-50 dark:bg-dark-700 rounded-lg">
+                            <button class="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 touch-action-manipulation">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                                 </svg>
                                 Upload Files
                             </button>
                             <div>
-                                <label class="inline-flex items-center cursor-pointer space-x-2">
+                                <label class="inline-flex items-center cursor-pointer">
                                     <input 
                                         type="checkbox" 
                                         id="azure-search" 
-                                        class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded"
+                                        class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                                     >
-                                    <span class="text-sm text-dark-700 dark:text-dark-300">Azure Search</span>
+                                    <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Azure Search</span>
                                 </label>
-                                <button class="ml-1 text-dark-500 group relative" aria-label="Learn about Azure Search">
+                                <button class="ml-1 text-gray-500 group relative" aria-label="Learn about Azure Search">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
-                                    <span class="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block group-focus:block bg-dark-800 text-white text-xs p-2 rounded w-60 z-10">
+                                    <span class="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block bg-gray-800 text-white text-xs p-2 rounded w-60">
                                         Azure Search allows deeper analysis of your documents using Azure's search capabilities
                                     </span>
                                 </button>
                             </div>
                         </div>
 
-                        <div class="flex flex-wrap gap-2 p-2 bg-dark-100 dark:bg-dark-700 rounded-lg text-xs text-dark-600 dark:text-dark-400">
+                        <div class="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-dark-700 rounded-lg text-xs text-gray-600 dark:text-gray-400">
                             <div class="flex items-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-dark-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                                 Files: <span id="total-files" class="font-mono">0</span>
                             </div>
                             <div class="flex items-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-dark-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
                                 </svg>
                                 Size: <span id="total-size" class="font-mono">0 B</span>
                             </div>
                             <div class="flex items-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-dark-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                                 </svg>
                                 Tokens: <span id="estimated-tokens" class="font-mono">0</span>
                             </div>
                         </div>
 
-                        <div id="file-drop-area" class="border-2 border-dashed border-dark-300 dark:border-dark-600 rounded-lg p-6 text-center flex-1 touch-action-manipulation transition-colors duration-150">
-                            <p class="text-dark-500 dark:text-dark-400 mb-2">No files uploaded.</p>
-                            <p class="text-xs text-dark-400 dark:text-dark-500">Drop files here to add context.</p>
+                        <div class="border-2 border-dashed border-gray-300 dark:border-dark-500 rounded-lg p-6 text-center flex-1 touch-action-manipulation">
+                            <p class="text-gray-500 dark:text-gray-400 mb-2">No files uploaded.</p>
+                            <p class="text-xs text-gray-400 dark:text-gray-500">Drop files here to add context.</p>
                         </div>
 
                         <input 
@@ -437,110 +435,157 @@
                             class="hidden">
                     </div>
                     
-                    <!-- Models Tab -->
-                    <div id="models-content" class="p-4 space-y-4 hidden" role="tabpanel" aria-labelledby="models-tab" aria-hidden="true">
-                        <div class="flex justify-between items-center">
-                            <h3 class="text-lg font-medium">Available Models</h3>
-                            <button id="add-model-btn" class="btn btn-primary touch-target">
+                    <!-- Conversation History Tab -->
+                    <div id="conversations-content" class="p-4 space-y-4 hidden" role="tabpanel" aria-labelledby="conversations-tab" aria-hidden="true">
+                        <h3 class="text-lg font-semibold">Conversation Management</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                            Save current conversation or load a previous one
+                        </p>
+                        
+                        <div class="flex flex-wrap gap-2">
+                            <button id="save-convo-btn" class="btn btn-primary">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                                 </svg>
-                                Add Model
+                                Save Conversation
+                            </button>
+                            <button id="clear-convo-btn" class="btn btn-danger">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Clear Conversation
                             </button>
                         </div>
                         
-                        <div id="models-list" class="space-y-2 mt-2">
-                            <!-- Models will be listed here -->
-                            <div class="text-center text-dark-500 dark:text-dark-400 text-sm py-8">
-                                Loading models...
-                            </div>
+                        <div class="border-t border-gray-200 dark:border-dark-400 my-4 pt-4">
+                            <label for="conversation-list" class="form-label">
+                                Saved Conversations
+                            </label>
+                            <select id="conversation-list" class="form-input">
+                                <option value="">-- Select a conversation --</option>
+                                <!-- Options will be populated by JavaScript -->
+                            </select>
                         </div>
                         
-                        <!-- Add/Edit Model Form -->
-                        <div id="model-form-container" class="fixed inset-0 bg-dark-900 bg-opacity-50 z-50 flex items-center justify-center p-4 hidden">
-                            <div class="bg-white dark:bg-dark-800 rounded-lg shadow-xl w-full max-w-md">
-                                <div class="flex justify-between items-center p-4 border-b border-dark-200 dark:border-dark-700">
-                                    <h3 id="model-form-title" class="text-lg font-medium">Add New Model</h3>
-                                    <button id="model-form-close" class="text-dark-500 hover:text-dark-700 dark:text-dark-400 dark:hover:text-dark-200">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                    </button>
-                                </div>
-                                
-                                <form id="model-form" class="p-4 space-y-4">
-                                    <input type="hidden" id="model-form-mode" value="add">
-                                    <input type="hidden" id="model-form-id" value="">
-                                    
-                                    <div class="space-y-2">
-                                        <label for="model-name" class="form-label">Model Name/ID</label>
-                                        <input type="text" id="model-name" class="form-input" required>
-                                    </div>
-                                    
-                                    <div class="space-y-2">
-                                        <label for="model-description" class="form-label">Description</label>
-                                        <input type="text" id="model-description" class="form-input">
-                                    </div>
-                                    
-                                    <div class="space-y-2">
-                                        <label for="model-endpoint" class="form-label">Azure Endpoint</label>
-                                        <input type="url" id="model-endpoint" class="form-input" required>
-                                    </div>
-                                    
-                                    <div class="space-y-2">
-                                        <label for="model-api-version" class="form-label">API Version</label>
-                                        <input type="text" id="model-api-version" class="form-input" required value="2025-01-01-preview">
-                                    </div>
-                                    
-                                    <div class="space-y-2">
-                                        <label for="model-max-tokens" class="form-label">Max Tokens</label>
-                                        <input type="number" id="model-max-tokens" class="form-input" min="1" step="1" value="4096">
-                                    </div>
-                                    
-                                    <div class="flex flex-wrap gap-4">
-                                        <div class="flex items-center">
-                                            <input type="checkbox" id="model-supports-temperature" class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
-                                            <label for="model-supports-temperature" class="ml-2 text-sm text-dark-700 dark:text-dark-300">
-                                                Supports Temperature
-                                            </label>
-                                        </div>
-                                        
-                                        <div class="flex items-center">
-                                            <input type="checkbox" id="model-supports-streaming" class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
-                                            <label for="model-supports-streaming" class="ml-2 text-sm text-dark-700 dark:text-dark-300">
-                                                Supports Streaming
-                                            </label>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="flex justify-end space-x-3 pt-4 border-t border-dark-200 dark:border-dark-700">
-                                        <button type="button" id="model-form-cancel" class="btn btn-secondary">Cancel</button>
-                                        <button type="submit" class="btn btn-primary">Save</button>
-                                    </div>
-                                </form>
-                            </div>
+                        <div id="conversation-list-container" class="mt-4 space-y-2">
+                            <!-- Saved conversations will be listed here -->
+                            <p class="text-sm text-gray-500 dark:text-gray-400 text-center">No saved conversations found</p>
                         </div>
                     </div>
                 </div>
             </aside>
             
             <!-- Sidebar Overlay (for mobile) -->
-            <div id="sidebar-overlay" class="fixed inset-0 bg-dark-900 bg-opacity-50 z-30 hidden md:hidden" aria-hidden="true"></div>
+            <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden" aria-hidden="true"></div>
         </main>
 
-        <!-- Modal System (centralized for all dialogs) -->
-        <div id="modal-container" class="fixed inset-0 bg-dark-900 bg-opacity-50 flex items-center justify-center z-50 hidden" aria-hidden="true">
-            <div id="modal-content" class="bg-white dark:bg-dark-800 rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
-                <!-- Modal content will be injected here -->
+        <!-- Error Display -->
+        <div id="error-display" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="alert alert-danger max-w-md w-full mx-4">
+                <h3 class="text-lg font-bold mb-2">Error</h3>
+                <p id="error-message">An unexpected error occurred.</p>
+                <div class="mt-4 flex justify-end">
+                    <button class="btn btn-secondary">Dismiss</button>
+                </div>
             </div>
         </div>
 
         <!-- Notification Container -->
-        <div id="notification-container" class="fixed top-4 right-4 z-50 space-y-2 pointer-events-none" role="alert" aria-live="polite">
-            <!-- Notifications will be injected here -->
+        <div id="notification-container" class="fixed top-4 right-4 z-50 space-y-2 pointer-events-none"></div>
+        
+        <!-- Mobile-only Action Button (fixed to bottom right) -->
+        <button 
+            class="fixed bottom-24 right-4 bg-primary-600 text-white p-3 rounded-full shadow-lg hover:bg-primary-700 md:hidden z-10 touch-action-manipulation"
+            id="mobile-action-btn"
+            aria-label="Actions"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+            </svg>
+        </button>
+    </div>
+
+    <!-- Mobile Action Menu (hidden by default) -->
+    <div id="mobile-action-menu" class="fixed inset-x-0 bottom-0 bg-white dark:bg-dark-600 rounded-t-xl shadow-xl z-50 transform translate-y-full transition-transform hidden safe-area-inset-bottom">
+        <div class="p-4 space-y-4">
+            <div class="flex justify-between items-center border-b border-gray-200 dark:border-dark-400 pb-2">
+                <h2 class="text-lg font-semibold">Actions</h2>
+                <button id="close-mobile-menu" class="btn btn-icon btn-secondary" aria-label="Close menu">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <button class="btn btn-secondary flex flex-col items-center justify-center py-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+                    <span>Save Chat</span>
+                </button>
+                
+                <button class="btn btn-secondary flex flex-col items-center justify-center py-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>Regenerate</span>
+                </button>
+                
+                <button class="btn btn-secondary flex flex-col items-center justify-center py-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <span>Upload File</span>
+                </button>
+                
+                <button class="btn btn-danger flex flex-col items-center justify-center py-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>Clear Chat</span>
+                </button>
+            </div>
         </div>
     </div>
 
+    <!-- Service worker for PWA support -->
+    <script>
+        // Very basic inline script to handle immediate interactions
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/static/js/utils/service-worker.js')
+                    .then(function(registration) {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(function(error) {
+                        console.log('ServiceWorker registration failed: ', error);
+                    });
+            });
+        }
+        
+        // Universal send message handler (basic functionality)
+        function universalSendMessage() {
+            console.log("Universal send handler triggered");
+            // Try to call the send function directly first
+            try {
+                if (typeof sendMessage === 'function') {
+                    sendMessage();
+                    return false;
+                }
+            } catch (err) {
+                console.log("Direct call to sendMessage failed, using event system");
+            }
+            
+            // Fallback to event system
+            window.dispatchEvent(new CustomEvent('send-message'));
+            return false;
+        }
+        
+        // Make universalSendMessage globally available
+        window.universalSendMessage = universalSendMessage;
+    </script>
+    
     <!-- Core Modules (deferred for better performance) -->
     <script type="module" src="/static/js/init.js" defer></script>
     <script type="module" src="/static/js/chat.js" defer></script>
