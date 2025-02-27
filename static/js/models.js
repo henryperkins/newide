@@ -907,6 +907,8 @@ class ModelManager {
                 max_timeout: 300.0,
                 token_factor: 0.05,
                 max_timeout: 300.0,
+                token_factor: 0.05,
+                max_timeout: 300.0,
                 token_factor: 0.05
             }
         };
