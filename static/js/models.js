@@ -706,14 +706,27 @@ class ModelManager {
         
         // Try to get from localStorage
         const storageSessionId = localStorage.getItem('current_session_id');
-        if (storageSessionId) return storageSessionId;
+        if (storageSessionId) {
+            // Validate the session ID format (UUID)
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (uuidRegex.test(storageSessionId)) {
+                return storageSessionId;
+            } else {
+                console.warn('Invalid session ID format in localStorage, removing');
+                localStorage.removeItem('current_session_id');
+            }
+        }
         
         // Try to get from API
         try {
             const response = await fetch('/api/session');
             if (response.ok) {
                 const data = await response.json();
-                if (data && data.id) return data.id;
+                if (data && data.id) {
+                    // Store valid session ID in localStorage for future use
+                    localStorage.setItem('current_session_id', data.id);
+                    return data.id;
+                }
             }
         } catch (error) {
             console.warn('Could not fetch session ID from API:', error);

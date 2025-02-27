@@ -18,6 +18,7 @@ export async function initializeSession() {
         
         // First, check if valid session exists
         try {
+            // Check for existing session via API first to avoid cookie conflicts
             const checkResponse = await fetch('/api/session');
             if (checkResponse.ok) {
                 const sessionData = await checkResponse.json();
@@ -91,10 +92,32 @@ export async function initializeSession() {
 
 // Try to restore session from localStorage on page load
 (function restoreSession() {
-    const savedSessionId = localStorage.getItem('current_session_id');
-    if (savedSessionId) {
-        console.log('[DEBUG] Restoring session from localStorage:', savedSessionId);
-        sessionId = savedSessionId;
+    try {
+        const savedSessionId = localStorage.getItem('current_session_id');
+        if (savedSessionId) {
+            console.log('[DEBUG] Restoring session from localStorage:', savedSessionId);
+            sessionId = savedSessionId;
+            
+            // Validate the session by making a lightweight API call
+            fetch('/api/session').then(response => {
+                if (response.ok) {
+                    return response.json();
+                }
+                throw new Error('Invalid session');
+            }).then(data => {
+                if (!data.id) {
+                    console.warn('[DEBUG] Stored session is invalid, will create new one on next action');
+                    sessionId = null;
+                    localStorage.removeItem('current_session_id');
+                }
+            }).catch(err => {
+                console.warn('[DEBUG] Error validating stored session:', err);
+                // Don't clear sessionId here - let the next API call handle it
+            });
+        }
+    } catch (error) {
+        console.error('[DEBUG] Error restoring session from localStorage:', error);
+        sessionId = null;
     }
 })();
 

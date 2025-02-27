@@ -78,6 +78,14 @@ async def get_current_session(
         if not session_id:
             return None
             
+        # Validate UUID format
+        from uuid import UUID
+        try:
+            UUID(session_id, version=4)
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid session ID format: {session_id}")
+            return None
+            
         # Validate session in database
         from sqlalchemy import select
         from models import Session

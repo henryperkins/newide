@@ -258,10 +258,9 @@ export async function sendMessage() {
     userInput.value = '';
     userInput.style.height = 'auto';
     
-    // Get current session ID or initialize a new session
-    const currentSessionId = getSessionId();
+    // Get current session ID from multiple sources
+    let currentSessionId = getSessionId() || localStorage.getItem('current_session_id');
     if (!currentSessionId) {
-      // Add more robust session recovery
       try {
         console.warn('Session ID not found, attempting to recover...');
         // Show notification to user
@@ -273,16 +272,16 @@ export async function sendMessage() {
           const newSessionId = getSessionId();
           if (newSessionId) {
             showNotification('Session restored successfully', 'success');
-            // Continue with the new session
-            return await sendMessage(); // Retry the send with new session
+            currentSessionId = newSessionId;
+          } else {
+            throw new Error('Failed to get new session ID');
           }
+        } else {
+          throw new Error('Failed to initialize new session');
         }
-        
-        // If we get here, recovery failed
-        throw new Error('Invalid session. Please refresh the page.');
       } catch (error) {
         // Show dialog with refresh option
-        showConfirmDialog('Session expired', 'Your session has expired. Would you like to refresh the page?', () => {
+        await showConfirmDialog('Session expired', 'Your session has expired. Would you like to refresh the page?', () => {
           window.location.reload();
         });
         throw new Error('Invalid session. Please refresh the page.');
