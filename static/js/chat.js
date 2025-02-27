@@ -93,6 +93,14 @@ export async function sendMessage() {
 
     // Log model info for debugging DeepSeek issues
     logDeepSeekModelInfo(modelConfig);
+  
+    // Special handling for DeepSeek-R1 model
+    const isDeepSeek = modelConfig?.name?.toLowerCase().includes('deepseek') || 
+                       modelConfig?.name === 'DeepSeek-R1';
+  
+    if (isDeepSeek) {
+      console.log('[sendMessage] Using DeepSeek-R1 specific handling');
+    }
     
     // Decide a typical request timeout based on "reasoningEffort" or "serverCalculatedTimeout"
     const effortLevel = config?.reasoningEffort || 'medium';
@@ -117,7 +125,8 @@ export async function sendMessage() {
     // Get model details for streaming decision
     const modelName = modelConfig?.name?.toLowerCase();
     const supportsStreaming = modelConfig?.capabilities?.supports_streaming === true || 
-                              modelName?.includes('deepseek'); // DeepSeek models support streaming
+                              modelName?.includes('deepseek') || // DeepSeek models support streaming
+                              modelConfig?.name === 'DeepSeek-R1'; // Explicit check for DeepSeek-R1
 
     // Check if the model supports streaming and user has enabled it
     if (supportsStreaming && streamingEnabled) {
@@ -449,7 +458,7 @@ function isO1Model(modelConfig) {
  */
 function isDeepSeekModel(modelConfig) {
   const name = modelConfig?.name?.toLowerCase() || '';
-  return name.includes('deepseek');
+  return name.includes('deepseek') || modelConfig?.name === 'DeepSeek-R1';
   // Note: DeepSeek models use temperature parameter, not reasoning_effort
   // This matches the API documentation in deepseek-reference.md
 }

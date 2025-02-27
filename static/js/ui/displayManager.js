@@ -105,7 +105,7 @@ export async function processServerResponseData(data, modelName = 'unknown') {
   const actualModelUsed = data.model || modelName;
   
   // For DeepSeek models, preserve thinking tags and display them nicely
-  if (modelName.toLowerCase().includes('deepseek') || modelName.toLowerCase() === 'deepseek-r1') {
+  if (modelName.toLowerCase().includes('deepseek') || modelName === 'DeepSeek-R1') {
     const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
     
     // Check if we have thinking tags

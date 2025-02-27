@@ -124,7 +124,13 @@ class ModelManager {
                 supports_json_response: false,
                 base_timeout: 120.0,
                 max_timeout: 300.0,
-                token_factor: 0.05
+                token_factor: 0.05,
+                // Add specific DeepSeek-R1 capabilities
+                capabilities: {
+                    supports_streaming: true,
+                    supports_temperature: true,
+                    max_tokens: 32000
+                }
             };
             try {
                 await this.createModel("DeepSeek-R1", deepseekR1Model);
@@ -344,7 +350,12 @@ class ModelManager {
                     azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
                     base_timeout: 120.0,
                     max_timeout: 300.0,
-                    token_factor: 0.05
+                    token_factor: 0.05,
+                    capabilities: {
+                        supports_streaming: true,
+                        supports_temperature: true,
+                        max_tokens: 32000
+                    }
                 };
 
                 console.log('Created default models in local config:', this.modelConfigs);

@@ -328,7 +328,7 @@ export async function updateModelSpecificUI(modelName) {
                 console.log("Created o1hp model configuration:", o1Model);
             }
             // Special handling for DeepSeek-R1 model
-            else if (normalizedModelName === "deepseek-r1") {
+            else if (normalizedModelName === "deepseek-r1" || normalizedModelName === "deepseek_r1") {
                 console.log("Creating DeepSeek-R1 model configuration");
                 
                 // Create DeepSeek-R1 model configuration based on documentation
