@@ -70,9 +70,6 @@ export default class StatsDisplay {
     render() {
       if (!this.container) return;
   
-    render() {
-      if (!this.container) return;
-  
       this.container.querySelector('#latency-value').textContent =
         `${this.stats.latency}ms`;
 
