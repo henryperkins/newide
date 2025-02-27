@@ -1,742 +1,141 @@
-/* tailwind.css */
-
-/* Import Tailwind's base styles */
 @tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/* Inject custom base styles */
 @layer base {
-  html {
-    @apply h-full;
-  }
-  
-  body {
-    @apply h-full font-sans text-gray-900 dark:text-white bg-white;
-    background-color: oklch(28.822% 0.022 277.508) !important; /* --color-base-100 */
-    color: oklch(97.747% 0.007 106.545) !important; /* --color-base-content */
+  :root {
+    --focus-ring-color: oklch(68% 0.14 276 / 0.5);
   }
 
-  /* Custom focus styles */
-  a:focus,
-  button:focus,
-  [role="tab"]:focus,
-  [role="button"]:focus,
-  input:focus,
-  select:focus,
-  textarea:focus {
-    @apply outline-none ring-2 ring-blue-500/40 dark:ring-blue-400/60 ring-offset-1 dark:ring-offset-gray-900;
+  html {
+    @apply antialiased text-dark-900 dark:text-white;
+    font-size: 16px;
+  }
+
+  /* System for focus states */
+  *:focus-visible {
+    outline: 2px solid var(--focus-ring-color);
+    outline-offset: 2px;
+  }
+
+  /* Improved scrollbars */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-dark-100 dark:bg-dark-800 rounded;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-dark-300 dark:bg-dark-600 rounded hover:bg-dark-400 dark:hover:bg-dark-500 transition-colors;
   }
 
   /* Skip link for accessibility */
   .skip-link {
-    @apply sr-only focus:not-sr-only focus:absolute focus:p-4 focus:bg-blue-600 focus:text-white focus:z-50;
-  }
-
-  /* Font declarations */
-  @font-face {
-    font-family: 'JetBrains Mono';
-    font-style: normal;
-    font-weight: 400;
-    src: url('/static/fonts/jetbrains-mono/jetbrains-mono-400.woff2') format('woff2');
-    font-display: swap;
-  }
-
-  @font-face {
-    font-family: 'Inter';
-    font-style: normal;
-    font-weight: 500;
-    src: url('/static/fonts/inter/inter-500.woff2') format('woff2');
-    font-display: swap;
-  }
-
-  @font-face {
-    font-family: 'Inter';
-    font-style: normal;
-    font-weight: 600;
-    src: url('/static/fonts/inter/inter-600.woff2') format('woff2');
-    font-display: swap;
-  }
-
-  @font-face {
-    font-family: 'Inter';
-    font-style: normal;
-    font-weight: 700;
-    src: url('/static/fonts/inter/inter-700.woff2') format('woff2');
-    font-display: swap;
-  }
-
-  /* Heading defaults */
-  h1 {
-    @apply text-2xl font-semibold;
-  }
-
-  h2 {
-    @apply text-xl font-semibold;
-  }
-
-  h3 {
-    @apply text-lg font-semibold;
-  }
-
-  h4 {
-    @apply text-base font-semibold;
+    @apply absolute left-4 top-4 bg-primary-500 text-white px-4 py-2 rounded-md transform -translate-y-16 focus:translate-y-0 transition-transform z-50;
   }
 }
 
-/* Import Tailwind's component styles */
-@tailwind components;
-
-/* Add custom component classes */
 @layer components {
-  /* Shared base styles for both message bubbles - scoped to chat messages only */
-  .chat-bubble {
-    @apply px-4 py-3 my-3 rounded-xl shadow relative leading-relaxed;
-    @apply transition-colors duration-300; /* smoother transitions */
+  /* Loading state styles */
+  .loading {
+    @apply relative pointer-events-none;
   }
   
-  /* Thinking Process Components for DeepSeek-R1 */
-  .thinking-process {
-    @apply my-3 border border-blue-200 dark:border-blue-800 rounded-md overflow-hidden;
+  .loading::after {
+    content: "";
+    @apply absolute inset-0 bg-dark-500 bg-opacity-25 dark:bg-dark-900 dark:bg-opacity-50 flex items-center justify-center rounded;
   }
   
-  .thinking-header {
-    @apply bg-blue-50 dark:bg-blue-900/30 px-3 py-2 border-b border-blue-200 dark:border-blue-800;
+  /* Code highlighting - consistent for all code blocks */
+  .hljs {
+    @apply bg-dark-100 dark:bg-dark-800 text-dark-800 dark:text-dark-100 p-4 rounded-md overflow-x-auto text-sm font-mono;
   }
   
-  .thinking-toggle {
-    @apply w-full text-left flex items-center justify-between text-blue-700 dark:text-blue-300 font-medium;
+  /* Form error styling */
+  .form-error {
+    @apply text-error-700 dark:text-error-500 text-sm mt-1 font-medium;
   }
   
-  .thinking-toggle[aria-expanded="false"] + .thinking-content {
-    @apply hidden;
+  .input-error {
+    @apply border-error-500 dark:border-error-700;
   }
   
-  .thinking-toggle[aria-expanded="false"] .toggle-icon {
-    @apply transform -rotate-90;
+  /* Enhanced button touch feedback */
+  .btn:active {
+    @apply transform scale-95;
   }
   
-  .toggle-icon {
-    @apply mr-2 inline-block transition-transform duration-200;
+  /* Improved accessibility for form elements */
+  .sr-only {
+    @apply absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0;
   }
   
-  .thinking-content {
-    @apply bg-blue-50/50 dark:bg-blue-900/10 px-4 py-3;
-  }
-  
-  .thinking-pre {
-    @apply font-mono text-sm whitespace-pre-wrap text-gray-800 dark:text-gray-200 m-0;
-  }
-  
-  .assistant-thinking {
-    @apply chat-bubble
-           mr-auto
-           max-w-[85%] sm:max-w-[75%] md:max-w-3xl
-           rounded-bl-none
-           border border-blue-300 dark:border-blue-700
-           bg-blue-50 dark:bg-blue-900/30 text-gray-800 dark:text-gray-100;
-  }
-
-  /* User bubble - Dracula theme */
-  .user-message {
-    @apply chat-bubble
-           ml-auto
-           max-w-[85%] sm:max-w-[75%] md:max-w-3xl
-           rounded-br-none
-           bg-blue-600 text-white;
-    /* Dracula theme colors */
-    @apply dark:bg-[#bd93f9] dark:text-[#f8f8f2];
-  }
-
-  /* Assistant bubble - Dracula theme */
-  .assistant-message {
-    @apply chat-bubble
-           mr-auto
-           max-w-[85%] sm:max-w-[75%] md:max-w-3xl
-           rounded-bl-none
-           border border-gray-200
-           bg-white text-gray-800;
-    /* Dracula theme colors */
-    @apply dark:bg-[#44475a] dark:border-[#6272a4] dark:text-[#f8f8f2];
-  }
-  
-  /* Other message types */
-  .system-message {
-    @apply mx-auto max-w-[92%] md:max-w-xl bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-400 dark:border-yellow-600 p-2 md:p-3 text-yellow-800 dark:text-yellow-200 rounded my-2;
-  }
-  
-  /* Improved copy button for touch */
-  .copy-button {
-    @apply absolute top-1 right-1 md:top-2 md:right-2 w-8 h-8 flex items-center justify-center rounded-full bg-black/10 hover:bg-black/20 backdrop-blur-sm transition-colors text-white/80 dark:text-gray-200/80 touch-action-manipulation;
-  }
-  
-  /* Mobile-optimized tab buttons */
-  .tab-button {
-    @apply px-3 py-3 md:py-2 text-sm font-medium border-b-2 flex-1 text-center touch-action-manipulation;
-  }
-  
-  .tab-active {
-    @apply border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400;
-  }
-  
-  .tab-inactive {
-    @apply border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200;
-  }
-
-  /* Buttons */
-  .btn-primary {
-    @apply bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 active:bg-blue-800 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none transition-colors;
-  }
-
-  .btn-secondary {
-    @apply bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 active:bg-gray-400 dark:active:bg-gray-500 focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:outline-none transition-colors;
-  }
-
-  .btn-danger {
-    @apply bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 active:bg-red-800 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:outline-none transition-colors;
-  }
-
-  .btn-success {
-    @apply bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 active:bg-green-800 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:outline-none transition-colors;
-  }
-
-  /* Form inputs */
-  .form-input {
-    @apply w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none;
-  }
-
-  .form-select {
-    @apply w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none;
-  }
-
-  .form-textarea {
-    @apply w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none resize-none;
-  }
-
-  .form-checkbox {
-    @apply h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500;
-  }
-
-  /* Tabs */
-  .tab-active {
-    @apply px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400;
-  }
-
-  .tab-inactive {
-    @apply px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200;
-  }
-
-  /* Notifications */
-  .notification {
-    @apply fixed top-4 right-4 bg-white dark:bg-gray-800 shadow-md rounded p-2 max-w-xs animate-slide-in-right;
-  }
-
-  .notification-info {
-    @apply border-l-4 border-blue-600 dark:border-blue-400;
-  }
-
-  .notification-success {
-    @apply border-l-4 border-green-600 dark:border-green-400;
-  }
-
-  .notification-warning {
-    @apply border-l-4 border-yellow-600 dark:border-yellow-400;
-  }
-
-  .notification-error {
-    @apply border-l-4 border-red-600 dark:border-red-400;
-  }
-
-  /* File upload area */
-  .file-drop-area {
-    @apply border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center;
-  }
-
-  /* Typing indicator */
-  .typing-indicator {
-    @apply flex items-center space-x-1 opacity-0 transition-opacity;
-  }
-
-  .typing-indicator.visible {
-    @apply opacity-100;
-  }
-
-  .typing-indicator.fading-out {
+  /* Animated transitions for UI elements */
+  .fade-enter {
     @apply opacity-0;
   }
-
-  .typing-dot {
-    @apply h-2 w-2 rounded-full bg-gray-500 dark:bg-gray-400 animate-pulse;
+  
+  .fade-enter-active {
+    @apply opacity-100 transition-opacity duration-300;
+  }
+  
+  .fade-exit {
+    @apply opacity-100;
+  }
+  
+  .fade-exit-active {
+    @apply opacity-0 transition-opacity duration-300;
   }
 }
 
-/* Import Tailwind's utility styles */
-@tailwind utilities;
-
-/* Add custom utilities */
 @layer utilities {
-  /* Enhanced Modern Header - Dracula Theme */
-  header {
-    background: linear-gradient(to right, oklch(24.787% 0.019 277.508), oklch(28.822% 0.022 277.508)) !important;
-    border-bottom: 1px solid oklch(39.445% 0.032 275.524) !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
-    padding: 0.75rem 1.25rem !important;
-    position: relative !important;
-    z-index: 20 !important;
-    backdrop-filter: blur(5px) !important;
-    -webkit-backdrop-filter: blur(5px) !important;
-  }
-  
-  /* Add subtle animation to header on page load */
-  @keyframes headerFadeIn {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  
-  header {
-    animation: headerFadeIn 0.5s ease-out forwards !important;
-  }
-  
-  /* Modern title styling */
-  header h1 {
-    font-size: 1.5rem !important;
-    font-weight: 700 !important;
-    background: linear-gradient(to right, oklch(75.461% 0.183 346.812), oklch(74.202% 0.148 301.883)) !important;
-    -webkit-background-clip: text !important;
-    background-clip: text !important;
-    color: transparent !important;
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1) !important;
-    letter-spacing: -0.01em !important;
-    padding-right: 0.5rem !important;
-    position: relative !important;
-  }
-  
-  /* Add subtle glow effect to title */
-  header h1::after {
-    content: "" !important;
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    background: linear-gradient(to right, oklch(75.461% 0.183 346.812), oklch(74.202% 0.148 301.883)) !important;
-    filter: blur(15px) !important;
-    opacity: 0.3 !important;
-    z-index: -1 !important;
-  }
-  
-  /* Enhanced model info text */
-  header .text-gray-600,
-  header .dark\:text-gray-400 {
-    color: oklch(88.263% 0.093 212.846) !important; /* Cyan */
-    font-size: 0.875rem !important;
-    font-weight: 500 !important;
-    letter-spacing: 0.01em !important;
-  }
-  
-  header .text-gray-600 strong,
-  header .dark\:text-gray-400 strong {
-    color: oklch(95.533% 0.134 112.757) !important; /* Orange */
-    font-weight: 600 !important;
-  }
-  
-  /* Modern performance stats in header */
-  .performance-stats {
-    display: flex !important;
-    gap: 1rem !important;
-    padding: 0.5rem 0.75rem !important;
-    background-color: oklch(26.805% 0.02 277.508) !important;
-    border-radius: 0.5rem !important;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-    border: 1px solid oklch(39.445% 0.032 275.524) !important;
-  }
-  
-  .stat-item {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    min-width: 80px !important;
-  }
-  
-  .stat-label {
-    font-size: 0.75rem !important;
-    font-weight: 500 !important;
-    color: oklch(74.202% 0.148 301.883) !important; /* Purple */
-    margin-bottom: 0.125rem !important;
-  }
-  
-  .stat-value {
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.875rem !important;
-    font-weight: 600 !important;
-    color: oklch(97.747% 0.007 106.545) !important;
-  }
-  
-  /* Modern font size buttons */
-  header button.btn-secondary {
-    background-color: oklch(26.805% 0.02 277.508) !important;
-    border: 1px solid oklch(39.445% 0.032 275.524) !important;
-    color: oklch(97.747% 0.007 106.545) !important;
-    font-weight: 600 !important;
-    padding: 0.375rem 0.75rem !important;
-    border-radius: 0.375rem !important;
-    transition: all 0.2s ease !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
-  }
-  
-  header button.btn-secondary:hover {
-    background-color: oklch(24.787% 0.019 277.508) !important;
-    border-color: oklch(75.461% 0.183 346.812) !important;
-    transform: translateY(-1px) !important;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
-  }
-  
-  header button.btn-secondary:active {
-    transform: translateY(0) !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
-  }
-  
-  /* Mobile header enhancements */
-  @media (max-width: 767px) {
-    header {
-      padding: 0.625rem 1rem !important;
-    }
-    
-    header h1 {
-      font-size: 1.25rem !important;
-    }
-    
-    header button {
-      padding: 0.375rem !important;
-    }
-  }
-  
-  /* Dracula theme for bottom info panels using OKLCH colors */
-  .token-usage-compact {
-    background-color: oklch(28.822% 0.022 277.508) !important; /* --color-base-100 */
-    border-color: oklch(26.805% 0.02 277.508) !important; /* --color-base-200 */
-    overflow-x: hidden !important; /* Prevent horizontal scrolling */
-    border-radius: 0.5rem !important; /* --radius-field */
-    margin: 0.25rem !important; /* --size-field */
-    width: 100% !important; /* Ensure full width */
-    padding: 0.75rem !important; /* Increased padding for better spacing */
-  }
-  
-  /* Improved token stats display readability - DESKTOP VERSION */
-  @media (min-width: 768px) {
-    .token-usage-compact .grid {
-      display: grid !important;
-      grid-template-columns: repeat(5, 1fr) !important;
-      gap: 0.75rem !important;
-      width: 100% !important;
-    }
-    
-    .token-usage-compact .flex {
-      display: flex !important;
-      justify-content: space-between !important;
-      align-items: center !important;
-      min-width: 0 !important;
-      background-color: oklch(24.787% 0.019 277.508) !important; /* Slightly darker background */
-      padding: 0.5rem !important;
-      border-radius: 0.375rem !important;
-      margin-bottom: 0.25rem !important;
-    }
-    
-    .token-usage-compact .text-gray-500,
-    .token-usage-compact .dark\:text-gray-400 {
-      color: oklch(88.263% 0.093 212.846) !important; /* --color-info (cyan) - brighter color */
-      font-size: 0.875rem !important; /* Larger font */
-      font-weight: 500 !important; /* Medium weight for better visibility */
-    }
-    
-    .token-usage-compact .text-gray-800,
-    .token-usage-compact .dark\:text-gray-200 {
-      color: oklch(97.747% 0.007 106.545) !important; /* --color-base-content */
-      font-size: 0.875rem !important; /* Larger font */
-      font-weight: 600 !important; /* Semi-bold for better visibility */
-    }
-    
-    .token-usage-compact .font-mono {
-      text-overflow: ellipsis !important;
-      white-space: nowrap !important;
-      overflow: hidden !important;
-      font-size: 0.875rem !important; /* Larger font */
-    }
-  }
-  
-  /* Add color to the icons in the token usage panel */
-  .token-usage-compact svg {
-    color: oklch(75.461% 0.183 346.812) !important; /* --color-primary (pink) */
-    width: 1rem !important;
-    height: 1rem !important;
-    margin-right: 0.375rem !important;
-  }
-  
-  /* Different colors for different token types */
-  .token-usage-compact div:nth-child(1) svg {
-    color: oklch(88.263% 0.093 212.846) !important; /* --color-info (cyan) */
-  }
-  
-  .token-usage-compact div:nth-child(2) svg {
-    color: oklch(74.202% 0.148 301.883) !important; /* --color-secondary (purple) */
-  }
-  
-  .token-usage-compact div:nth-child(3) svg {
-    color: oklch(95.533% 0.134 112.757) !important; /* --color-warning (orange) */
-  }
-  
-  .token-usage-compact div:nth-child(4) svg {
-    color: oklch(68.22% 0.206 24.43) !important; /* --color-error (red) */
-  }
-  
-  .token-usage-compact div:nth-child(5) svg {
-    color: oklch(87.099% 0.219 148.024) !important; /* --color-success (green) */
-  }
-  
-  /* Dracula theme for sidebar and tabs using OKLCH colors */
-  aside {
-    background-color: oklch(28.822% 0.022 277.508) !important; /* --color-base-100 */
-    border-color: oklch(26.805% 0.02 277.508) !important; /* --color-base-200 */
-    border-radius: 1rem !important; /* --radius-box */
-  }
-  
-  /* Fix for tab navigation to span full width - DESKTOP VERSION ONLY */
-  @media (min-width: 768px) {
-    aside > div[role="tablist"] {
-      display: flex !important;
-      width: 100% !important;
-      justify-content: space-between !important;
-      overflow-x: hidden !important;
-      border-bottom: 1px solid oklch(24.787% 0.019 277.508) !important; /* Darker border for better visibility */
-    }
-    
-    aside > div[role="tablist"] button {
-      flex: 1 1 0 !important; /* Equal width distribution */
-      text-align: center !important;
-      white-space: nowrap !important;
-      overflow: hidden !important;
-      text-overflow: ellipsis !important;
-      min-width: 0 !important;
-      padding: 0.75rem 0.5rem !important; /* Increased padding for better touch targets */
-      font-size: 0.875rem !important; /* Slightly larger font */
-      font-weight: 500 !important; /* Medium weight for better visibility */
-      border-bottom-width: 2px !important; /* Thicker border */
-      transition: all 0.2s ease-in-out !important;
-    }
-    
-    /* Ensure tab panels take full width */
-    aside [role="tabpanel"] {
-      width: 100% !important;
-      max-width: 100% !important;
-      overflow-x: hidden !important;
-    }
-  }
-  
-  .tab-active {
-    border-color: oklch(75.461% 0.183 346.812) !important; /* --color-primary (pink) */
-    color: oklch(75.461% 0.183 346.812) !important; /* --color-primary (pink) */
-    background-color: oklch(24.787% 0.019 277.508) !important; /* Slightly darker background for active tab */
-  }
-  
-  .tab-inactive:hover {
-    color: oklch(97.747% 0.007 106.545) !important; /* --color-base-content */
-    background-color: oklch(26.805% 0.02 277.508) !important; /* Slight hover effect */
-  }
-  
-  /* Dracula theme for input field */
-  #user-input {
-    background-color: oklch(26.805% 0.02 277.508) !important; /* --color-base-200 */
-    border-color: oklch(39.445% 0.032 275.524) !important; /* --color-neutral */
-    color: oklch(97.747% 0.007 106.545) !important; /* --color-base-content */
-    border-radius: 0.5rem !important; /* --radius-field */
-  }
-  
-  /* Update send button with OKLCH colors */
-  #send-button {
-    background-color: oklch(75.461% 0.183 346.812) !important; /* --color-primary (pink) */
-    color: oklch(97.747% 0.007 106.545) !important; /* --color-base-content */
-  }
-  
-  #send-button:hover {
-    background-color: oklch(74.202% 0.148 301.883) !important; /* --color-secondary (purple) */
-  }
-  
-  /* Update user and assistant message bubbles with improved readability */
-  .user-message {
-    background-color: oklch(75.461% 0.183 346.812) !important; /* --color-primary (pink) */
-    color: oklch(97.747% 0.007 106.545) !important; /* --color-base-content */
-    border-radius: 1rem !important; /* --radius-box */
-  }
-  
-  .assistant-message {
-    background-color: oklch(26.805% 0.02 277.508) !important; /* --color-base-200 */
-    border-color: oklch(24.787% 0.019 277.508) !important; /* --color-base-300 */
-    color: oklch(97.747% 0.007 106.545) !important; /* --color-base-content */
-    border-radius: 1rem !important; /* --radius-box */
-  }
-  
-  /* Improved readability for message content */
-  .user-message .prose,
-  .assistant-message .prose {
-    color: inherit !important;
-    font-size: 1rem !important;
-    line-height: 1.5 !important;
-  }
-  
-  /* Make model info more readable */
-  .assistant-message .text-xs.text-gray-500,
-  .assistant-message .text-xs.text-gray-400 {
-    color: oklch(97.747% 0.007 106.545) !important;
-    opacity: 0.7 !important;
-    font-size: 0.8rem !important;
-    margin-top: 0.5rem !important;
-    display: block !important;
-  }
-  
-  /* Utility for better touch targets */
+  /* Enhance touch targets for mobile */
   .touch-action-manipulation {
     touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
   }
   
-  /* Mobile font sizes */
-  .mobile-text-adjust {
-    font-size: 16px; /* Minimum readable size for mobile */
-    line-height: 1.5;
+  /* Focus ring for non-button interactive elements */
+  .focus-ring {
+    @apply focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none;
   }
   
-  /* Safe area handling for notched phones */
-  .safe-area-inset-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Custom touch feedback */
+  .touch-feedback {
+    @apply active:bg-dark-200 dark:active:bg-dark-700 transition-colors duration-150;
   }
   
-  .safe-area-inset-top {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-
-  /* Send button styles - Dracula theme */
-  #send-button {
-    cursor: pointer !important;
-    -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
-    touch-action: manipulation !important;
-    will-change: transform !important;
-    transform: translateZ(0) !important;
-    user-select: none !important;
-    position: relative !important;
-    z-index: 150 !important;
-    width: 48px !important;
-    height: 48px !important;
-    min-width: 48px !important;
-    min-height: 48px !important;
-    border-radius: 9999px !important; /* rounded-full */
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    background-color: #ff79c6 !important; /* Dracula pink */
-    color: #f8f8f2 !important; /* Dracula foreground */
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important; /* shadow-md */
-    margin-bottom: 0 !important;
-    padding: 0 !important;
+  /* Hide scrollbar while preserving functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
   
-  #send-button:hover {
-    background-color: #bd93f9 !important; /* Dracula purple */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
   
-  #send-button span {
-    font-size: 1.25rem !important; /* text-xl */
-  }
-  
-  #send-tap-target {
-    position: absolute !important;
-    top: -15px !important;
-    left: -15px !important;
-    right: -15px !important;
-    bottom: -15px !important;
-    z-index: 151 !important;
-    cursor: pointer !important;
-    background: rgba(0,0,0,0.01) !important; /* Barely visible but helps some mobile browsers */
-    -webkit-tap-highlight-color: transparent !important;
-  }
-  
-  .send-button-wrapper {
-    position: relative !important;
-    z-index: 149 !important;
-  }
-
-  /* For screen readers only */
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
+  /* Limit text to specified number of lines with ellipsis */
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border-width: 0;
-  }
-
-  /* For reduced motion preference */
-  @media (prefers-reduced-motion: reduce) {
-    * {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-  }
-
-  /* Custom scrollbar (for Webkit browsers) */
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-track {
-    @apply bg-gray-100 dark:bg-gray-800;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-gray-400 dark:bg-gray-600 rounded;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-500 dark:bg-gray-500;
-  }
-
-  /* Add this to fix the chat container background */
-  .chat-container {
-    background-color: oklch(28.822% 0.022 277.508) !important; /* --color-base-100 */
   }
   
-  /* Make sure chat-history matches the theme */
-  #chat-history {
-    background-color: oklch(28.822% 0.022 277.508) !important; /* --color-base-100 */
-  }
-
-  /* Dark theme fixes for chat interface */
-  html[data-theme="dark"] body,
-  html[data-theme="dark"] main,
-  html[data-theme="dark"] #chat-history,
-  html[data-theme="dark"] .bg-white {
-    background-color: oklch(28.822% 0.022 277.508) !important; 
-    color: oklch(97.747% 0.007 106.545) !important;
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
   
-  /* Chat-specific containers in dark mode */
-  html[data-theme="dark"] .chat-container,
-  html[data-theme="dark"] #chat-history {
-    background-color: oklch(28.822% 0.022 277.508) !important;
-  }
-  
-  /* Override any bg-white classes when in dark mode */
-  html[data-theme="dark"] [class*="bg-white"] {
-    background-color: oklch(28.822% 0.022 277.508) !important;
-  }
-  
-  /* Force dark mode as fallback */
-  .dark body,
-  .dark main,
-  .dark #chat-history {
-    background-color: oklch(28.822% 0.022 277.508) !important;
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 }

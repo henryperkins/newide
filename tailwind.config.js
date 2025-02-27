@@ -1,310 +1,485 @@
-// tailwind.config.js
+/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    './static/**/*.html',
-    './static/**/*.js',
-    // Add other file types if needed
+    "./static/**/*.{html,js}",
+    "./templates/**/*.{html,py}",  // If you have a templates directory
+    // More specific patterns instead of the broad "./**/*.{html,js,py}"
+    "./*.{html,py}" // For files in the root directory
   ],
-  darkMode: 'class', // Use class-based dark mode for explicit control
+  safelist: [
+    // Add specific ring utilities that might be used dynamically
+    'ring-primary-500/60',
+    'ring-primary-400/60',
+    'focus:ring-primary-500',
+    'focus:ring-primary-500/60',
+    'focus:ring-2',
+    'ring-2',
+  ],
+  darkMode: 'class', // Consistent dark mode approach
   theme: {
     extend: {
-      // Colors mapped from CSS variables in base.css
       colors: {
-        // Dracula theme colors using OKLCH values
-        'dracula': {
-          'background': 'oklch(28.822% 0.022 277.508)', // --color-base-100
-          'current-line': 'oklch(26.805% 0.02 277.508)', // --color-base-200
-          'deeper-dark': 'oklch(24.787% 0.019 277.508)', // --color-base-300
-          'foreground': 'oklch(97.747% 0.007 106.545)', // --color-base-content
-          'comment': 'oklch(39.445% 0.032 275.524)', // --color-neutral
-          'cyan': 'oklch(88.263% 0.093 212.846)', // --color-info
-          'green': 'oklch(87.099% 0.219 148.024)', // --color-success
-          'orange': 'oklch(95.533% 0.134 112.757)', // --color-warning
-          'pink': 'oklch(75.461% 0.183 346.812)', // --color-primary
-          'purple': 'oklch(74.202% 0.148 301.883)', // --color-secondary
-          'red': 'oklch(68.22% 0.206 24.43)', // --color-error
-          'yellow': 'oklch(83.392% 0.124 66.558)' // --color-accent
+        // Define primary design system colors with proper naming
+        primary: {
+          50: 'oklch(97% 0.029 276)',
+          100: 'oklch(94% 0.048 276)',
+          200: 'oklch(89% 0.078 276)',
+          300: 'oklch(83% 0.107 276)',
+          400: 'oklch(76% 0.126 276)',
+          500: 'oklch(68% 0.140 276)', // Base primary color
+          600: 'oklch(60% 0.135 276)',
+          700: 'oklch(52% 0.130 276)',
+          800: 'oklch(44% 0.118 276)',
+          900: 'oklch(36% 0.095 276)',
+          950: 'oklch(28% 0.075 276)',
         },
-        // Primary colors - updated with Dracula theme
-        'primary': {
-          DEFAULT: 'oklch(75.461% 0.183 346.812)', // --color-primary (pink)
-          'dark': 'oklch(39.445% 0.032 275.524)',  // --color-neutral (comment)
-          'light': 'oklch(74.202% 0.148 301.883)', // --color-secondary (purple)
-          'content': 'oklch(15.092% 0.036 346.812)' // --color-primary-content
+        // Secondary accent color
+        secondary: {
+          50: 'oklch(97% 0.029 333)',
+          100: 'oklch(94% 0.048 333)',
+          200: 'oklch(89% 0.078 333)',
+          300: 'oklch(83% 0.107 333)',
+          400: 'oklch(76% 0.126 333)',
+          500: 'oklch(68% 0.140 333)', // Base secondary color
+          600: 'oklch(60% 0.135 333)',
+          700: 'oklch(52% 0.130 333)',
+          800: 'oklch(44% 0.118 333)',
+          900: 'oklch(36% 0.095 333)',
+          950: 'oklch(28% 0.075 333)',
         },
-        'secondary': {
-          DEFAULT: 'oklch(74.202% 0.148 301.883)', // --color-secondary (purple)
-          'content': 'oklch(14.84% 0.029 301.883)' // --color-secondary-content
+        // Neutral colors for text and backgrounds
+        dark: {
+          50: 'oklch(98% 0.005 276)',
+          100: 'oklch(95% 0.008 276)',
+          200: 'oklch(86% 0.010 276)',
+          300: 'oklch(76% 0.012 276)',
+          400: 'oklch(67% 0.015 276)',
+          500: 'oklch(54% 0.018 276)',
+          600: 'oklch(42% 0.019 276)',
+          700: 'oklch(32% 0.020 276)',
+          800: 'oklch(24% 0.018 276)',
+          900: 'oklch(18% 0.014 276)',
+          950: 'oklch(13% 0.010 276)',
         },
-        'accent': {
-          DEFAULT: 'oklch(83.392% 0.124 66.558)', // --color-accent (yellow)
-          'content': 'oklch(16.678% 0.024 66.558)' // --color-accent-content
+        // Consistent semantic colors
+        success: {
+          50: 'oklch(96% 0.05 145)',
+          100: 'oklch(93% 0.08 145)',
+          500: 'oklch(65% 0.22 145)',
+          700: 'oklch(45% 0.18 145)',
+          900: 'oklch(33% 0.12 145)',
         },
-        'neutral': {
-          DEFAULT: 'oklch(39.445% 0.032 275.524)', // --color-neutral (comment)
-          'content': 'oklch(87.889% 0.006 275.524)' // --color-neutral-content
+        warning: {
+          50: 'oklch(97% 0.05 85)',
+          100: 'oklch(94% 0.08 85)',
+          500: 'oklch(75% 0.20 85)',
+          700: 'oklch(60% 0.18 85)',
+          900: 'oklch(40% 0.12 85)',
         },
-        'info': {
-          DEFAULT: 'oklch(88.263% 0.093 212.846)', // --color-info (cyan)
-          'content': 'oklch(17.652% 0.018 212.846)' // --color-info-content
+        error: {
+          50: 'oklch(97% 0.05 30)',
+          100: 'oklch(94% 0.08 30)',
+          500: 'oklch(65% 0.25 30)',
+          700: 'oklch(50% 0.22 30)',
+          900: 'oklch(35% 0.15 30)',
         },
-        'success': {
-          DEFAULT: 'oklch(87.099% 0.219 148.024)', // --color-success (green)
-          'content': 'oklch(17.419% 0.043 148.024)' // --color-success-content
-        },
-        'warning': {
-          DEFAULT: 'oklch(95.533% 0.134 112.757)', // --color-warning (orange)
-          'content': 'oklch(19.106% 0.026 112.757)' // --color-warning-content
-        },
-        'error': {
-          DEFAULT: 'oklch(68.22% 0.206 24.43)', // --color-error (red)
-          'content': 'oklch(13.644% 0.041 24.43)' // --color-error-content
-        },
-        // Text colors - updated with Dracula theme
-        'text': {
-          'primary': '#1e293b',    // --text-primary
-          'secondary': '#475569',  // --text-secondary
-          'muted': '#94a3b8',      // --text-muted
-          'inverted': '#f8f8f2'    // Dracula foreground
-        },
-        // Surface colors - updated with Dracula theme
-        'surface': {
-          'main': '#ffffff',      // --surface-main
-          'secondary': '#f8fafc', // --surface-secondary
-          'tertiary': '#f1f5f9',  // --surface-tertiary
-          'elevated': '#ffffff',  // --surface-elevated
-          'dark': {
-            'main': '#282a36',      // Dracula background
-            'secondary': '#44475a', // Dracula current line
-            'tertiary': '#6272a4',  // Dracula comment
-          }
-        },
-        // Border colors
-        'border': {
-          'subtle': '#e2e8f0',    // --border-subtle
-          'medium': '#cbd5e1',    // --border-medium
-          'emphasis': '#94a3b8',   // --border-emphasis
-          'dark': {
-            'subtle': '#44475a',    // Dracula current line
-            'medium': '#6272a4',    // Dracula comment
-            'emphasis': '#bd93f9'   // Dracula purple
-          }
-        },
-        // Feedback colors - updated with Dracula theme
-        'feedback': {
-          'success': '#50fa7b', // Dracula green
-          'warning': '#ffb86c', // Dracula orange
-          'error': '#ff5555',   // Dracula red
-          'info': '#8be9fd'     // Dracula cyan
-        }
       },
-      // Spacing system mapped from CSS variables
-      spacing: {
-        '2xs': '0.25rem', // --space-2xs
-        'xs': '0.5rem',   // --space-xs
-        'sm': '0.75rem',  // --space-sm
-        'md': '1rem',     // --space-md
-        'lg': '1.5rem',   // --space-lg
-        'xl': '2rem',     // --space-xl
-        '2xl': '3rem',    // --space-2xl
-      },
-      // Border radius mapped from CSS variables
-      borderRadius: {
-        'sm': '0.25rem', // --radius-sm
-        'md': '0.5rem',  // --radius-md
-        'lg': '0.75rem', // --radius-lg
-        'xl': '1rem',    // --radius-xl
-      },
-      // Shadow system mapped from CSS variables
-      boxShadow: {
-        'sm': '0 1px 2px rgba(0, 0, 0, 0.05)',                                                                // --shadow-sm
-        'md': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',                       // --shadow-md
-        'lg': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',                     // --shadow-lg
-        'xl': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',                   // --shadow-xl
-        'dark-sm': '0 1px 3px rgba(0, 0, 0, 0.3)',                                                            // Dark mode --shadow-sm
-        'dark-md': '0 4px 6px rgba(0, 0, 0, 0.4)',                                                            // Dark mode --shadow-md
-        'dark-lg': '0 10px 15px rgba(0, 0, 0, 0.5)',                                                          // Dark mode --shadow-lg
-        'dark-xl': '0 20px 25px rgba(0, 0, 0, 0.6)',                                                          // Dark mode --shadow-xl
-      },
-      // Font families mapped from CSS variables
       fontFamily: {
-        'sans': ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],        // --font-sans
-        'mono': ['JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', 'monospace'],                        // --font-mono
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
       },
-      // Font sizes mapped from CSS variables
       fontSize: {
-        'xs': '0.75rem',    // --text-xs
-        'sm': '0.875rem',   // --text-sm
-        'md': '1rem',       // --text-md
-        'lg': '1.125rem',   // --text-lg
-        'xl': '1.25rem',    // --text-xl
-        '2xl': '1.5rem',    // --text-2xl
+        // Ensure consistent typographic scale
+        xs: ['0.75rem', { lineHeight: '1rem' }],
+        sm: ['0.875rem', { lineHeight: '1.25rem' }],
+        base: ['1rem', { lineHeight: '1.5rem' }],
+        lg: ['1.125rem', { lineHeight: '1.75rem' }],
+        xl: ['1.25rem', { lineHeight: '1.75rem' }],
+        '2xl': ['1.5rem', { lineHeight: '2rem' }],
+        '3xl': ['1.875rem', { lineHeight: '2.25rem' }],
       },
-      // Line heights mapped from CSS variables
-      lineHeight: {
-        'tight': '1.25',     // --leading-tight
-        'normal': '1.5',     // --leading-normal
-        'relaxed': '1.75',   // --leading-relaxed
+      spacing: {
+        // Ensure consistent spacing
+        '0': '0',
+        '1': '0.25rem',
+        '2': '0.5rem',
+        '3': '0.75rem',
+        '4': '1rem',
+        '5': '1.25rem',
+        '6': '1.5rem',
+        '8': '2rem',
+        '10': '2.5rem',
+        '12': '3rem',
+        '16': '4rem',
+        '20': '5rem',
+        '24': '6rem',
+        '32': '8rem',
+        '40': '10rem',
+        '48': '12rem',
+        '56': '14rem',
+        '64': '16rem',
       },
-      // Custom animations
       animation: {
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'bounce-slow': 'bounce 2s infinite',
+        'spin': 'spin 1s linear infinite',
         'fade-in': 'fadeIn 0.3s ease-in-out',
-        'slide-in-right': 'slideInRight 0.3s ease-out',
-        'slide-in-left': 'slideInLeft 0.3s ease-out',
-        'slide-out-right': 'slideOutRight 0.3s ease-in',
-        'slide-out-left': 'slideOutLeft 0.3s ease-in',
+        'fade-out': 'fadeOut 0.3s ease-in-out',
+        'slide-in-right': 'slideInRight 0.3s ease-in-out',
+        'slide-out-right': 'slideOutRight 0.3s ease-in-out',
       },
       keyframes: {
         fadeIn: {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
         },
-        slideInRight: {
-          '0%': { transform: 'translateX(100%)', opacity: '0' },
-          '100%': { transform: 'translateX(0)', opacity: '1' },
+        fadeOut: {
+          '0%': { opacity: '1' },
+          '100%': { opacity: '0' },
         },
-        slideInLeft: {
-          '0%': { transform: 'translateX(-100%)', opacity: '0' },
-          '100%': { transform: 'translateX(0)', opacity: '1' },
+        slideInRight: {
+          '0%': { transform: 'translateX(100%)' },
+          '100%': { transform: 'translateX(0)' },
         },
         slideOutRight: {
-          '0%': { transform: 'translateX(0)', opacity: '1' },
-          '100%': { transform: 'translateX(100%)', opacity: '0' },
-        },
-        slideOutLeft: {
-          '0%': { transform: 'translateX(0)', opacity: '1' },
-          '100%': { transform: 'translateX(-100%)', opacity: '0' },
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(100%)' },
         },
       },
-      // Add custom transition durations
-      transitionDuration: {
-        '0': '0ms',
-        '150': '150ms', // --transition-fast
-        '250': '250ms', // --transition-normal
-        '350': '350ms', // --transition-slow
+      boxShadow: {
+        sm: '0 1px 2px 0 oklch(0% 0 0 / 0.05)',
+        DEFAULT: '0 1px 3px 0 oklch(0% 0 0 / 0.1), 0 1px 2px -1px oklch(0% 0 0 / 0.1)',
+        md: '0 4px 6px -1px oklch(0% 0 0 / 0.1), 0 2px 4px -2px oklch(0% 0 0 / 0.1)',
+        lg: '0 10px 15px -3px oklch(0% 0 0 / 0.1), 0 4px 6px -4px oklch(0% 0 0 / 0.1)',
+        xl: '0 20px 25px -5px oklch(0% 0 0 / 0.1), 0 8px 10px -6px oklch(0% 0 0 / 0.1)',
       },
-      // Add focus ring styles - updated with Dracula theme
-      ringWidth: {
-        DEFAULT: '3px', // Default focus ring width from --focus-ring
+      borderRadius: {
+        'sm': '0.125rem',
+        DEFAULT: '0.25rem',
+        'md': '0.375rem',
+        'lg': '0.5rem',
+        'xl': '0.75rem',
+        '2xl': '1rem',
+        'full': '9999px',
       },
-      ringColor: {
-        DEFAULT: 'rgba(37, 99, 235, 0.4)', // Default focus ring color from --focus-ring
-        'dark': 'rgba(189, 147, 249, 0.6)', // Dracula purple with opacity
-        'pink': 'rgba(255, 121, 198, 0.6)', // Dracula pink with opacity
-        'cyan': 'rgba(139, 233, 253, 0.6)', // Dracula cyan with opacity
-      },
-      ringOpacity: {
-        '60': '0.6',
-        '40': '0.4',
-      },
-      // Add typography plugin customizations for markdown
-      typography: (theme) => ({
-        DEFAULT: {
-          css: {
-            color: theme('colors.text.primary'),
-            a: {
-              color: theme('colors.primary.DEFAULT'),
-              '&:hover': {
-                color: theme('colors.primary.dark'),
-              },
-            },
-            h1: {
-              color: theme('colors.text.primary'),
-            },
-            h2: {
-              color: theme('colors.text.primary'),
-            },
-            h3: {
-              color: theme('colors.text.primary'),
-            },
-            h4: {
-              color: theme('colors.text.primary'),
-            },
-            code: {
-              color: theme('colors.primary.dark'),
-              backgroundColor: theme('colors.surface.tertiary'),
-              padding: '0.2em 0.4em',
-              borderRadius: '0.25rem',
-              fontWeight: '400',
-            },
-            'code::before': {
-              content: '""',
-            },
-            'code::after': {
-              content: '""',
-            },
-            pre: {
-              backgroundColor: theme('colors.surface.tertiary'),
-              color: theme('colors.text.primary'),
-            },
-            blockquote: {
-              color: theme('colors.text.secondary'),
-              borderLeftColor: theme('colors.border.subtle'),
-            },
-          },
-        },
-        dark: {
-          css: {
-            color: theme('colors.dracula.foreground'),
-            a: {
-              color: theme('colors.dracula.pink'),
-              '&:hover': {
-                color: theme('colors.dracula.purple'),
-              },
-            },
-            h1: {
-              color: theme('colors.dracula.foreground'),
-            },
-            h2: {
-              color: theme('colors.dracula.foreground'),
-            },
-            h3: {
-              color: theme('colors.dracula.foreground'),
-            },
-            h4: {
-              color: theme('colors.dracula.foreground'),
-            },
-            strong: {
-              color: theme('colors.dracula.orange'),
-            },
-            code: {
-              color: theme('colors.dracula.green'),
-              backgroundColor: theme('colors.dracula.current-line'),
-            },
-            'code::before': {
-              content: '""',
-            },
-            'code::after': {
-              content: '""',
-            },
-            pre: {
-              backgroundColor: theme('colors.dracula.current-line'),
-              color: theme('colors.dracula.foreground'),
-            },
-            blockquote: {
-              color: theme('colors.dracula.comment'),
-              borderLeftColor: theme('colors.dracula.purple'),
-            },
-          },
-        },
-      }),
     },
   },
-  variants: {
-    extend: {
-      // Enable dark mode variants
-      backgroundColor: ['dark'],
-      textColor: ['dark'],
-      borderColor: ['dark'],
-      ringColor: ['dark', 'focus-visible'],
-      ringWidth: ['focus-visible'],
-      typography: ['dark'],
-    },
-  },
+  // Component extraction for consistent UI elements
   plugins: [
-    require('@tailwindcss/typography'), // For markdown content styling
-    require('@tailwindcss/forms'),      // For form input styling
+    function({ addComponents }) {
+      addComponents({
+        '.btn': {
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontWeight: '500',
+          fontSize: '0.875rem',
+          padding: '0.5rem 1rem',
+          borderRadius: '0.375rem',
+          transition: 'all 150ms ease-in-out',
+          cursor: 'pointer',
+          '&:focus-visible': {
+            outline: '2px solid oklch(68% 0.14 276)',
+            outlineOffset: '2px',
+          },
+          '&:disabled': {
+            opacity: '0.65',
+            pointerEvents: 'none',
+          },
+        },
+        '.btn-primary': {
+          backgroundColor: 'oklch(68% 0.14 276)',
+          color: 'white',
+          '&:hover:not(:disabled)': {
+            backgroundColor: 'oklch(60% 0.135 276)',
+          },
+          '&:active:not(:disabled)': {
+            backgroundColor: 'oklch(52% 0.13 276)',
+          },
+        },
+        '.btn-secondary': {
+          backgroundColor: 'oklch(95% 0.008 276)',
+          color: 'oklch(42% 0.019 276)',
+          border: '1px solid oklch(86% 0.01 276)',
+          '.dark &': {
+            backgroundColor: 'oklch(32% 0.02 276)',
+            color: 'oklch(95% 0.008 276)',
+            border: '1px solid oklch(42% 0.019 276)',
+          },
+          '&:hover:not(:disabled)': {
+            backgroundColor: 'oklch(90% 0.01 276)',
+            '.dark &': {
+              backgroundColor: 'oklch(36% 0.022 276)',
+            },
+          },
+          '&:active:not(:disabled)': {
+            backgroundColor: 'oklch(86% 0.012 276)',
+            '.dark &': {
+              backgroundColor: 'oklch(42% 0.024 276)',
+            },
+          },
+        },
+        '.btn-danger': {
+          backgroundColor: 'oklch(65% 0.25 30)',
+          color: 'white',
+          '&:hover:not(:disabled)': {
+            backgroundColor: 'oklch(58% 0.23 30)',
+          },
+          '&:active:not(:disabled)': {
+            backgroundColor: 'oklch(50% 0.22 30)',
+          },
+        },
+        '.btn-icon': {
+          padding: '0.5rem',
+          borderRadius: '0.375rem',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        '.form-label': {
+          display: 'block',
+          marginBottom: '0.5rem',
+          fontSize: '0.875rem',
+          fontWeight: '500',
+          color: 'oklch(42% 0.019 276)',
+          '.dark &': {
+            color: 'oklch(86% 0.01 276)',
+          },
+        },
+        '.form-input': {
+          width: '100%',
+          padding: '0.625rem 0.75rem',
+          fontSize: '0.875rem',
+          lineHeight: '1.25rem',
+          backgroundColor: 'white',
+          color: 'oklch(32% 0.02 276)',
+          borderRadius: '0.375rem',
+          border: '1px solid oklch(76% 0.012 276)',
+          boxShadow: '0 1px 2px 0 oklch(0% 0 0 / 0.05)',
+          transition: 'border-color 150ms ease-in-out, box-shadow 150ms ease-in-out',
+          '.dark &': {
+            backgroundColor: 'oklch(24% 0.018 276)',
+            color: 'oklch(95% 0.008 276)',
+            border: '1px solid oklch(42% 0.019 276)',
+          },
+          '&:focus': {
+            outline: 'none',
+            borderColor: 'oklch(68% 0.14 276)',
+            boxShadow: '0 0 0 3px oklch(68% 0.14 276 / 0.25)',
+          },
+          '&:disabled': {
+            backgroundColor: 'oklch(95% 0.008 276)',
+            cursor: 'not-allowed',
+            '.dark &': {
+              backgroundColor: 'oklch(36% 0.022 276)',
+            },
+          },
+        },
+        '.touch-target': {
+          minHeight: '44px',
+          minWidth: '44px',
+        },
+        '.card': {
+          backgroundColor: 'white',
+          borderRadius: '0.5rem',
+          boxShadow: '0 1px 3px 0 oklch(0% 0 0 / 0.1), 0 1px 2px -1px oklch(0% 0 0 / 0.1)',
+          overflow: 'hidden',
+          '.dark &': {
+            backgroundColor: 'oklch(24% 0.018 276)',
+          },
+        },
+        '.notification': {
+          backgroundColor: 'white',
+          borderRadius: '0.5rem',
+          boxShadow: '0 4px 6px -1px oklch(0% 0 0 / 0.1), 0 2px 4px -2px oklch(0% 0 0 / 0.1)',
+          padding: '1rem',
+          marginBottom: '0.5rem',
+          display: 'flex',
+          alignItems: 'flex-start',
+          width: '100%',
+          maxWidth: '28rem',
+          pointer: 'auto',
+          '.dark &': {
+            backgroundColor: 'oklch(24% 0.018 276)',
+          },
+        },
+        '.message': {
+          padding: '1rem',
+          borderRadius: '0.75rem',
+          marginBottom: '1rem',
+          maxWidth: '80%',
+          position: 'relative',
+          '.dark &': {
+            color: 'oklch(95% 0.008 276)',
+          },
+          '&.user-message': {
+            backgroundColor: 'oklch(68% 0.14 276)',
+            color: 'white',
+            alignSelf: 'flex-end',
+            marginLeft: 'auto',
+          },
+          '&.assistant-message': {
+            backgroundColor: 'oklch(95% 0.008 276)',
+            color: 'oklch(32% 0.02 276)',
+            alignSelf: 'flex-start',
+            marginRight: 'auto',
+            '.dark &': {
+              backgroundColor: 'oklch(32% 0.02 276)',
+              color: 'oklch(95% 0.008 276)',
+            },
+          },
+          '&.system-message': {
+            backgroundColor: 'oklch(94% 0.08 85)',
+            color: 'oklch(40% 0.12 85)',
+            width: '100%',
+            maxWidth: '36rem',
+            margin: '0 auto 1rem auto',
+            '.dark &': {
+              backgroundColor: 'oklch(40% 0.12 85 / 0.2)',
+              color: 'oklch(94% 0.08 85)',
+            },
+          },
+        },
+        '.mobile-text-optimized': {
+          '@media (max-width: 640px)': {
+            fontSize: '16px',
+          },
+        },
+        '.safe-area-inset-bottom': {
+          paddingBottom: 'env(safe-area-inset-bottom, 0)',
+        },
+        '.token-usage': {
+          padding: '0.75rem',
+          fontSize: '0.75rem',
+          borderTop: '1px solid oklch(86% 0.01 276)',
+          backgroundColor: 'oklch(98% 0.005 276)',
+          transition: 'all 0.3s ease',
+          overflow: 'hidden',
+          '.dark &': {
+            backgroundColor: 'oklch(24% 0.018 276)',
+            borderTop: '1px solid oklch(42% 0.019 276)',
+          },
+        },
+        '.token-summary': {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+        },
+        '.token-label': {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.375rem',
+          color: 'oklch(54% 0.018 276)',
+          '.dark &': {
+            color: 'oklch(76% 0.012 276)',
+          },
+        },
+        '.token-value': {
+          fontFamily: '"JetBrains Mono", monospace',
+          fontWeight: '500',
+          color: 'oklch(42% 0.019 276)',
+          '.dark &': {
+            color: 'oklch(86% 0.01 276)',
+          },
+        },
+        '.thinking-process': {
+          margin: '1rem 0',
+          border: '1px solid oklch(86% 0.01 276)',
+          borderRadius: '0.375rem',
+          overflow: 'hidden',
+          '.dark &': {
+            border: '1px solid oklch(42% 0.019 276)',
+          },
+        },
+        '.thinking-header': {
+          backgroundColor: 'oklch(94% 0.048 276 / 0.2)',
+          padding: '0.5rem 1rem',
+          borderTopLeftRadius: '0.375rem',
+          borderTopRightRadius: '0.375rem',
+          '.dark &': {
+            backgroundColor: 'oklch(60% 0.135 276 / 0.2)',
+          },
+        },
+        '.thinking-toggle': {
+          fontWeight: '500',
+          color: 'oklch(60% 0.135 276)',
+          display: 'flex',
+          alignItems: 'center',
+          width: '100%',
+          textAlign: 'left',
+          cursor: 'pointer',
+          '.dark &': {
+            color: 'oklch(76% 0.126 276)',
+          },
+        },
+        '.thinking-content': {
+          backgroundColor: 'oklch(97% 0.029 276 / 0.2)',
+          padding: '1rem',
+          overflowX: 'auto',
+          borderBottomLeftRadius: '0.375rem',
+          borderBottomRightRadius: '0.375rem',
+          '.dark &': {
+            backgroundColor: 'oklch(52% 0.13 276 / 0.1)',
+          },
+        },
+        '.thinking-pre': {
+          margin: '0',
+          whiteSpace: 'pre-wrap',
+          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: '0.875rem',
+          color: 'oklch(42% 0.019 276)',
+          '.dark &': {
+            color: 'oklch(86% 0.01 276)',
+          },
+        },
+      });
+    },
+    // Add new plugin for ring opacity support
+    function({ addUtilities, theme }) {
+      const colors = theme('colors');
+      const opacities = theme('opacity', {
+        '0': '0',
+        '5': '0.05',
+        '10': '0.1',
+        '20': '0.2',
+        '25': '0.25',
+        '30': '0.3',
+        '40': '0.4',
+        '50': '0.5',
+        '60': '0.6',
+        '70': '0.7',
+        '75': '0.75',
+        '80': '0.8',
+        '90': '0.9',
+        '95': '0.95',
+        '100': '1',
+      });
+      
+      // Generate custom ring utilities with opacity modifiers for OKLCH colors
+      const ringOpacityUtilities = {};
+      
+      // Loop through colors and create ring utilities with opacity variants
+      Object.entries(colors).forEach(([colorName, colorValues]) => {
+        if (typeof colorValues === 'object') {
+          Object.entries(colorValues).forEach(([shade, value]) => {
+            // Only process OKLCH colors
+            if (typeof value === 'string' && value.includes('oklch')) {
+              Object.entries(opacities).forEach(([opKey, opValue]) => {
+                // Create the utility with opacity modifier
+                ringOpacityUtilities[`.ring-${colorName}-${shade}\\/${opKey}`] = {
+                  '--tw-ring-color': `${value.replace(')', '')} / ${opValue})`,
+                };
+                
+                // Also add focus variants
+                ringOpacityUtilities[`.focus\\:ring-${colorName}-${shade}\\/${opKey}:focus`] = {
+                  '--tw-ring-color': `${value.replace(')', '')} / ${opValue})`,
+                };
+              });
+            }
+          });
+        }
+      });
+      
+      addUtilities(ringOpacityUtilities);
+    },
   ],
-}
+};
