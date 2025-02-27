@@ -12,7 +12,7 @@ from sqlalchemy import text, select, func
 from azure.core.exceptions import HttpResponseError
 
 from database import get_db_session, AsyncSessionLocal  # Corrected import
-from clients import get_model_client
+from clients import get_model_client_dependency
 from config import (
     DEEPSEEK_R1_DEFAULT_API_VERSION,
     DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
@@ -133,7 +133,7 @@ async def list_sessions(db: AsyncSession = Depends(get_db_session)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/", response_model=ChatCompletionResponse)
+@router.post("/", response_model=None)
 async def create_chat_completion(
     request: CreateChatCompletionRequest,
     db: AsyncSession = Depends(get_db_session),
@@ -158,9 +158,11 @@ async def create_chat_completion(
 
         logger.info(f"API request for model: {request.model}")
 
-        # Get the client
+        # Get the client from the dependency wrapper 
         try:
-            client = await get_model_client(request.model)
+            client_wrapper = await get_model_client_dependency(request.model)
+            client = client_wrapper.get("client")
+            
             # Check if we need to update the model name based on the client
             if (
                 isinstance(client, ChatCompletionsClient)

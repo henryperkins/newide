@@ -8,7 +8,7 @@ from pydantic_models import FileResponseModel, FileListResponse, DeleteFileRespo
 from utils import count_tokens
 from services.azure_file_service import AzureFileService
 from services.azure_search_service import AzureSearchService
-from clients import get_model_client  # Changed from get_azure_client
+from clients import get_model_client_dependency  # Changed from get_model_client
 import uuid
 import config
 import datetime
@@ -19,14 +19,14 @@ from typing import List, Optional, Dict, Any
 router = APIRouter()
 
 # File upload endpoint
-@router.post("/upload")
+@router.post("/upload", response_model=None)
 async def upload_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     session_id: str = Form(...),
     process_with_azure: bool = Form(False),
     db_session: AsyncSession = Depends(get_db_session),
-    azure_client: Optional[Any] = Depends(get_model_client),  # Changed from get_azure_client
+    client_wrapper: dict = Depends(get_model_client_dependency),  # Changed to avoid serialization issues
 ):
     """Upload a file with enhanced processing options.
 
@@ -36,7 +36,7 @@ async def upload_file(
         session_id: The session ID associated with the upload.
         process_with_azure: Boolean to determine if Azure processing is required.
         db_session: Database session dependency.
-        azure_client: Azure client dependency.
+        client_wrapper: Dictionary containing Azure client.
 
     Returns:
         dict: Response containing file details and processing status.
@@ -73,6 +73,9 @@ async def upload_file(
                 error_type="validation_error",
                 param="file"
             )
+
+        # Get the client from the wrapper
+        azure_client = client_wrapper.get("client") if client_wrapper else None
 
         model_name = config.AZURE_OPENAI_DEPLOYMENT_NAME
         from services.file_service import process_uploaded_file
@@ -245,12 +248,12 @@ async def get_files(session_id: str, db_session: AsyncSession = Depends(get_db_s
         return FileListResponse(files=[], total_count=0, total_size=0)
 
 # Delete file endpoint
-@router.delete("/{session_id}/{file_id}", response_model=DeleteFileResponse)
+@router.delete("/{session_id}/{file_id}", response_model=None)
 async def delete_file(
     session_id: str,
     file_id: str,
     db_session: AsyncSession = Depends(get_db_session),
-    azure_client: Optional[Any] = Depends(get_model_client),  # Changed from get_azure_client
+    client_wrapper: dict = Depends(get_model_client_dependency),  # Changed to avoid serialization issues
 ):
     """Delete a file and its associated chunks if applicable.
 
@@ -258,11 +261,13 @@ async def delete_file(
         session_id: The session ID of the file.
         file_id: The ID of the file to delete.
         db_session: Database session dependency.
-        azure_client: Azure client dependency.
+        client_wrapper: Dictionary containing Azure client.
 
     Returns:
         DeleteFileResponse: Confirmation of deletion.
     """
+    # Extract the client from the wrapper if needed
+    azure_client = client_wrapper.get("client") if client_wrapper else None
     try:
         file_result = await db_session.execute(
             text("""
@@ -341,7 +346,7 @@ async def process_file_with_azure(
         file_id: The ID of the parent file.
         session_id: The session ID.
         chunk_ids: List of chunk IDs if applicable.
-        azure_client: Azure client instance.
+        azure_client: Azure client instance (extracted from client_wrapper).
     """
     try:
         file_service = AzureFileService(azure_client)

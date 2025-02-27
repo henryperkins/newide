@@ -24,7 +24,7 @@
   - snake_case for variables, functions, methods
   - PascalCase for classes
   - ALL_CAPS for constants
-- **Error Handling**: Use try/except blocks for expected exceptions
+- **Error Handling**: Use try/except blocks for expected exceptions, provide clear error messages
 - **API Endpoints**: Follow REST principles, use consistent response formats
 - **File Organization**: Keep related functionality in appropriate routers/services
 
@@ -32,3 +32,4 @@
 - FastAPI backend with Tailwind CSS frontend
 - Follows service-oriented architecture pattern
 - Routes in `/routers`, business logic in `/services`
+- Changes to CSS require running CSS build commands

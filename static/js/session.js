@@ -1,134 +1,174 @@
-import { showNotification } from '/static/js/ui/notificationManager.js';
-import { getModelSettings } from '/static/js/config.js';
+// static/js/session.js - Consolidated version
 
-export let sessionId = null;
-let _lastUserMessage = '';
+// Import notification utilities
+import { showNotification, showConfirmDialog } from './ui/notificationManager.js';
 
+// Session state
+let sessionId = null;
+let sessionLastChecked = 0;
+const SESSION_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Get the current session ID
+ * @returns {string|null} The current session ID or null if no active session
+ */
+export function getSessionId() {
+  return sessionId;
+}
+
+/**
+ * Initialize session, creating one if needed
+ * @returns {Promise<boolean>} True if session initialized successfully
+ */
 export async function initializeSession() {
-    // If we already have a sessionId, don't reinitialize
-    if (sessionId) {
-        console.log('[DEBUG] Session already initialized:', sessionId);
+  // If we already have a sessionId and it was checked recently, don't reinitialize
+  if (sessionId && (Date.now() - sessionLastChecked < SESSION_CHECK_INTERVAL)) {
+    console.log('[SESSION] Using cached session:', sessionId);
+    return true;
+  }
+  
+  console.log('[SESSION] Initializing session...');
+  
+  try {
+    // First try to validate existing session
+    const existingId = localStorage.getItem('current_session_id');
+    if (existingId) {
+      console.log('[SESSION] Found stored session ID:', existingId);
+      
+      // Validate session by calling API
+      const isValid = await validateSession(existingId);
+      if (isValid) {
+        sessionId = existingId;
+        sessionLastChecked = Date.now();
         return true;
+      }
+      
+      console.log('[SESSION] Stored session is invalid, creating new one');
     }
     
-    console.log('[DEBUG] Initializing session...');
-    try {
-        const modelConfig = await getModelSettings();
-        console.log('[DEBUG] Model config:', modelConfig);
-        
-        // First, check if valid session exists
-        try {
-            // Check for existing session via API first to avoid cookie conflicts
-            const checkResponse = await fetch('/api/session');
-            if (checkResponse.ok) {
-                const sessionData = await checkResponse.json();
-                if (sessionData.id) {
-                    sessionId = sessionData.id;
-                    console.log('[DEBUG] Found existing session:', sessionId);
-                    localStorage.setItem('current_session_id', sessionId);
-                    return true;
-                }
-            }
-        } catch (error) {
-            console.log('[DEBUG] No active session found, creating new one:', error);
-        }
-        
-        // Add retry logic for session creation
-        let retries = 3;
-        let success = false;
-        let lastError = null;
-        
-        while (retries > 0 && !success) {
-            try {
-                const response = await fetch(`/api/session/create`, {
-                    method: 'POST', // Changed from GET to POST
-                    headers: {
-                        'x-api-version': modelConfig.api_version || '2025-01-01-preview',
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Model-Type': modelConfig.name || 'DeepSeek-R1' // Fallback to DeepSeek-R1 if no model specified
-                    }
-                });
-                console.log('[DEBUG] Session response status:', response.status);
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-                }
-                
-                const data = await response.json();
-                console.log('[DEBUG] Session response data:', data);
-                if (!data.session_id) {
-                    throw new Error('Invalid session response: missing session_id');
-                }
-                
-                sessionId = data.session_id;
-                console.log('[DEBUG] Session initialized successfully:', sessionId);
-                
-                // Store session ID in localStorage for persistence
-                localStorage.setItem('current_session_id', sessionId);
-                
-                success = true;
-                return true;
-            } catch (error) {
-                lastError = error;
-                console.warn(`Session initialization attempt failed (${retries} retries left):`, error);
-                retries--;
-                // Wait before retrying
-                if (retries > 0) {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-            }
-        }
-        
-        // If we get here, all retries failed
-        throw lastError || new Error('Failed to initialize session after multiple attempts');
-    } catch (error) {
-        console.error('Session initialization error:', error);
-        showNotification('Failed to initialize session', 'error');
-        return false;
+    // Create new session
+    const newSession = await createSession();
+    if (newSession) {
+      sessionId = newSession.session_id;
+      localStorage.setItem('current_session_id', sessionId);
+      sessionLastChecked = Date.now();
+      return true;
     }
+    
+    throw new Error('Failed to create session');
+  } catch (error) {
+    console.error('[SESSION] Initialization error:', error);
+    showNotification('Failed to initialize session. Please reload the page.', 'error');
+    return false;
+  }
 }
 
-// Try to restore session from localStorage on page load
-(function restoreSession() {
-    try {
-        const savedSessionId = localStorage.getItem('current_session_id');
-        if (savedSessionId) {
-            console.log('[DEBUG] Restoring session from localStorage:', savedSessionId);
-            sessionId = savedSessionId;
-            
-            // Validate the session by making a lightweight API call
-            fetch('/api/session').then(response => {
-                if (response.ok) {
-                    return response.json();
-                }
-                throw new Error('Invalid session');
-            }).then(data => {
-                if (!data.id) {
-                    console.warn('[DEBUG] Stored session is invalid, will create new one on next action');
-                    sessionId = null;
-                    localStorage.removeItem('current_session_id');
-                }
-            }).catch(err => {
-                console.warn('[DEBUG] Error validating stored session:', err);
-                // Don't clear sessionId here - let the next API call handle it
-            });
-        }
-    } catch (error) {
-        console.error('[DEBUG] Error restoring session from localStorage:', error);
-        sessionId = null;
+/**
+ * Validate a session ID with the server
+ * @param {string} id - Session ID to validate
+ * @returns {Promise<boolean>} True if session is valid
+ */
+async function validateSession(id) {
+  try {
+    const response = await fetch(`/api/session?session_id=${id}`);
+    if (!response.ok) return false;
+    
+    const data = await response.json();
+    return data && data.id === id;
+  } catch (error) {
+    console.warn('[SESSION] Error validating session:', error);
+    return false;
+  }
+}
+
+/**
+ * Create a new session
+ * @returns {Promise<Object|null>} Session data or null if creation failed
+ */
+async function createSession() {
+  try {
+    // Get current model for initialization
+    const modelSelect = document.getElementById('model-select');
+    const modelName = modelSelect ? modelSelect.value : 'DeepSeek-R1';
+    
+    const response = await fetch('/api/session/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Model-Type': modelName
+      }
+    });
+    
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to create session: ${text}`);
     }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('[SESSION] Error creating session:', error);
+    return null;
+  }
+}
+
+/**
+ * Refresh the current session to extend its expiration
+ * @returns {Promise<boolean>} True if session was refreshed successfully
+ */
+export async function refreshSession() {
+  if (!sessionId) return false;
+  
+  try {
+    const response = await fetch(`/api/session/refresh?session_id=${sessionId}`, {
+      method: 'POST'
+    });
+    
+    if (response.ok) {
+      sessionLastChecked = Date.now();
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.warn('[SESSION] Error refreshing session:', error);
+    return false;
+  }
+}
+
+/**
+ * Update the model associated with the current session
+ * @param {string} modelName - The model name to set for the session
+ * @returns {Promise<boolean>} True if model was updated successfully
+ */
+export async function updateSessionModel(modelName) {
+  if (!sessionId) return false;
+  
+  try {
+    const response = await fetch(`/api/session/model?session_id=${sessionId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ model: modelName })
+    });
+    
+    return response.ok;
+  } catch (error) {
+    console.warn('[SESSION] Error updating session model:', error);
+    return false;
+  }
+}
+
+// Set up periodic session check
+setInterval(async () => {
+  if (sessionId && (Date.now() - sessionLastChecked >= SESSION_CHECK_INTERVAL)) {
+    console.log('[SESSION] Performing periodic session refresh');
+    await refreshSession();
+  }
+}, 60000); // Check every minute
+
+// Try to restore session on page load
+(async function() {
+  await initializeSession();
 })();
-
-export function getSessionId() {
-    return sessionId;
-}
-
-export function setLastUserMessage(message) {
-    _lastUserMessage = message;
-}
-
-export function getLastUserMessage() {
-    return _lastUserMessage;
-}
