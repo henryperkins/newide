@@ -39,13 +39,13 @@ function initChatInterface() {
   // Initialize character count
   if (userInput && charCount) {
     // Update character count as user types with debounce
-    userInput.addEventListener('input', debounce(function() {
-      const count = this.value.length;
+    userInput.addEventListener('input', debounce((e) => {
+      const count = e.target.value.length;
       charCount.textContent = count;
       
       // Adjust input height based on content
-      this.style.height = 'auto';
-      this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+      userInput.style.height = 'auto';
+      userInput.style.height = Math.min(userInput.scrollHeight, 200) + 'px';
       
       // Visual indicator for long messages
       if (count > 4000) {
