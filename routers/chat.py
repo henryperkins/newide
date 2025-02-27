@@ -477,7 +477,7 @@ async def generate_stream_chunks(
             formatted_content = full_content
 
             # Replace the existing regex pattern with this simpler one that matches <think> tags
-            if model_name == "DeepSeek-R1" and full_content:
+            if is_deepseek and full_content:
                 import re
 
                 # Use this simpler regex pattern for <think> tags

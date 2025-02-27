@@ -285,11 +285,8 @@ async def process_chat_message(
     if model_name == "DeepSeek-R1" and full_content:
         import re
 
-        # Use a triple-quoted raw string literal for the regex pattern.
-        thinkRegex = r"""<details style="margin: 0\.5rem 0 1\.5rem; padding: 0\.75rem; border: 1px solid var\(--background-modifier-border\); border-radius: 4px; background-color: var\(--background-secondary\)">
-            <summary style="cursor: pointer; color: var\(--text-muted\); font-size: 0\.8em; margin-bottom: 0\.5rem; user-select: none">Thought for a second</summary>
-            <div class="text-muted" style="margin-top: 0\.75rem; padding: 0\.75rem; border-radius: 4px; background-color: var\(--background-primary\)">([\s\S]*?)</div>
-        </details>"""
+        # Use a simpler regex pattern for <think> tags
+        thinkRegex = r"<think>([\s\S]*?)<\/think>"
 
         # Replace the matched thinking block with formatted HTML.
         def replace_thinking(match_obj):
@@ -306,7 +303,7 @@ async def process_chat_message(
                 </div>"""
 
         formatted_content = re.sub(
-            thinkRegex, replace_thinking, formatted_content, count=1
+            thinkRegex, replace_thinking, formatted_content
         )
 
     # Create user message
