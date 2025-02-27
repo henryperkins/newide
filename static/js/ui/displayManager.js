@@ -134,15 +134,16 @@ export async function processServerResponseData(data, modelName = 'unknown') {
     }
   }
 
-  // Check if the model name is already included in the content to avoid duplication
-  const modelNameRegex = new RegExp(`\\(Using model: ${modelName}\\)`, 'i');
-  if (!modelNameRegex.test(assistantContent)) {
-    // Log the actual model name for debugging
-    console.log(`Adding model label: ${modelName}`);
-    
-    // Append the model name as subtext only if it's not already there
-    assistantContent += `\n\n<span class="text-xs text-gray-500 dark:text-gray-400">(Using model: ${modelName})</span>`;
-  }
+  // Get the actual model used from the response
+  const actualModelUsed = data.model || modelName;
+  
+  // Remove any existing model name annotations using a more general regex
+  const genericModelNameRegex = /\n\n<span class="text-xs text-gray-500 dark:text-gray-400">\(Using model: .*?\)<\/span>$/;
+  assistantContent = assistantContent.replace(genericModelNameRegex, '');
+  
+  // Add the correct model name
+  console.log(`Adding model label: ${actualModelUsed}`);
+  assistantContent += `\n\n<span class="text-xs text-gray-500 dark:text-gray-400">(Using model: ${actualModelUsed})</span>`;
 
   // Inject global Markdown styles once
   injectMarkdownStyles();
@@ -152,7 +153,6 @@ export async function processServerResponseData(data, modelName = 'unknown') {
 
   // If the server returned usage info, you might want to update your usage display
   if (data.usage && typeof updateTokenUsage === 'function') {
-    // data.usage might have { prompt_tokens, completion_tokens, total_tokens } etc.
     updateTokenUsage(data.usage);
   }
 

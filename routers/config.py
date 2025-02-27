@@ -1,6 +1,6 @@
 import config
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 from services.config_service import get_config_service, ConfigService
 from pydantic import BaseModel, Field, validator
 from clients import get_client_pool, ClientPool
+from database import AsyncSessionLocal
 
 router = APIRouter(prefix="/config", tags=["Configuration"])
 
@@ -53,7 +54,9 @@ async def update_config(
 
 
 @router.get("/", response_model=None)
-async def get_all_configs(config_service=Depends(get_config_service)) -> dict:
+async def get_all_configs(
+    request: Request, config_service=Depends(get_config_service)
+) -> dict:
     """
     Return configuration data in the format needed by the frontend
     (deploymentName, azureOpenAI -> apiKey, models -> {deploymentName:{endpoint:...}}).
@@ -61,10 +64,32 @@ async def get_all_configs(config_service=Depends(get_config_service)) -> dict:
     # Get model configurations from database
     model_configs = await config_service.get_model_configs()
 
-    # Return the required shape with model configs from database
+    # Get the current session ID from the request
+    session_id = None
+    if "session_id" in request.cookies:
+        session_id = request.cookies.get("session_id")
+
+    # Try to get the selected model from the session
+    selected_model = config.AZURE_OPENAI_DEPLOYMENT_NAME
+    if session_id:
+        try:
+            async with AsyncSessionLocal() as db:
+                from sqlalchemy import select
+                from models import Session
+
+                result = await db.execute(
+                    select(Session.last_model).where(Session.id == session_id)
+                )
+                session_model = result.scalar_one_or_none()
+                if session_model:
+                    selected_model = session_model
+        except Exception as e:
+            logger.error(f"Error fetching session model: {str(e)}")
+
+    # Return the required shape with model configs and correct selected model
     return {
         "deploymentName": config.AZURE_OPENAI_DEPLOYMENT_NAME,
-        "selectedModel": config.AZURE_OPENAI_DEPLOYMENT_NAME,
+        "selectedModel": selected_model,
         "azureOpenAI": {"apiKey": config.AZURE_OPENAI_API_KEY},
         "models": model_configs,
     }

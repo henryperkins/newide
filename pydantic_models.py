@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 from datetime import datetime
 import uuid
@@ -6,10 +6,12 @@ import uuid
 # -------------------------------------------------------------------------
 # ChatMessage (Pydantic)
 # -------------------------------------------------------------------------
+
 class ChatMessage(BaseModel):
     """
     Internal representation of a chat message with all possible parameters.
     """
+
     message: str
     session_id: str
     developer_config: Optional[str] = None
@@ -20,7 +22,36 @@ class ChatMessage(BaseModel):
     response_format: Optional[str] = None
     max_completion_tokens: Optional[int] = None
     temperature: Optional[float] = None
-    model: Optional[str] = None
+
+    # Add the missing messages field that process_chat_message expects
+    messages: Optional[List[Dict[str, Any]]] = None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+
+        # Auto-populate messages field if it wasn't provided but message was
+        if self.messages is None and self.message:
+            self.messages = [{"role": "user", "content": self.message}]
+
+        # If developer_config is provided, add it as a system/developer message
+        if self.developer_config and self.messages:
+            # Check if any existing system/developer message
+            has_system = any(
+                m.get("role") in ["system", "developer"] for m in self.messages
+            )
+
+            if not has_system:
+                # Get model name from data if it exists
+                model_name = data.get("model", "").lower()
+
+                # Check if this is an o-series model
+                is_o_series = "o1" in model_name or "o3" in model_name
+
+                # Determine role based on model type
+                role = "developer" if is_o_series else "system"
+                self.messages.insert(
+                    0, {"role": role, "content": self.developer_config}
+                )
 
 
 # -------------------------------------------------------------------------

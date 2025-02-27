@@ -12,6 +12,7 @@ router = APIRouter(dependencies=[Depends(validate_auth)])
 from fastapi import Query, Path
 from typing import Optional
 from models import ListAssistantsResponse, DeleteAssistantResponse
+import config
 
 @router.get("/assistants", response_model=ListAssistantsResponse)
 async def list_assistants(

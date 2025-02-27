@@ -195,6 +195,17 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
   const maxRetries = 3;
   let lastError = null;
 
+  // Get the current selected model from modelManager
+  const selectedModelId = modelManager.currentModel;
+  console.log(`[handleChatRequest] Using model: ${selectedModelId}`);
+
+  // If modelManager has a selected model, ensure it's used
+  if (selectedModelId && (!modelConfig || modelConfig.name !== selectedModelId)) {
+    // Get the config for this model
+    console.log(`[handleChatRequest] Overriding model config with selected model: ${selectedModelId}`);
+    modelConfig = modelManager.modelConfigs[selectedModelId] || modelConfig;
+  }
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const response = await makeApiRequest({
@@ -234,8 +245,15 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
 async function makeApiRequest({ messageContent, controller, developerConfig, reasoningEffort, modelConfig }) {
   const config = await getCurrentConfig();
 
-  // Deployment name is necessary for Azure; ensure it's configured
-  const deploymentName = config.deploymentName || modelConfig?.name || "o1hp";
+  // Use the selected model from modelManager if available
+  const currentModelId = modelManager.currentModel;
+  
+  // For debugging
+  console.log('[makeApiRequest] Current model from modelManager:', currentModelId);
+  console.log('[makeApiRequest] Passed modelConfig:', modelConfig?.name);
+  
+  // Use model from modelManager, fallback to passed modelConfig, then deployment name
+  const modelName = currentModelId || modelConfig?.name || config.deploymentName;
   
   // Initialize session if needed
   if (!sessionId) {
@@ -246,9 +264,9 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
   }
 
   // Determine model type for parameter selection
-  const modelName = modelConfig?.name?.toLowerCase() || '';
-  const isDeepSeek = modelName.includes('deepseek');
-  const isOSeries = modelName.startsWith('o1') || modelName.startsWith('o3');
+  const modelNameLower = modelName.toLowerCase();
+  const isDeepSeek = modelNameLower.includes('deepseek');
+  const isOSeries = modelNameLower.startsWith('o1') || modelNameLower.startsWith('o3');
 
   // IMPORTANT: Structure the messages array properly
   const messages = [];
@@ -256,13 +274,11 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
   // Add developer/system prompt if present
   if (developerConfig) {
     if (isOSeries) {
-      // o-series models use "developer" role
       messages.push({
         role: "developer",
         content: developerConfig
       });
     } else {
-      // Other models use "system" role
       messages.push({
         role: "system", 
         content: developerConfig
@@ -276,70 +292,47 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
     content: messageContent
   });
 
-  // Basic request body - FIX: Structure according to OpenAI/Azure API expectations
+  // Basic request body - UPDATED to always use the current model
   const requestBody = {
-    model: modelConfig?.name || deploymentName, // Make sure model is always specified
-    messages: messages,                         // Use the messages array we constructed
-    session_id: sessionId
+    model: modelName,
+    messages: messages,
+    session_id: sessionId,
+    stream: document.getElementById('enable-streaming')?.checked || false
   };
 
   // Set model-specific parameters
   if (isOSeries) {
-    // O-series models - use reasoning_effort
     requestBody.reasoning_effort = reasoningEffort || 'medium';
     
-    // o-series uses max_completion_tokens, not max_tokens
     if (modelConfig?.capabilities?.max_completion_tokens) {
       requestBody.max_completion_tokens = modelConfig.capabilities.max_completion_tokens;
     } else {
-      requestBody.max_completion_tokens = 5000; // Default value
+      requestBody.max_completion_tokens = 5000;
     }
-    
-    // o-series doesn't use temperature
-    delete requestBody.temperature;
   } else if (isDeepSeek) {
-    // DeepSeek-R1 model - uses temperature (NOT reasoning_effort)
-    requestBody.temperature = 0.7; // Default from documentation
+    requestBody.temperature = 0.7;
     if (modelConfig?.capabilities?.max_tokens) {
       requestBody.max_tokens = modelConfig.capabilities.max_tokens;
     } else {
-      requestBody.max_tokens = 32000; // Default for DeepSeek-R1
+      requestBody.max_tokens = 32000;
     }
-    
-    // DeepSeek doesn't use reasoning_effort
-    delete requestBody.reasoning_effort;
-    // DeepSeek doesn't use max_completion_tokens
-    delete requestBody.max_completion_tokens;
   } else {
-    // Standard model
     if (modelConfig?.capabilities?.temperature !== undefined) {
       requestBody.temperature = modelConfig.capabilities.temperature;
     } else {
-      requestBody.temperature = 0.7; // Default temperature
+      requestBody.temperature = 0.7;
     }
     
-    // Standard models use max_tokens, not max_completion_tokens
     if (modelConfig?.capabilities?.max_tokens) {
       requestBody.max_tokens = modelConfig.capabilities.max_tokens;
     } else {
-      requestBody.max_tokens = 4000; // Default value
+      requestBody.max_tokens = 4000;
     }
   }
 
-  // Select API version based on model type
-  let apiVersion;
-  if (isDeepSeek) {
-    apiVersion = modelConfig?.api_version || '2024-05-01-preview'; // DeepSeek API version
-  } else if (isOSeries) {
-    apiVersion = modelConfig?.api_version || '2025-01-01-preview'; // o-series API version
-  } else {
-    apiVersion = modelConfig?.api_version || '2025-01-01-preview'; // Default API version
-  }
+  // Build the URL - now simplified to your server endpoint
+  const url = await buildAzureOpenAIUrl();
 
-  // Build the URL 
-  const url = await buildAzureOpenAIUrl(deploymentName, apiVersion);
-
-  // Log request for debugging
   console.log('[makeApiRequest] Request URL:', url);
   console.log('[makeApiRequest] Sending payload:', JSON.stringify(requestBody, null, 2));
 
@@ -347,8 +340,7 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'api-key': config.azureOpenAI?.apiKey || ''
+      'Accept': 'application/json'
     },
     signal: controller.signal,
     body: JSON.stringify(requestBody)
@@ -361,7 +353,6 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
       console.error('[makeApiRequest] Error response:', response.status, response.statusText);
       const errorData = await response.json().catch(() => ({}));
       console.error('[makeApiRequest] Error details:', errorData);
-      // Important: Don't throw here, just return the response for downstream handling
     }
     
     return response;
@@ -477,7 +468,7 @@ async function buildAzureOpenAIUrl(deploymentName, apiVersion) {
     // For other models, use Azure OpenAI endpoint
     baseUrl = config?.azureOpenAI?.endpoint || "https://aoai-east-2272068338224.cognitiveservices.azure.com";
     if (!apiVersion) {
-      apiVersion = "2025-01-01-preview"; // Default API version for other models
+      apiVersion = "2025-01-01-preview";
     }
   }
   
@@ -488,10 +479,13 @@ async function buildAzureOpenAIUrl(deploymentName, apiVersion) {
   // Make sure deploymentName is defined
   const actualDeployment = deploymentName || config?.deploymentName || "o1hp";
   
+  // Create proper URL
   const url = new URL(
     `openai/deployments/${actualDeployment}/chat/completions`, 
     baseUrl
   );
+  
+  // Add API version as query parameter
   url.searchParams.append('api-version', apiVersion);
   return url.toString();
 }

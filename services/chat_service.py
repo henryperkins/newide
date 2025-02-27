@@ -18,6 +18,7 @@ from models import Conversation
 from pydantic_models import ChatMessage
 from azure.core.credentials import AzureKeyCredential
 
+
 def create_error_response(
     status_code: int,
     code: str,
@@ -115,11 +116,10 @@ async def process_chat_message(
 
         async with AsyncSessionLocal() as config_db:
             config_service = ConfigService(config_db)
-            model_configs = await config_service.get_config("model_configs")
+            model_configs = await config_service.get_model_configs()
+
         if not model_configs or model_name not in model_configs:
-            logger.warning(
-                f"Model '{model_name}' not defined in database model_configs"
-            )
+            logger.warning(f"No configuration found for model {model_name}")
     except Exception as e:
         logger.error(f"Error fetching model_configs: {str(e)}")
         model_configs = {}
@@ -130,7 +130,13 @@ async def process_chat_message(
     )
 
     # Prepare parameters based on client type and model
-    messages = chat_message.messages
+    # FIX: Create messages from the single message if not provided
+    if hasattr(chat_message, "messages") and chat_message.messages:
+        messages = chat_message.messages
+    else:
+        # Create a messages array from the single message
+        messages = [{"role": "user", "content": chat_message.message}]
+
     temperature = chat_message.temperature
     max_tokens = chat_message.max_completion_tokens
 

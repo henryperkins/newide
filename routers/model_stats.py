@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any
 
 from database import get_db_session
 from services.model_stats_service import ModelStatsService
+import config
 
 router = APIRouter(prefix="/api/model-stats")
 
