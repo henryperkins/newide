@@ -220,23 +220,30 @@ async def process_chat_message(
                 }
 
     except HttpResponseError as e:
-        # Handle Azure AI Inference errors
-        logger.exception(
-            f"[session {session_id}] Azure AI Inference call failed: {str(e)}"
-        )
+        # Enhanced error handling for Azure AI Inference
+        error_details = {
+            "status_code": e.status_code,
+            "code": e.error.code if hasattr(e, 'error') else "Unknown",
+            "message": e.message if hasattr(e, 'message') else str(e),
+            "reason": e.reason if hasattr(e, 'reason') else "Unknown",
+        }
+        
+        logger.error(f"""
+        [Azure AI Error] Session: {session_id}
+        Model: {model_name}
+        Status: {error_details['status_code']}
+        Code: {error_details['code']}
+        Message: {error_details['message']}
+        Reason: {error_details['reason']}
+        """)
 
-        error_code = getattr(e, "status_code", "api_error")
-        error_message = str(e)
-
-        err = create_error_response(
-            status_code=503,
-            code=error_code,
-            message="Error during Azure AI Inference call",
-            error_type="api_call_error",
-            inner_error=error_message,
+        return create_error_response(
+            status_code=error_details['status_code'],
+            code=error_details['code'],
+            message="Azure AI service error",
+            error_type="azure_error",
+            inner_error=error_details['message']
         )
-        logger.critical(f"Handled Azure AI error gracefully. {err['detail']}")
-        return err
 
     except OpenAIError as e:
         # Error handling for OpenAI
