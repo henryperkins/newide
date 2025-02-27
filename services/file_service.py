@@ -9,6 +9,8 @@ from datetime import datetime
 import tiktoken
 import base64
 import mimetypes
+import config
+from azure.core.exceptions import HttpResponseError
 
 # Import error handling
 from errors import create_error_response

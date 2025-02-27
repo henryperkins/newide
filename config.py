@@ -120,10 +120,30 @@ class Settings(BaseSettings):
     )
 
 
+def validate_azure_credentials():
+    """Validate required Azure environment variables"""
+    required_vars = {
+        "DeepSeek-R1": ["AZURE_INFERENCE_ENDPOINT", "AZURE_INFERENCE_CREDENTIAL"],
+        "default": ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY"],
+    }
+
+    for model, vars in required_vars.items():
+        missing = [var for var in vars if not os.getenv(var)]
+        if missing:
+            raise EnvironmentError(
+                f"Missing required environment variables for {model}: {', '.join(missing)}"
+            )
+
+
+# Move the function definition BEFORE the calls at line 127-128
+# Then the rest of your existing config.py content...
+
 # Initialize pydantic settings
 settings = Settings()
+# Debug print to confirm config.py is loaded
+print("DEBUG: config.py is loaded")
 
-# Validate credentials at startup
+# Now these calls will work because the function is defined above
 validate_azure_credentials()
 
 # Validate required settings
@@ -230,24 +250,6 @@ MODEL_API_VERSIONS: Dict[str, str] = {
     "DeepSeek-R1": "2024-05-01-preview",
     "default": "2025-01-01-preview",
 }
-
-def validate_azure_credentials():
-    """Validate required Azure environment variables"""
-    required_vars = {
-        "DeepSeek-R1": [
-            "AZURE_INFERENCE_ENDPOINT",
-            "AZURE_INFERENCE_CREDENTIAL"
-        ],
-        "default": [
-            "AZURE_OPENAI_ENDPOINT",
-            "AZURE_OPENAI_API_KEY"
-        ]
-    }
-    
-    for model, vars in required_vars.items():
-        missing = [var for var in vars if not os.getenv(var)]
-        if missing:
-            raise EnvironmentError(f"Missing required environment variables for {model}: {', '.join(missing)}")
 
 # -----------------------------------------------
 # PostgreSQL Connection String
