@@ -253,9 +253,19 @@ function parseChunkForReasoning(text) {
         reasoningBuffer += text;
         text = '';
         if (reasoningContainer) {
-          reasoningContainer.innerHTML = safeMarkdownParse(
-            '## DeepSeek-R1 Reasoning\n\n' + reasoningBuffer
-          );
+          // Apply custom styling for reasoning container
+          reasoningContainer.innerHTML = `
+            <div class="thinking-process">
+              <div class="thinking-header">
+                <button class="thinking-toggle" aria-expanded="true">
+                  <span class="toggle-icon">▼</span> DeepSeek-R1 Reasoning
+                </button>
+              </div>
+              <div class="thinking-content">
+                <pre class="thinking-pre">${reasoningBuffer}</pre>
+              </div>
+            </div>
+          `;
           reasoningContainer.scrollIntoView({
             behavior: 'smooth',
             block: 'end'
@@ -265,9 +275,19 @@ function parseChunkForReasoning(text) {
         // Found closing thinking tag
         reasoningBuffer += text.slice(0, thinkEnd);
         if (reasoningContainer) {
-          reasoningContainer.innerHTML = safeMarkdownParse(
-            '## DeepSeek-R1 Reasoning\n\n' + reasoningBuffer
-          );
+          // Apply custom styling for reasoning container
+          reasoningContainer.innerHTML = `
+            <div class="thinking-process">
+              <div class="thinking-header">
+                <button class="thinking-toggle" aria-expanded="true">
+                  <span class="toggle-icon">▼</span> DeepSeek-R1 Reasoning
+                </button>
+              </div>
+              <div class="thinking-content">
+                <pre class="thinking-pre">${reasoningBuffer}</pre>
+              </div>
+            </div>
+          `;
           reasoningContainer.scrollIntoView({
             behavior: 'smooth',
             block: 'end'
@@ -286,8 +306,18 @@ function updateContainers() {
     mainContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }
   if (reasoningContainer) {
-    const heading = '## DeepSeek-R1 Reasoning\n\n';
-    reasoningContainer.innerHTML = safeMarkdownParse(heading + reasoningBuffer);
+    reasoningContainer.innerHTML = `
+      <div class="thinking-process">
+        <div class="thinking-header">
+          <button class="thinking-toggle" aria-expanded="true">
+            <span class="toggle-icon">▼</span> DeepSeek-R1 Reasoning
+          </button>
+        </div>
+        <div class="thinking-content">
+          <pre class="thinking-pre">${reasoningBuffer}</pre>
+        </div>
+      </div>
+    `;
     reasoningContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }
 }

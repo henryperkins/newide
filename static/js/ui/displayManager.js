@@ -101,22 +101,23 @@ export async function processServerResponseData(data, modelName = 'unknown') {
   // If data.choices[0].message.content exists, use that; else fallback.
   let assistantContent = data?.choices?.[0]?.message?.content || data.response || '';
 
+  // Get the actual model used from the response
+  const actualModelUsed = data.model || modelName;
+  
   // For DeepSeek models, preserve thinking tags and display them nicely
   if (modelName.toLowerCase().includes('deepseek') || modelName.toLowerCase() === 'deepseek-r1') {
     const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
-    let match;
     
     // Check if we have thinking tags
     if (assistantContent.match(thinkRegex)) {
       console.log(`DeepSeek thinking tags detected in content for model: ${modelName}`);
       
-      // Process and format the thinking content
-      let processedContent = assistantContent;
+      // First parse the regular content with Markdown
+      let parsedContent = assistantContent;
       
-      while ((match = thinkRegex.exec(assistantContent)) !== null) {
-        const fullMatch = match[0];
-        const thinkingContent = match[1];
-        const formattedThinking = `<div class="thinking-process">
+      // Then replace the thinking tags with HTML
+      parsedContent = parsedContent.replace(thinkRegex, (match, thinkingContent) => {
+        return `<div class="thinking-process">
           <div class="thinking-header">
             <button class="thinking-toggle" aria-expanded="true">
               <span class="toggle-icon">▼</span> Thinking Process
@@ -126,16 +127,35 @@ export async function processServerResponseData(data, modelName = 'unknown') {
             <pre class="thinking-pre">${thinkingContent}</pre>
           </div>
         </div>`;
-        
-        processedContent = processedContent.replace(fullMatch, formattedThinking);
+      });
+      
+      // Parse the content with Markdown, but preserve our HTML
+      const finalContent = safeMarkdownParse(parsedContent);
+      
+      // Add model name
+      const contentWithModelName = finalContent + 
+        `<span class="text-xs text-gray-500 dark:text-gray-400">(Using model: ${actualModelUsed})</span>`;
+      
+      // Inject global Markdown styles once
+      injectMarkdownStyles();
+      
+      // Display the message directly without additional parsing
+      displayMessage(contentWithModelName, 'assistant');
+      
+      // If the server returned usage info, update usage display
+      if (data.usage && typeof updateTokenUsage === 'function') {
+        updateTokenUsage(data.usage);
       }
       
-      assistantContent = processedContent;
+      // Setup the toggle listeners
+      setupThinkingToggleListeners();
+      
+      // Return early since we've handled everything
+      return;
     }
   }
 
-  // Get the actual model used from the response
-  const actualModelUsed = data.model || modelName;
+  // For non-DeepSeek models or DeepSeek without thinking tags:
   
   // Remove any existing model name annotations using a more general regex
   const genericModelNameRegex = /\n\n<span class="text-xs text-gray-500 dark:text-gray-400">\(Using model: .*?\)<\/span>$/;
