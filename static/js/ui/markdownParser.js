@@ -4,6 +4,59 @@ let stylesInjected = false;
 let markdownParser = null;
 
 /**
+ * Render markdown content to HTML
+ * @param {string} content - The markdown content to render
+ * @returns {string} HTML content
+ */
+export function renderMarkdown(content) {
+    if (!content) return '';
+    return safeMarkdownParse(content);
+}
+
+/**
+ * Sanitize HTML content to prevent XSS
+ * @param {string} content - The HTML content to sanitize
+ * @returns {string} Sanitized HTML
+ */
+export function sanitizeHTML(content) {
+    if (!content) return '';
+    return DOMPurify ? DOMPurify.sanitize(content) : escapeHtml(content);
+}
+
+/**
+ * Apply syntax highlighting to code blocks in an element
+ * @param {HTMLElement} element - The element containing code blocks
+ */
+export function highlightCode(element) {
+    if (!element || typeof Prism === 'undefined') return;
+    
+    try {
+        // Find all code blocks in the element
+        const codeBlocks = element.querySelectorAll('pre code');
+        
+        // Apply Prism highlighting to each block
+        codeBlocks.forEach(block => {
+            // Get the language class if it exists
+            const languageClass = Array.from(block.classList)
+                .find(cls => cls.startsWith('language-'));
+                
+            if (languageClass) {
+                const language = languageClass.replace('language-', '');
+                if (Prism.languages[language]) {
+                    // Only highlight if we haven't already
+                    if (!block.classList.contains('prism-highlighted')) {
+                        Prism.highlightElement(block);
+                        block.classList.add('prism-highlighted');
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error applying syntax highlighting:', error);
+    }
+}
+
+/**
  * Configure markdown parser with required settings
  * @returns {boolean} True if configuration was successful
  */

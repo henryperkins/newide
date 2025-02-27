@@ -1,0 +1,1 @@
+{"name":"DeepSeek-R1","max_tokens":32000,"api_version":"2024-05-01-preview","description":"Model that supports chain-of-thought reasoning with <think> tags","max_timeout":300.0,"base_timeout":120.0,"token_factor":0.05,"azure_endpoint":"https://DeepSeek-R1D2.eastus2.models.ai.azure.com","supports_streaming":true,"supports_temperature":true}
