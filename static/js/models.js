@@ -1,468 +1,247 @@
-// models.js
+// Enhanced models.js with improved UI, error handling, and touch interaction
+
+import { showNotification, showConfirmDialog } from './ui/notificationManager.js';
 
 class ModelManager {
     constructor() {
         this.currentModel = null;
         this.modelConfigs = {};
         this.isInitialized = false;
+        this.pendingModelActions = {}; // Track pending API calls
     }
 
     /**
-     * One-time initialization flow:
-     *  1. Attempt to fetch existing models.
-     *  2. If no models, create defaults (o1hp, DeepSeek-R1).
-     *  3. Build the UI if not already done.
+     * One-time initialization flow with improved error handling:
+     * 1. Attempt to fetch existing models.
+     * 2. If no models, create defaults (o1hp, DeepSeek-R1).
+     * 3. Build the UI if not already done.
      */
     async initialize() {
         try {
-            // First ensure default models exist
-            await this.ensureDefaultModels();
-
-            // Wait 500ms for backend to process
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            // Then refresh models list
+            console.log('Initializing ModelManager...');
+            
+            // First refresh models list
             await this.refreshModelsList();
-
-            // Ensure local models exist regardless of API response
+            
+            // Always ensure local model configs exist
             this.ensureLocalModelConfigs();
-
+            
             // Log model configs for debugging
-            console.log('ModelManager fetched model configs:', Object.keys(this.modelConfigs));
-
-            // Build model management UI if not already done
+            console.log('ModelManager initialized with models:', Object.keys(this.modelConfigs));
+            
+            // Build model management UI
             if (!this.isInitialized) {
                 this.initModelManagement();
                 this.isInitialized = true;
             }
+            
+            // Update UI for current model
+            const currentModel = await this.getCurrentModelFromServer() || Object.keys(this.modelConfigs)[0];
+            if (currentModel) {
+                this.currentModel = currentModel;
+                this.updateModelSpecificUI(currentModel);
+            }
+            
+            return true;
         } catch (error) {
             console.error('Error initializing models:', error);
-
+            showNotification('Failed to initialize models. Using default models.', 'warning');
+            
             // Always ensure local models exist, even on error
             this.ensureLocalModelConfigs();
+            
+            // Initialize UI even on error
+            if (!this.isInitialized) {
+                this.initModelManagement();
+                this.isInitialized = true;
+            }
+            
+            return false;
         }
     }
 
     /**
-     * Corrected model configuration to match Azure OpenAI documentation
-     */
-    async ensureDefaultModels() {
-        console.log('Checking for default models...');
-
-        // If we already have at least one model, only ensure "o1hp" is present.
-        if (Object.keys(this.modelConfigs).length > 0) {
-            console.log('Models already exist, no defaults needed');
-
-            // Specifically check for o1hp
-            if (!this.modelConfigs["o1hp"]) {
-                console.log('o1hp model not found, creating it');
-                const o1Model = {
-                    name: "o1hp",
-                    description: "Advanced reasoning model for complex tasks",
-                    azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
-                    api_version: "2025-01-01-preview",
-                    max_tokens: 200000,
-                    max_completion_tokens: 5000,
-                    supports_temperature: false,
-                    supports_streaming: false, // o1 doesn't support streaming
-                    supports_vision: true,
-                    requires_reasoning_effort: true,
-                    reasoning_effort: "medium",
-                    base_timeout: 120.0,
-                    max_timeout: 300.0,
-                    token_factor: 0.05
-                };
-
-                try {
-                    await this.createModel("o1hp", o1Model);
-                    console.log('o1hp model created successfully');
-                } catch (error) {
-                    console.warn('Failed to create o1hp model:', error);
-                    this.modelConfigs["o1hp"] = o1Model; // Add locally even if API call fails
-                }
-            }
-            return;
-        }
-
-        // If no models exist at all, create defaults
-        console.log('No models found, creating defaults');
-        try {
-            // o1hp (primary default)
-            const o1Model = {
-                name: "o1hp",
-                description: "Advanced reasoning model for complex tasks",
-                azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
-                api_version: "2025-01-01-preview",
-                max_tokens: 200000,
-                max_completion_tokens: 5000,
-                supports_temperature: false,
-                supports_streaming: false, // o1 doesn't support streaming
-                supports_vision: true,
-                requires_reasoning_effort: true,
-                reasoning_effort: "medium",
-                base_timeout: 120.0,
-                max_timeout: 300.0,
-                token_factor: 0.05
-            };
-            try {
-                await this.createModel("o1hp", o1Model);
-                console.log('o1hp model created successfully');
-            } catch (error) {
-                console.warn('Failed to create o1hp model via API, adding to local config:', error);
-                this.modelConfigs["o1hp"] = o1Model;
-            }
-
-            // DeepSeek-R1
-            const deepseekR1Model = {
-                name: "DeepSeek-R1",
-                description: "Model that supports chain-of-thought reasoning with <think> tags",
-                azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
-                api_version: "2024-05-01-preview",
-                max_tokens: 32000,
-                supports_temperature: true,
-                supports_streaming: true,
-                supports_json_response: false,
-                base_timeout: 120.0,
-                max_timeout: 300.0,
-                token_factor: 0.05,
-                // Add specific DeepSeek-R1 capabilities
-                capabilities: {
-                    supports_streaming: true,
-                    supports_temperature: true,
-                    max_tokens: 32000
-                }
-            };
-            try {
-                await this.createModel("DeepSeek-R1", deepseekR1Model);
-                console.log('DeepSeek-R1 model created successfully');
-            } catch (error) {
-                console.warn('Failed to create DeepSeek-R1 model via API, adding to local config:', error);
-                this.modelConfigs["DeepSeek-R1"] = deepseekR1Model;
-            }
-
-            // Refresh
-            await this.refreshModelsList();
-            console.log('Default models created');
-
-        } catch (error) {
-            console.error('Error creating default models:', error);
-            const listContainer = document.getElementById('models-list');
-            if (listContainer) {
-                listContainer.innerHTML = `
-                    <div class="text-red-500 dark:text-red-400 p-4 text-center">
-                        Failed to create default models.<br>Please check console for details.
-                    </div>`;
-            }
-        }
-    }
-
-    /**
-     * Create a new model (API call) with better fallback handling.
-     * @param {string} modelId
-     * @param {Object} modelData
-     */
-    async createModel(modelId, modelData) {
-        try {
-            console.log(`Attempting to create model ${modelId}`);
-
-            // Try to check if model exists first
-            try {
-                const existsResponse = await fetch(`/api/config/models/${modelId}`);
-
-                if (existsResponse.ok) {
-                    console.log(`Model ${modelId} already exists, skipping creation`);
-                    // Update local config
-                    const existingModel = await existsResponse.json();
-                    this.modelConfigs[modelId] = existingModel;
-                    return existingModel;
-                }
-
-                // If 404, we continue with creation
-                if (existsResponse.status !== 404) {
-                    console.warn(`Unexpected response when checking if model exists: ${existsResponse.status}`);
-                    // We'll still try to create the model
-                }
-            } catch (checkError) {
-                console.warn(`Error checking if model ${modelId} exists:`, checkError);
-                // Continue anyway - try to create
-            }
-
-            // Ensure modelData has all required fields
-            const requiredFields = ["name", "supports_streaming", "supports_temperature", "api_version", "azure_endpoint"];
-            for (const field of requiredFields) {
-                if (!modelData[field]) {
-                    if (field === "name") {
-                        modelData.name = modelId;
-                    } else if (field === "api_version") {
-                        modelData.api_version = modelId.toLowerCase() === "deepseek-r1"
-                            ? "2024-05-01-preview"
-                            : "2025-01-01-preview";
-                    } else if (field === "azure_endpoint") {
-                        modelData.azure_endpoint = modelId.toLowerCase() === "deepseek-r1"
-                            ? "https://DeepSeek-R1D2.eastus2.models.ai.azure.com"
-                            : "https://aoai-east-2272068338224.cognitiveservices.azure.com";
-                    } else if (field === "supports_streaming") {
-                        modelData.supports_streaming = modelId.toLowerCase() === "deepseek-r1";
-                    } else if (field === "supports_temperature") {
-                        modelData.supports_temperature = modelId.toLowerCase() === "deepseek-r1";
-                    }
-                }
-            }
-
-            // Create the model via API
-            try {
-                const response = await fetch(`/api/config/models/${modelId}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(modelData)
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-                    console.log(`Model ${modelId} created successfully:`, result);
-
-                    // Update local model configs
-                    this.modelConfigs[modelId] = modelData;
-                    return result;
-                } else {
-                    const errorText = await response.text();
-                    console.error(`Failed to create model ${modelId}: ${errorText}`);
-
-                    // Even if API call fails, add to local config
-                    this.modelConfigs[modelId] = modelData;
-
-                    // Don't throw error - we'll continue with local model
-                    return {
-                        status: "created_locally_only",
-                        warning: "Added to local configuration but API call failed"
-                    };
-                }
-            } catch (createError) {
-                console.error(`Error creating model ${modelId}:`, createError);
-
-                // Add to local configs even if API call fails
-                this.modelConfigs[modelId] = modelData;
-
-                // Don't throw error - we'll continue with local model
-                return {
-                    status: "created_locally_only",
-                    warning: "Added to local configuration but API call failed"
-                };
-            }
-        } catch (error) {
-            console.error(`Unexpected error in createModel for ${modelId}:`, error);
-
-            // Always add to local configs as fallback
-            this.modelConfigs[modelId] = modelData;
-
-            return {
-                status: "created_locally_only",
-                warning: "Added to local configuration but encountered errors"
-            };
-        }
-    }
-
-    /**
-     * Fetch all models from the server, update the UI.
+     * Fetch all models from the server with improved error handling
      */
     async refreshModelsList() {
         const listContainer = document.getElementById('models-list');
-        if (!listContainer) {
-            console.error('Models list container not found');
-            return;
+        if (listContainer) {
+            // Show loading state
+            listContainer.innerHTML = `
+                <div class="flex items-center justify-center p-4 text-dark-500 dark:text-dark-400 text-sm">
+                    <svg class="animate-spin h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Loading models...
+                </div>
+            `;
         }
 
-        listContainer.innerHTML = `
-            <div class="text-gray-500 dark:text-gray-400 text-sm p-4 text-center">
-                Loading models...
-            </div>`;
-
         try {
-            console.log('Fetching models from API...');
             const response = await fetch('/api/config/models');
             if (!response.ok) {
                 throw new Error(`Failed to fetch models: ${response.status} ${response.statusText}`);
             }
 
             let models = await response.json();
-            console.log('Raw models received from API:', models);
 
             // Handle both formats: direct models object or models wrapped in a "models" property
             if (models.models) {
-                console.log('Models are wrapped in a "models" property, extracting...');
                 models = models.models;
             }
 
-            console.log('Processed models:', models);
-
-            // Warn if DeepSeek-R1 is missing
-            const hasDeepSeekR1 = Object.keys(models).includes("DeepSeek-R1");
-            const hasO1hp = Object.keys(models).includes("o1hp");
-
-            if (!hasDeepSeekR1) {
-                console.warn('DeepSeek-R1 not found in API response. You can create or register it in the Azure deployment settings.');
-            }
-
-            if (!hasO1hp) {
-                console.warn('o1hp not found in API response. You can create or register it in the Azure deployment settings.');
-            }
-
-            // Update local store - IMPORTANT: This is where the models are stored
+            // Update local store
             this.modelConfigs = models;
-            console.log('Updated modelConfigs:', this.modelConfigs);
-
-            // Ensure required models exist locally regardless of API response
+            
+            // Check if required models exist
             this.ensureLocalModelConfigs();
 
-            // Clear container
-            listContainer.innerHTML = '';
-
-            // If no models, show a message
-            if (Object.keys(models).length === 0) {
-                console.log('No models found in response');
-                listContainer.innerHTML = `
-                    <div class="text-gray-500 dark:text-gray-400 text-sm p-4 text-center">
-                        No models configured.
-                    </div>`;
-
-                // Since we have no models, manually create the essential ones
-                console.log('Creating default models in local config...');
-                this.modelConfigs["o1hp"] = {
-                    name: "o1hp",
-                    description: "Azure OpenAI o1 high performance model",
-                    max_tokens: 40000,
-                    supports_streaming: false,
-                    supports_temperature: false,
-                    api_version: "2025-01-01-preview",
-                    azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
-                    base_timeout: 120.0,
-                    max_timeout: 300.0,
-                    token_factor: 0.05
-                };
-
-                this.modelConfigs["DeepSeek-R1"] = {
-                    name: "DeepSeek-R1",
-                    description: "Model that supports chain-of-thought reasoning with <think> tags",
-                    max_tokens: 32000,
-                    supports_streaming: true,
-                    supports_temperature: true,
-                    api_version: "2024-05-01-preview",
-                    azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
-                    base_timeout: 120.0,
-                    max_timeout: 300.0,
-                    token_factor: 0.05,
-                    capabilities: {
-                        supports_streaming: true,
-                        supports_temperature: true,
-                        max_tokens: 32000
-                    }
-                };
-
-                console.log('Created default models in local config:', this.modelConfigs);
-                return;
-            }
-
-            // Build a card for each model
-            for (const [id, modelConfig] of Object.entries(models)) {
-                const card = document.createElement('div');
-                card.className = `
-                    border border-gray-200 dark:border-gray-700
-                    rounded-md p-3 mb-3 bg-white dark:bg-gray-700
-                    transition hover:border-blue-200 dark:hover:border-blue-700
-                `;
-                card.dataset.modelId = id;
-                card.innerHTML = `
-                    <div class="flex flex-col sm:flex-row justify-between sm:items-center">
-                        <div class="mb-2 sm:mb-0">
-                            <h3 class="font-medium text-base">${id}</h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">
-                                ${modelConfig.description || 'No description'}
-                            </p>
-                        </div>
-                        <div class="flex space-x-2">
-                            <button class="edit-model-btn p-2 text-blue-600 dark:text-blue-400
-                                    hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-full touch-target"
-                                    data-model-id="${id}" aria-label="Edit ${id} model">
-                                <span aria-hidden="true">✏️</span>
-                            </button>
-                            <button class="delete-model-btn p-2 text-red-600 dark:text-red-400
-                                    hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full touch-target"
-                                    data-model-id="${id}" aria-label="Delete ${id} model">
-                                <span aria-hidden="true">🗑️</span>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2 mt-2 text-xs sm:text-sm text-gray-600 dark:text-gray-300">
-                        <div>
-                            <span class="font-medium">Tokens:</span>
-                            ${modelConfig.max_tokens?.toLocaleString() || 'Default'}
-                        </div>
-                        <div>
-                            <span class="font-medium">Streaming:</span>
-                            ${modelConfig.supports_streaming ? 'Yes' : 'No'}
-                        </div>
-                    </div>
-                `;
-                listContainer.appendChild(card);
-            }
-
-            // Hook up edit/delete event listeners
-            this.attachModelActionListeners();
-
+            // Update the UI
+            this.updateModelsList();
+            
+            return models;
         } catch (error) {
             console.error('Error loading models:', error);
-            listContainer.innerHTML = `
-                <div class="text-red-500 dark:text-red-400 text-sm p-4 text-center">
-                    Failed to load models: ${error.message}
-                </div>
-                <button id="retry-models-btn" class="btn-primary mx-auto block mt-2 text-sm">
-                    Retry
-                </button>
-            `;
+            
+            // Show error in UI if container exists
+            if (listContainer) {
+                listContainer.innerHTML = `
+                    <div class="text-red-500 dark:text-red-400 text-sm p-4 text-center">
+                        Failed to load models: ${error.message}
+                        <button id="retry-models-btn" class="btn btn-primary mx-auto block mt-2 text-sm">
+                            Retry
+                        </button>
+                    </div>
+                `;
 
-            // Add a retry button
-            document.getElementById('retry-models-btn')?.addEventListener('click', () => {
-                this.refreshModelsList();
-            });
-
-            // Create default models locally as fallback
-            console.log('Creating fallback models in local config due to API error...');
-            this.modelConfigs["o1hp"] = {
-                name: "o1hp",
-                description: "Azure OpenAI o1 high performance model",
-                max_tokens: 200000,
-                max_completion_tokens: 5000,
-                supports_streaming: false,
-                supports_temperature: false,
-                requires_reasoning_effort: true,
-                reasoning_effort: "medium",
-                api_version: "2025-01-01-preview",
-                azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
-                base_timeout: 120.0,
-                max_timeout: 300.0,
-                token_factor: 0.05
-            };
-
-            this.modelConfigs["DeepSeek-R1"] = {
-                name: "DeepSeek-R1",
-                description: "Model that supports chain-of-thought reasoning with <think> tags",
-                max_tokens: 32000,
-                supports_streaming: true,
-                supports_temperature: true,
-                api_version: "2024-05-01-preview",
-                azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
-                base_timeout: 120.0,
-                max_timeout: 300.0,
-                token_factor: 0.05
-            };
-
-            console.log('Created fallback models in local config:', this.modelConfigs);
+                // Add a retry button
+                document.getElementById('retry-models-btn')?.addEventListener('click', () => {
+                    this.refreshModelsList();
+                });
+            }
+            
+            // Use local fallback models
+            this.ensureLocalModelConfigs();
+            
+            return this.modelConfigs;
         }
     }
 
     /**
-     * Attach event listeners to Edit/Delete buttons on each model card.
-     * Makes the entire card clickable for editing.
+     * Update the UI list of models
+     */
+    updateModelsList() {
+        const listContainer = document.getElementById('models-list');
+        if (!listContainer) return;
+
+        // Clear container
+        listContainer.innerHTML = '';
+
+        // If no models, show a message
+        if (Object.keys(this.modelConfigs).length === 0) {
+            listContainer.innerHTML = `
+                <div class="text-gray-500 dark:text-gray-400 text-sm p-4 text-center">
+                    No models configured.
+                </div>
+            `;
+            return;
+        }
+
+        // Build a card for each model
+        for (const [id, modelConfig] of Object.entries(this.modelConfigs)) {
+            const card = document.createElement('div');
+            card.className = `
+                card p-3 mb-3 transition hover:border-primary-200 dark:hover:border-primary-700
+                ${this.currentModel === id ? 'border-l-4 border-l-primary-500' : ''}
+            `;
+            card.dataset.modelId = id;
+            
+            // Card header
+            const cardHeader = document.createElement('div');
+            cardHeader.className = 'flex flex-col sm:flex-row justify-between sm:items-center';
+            
+            // Model info
+            const modelInfo = document.createElement('div');
+            modelInfo.className = 'mb-2 sm:mb-0';
+            modelInfo.innerHTML = `
+                <h3 class="font-medium text-base">${id}</h3>
+                <p class="text-sm text-dark-500 dark:text-dark-400">
+                    ${modelConfig.description || 'No description'}
+                </p>
+            `;
+            
+            // Action buttons
+            const actionButtons = document.createElement('div');
+            actionButtons.className = 'flex space-x-2';
+            actionButtons.innerHTML = `
+                <button class="edit-model-btn btn btn-icon btn-secondary" 
+                        data-model-id="${id}" aria-label="Edit ${id} model">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                </button>
+                <button class="delete-model-btn btn btn-icon btn-danger" 
+                        data-model-id="${id}" aria-label="Delete ${id} model">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
+            `;
+            
+            // Append header elements
+            cardHeader.appendChild(modelInfo);
+            cardHeader.appendChild(actionButtons);
+            card.appendChild(cardHeader);
+            
+            // Model specs grid
+            const specsGrid = document.createElement('div');
+            specsGrid.className = 'grid grid-cols-2 gap-2 mt-2 text-xs sm:text-sm text-dark-600 dark:text-dark-300';
+            
+            // Add model specs
+            const specs = [
+                { label: 'Tokens', value: modelConfig.max_tokens?.toLocaleString() || 'Default' },
+                { label: 'Streaming', value: modelConfig.supports_streaming ? 'Yes' : 'No' },
+                { label: 'Temperature', value: modelConfig.supports_temperature ? 'Yes' : 'No' },
+                { label: 'API Version', value: modelConfig.api_version || '2025-01-01-preview' }
+            ];
+            
+            specs.forEach(spec => {
+                const specItem = document.createElement('div');
+                specItem.innerHTML = `
+                    <span class="font-medium">${spec.label}:</span>
+                    ${spec.value}
+                `;
+                specsGrid.appendChild(specItem);
+            });
+            
+            card.appendChild(specsGrid);
+            
+            // If this is the current model, add a "Current" badge
+            if (this.currentModel === id) {
+                const currentBadge = document.createElement('div');
+                currentBadge.className = 'mt-2 inline-flex items-center bg-primary-100 dark:bg-primary-900/20 px-2 py-0.5 text-xs font-medium text-primary-800 dark:text-primary-300 rounded-full';
+                currentBadge.textContent = 'Current';
+                card.appendChild(currentBadge);
+            } else {
+                // Add a "Use Model" button for non-current models
+                const useModelBtn = document.createElement('button');
+                useModelBtn.className = 'mt-2 btn btn-secondary text-xs';
+                useModelBtn.textContent = 'Use Model';
+                useModelBtn.setAttribute('data-model-id', id);
+                useModelBtn.classList.add('use-model-btn');
+                card.appendChild(useModelBtn);
+            }
+            
+            listContainer.appendChild(card);
+        }
+
+        // Hook up edit/delete event listeners
+        this.attachModelActionListeners();
+    }
+
+    /**
+     * Attach event listeners to model cards and buttons
      */
     attachModelActionListeners() {
         const listContainer = document.getElementById('models-list');
@@ -472,97 +251,163 @@ class ModelManager {
         listContainer.querySelectorAll('.edit-model-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                // Visual feedback on touch
-                btn.classList.add('bg-blue-100', 'dark:bg-blue-800');
+                // Tactile feedback
+                btn.classList.add('transform', 'scale-95');
                 setTimeout(() => {
-                    btn.classList.remove('bg-blue-100', 'dark:bg-blue-800');
-                }, 200);
+                    btn.classList.remove('transform', 'scale-95');
+                }, 150);
 
                 const modelId = btn.getAttribute('data-model-id');
                 this.showModelForm('edit', modelId);
             });
         });
 
-        // Delete button
+        // Delete button - use confirm dialog
         listContainer.querySelectorAll('.delete-model-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
+            btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                // Visual feedback on touch
-                btn.classList.add('bg-red-100', 'dark:bg-red-800');
+                // Tactile feedback
+                btn.classList.add('transform', 'scale-95');
                 setTimeout(() => {
-                    btn.classList.remove('bg-red-100', 'dark:bg-red-800');
-                }, 200);
+                    btn.classList.remove('transform', 'scale-95');
+                }, 150);
 
                 const modelId = btn.getAttribute('data-model-id');
-
-                if (confirm(`Are you sure you want to delete the model "${modelId}"?`)) {
-                    await this.deleteModel(modelId);
+                
+                // Use confirm dialog instead of native confirm
+                showConfirmDialog(
+                    'Delete Model',
+                    `Are you sure you want to delete the model "${modelId}"? This action cannot be undone.`,
+                    async () => {
+                        await this.deleteModel(modelId);
+                    }
+                );
+            });
+        });
+        
+        // Use Model button
+        listContainer.querySelectorAll('.use-model-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const modelId = btn.getAttribute('data-model-id');
+                
+                // Show loading state
+                const originalText = btn.textContent;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="animate-spin inline-block mr-2">&#8635;</span> Switching...';
+                
+                // Switch model
+                try {
+                    await this.switchModel(modelId);
+                    // Update after success
+                    this.updateModelsList();
+                } catch (error) {
+                    console.error('Error switching model:', error);
+                    showNotification(`Failed to switch to model ${modelId}`, 'error');
+                } finally {
+                    // Reset button state
+                    btn.disabled = false;
+                    btn.textContent = originalText;
                 }
             });
         });
 
-        // Make entire card clickable for edit
-        listContainer.querySelectorAll('.border').forEach(card => {
-            card.addEventListener('click', () => {
-                const modelId = card.dataset.modelId;
-                if (modelId) {
-                    this.showModelForm('edit', modelId);
+        // Make cards clickable (but not when clicking buttons)
+        listContainer.querySelectorAll('.card').forEach(card => {
+            card.addEventListener('click', (e) => {
+                // Only handle clicks directly on the card (not on buttons)
+                if (!e.target.closest('button')) {
+                    const modelId = card.dataset.modelId;
+                    if (modelId) {
+                        if (this.currentModel !== modelId) {
+                            // If not current model, switch to it
+                            this.switchModel(modelId);
+                        } else {
+                            // If already current model, edit it
+                            this.showModelForm('edit', modelId);
+                        }
+                    }
                 }
             });
         });
     }
 
     /**
-     * Delete a model (API call), then refresh UI.
+     * Delete a model with visual feedback during API call
      */
     async deleteModel(modelId) {
         try {
-            // Show "loading" styling on the container
-            const listContainer = document.getElementById('models-list');
-            if (listContainer) {
-                listContainer.classList.add('opacity-50', 'pointer-events-none');
+            // Track this API call
+            this.pendingModelActions[modelId] = 'delete';
+            
+            // Show "loading" styling on the model card
+            const modelCard = document.querySelector(`.card[data-model-id="${modelId}"]`);
+            if (modelCard) {
+                modelCard.classList.add('opacity-50', 'pointer-events-none');
             }
 
+            // Make API call
             const response = await fetch(`/api/config/models/${modelId}`, { method: 'DELETE' });
 
+            // Remove from pending actions
+            delete this.pendingModelActions[modelId];
+            
             // Remove "loading" styling
-            if (listContainer) {
-                listContainer.classList.remove('opacity-50', 'pointer-events-none');
+            if (modelCard) {
+                modelCard.classList.remove('opacity-50', 'pointer-events-none');
             }
 
             if (response.ok) {
-                this.showToast(`Model ${modelId} deleted successfully`);
-                await this.refreshModelsList();
+                // Remove from local configs
+                if (this.modelConfigs[modelId]) {
+                    delete this.modelConfigs[modelId];
+                }
+                
+                showNotification(`Model ${modelId} deleted successfully`, 'success');
+                this.updateModelsList();
+                
+                // If we deleted the current model, switch to another one
+                if (this.currentModel === modelId) {
+                    const nextModel = Object.keys(this.modelConfigs)[0];
+                    if (nextModel) {
+                        await this.switchModel(nextModel);
+                    }
+                }
             } else {
                 const errorText = await response.text();
                 console.error('Delete error:', errorText);
-                this.showToast(`Error: ${errorText}`, 'error');
+                showNotification(`Error: ${errorText}`, 'error');
             }
         } catch (error) {
             console.error('Error deleting model:', error);
-            this.showToast('An error occurred while deleting the model', 'error');
+            showNotification('An error occurred while deleting the model', 'error');
+            
+            // Remove from pending actions on error
+            delete this.pendingModelActions[modelId];
         }
     }
 
     /**
-     * Display the "add or edit model" form.
-     * @param {'add'|'edit'} mode
-     * @param {string|null} modelId
+     * Display the model form for adding or editing a model
      */
     showModelForm(mode, modelId = null) {
-        console.log(`Showing model form: mode=${mode}, modelId=${modelId}`);
         const formContainer = document.getElementById('model-form-container');
         const formTitle = document.getElementById('model-form-title');
         const formMode = document.getElementById('model-form-mode');
         const formIdField = document.getElementById('model-form-id');
+        const form = document.getElementById('model-form');
 
-        if (!formContainer || !formTitle || !formMode || !formIdField) {
+        if (!formContainer || !formTitle || !formMode || !formIdField || !form) {
             console.error('Model form elements not found in DOM');
             return;
         }
 
-        // Reset entire form
-        document.getElementById('model-form').reset();
+        // Reset form and clear previous errors
+        form.reset();
+        form.querySelectorAll('.form-error').forEach(el => el.remove());
+        form.querySelectorAll('.input-error').forEach(el => {
+            el.classList.remove('input-error');
+        });
 
         // Set form mode & title
         formMode.value = mode;
@@ -587,135 +432,64 @@ class ModelManager {
             document.getElementById('model-name').disabled = false;
 
             // Reasonable defaults for a new model
-            document.getElementById('model-endpoint').value =
-                'https://aoai-east-2272068338224.cognitiveservices.azure.com';
+            document.getElementById('model-endpoint').value = 'https://aoai-east-2272068338224.cognitiveservices.azure.com';
             document.getElementById('model-api-version').value = '2025-01-01-preview';
             document.getElementById('model-max-tokens').value = '4096';
         }
 
-        // Show the form container
+        // Show the form container with animation
         formContainer.classList.remove('hidden');
-
-        // Scroll into view on mobile
-        if (window.innerWidth < 768) {
+        
+        // Animate in
+        requestAnimationFrame(() => {
+            // Focus first field
             setTimeout(() => {
-                formContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                if (mode === 'add') {
+                    document.getElementById('model-name').focus();
+                } else {
+                    document.getElementById('model-description').focus();
+                }
             }, 100);
-        }
+        });
     }
 
     /**
-     * Hide the "add or edit model" form.
+     * Hide the model form
      */
     hideModelForm() {
         const formContainer = document.getElementById('model-form-container');
         if (formContainer) {
+            // Add fade-out animation
             formContainer.classList.add('hidden');
         }
     }
 
     /**
-     * Handler for the Model Form "Save" button.
-     * Sends data to server if valid.
-     */
-    async handleModelFormSubmit(e) {
-        e.preventDefault();
-        console.log('Model form submitted');
-
-        const formMode = document.getElementById('model-form-mode').value;
-        const formIdField = document.getElementById('model-form-id');
-
-        // If adding, modelId is from the 'name' field; if editing, from hidden input
-        const modelId = (formMode === 'add')
-            ? document.getElementById('model-name').value
-            : formIdField.value;
-
-        console.log(`Form mode: ${formMode}, Model ID: ${modelId}`);
-
-        // Very basic form validation
-        if (!modelId) {
-            this.showFormError('model-name', 'Model name is required');
-            return;
-        }
-
-        // Collect data
-        const modelData = {
-            name: modelId,
-            description: document.getElementById('model-description').value,
-            azure_endpoint: document.getElementById('model-endpoint').value,
-            api_version: document.getElementById('model-api-version').value || '2025-01-01-preview',
-            max_tokens: parseInt(document.getElementById('model-max-tokens').value, 10) || 4096,
-            supports_temperature: document.getElementById('model-supports-temperature').checked,
-            supports_streaming: document.getElementById('model-supports-streaming').checked,
-            // Hard-coded defaults (these might be user-editable in the future)
-            base_timeout: 120.0,
-            max_timeout: 300.0,
-            token_factor: 0.05
-        };
-        console.log('Model data to submit:', modelData);
-
-        // Show loading state on the submit button
-        const form = document.getElementById('model-form');
-        const submitBtn = form.querySelector('button[type="submit"]');
-        if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="inline-block animate-spin mr-2">↻</span> Saving...';
-        }
-
-        try {
-            // We assume your backend can handle POST for both create and update
-            const response = await fetch(`/api/config/models/${modelId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(modelData)
-            });
-
-            if (response.ok) {
-                // Refresh the model list and hide the form
-                this.showToast(`Model ${modelId} saved successfully`);
-                await this.refreshModelsList();
-                this.hideModelForm();
-            } else {
-                const errorText = await response.text();
-                console.error('API error response:', errorText);
-                this.showFormError(null, errorText);
-            }
-        } catch (error) {
-            console.error('Error submitting model form:', error);
-            this.showFormError(null, 'An error occurred. Please check console for details.');
-        } finally {
-            if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = 'Save';
-            }
-        }
-    }
-
-    /**
-     * Show a field-level or global form error with minimal fuss.
+     * Form validation with improved error display
      */
     showFormError(fieldId, message) {
-        // Remove existing error messages
-        document.querySelectorAll('.error-message').forEach(el => el.remove());
-
+        // Create error message element
         const errorEl = document.createElement('div');
-        errorEl.className = `
-            error-message text-red-500 text-sm mt-1 p-2 bg-red-50 dark:bg-red-900/20
-            border border-red-200 dark:border-red-800 rounded
-        `;
+        errorEl.className = 'form-error';
         errorEl.textContent = message;
 
         if (fieldId) {
+            // Field-specific error
             const field = document.getElementById(fieldId);
             if (field) {
-                field.classList.add('border-red-500');
+                // Add error styling
+                field.classList.add('input-error');
+                
+                // Add error message after field
                 field.parentNode.appendChild(errorEl);
+                
+                // Focus field
                 field.focus();
 
                 // Remove error styling after user changes the field
                 field.addEventListener('input', () => {
-                    field.classList.remove('border-red-500');
-                    const existingErr = field.parentNode.querySelector('.error-message');
+                    field.classList.remove('input-error');
+                    const existingErr = field.parentNode.querySelector('.form-error');
                     if (existingErr) existingErr.remove();
                 }, { once: true });
             }
@@ -729,94 +503,227 @@ class ModelManager {
                 }, 100);
             }
         }
+        
+        return errorEl;
     }
 
     /**
-     * Simple toast notification (mobile-friendly).
-     * @param {string} message
-     * @param {'success'|'error'|'info'} [type='success']
+     * Handle form submission with improved validation and feedback
      */
-    showToast(message, type = 'success') {
-        // Remove any existing toasts
-        document.querySelectorAll('.toast-notification').forEach(el => el.remove());
+    async handleModelFormSubmit(e) {
+        e.preventDefault();
 
-        const toast = document.createElement('div');
-        toast.className = `
-            toast-notification fixed top-4 left-1/2 transform -translate-x-1/2 z-50
-            px-4 py-2 rounded-md shadow-lg text-white text-sm
-            ${type === 'error' ? 'bg-red-600'
-             : type === 'info'  ? 'bg-blue-600'
-             : 'bg-green-600'}
-            animate-fade-in
-        `;
-        toast.textContent = message;
-        document.body.appendChild(toast);
+        const formMode = document.getElementById('model-form-mode').value;
+        const formIdField = document.getElementById('model-form-id');
 
-        // Remove after a short delay
-        setTimeout(() => {
-            toast.classList.remove('animate-fade-in');
-            toast.classList.add('animate-fade-out');
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
+        // If adding, modelId is from the 'name' field; if editing, from hidden input
+        const modelId = (formMode === 'add')
+            ? document.getElementById('model-name').value.trim()
+            : formIdField.value;
+
+        // Validation
+        if (!modelId) {
+            this.showFormError('model-name', 'Model name is required');
+            return;
+        }
+        
+        // Check for special characters in model name
+        if (!/^[a-zA-Z0-9_-]+$/.test(modelId)) {
+            this.showFormError('model-name', 'Model name can only contain letters, numbers, underscores, and hyphens');
+            return;
+        }
+
+        // Validate endpoint URL
+        const endpoint = document.getElementById('model-endpoint').value.trim();
+        if (!endpoint) {
+            this.showFormError('model-endpoint', 'Azure endpoint is required');
+            return;
+        }
+        
+        try {
+            new URL(endpoint);
+        } catch (error) {
+            this.showFormError('model-endpoint', 'Invalid URL format');
+            return;
+        }
+
+        // Collect data
+        const modelData = {
+            name: modelId,
+            description: document.getElementById('model-description').value.trim(),
+            azure_endpoint: endpoint,
+            api_version: document.getElementById('model-api-version').value.trim() || '2025-01-01-preview',
+            max_tokens: parseInt(document.getElementById('model-max-tokens').value, 10) || 4096,
+            supports_temperature: document.getElementById('model-supports-temperature').checked,
+            supports_streaming: document.getElementById('model-supports-streaming').checked,
+            base_timeout: 120.0,
+            max_timeout: 300.0,
+            token_factor: 0.05
+        };
+
+        // Show loading state on the submit button
+        const form = document.getElementById('model-form');
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalBtnContent = submitBtn.innerHTML;
+        
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="animate-spin inline-block mr-2">&#8635;</span> Saving...';
+        }
+
+        try {
+            // Track this API call
+            this.pendingModelActions[modelId] = formMode;
+            
+            // Make API call
+            const response = await fetch(`/api/config/models/${modelId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(modelData)
+            });
+
+            // Remove from pending actions
+            delete this.pendingModelActions[modelId];
+
+            if (response.ok) {
+                // Update local model config
+                this.modelConfigs[modelId] = modelData;
+                
+                // Success notification
+                showNotification(`Model ${modelId} saved successfully`, 'success');
+                
+                // Refresh the model list
+                this.updateModelsList();
+                
+                // Hide the form
+                this.hideModelForm();
+            } else {
+                // Show error based on response
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.detail || errorData.message || `Error: ${response.status} ${response.statusText}`;
+                this.showFormError(null, errorMessage);
+            }
+        } catch (error) {
+            console.error('Error submitting model form:', error);
+            this.showFormError(null, 'An error occurred. Please try again.');
+            
+            // Remove from pending actions on error
+            delete this.pendingModelActions[modelId];
+        } finally {
+            // Reset submit button
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnContent;
+            }
+        }
     }
 
     /**
-     * Switch active model. Calls a "switch_model" API route with correct parameters.
-     * @param {string} modelId
-     * @returns {Promise<boolean>} success
+     * Switch to a different model with improved error handling and feedback
      */
     async switchModel(modelId) {
-        console.log(`Attempting to switch to model: ${modelId}`);
-
-        // Ensure local configs exist - this makes the code more resilient
-        this.ensureLocalModelConfigs();
+        if (this.currentModel === modelId) {
+            // Already using this model
+            return true;
+        }
+        
+        console.log(`Switching to model: ${modelId}`);
 
         // Validate existence
         if (!this.modelConfigs[modelId]) {
             console.error(`Model ${modelId} not found in configurations`);
-            this.showToast(`Model ${modelId} not available`, 'error');
+            showNotification(`Model ${modelId} not available`, 'error');
             return false;
         }
 
         try {
-            this.showToast(`Switching to ${modelId}...`, 'info');
+            // Show notification
+            showNotification(`Switching to ${modelId}...`, 'info');
 
-            // Fetch session to get session_id
-            const session = await fetch('/api/session').then(r => r.json());
-            const sessionId = session?.id;
-
-            // Update model-specific UI before making the API call
-            this.updateModelSpecificUI(modelId);
+            // Track this API call
+            this.pendingModelActions[modelId] = 'switch';
+            
+            // Get session ID
+            const sessionId = await this.getSessionId();
 
             // Switch model using simplified endpoint
-            const url = `/api/config/models/switch_model/${modelId}${
+            const response = await fetch(`/api/config/models/switch_model/${modelId}${
                 sessionId ? `?session_id=${sessionId}` : ''
-            }`;
-
-            const response = await fetch(url, {
+            }`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
+
+            // Remove from pending actions
+            delete this.pendingModelActions[modelId];
 
             if (!response.ok) {
                 const errorText = await response.text();
                 throw new Error(`Failed to switch model: ${errorText}`);
             }
 
-            // Locally record the current model
+            // Update dropdown if it exists
+            const modelSelect = document.getElementById('model-select');
+            if (modelSelect) {
+                modelSelect.value = modelId;
+            }
+            
+            // Update model badge
+            const modelBadge = document.getElementById('model-badge');
+            if (modelBadge) {
+                modelBadge.textContent = modelId;
+            }
+
+            // Update UI based on model capabilities
+            this.updateModelSpecificUI(modelId);
+            
+            // Update local state
             this.currentModel = modelId;
-            this.showToast(`Now using model: ${modelId}`, 'success');
+            
+            // Update model list to highlight current model
+            this.updateModelsList();
+            
+            showNotification(`Now using model: ${modelId}`, 'success');
             return true;
         } catch (error) {
             console.error('Error switching model:', error);
-            this.showToast('Failed to switch model', 'error');
+            showNotification('Failed to switch model. Please try again.', 'error');
+            
+            // Remove from pending actions on error
+            delete this.pendingModelActions[modelId];
             return false;
         }
     }
 
     /**
-     * Update various UI elements (streaming toggle, reason controls, etc.)
-     * based on the newly selected model’s capabilities.
+     * Get the current session ID from various sources
+     */
+    async getSessionId() {
+        // Try to get from URL query parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const paramSessionId = urlParams.get('session_id');
+        if (paramSessionId) return paramSessionId;
+        
+        // Try to get from localStorage
+        const storageSessionId = localStorage.getItem('current_session_id');
+        if (storageSessionId) return storageSessionId;
+        
+        // Try to get from API
+        try {
+            const response = await fetch('/api/session');
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.id) return data.id;
+            }
+        } catch (error) {
+            console.warn('Could not fetch session ID from API:', error);
+        }
+        
+        return null;
+    }
+
+    /**
+     * Update UI elements based on model capabilities
      */
     updateModelSpecificUI(modelId) {
         const config = this.modelConfigs[modelId];
@@ -835,115 +742,93 @@ class ModelManager {
         // Update streaming toggle if present
         const streamingToggle = document.getElementById('enable-streaming');
         if (streamingToggle) {
-            streamingToggle.disabled = !config.supports_streaming;
-            if (!config.supports_streaming) {
-                streamingToggle.checked = false;
+            const supportsStreaming = config.supports_streaming || false;
+            streamingToggle.disabled = !supportsStreaming;
+            
+            // Update label to indicate if streaming is available
+            const streamingLabel = streamingToggle.parentElement.querySelector('label');
+            if (streamingLabel) {
+                streamingLabel.classList.toggle('text-dark-400', !supportsStreaming);
+            }
+            
+            // Add a note about streaming availability
+            const streamingNote = streamingToggle.parentElement.nextElementSibling;
+            if (streamingNote) {
+                if (!supportsStreaming) {
+                    streamingNote.textContent = 'Streaming is not available for this model';
+                    streamingToggle.checked = false; // Force off
+                } else {
+                    streamingNote.textContent = 'See responses as they\'re generated';
+                }
             }
         }
 
         // Update "Model Info" text
-        const modelInfo = document.querySelector('.hidden.md\\:block.text-sm p strong');
-        if (modelInfo && modelInfo.parentElement) {
-            modelInfo.parentElement.innerHTML = `
-                <p><strong>Model Info:</strong>
-                    Using ${modelId} model ${config.supports_streaming ? 'with streaming' : '(no streaming)'}
-                </p>`;
+        const modelInfo = document.querySelector('.model-info');
+        if (modelInfo) {
+            modelInfo.innerHTML = `
+                <p><strong>Model:</strong> ${modelId} ${config.supports_streaming ? 
+                    '<span class="text-success-500 dark:text-success-400">(supports streaming)</span>' : 
+                    '<span class="text-dark-500 dark:text-dark-400">(no streaming)</span>'}
+                </p>
+            `;
+        }
+        
+        // Update temperature control visibility if present
+        const temperatureControl = document.getElementById('temperature-control');
+        if (temperatureControl) {
+            if (config.supports_temperature) {
+                temperatureControl.classList.remove('hidden');
+            } else {
+                temperatureControl.classList.add('hidden');
+            }
         }
     }
 
     /**
-     * Initialize UI components for model management (form, list, etc.).
-     * (This is the updated method you requested.)
+     * Initialize UI components for model management
      */
     initModelManagement() {
-        console.log('Initializing model management UI');
-
         // Hook up "Add Model" button
         const addModelBtn = document.getElementById('add-model-btn');
         if (addModelBtn) {
-            console.log('Add Model button found, attaching event listener');
-            addModelBtn.className = `
-                bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md
-                shadow-sm flex items-center justify-center space-x-2 touch-action-manipulation
-            `;
-            addModelBtn.innerHTML = `<span>Add Model</span><span aria-hidden="true">+</span>`;
-
             addModelBtn.addEventListener('click', () => {
-                console.log('Add Model button clicked');
                 this.showModelForm('add');
             });
-
-            // Touch feedback on mobile
-            addModelBtn.addEventListener('touchstart', () => {
-                addModelBtn.classList.add('bg-blue-700');
-            }, { passive: true });
-            addModelBtn.addEventListener('touchend', () => {
-                addModelBtn.classList.remove('bg-blue-700');
-            }, { passive: true });
-        } else {
-            console.error('Add Model button not found');
         }
 
-        // Hook up "Cancel" button in form
+        // Hook up "Cancel" and "Close" buttons in form
         const cancelBtn = document.getElementById('model-form-cancel');
         if (cancelBtn) {
-            cancelBtn.className = 'btn-secondary text-sm px-4 py-2 rounded-md touch-action-manipulation';
             cancelBtn.addEventListener('click', () => this.hideModelForm());
+        }
+
+        const closeBtn = document.getElementById('model-form-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => this.hideModelForm());
+        }
+
+        // Close form when clicking outside
+        const formContainer = document.getElementById('model-form-container');
+        if (formContainer) {
+            formContainer.addEventListener('click', (e) => {
+                if (e.target === formContainer) {
+                    this.hideModelForm();
+                }
+            });
         }
 
         // Hook up form submission
         const modelForm = document.getElementById('model-form');
         if (modelForm) {
             modelForm.addEventListener('submit', (e) => this.handleModelFormSubmit(e));
-
-            // Make form controls touch-friendly
-            const formControls = modelForm.querySelectorAll('input, select, textarea');
-            formControls.forEach(control => {
-                if (['text','number','url'].includes(control.type) || control.tagName === 'SELECT') {
-                    control.className = `
-                        form-input w-full p-2 border border-gray-300 dark:border-gray-600
-                        rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
-                        focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none
-                    `;
-                }
-            });
-
-            // Make the submit button touch-friendly
-            const submitBtn = modelForm.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.className = 'btn-primary text-sm px-4 py-2 rounded-md touch-action-manipulation';
-            }
         }
-
-        // Finally, load the models list
-        this.refreshModelsList();
 
         // Initialize model-select dropdown if it exists
         const modelSelect = document.getElementById('model-select');
         if (modelSelect) {
             // Clear existing options
             modelSelect.innerHTML = '';
-
-            console.log('Available models for dropdown:', Object.keys(this.modelConfigs));
-
-            // Ensure we have at least the default models in local config
-            if (!this.modelConfigs["o1hp"]) {
-                console.log("Adding o1hp to model configs for dropdown");
-                this.modelConfigs["o1hp"] = {
-                    name: "o1hp",
-                    description: "Advanced reasoning model for complex tasks",
-                    supports_streaming: false
-                };
-            }
-
-            if (!this.modelConfigs["DeepSeek-R1"]) {
-                console.log("Adding DeepSeek-R1 to model configs for dropdown");
-                this.modelConfigs["DeepSeek-R1"] = {
-                    name: "DeepSeek-R1",
-                    description: "Model that supports chain-of-thought reasoning",
-                    supports_streaming: true
-                };
-            }
 
             // Populate with current models
             for (const [id, config] of Object.entries(this.modelConfigs)) {
@@ -966,13 +851,11 @@ class ModelManager {
             modelSelect.addEventListener('change', async (e) => {
                 await this.switchModel(e.target.value);
             });
-            console.log('Model select dropdown initialized with options');
         }
     }
 
     /**
-     * Get the current model from the server (usually stored in session).
-     * @returns {Promise<string|null>}
+     * Get the current model from the server
      */
     async getCurrentModelFromServer() {
         try {
@@ -983,6 +866,8 @@ class ModelManager {
             if (session && session.last_model) {
                 return session.last_model;
             }
+            
+            // Select first available model from config
             return Object.keys(this.modelConfigs)[0] || 'DeepSeek-R1';
         } catch (error) {
             console.error('Error getting current model:', error);
@@ -991,19 +876,19 @@ class ModelManager {
     }
 
     /**
-     * Ensure local model configurations exist regardless of API response
+     * Ensure local model configurations exist
      */
     ensureLocalModelConfigs() {
-        console.log('Ensuring local model configurations exist');
-
         // Always make sure these models exist in the local config
         const requiredModels = {
             "o1hp": {
                 name: "o1hp",
                 description: "Azure OpenAI o1 high performance model",
-                max_tokens: 40000,
+                max_tokens: 200000,
                 supports_streaming: false,
                 supports_temperature: false,
+                requires_reasoning_effort: true,
+                reasoning_effort: "medium",
                 api_version: "2025-01-01-preview",
                 azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
                 base_timeout: 120.0,
@@ -1031,13 +916,57 @@ class ModelManager {
                 this.modelConfigs[modelId] = config;
 
                 // Try to create the model on the server asynchronously
-                this.createModel(modelId, config).catch(err => {
-                    console.warn(`Failed to create ${modelId} on server: ${err.message}`);
-                });
+                if (!this.pendingModelActions[modelId]) {
+                    this.createModelOnServer(modelId, config).catch(err => {
+                        console.warn(`Failed to create ${modelId} on server: ${err.message}`);
+                    });
+                }
             }
         }
-
+        
+        // Make sure we return any mutated object
         return this.modelConfigs;
+    }
+    
+    /**
+     * Create model on server with error handling
+     */
+    async createModelOnServer(modelId, modelConfig) {
+        // Don't try to recreate models that are being processed
+        if (this.pendingModelActions[modelId]) {
+            return { status: "pending" };
+        }
+        
+        try {
+            // Track this API call
+            this.pendingModelActions[modelId] = 'create';
+            
+            // Use relative URL to ensure we're connecting to the current server
+            const response = await fetch(`/api/config/models/${modelId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(modelConfig),
+                // Ensure we're not using cached responses
+                cache: 'no-cache'
+            });
+            
+            // Remove from pending actions
+            delete this.pendingModelActions[modelId];
+            
+            if (response.ok) {
+                return await response.json();
+            } else {
+                console.warn(`Server returned ${response.status} when creating model ${modelId}`);
+                return { status: "error", code: response.status };
+            }
+        } catch (error) {
+            console.warn(`Network error creating model ${modelId}: ${error.message}`);
+            
+            // Remove from pending actions on error
+            delete this.pendingModelActions[modelId];
+            
+            return { status: "error", message: error.message };
+        }
     }
 }
 
@@ -1049,72 +978,6 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Document loaded, initializing ModelManager');
     modelManager.initialize().catch(err => {
         console.error('Error initializing ModelManager on page load:', err);
+        showNotification('There was an error loading model configurations. Default models will be used.', 'warning');
     });
-
-    // Inject mobile styling
-    addMobileStyles();
 });
-
-/**
- * Inject additional mobile-specific styles (touch targets, animations, etc.)
- */
-function addMobileStyles() {
-    const style = document.createElement('style');
-    style.textContent = `
-        .touch-target {
-            min-height: 44px;
-            min-width: 44px;
-        }
-
-        .touch-action-manipulation {
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translate(-50%, -20px); }
-            to   { opacity: 1; transform: translate(-50%, 0); }
-        }
-
-        @keyframes fadeOut {
-            from { opacity: 1; transform: translate(-50%, 0); }
-            to   { opacity: 0; transform: translate(-50%, -20px); }
-        }
-
-        .animate-fade-in {
-            animation: fadeIn 0.3s ease forwards;
-        }
-
-        .animate-fade-out {
-            animation: fadeOut 0.3s ease forwards;
-        }
-
-        /* Mobile form enhancements */
-        @media (max-width: 640px) {
-            #model-form input,
-            #model-form select {
-                font-size: 16px; /* Prevents iOS zoom */
-                padding: 0.75rem;
-                margin-bottom: 0.75rem;
-            }
-
-            #model-form label {
-                display: block;
-                margin-bottom: 0.5rem;
-                font-weight: 500;
-            }
-
-            #model-form .error-message {
-                padding: 0.75rem;
-                margin-bottom: 1rem;
-            }
-
-            /* Larger checkboxes */
-            #model-form input[type="checkbox"] {
-                width: 20px;
-                height: 20px;
-            }
-        }
-    `;
-    document.head.appendChild(style);
-}
