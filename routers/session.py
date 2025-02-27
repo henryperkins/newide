@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks, Request
 from uuid import uuid4
 from datetime import datetime, timedelta
 from pydantic import BaseModel
@@ -59,9 +59,11 @@ async def create_session(background_tasks: BackgroundTasks, db_session: AsyncSes
 # unless the project chooses to link it to a user's cookie or other param in the future.
 
 @router.get("", response_model=dict)
-async def get_current_session(db_session: AsyncSession = Depends(get_db_session)):
+async def get_current_session(
+    request: Request,
+    db_session: AsyncSession = Depends(get_db_session)
+):
     # Try to get session ID from request cookies
-    from fastapi import Request, Cookie
     from typing import Optional
     
     async def get_session_from_request(request: Request, db_session: AsyncSession):
@@ -90,14 +92,12 @@ async def get_current_session(db_session: AsyncSession = Depends(get_db_session)
             
         return None
     
-    # Get current request
-    from fastapi import Request
-    request = Request.scope.get("request")
-    
     # Try to get session from request
     session = None
-    if request:
+    try:
         session = await get_session_from_request(request, db_session)
+    except Exception as e:
+        logger.error(f"Error getting session from request: {str(e)}")
     
     # If session found, return session info
     if session:
