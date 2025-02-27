@@ -16,7 +16,12 @@ export default class StatsDisplay {
         chunkCount: 0,
         partialTokens: 0
       };
-  
+      
+      // Add throttling variables
+      this.lastUpdateTime = 0;
+      this.updateThrottleMs = 1000; // Only update UI every 1 second
+      this.pendingUpdate = false;
+
       this.initDisplay();
       this.startConnectionTracking();
     }
@@ -59,30 +64,8 @@ export default class StatsDisplay {
       }, 15000);
     }
   
-    constructor(containerId = 'performance-stats') {
-      this.container = document.getElementById(containerId);
-      if (!this.container) {
-        console.error(`StatsDisplay container not found: #${containerId}`);
-        return;
-      }
-  
-      this.stats = {
-        latency: 0,
-        tokensPerSecond: 0,
-        activeConnections: 0,
-        totalTokens: 0,
-        chunkCount: 0,
-        partialTokens: 0
-      };
-      
-      // Add throttling variables
-      this.lastUpdateTime = 0;
-      this.updateThrottleMs = 1000; // Only update UI every 1 second
-      this.pendingUpdate = false;
-
-      this.initDisplay();
-      this.startConnectionTracking();
-    }
+    render() {
+      if (!this.container) return;
   
     render() {
       if (!this.container) return;
@@ -112,6 +95,31 @@ export default class StatsDisplay {
         el.classList.add('stat-update-flash');
         setTimeout(() => el.classList.remove('stat-update-flash'), 300);
       });
+    }
+    
+    updateStats(newStats) {
+      // Merge the new stats into our existing stats object
+      Object.assign(this.stats, newStats);
+      
+      // Throttle the UI updates
+      const now = Date.now();
+      if (now - this.lastUpdateTime >= this.updateThrottleMs) {
+        this.render();
+        this.triggerAnimations();
+        this.lastUpdateTime = now;
+        this.pendingUpdate = false;
+      } else if (!this.pendingUpdate) {
+        // Schedule an update for later if we haven't already
+        this.pendingUpdate = true;
+        setTimeout(() => {
+          if (this.pendingUpdate) {
+            this.render();
+            this.triggerAnimations();
+            this.lastUpdateTime = Date.now();
+            this.pendingUpdate = false;
+          }
+        }, this.updateThrottleMs);
+      }
     }
   }
   
