@@ -8,6 +8,7 @@ from clients import get_model_client_dependency
 from logging_config import logger
 from typing import Optional, Any
 import config
+import uuid
 
 # Import the SessionManager - using explicit import to avoid circular imports
 from session_utils import SessionManager
@@ -25,39 +26,78 @@ async def initialize_session_services(session_id: str, azure_client: Any):
         search_service = AzureSearchService(azure_client)
         await search_service.create_search_index(session_id)
 
-# Then in routers/session.py, replace the existing session handling with:
-
 @router.get("")
 async def get_current_session(
     request: Request,
+    session_id: Optional[str] = None,  # Add explicit query parameter
     db_session: AsyncSession = Depends(get_db_session)
 ):
     """Get current session information"""
-    from session_utils import SessionManager
-    
-    session = await SessionManager.get_session_from_request(request, db_session)
-    
-    if session:
+    try:
+        # Use explicit session_id if provided
+        if session_id:
+            # Validate UUID format
+            try:
+                session_uuid = uuid.UUID(session_id)
+                
+                # Query for session directly
+                from sqlalchemy import select
+                from models import Session
+                
+                stmt = select(Session).where(Session.id == session_uuid)
+                result = await db_session.execute(stmt)
+                session = result.scalar_one_or_none()
+                
+                if session:
+                    return {
+                        "id": str(session.id),
+                        "created_at": session.created_at.isoformat() if session.created_at else None,
+                        "last_activity": session.last_activity.isoformat() if session.last_activity else None,
+                        "expires_at": session.expires_at.isoformat() if session.expires_at else None,
+                        "last_model": session.last_model,
+                    }
+            except (ValueError, TypeError) as e:
+                return {
+                    "id": None,
+                    "message": f"Invalid session ID format: {str(e)}"
+                }
+        
+        # Try to get session from SessionManager if no explicit session_id
+        from session_utils import SessionManager
+        session = await SessionManager.get_session_from_request(request, db_session)
+        
+        if session:
+            return {
+                "id": str(session.id),
+                "created_at": session.created_at.isoformat() if session.created_at else None,
+                "last_activity": session.last_activity.isoformat() if session.last_activity else None,
+                "expires_at": session.expires_at.isoformat() if session.expires_at else None,
+                "last_model": session.last_model,
+            }
+        
         return {
-            "id": str(session.id),
-            "created_at": session.created_at.isoformat() if session.created_at else None,
-            "last_activity": session.last_activity.isoformat() if session.last_activity else None,
-            "expires_at": session.expires_at.isoformat() if session.expires_at else None,
-            "last_model": session.last_model,
+            "id": None,
+            "message": "No active session. Call '/api/session/create' to generate a new session."
         }
-    
-    return {
-        "id": None,
-        "message": "No active session. Call '/api/session/create' to generate a new session."
-    }
+    except Exception as e:
+        logger.exception(f"Error in get_current_session: {str(e)}")
+        return {
+            "id": None,
+            "error": str(e),
+            "message": "Error retrieving session information"
+        }
 
 @router.post("/create")
 async def create_session(
     background_tasks: BackgroundTasks,
-    db_session: AsyncSession = Depends(get_db_session)
+    db_session: AsyncSession = Depends(get_db_session),
+    client_wrapper: dict = Depends(get_model_client_dependency)  # Add this parameter
 ):
     """Create a new session"""
     from session_utils import SessionManager
+    
+    # Extract client from the wrapper
+    azure_client = client_wrapper.get("client") if client_wrapper else None
     
     # Create a new session
     new_session = await SessionManager.create_session(db_session)
@@ -121,4 +161,15 @@ async def update_session_model(
     
     raise HTTPException(status_code=400, detail="Failed to update session model")
 
-# Remove duplicate route - we already defined a POST route above
+def session_to_response(session) -> SessionResponse:
+    """Convert a Session model to a SessionResponse model"""
+    if not session:
+        raise ValueError("Session cannot be None")
+        
+    return SessionResponse(
+        id=str(session.id),
+        created_at=session.created_at,
+        expires_at=session.expires_at,
+        last_activity=session.last_activity,
+        last_model=session.last_model
+    )

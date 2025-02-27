@@ -363,3 +363,21 @@ async def get_model_client(model_name: Optional[str] = None, db_session: Optiona
 async def init_client_pool(db_session: Optional[AsyncSession] = None):
     """Initialize the client pool at application startup"""
     await get_client_pool(db_session)
+
+async def get_model_client_dependency(model_name: Optional[str] = None) -> Dict[str, Any]:
+    """
+    FastAPI dependency that returns a model client wrapped in a dict.
+    This helps avoid serialization issues with complex client objects.
+    
+    Args:
+        model_name: Optional model name to get client for. If None, uses default.
+        
+    Returns:
+        Dict with "client" key containing the client object
+    """
+    try:
+        client = await get_model_client(model_name)
+        return {"client": client, "model_name": model_name or config.AZURE_OPENAI_DEPLOYMENT_NAME}
+    except Exception as e:
+        logger.error(f"Error in get_model_client_dependency: {str(e)}")
+        return {"client": None, "error": str(e)}

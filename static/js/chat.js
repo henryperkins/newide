@@ -1,7 +1,7 @@
 // Enhanced chat.js with improved error handling and performance
 
 import { showNotification, handleMessageError, showTypingIndicator, removeTypingIndicator, showConfirmDialog } from './ui/notificationManager.js';
-import { sessionId, getSessionId, setLastUserMessage } from './session.js';
+import { getSessionId, initializeSession, setLastUserMessage } from './session.js'; 
 import { formatFileSize, copyToClipboard, updateTokenUsage, debounce } from './utils/helpers.js';
 import { renderMarkdown, sanitizeHTML, highlightCode } from './ui/markdownParser.js';
 
@@ -610,8 +610,18 @@ function storeChatMessage(role, content) {
 
   // Store in backend with retry logic
   fetchWithRetry(
-    `/api/chat/conversations/store?session_id=${currentSessionId}&role=${role}&content=${encodeURIComponent(content)}`,
-    { method: 'GET' },
+    `/api/chat/conversations/store`,
+    { 
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        session_id: currentSessionId,
+        role: role,
+        content: content
+      })
+    },
     3  // Max retries
   ).catch(err => console.warn('Failed to store message in backend after retries:', err));
   

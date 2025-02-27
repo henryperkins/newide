@@ -135,10 +135,15 @@ class ModelCapabilitiesResponse(BaseModel):
     Response format for model capabilities endpoint.
     """
     models: Dict[str, ModelCapabilities]
+
+
 # -------------------------------------------------------------------------
 # File schemas for file-related endpoints
 # -------------------------------------------------------------------------
 class FileResponseModel(BaseModel):
+    """
+    Response model for a single file.
+    """
     id: str
     filename: str
     size: int
@@ -150,20 +155,136 @@ class FileResponseModel(BaseModel):
     status: str
     file_metadata: dict
 
+
 class FileListResponse(BaseModel):
+    """
+    Response model for a list of files.
+    """
     files: List[FileResponseModel]
     total_count: int
     total_size: int
 
+
 class DeleteFileResponse(BaseModel):
+    """
+    Response model for a file deletion operation.
+    """
     id: str
     message: str
     deleted_at: str
 
+
+# -------------------------------------------------------------------------
+# User-related models
+# -------------------------------------------------------------------------
 class UserCreate(BaseModel):
+    """
+    Request model for creating a new user.
+    """
     email: str
     password: str
 
+
 class UserLogin(BaseModel):
+    """
+    Request model for user login.
+    """
     email: str
     password: str
+
+
+# -------------------------------------------------------------------------
+# Session-related models
+# -------------------------------------------------------------------------
+class SessionResponse(BaseModel):
+    """
+    Response model for session operations.
+    """
+    id: str
+    created_at: datetime
+    expires_at: Optional[datetime] = None
+    last_activity: Optional[datetime] = None
+    last_model: Optional[str] = None
+
+
+class SessionInfoResponse(BaseModel):
+    """
+    Model for partial session information.
+    """
+    status: str
+    message: Optional[str] = None
+    session_id: Optional[str] = None
+
+
+# -------------------------------------------------------------------------
+# Error response model
+# -------------------------------------------------------------------------
+class ErrorResponse(BaseModel):
+    """
+    Standard error response format.
+    """
+    code: str
+    message: str
+    type: str = "error"
+    param: Optional[str] = None
+    details: Optional[Dict[str, Any]] = None
+
+
+# -------------------------------------------------------------------------
+# Assistant-related models
+# -------------------------------------------------------------------------
+class AssistantTool(BaseModel):
+    """
+    Tool configuration for an assistant.
+    """
+    type: str
+    function: Optional[Dict[str, Any]] = None
+
+
+class AssistantCreateRequest(BaseModel):
+    """
+    Request model for creating a new assistant.
+    """
+    model: str
+    name: Optional[str] = None
+    description: Optional[str] = None
+    instructions: Optional[str] = None
+    tools: List[AssistantTool] = []
+    file_ids: List[str] = []
+    metadata: Optional[Dict[str, str]] = None
+
+
+class AssistantObject(BaseModel):
+    """
+    Response model for an assistant object.
+    """
+    id: str
+    object: str = "assistant"
+    created_at: int
+    name: Optional[str] = None
+    description: Optional[str] = None
+    model: str
+    instructions: Optional[str] = None
+    tools: List[AssistantTool] = []
+    file_ids: List[str] = []
+    metadata: Optional[Dict[str, str]] = None
+
+
+class ListAssistantsResponse(BaseModel):
+    """
+    Response model for listing assistants.
+    """
+    object: str = "list"
+    data: List[AssistantObject]
+    first_id: Optional[str] = None
+    last_id: Optional[str] = None
+    has_more: bool = False
+
+
+class DeleteAssistantResponse(BaseModel):
+    """
+    Response model for deleting an assistant.
+    """
+    id: str
+    object: str = "assistant.deleted"
+    deleted: bool = True

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text, select, func
+from sqlalchemy import text, select, func, insert
 from azure.core.exceptions import HttpResponseError
 
 from database import get_db_session, AsyncSessionLocal  # Corrected import
@@ -42,27 +42,62 @@ router = APIRouter(prefix="/chat")
 
 @router.post("/conversations/store")
 async def store_message(
-    session_id: UUID = Query(...),
-    role: str = Query(...),
-    content: str = Query(...),
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
     current_user: Optional[User] = Depends(get_current_user),
 ):
+    """Store a chat message in the database.
+    
+    This endpoint supports two methods of passing parameters:
+    1. As JSON body (preferred)
+    2. As query parameters (backward compatibility)
+    """
     try:
-        from sqlalchemy import insert
+        # First try to get parameters from JSON body
+        try:
+            body = await request.json()
+            session_id = body.get("session_id")
+            role = body.get("role")
+            content = body.get("content")
+        except:
+            # Fallback to query parameters
+            session_id = request.query_params.get("session_id")
+            role = request.query_params.get("role")
+            content = request.query_params.get("content")
+        
+        # Validate required parameters
+        if not session_id:
+            raise HTTPException(status_code=400, detail="Missing session_id parameter")
+        if not role:
+            raise HTTPException(status_code=400, detail="Missing role parameter")
+        if not content:
+            raise HTTPException(status_code=400, detail="Missing content parameter")
+            
+        # Validate session_id format
+        try:
+            session_uuid = uuid.UUID(session_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid session_id format: {session_id}")
 
-        values = {"session_id": session_id, "role": role, "content": content}
+        # Prepare values for insertion
+        values = {"session_id": session_uuid, "role": role, "content": content}
 
         # Add user_id if authenticated
         if current_user:
             values["user_id"] = current_user.id
 
+        # Insert into database
         stmt = insert(Conversation).values(**values)
         await db.execute(stmt)
         await db.commit()
+        
         return {"status": "success"}
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         await db.rollback()
+        logger.exception(f"Error storing message: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -347,17 +382,27 @@ async def generate_stream_chunks(
     message: str,
     client: Union["AzureOpenAI", "ChatCompletionsClient"],
     model_name: str,
+    developer_config: str,
     reasoning_effort: str,
     db: AsyncSession,
     session_id: str,
 ):
     """
-    Async generator that yields SSE data chunks from streaming responses.
+    Async generator that yields SSE data chunks from streaming responses,
+    including optional developer_config as a system message if provided.
     Handles both AzureOpenAI and ChatCompletionsClient.
     """
     # Prepare parameters based on client type and model
     is_inference_client = isinstance(client, ChatCompletionsClient)
     is_deepseek = model_name.lower().startswith("deepseek")
+
+    # If developer_config is provided, treat it as a system message
+    messages_list = []
+    if developer_config:
+        messages_list.append({"role": "system", "content": developer_config})
+
+    # Then add the user message
+    messages_list.append({"role": "user", "content": message})
 
     # Prepare parameters based on client type and model
     params = {
@@ -412,11 +457,11 @@ async def generate_stream_chunks(
                         full_content += content_part
                         partial["delta"]["content"] = content_part
 
-                    if hasattr(choice, "delta", None):
+                    if hasattr(choice, "delta"):
                         partial["delta"]["role"] = getattr(choice.delta, "role", None)
 
                     # If there are any tool calls or filter results, pass them along
-                    if hasattr(choice.delta, "tool_calls", None):
+                    if hasattr(choice.delta, "tool_calls"):
                         partial["delta"]["tool_calls"] = choice.delta.tool_calls
                     if hasattr(chunk, "content_filter_results"):
                         partial["delta"][
@@ -452,16 +497,17 @@ async def generate_stream_chunks(
                         "finish_reason": choice.finish_reason,
                     }
 
-                    if hasattr(choice.delta, "content", None):
+                    # Fix bug: hasattr() only takes 2 arguments, not 3
+                    if hasattr(choice.delta, "content"):
                         content_part = choice.delta.content or ""
                         full_content += content_part
                         partial["delta"]["content"] = content_part
 
-                    if hasattr(choice.delta, "role", None):
+                    if hasattr(choice.delta, "role"):
                         partial["delta"]["role"] = choice.delta.role
 
-                    # If there are any tool calls or filter results, pass them along
-                    if hasattr(choice.delta, "tool_calls", None):
+                    # Fix bug: hasattr() only takes 2 arguments, not 3
+                    if hasattr(choice.delta, "tool_calls"):
                         partial["delta"]["tool_calls"] = choice.delta.tool_calls
                     if hasattr(chunk, "content_filter_results"):
                         partial["delta"][
@@ -539,3 +585,32 @@ async def generate_stream_chunks(
         error_payload = {"error": str(e)}
         # Yield an SSE event indicating an error
         yield f"data: {json.dumps(error_payload)}\n\n"
+
+@router.get("/sse")
+async def chat_sse(
+    request: Request,
+    session_id: str,
+    model: str,
+    message: str,
+    developer_config: Optional[str] = Query(default=""),
+    reasoning_effort: str = "medium",
+    db: AsyncSession = Depends(get_db_session),
+):
+    try:
+        client_wrapper = await get_model_client_dependency(model)
+        client = client_wrapper["client"]
+        return StreamingResponse(
+            generate_stream_chunks(
+                message,
+                client,
+                model,
+                developer_config,
+                reasoning_effort,
+                db,
+                session_id
+            ),
+            media_type="text/event-stream"
+        )
+    except Exception as e:
+        logger.exception(f"/chat/sse streaming error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

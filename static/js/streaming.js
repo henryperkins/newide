@@ -122,7 +122,7 @@ export async function streamChatResponse(
         // Extract error details from the event
         const error = new Error('Streaming connection error');
         
-        // Use specialized message error handler
+        // Use specialized message error handler (only once per error)
         await handleMessageError(error);
       }
     };

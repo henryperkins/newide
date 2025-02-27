@@ -325,6 +325,60 @@ async def switch_model(
             detail=f"Error switching model: {str(e)}"
         )
 
+# Add this import if not already there
+import uuid
+
+@router.post("/models/switch_model/{model_id}")
+async def switch_model_path(
+    model_id: str,
+    session_id: str,
+    db_session: AsyncSession = Depends(get_db_session),
+):
+    """Switch model using path parameter for model ID and query parameter for session ID"""
+    try:
+        if not model_id:
+            raise HTTPException(status_code=400, detail="Model ID is required")
+            
+        # Get client pool
+        client_pool = await get_client_pool(db_session)
+        
+        # Verify model exists
+        model_config = client_pool.get_model_config(model_id)
+        if not model_config:
+            # Try to create it if it's a known model type
+            if model_id.lower() == "deepseek-r1" or model_id.lower() == "o1hp":
+                model_template = ModelRegistry.get_model_template(model_id)
+                await client_pool.add_or_update_model(model_id, model_template, db_session)
+            else:
+                raise HTTPException(status_code=404, detail=f"Model {model_id} not found")
+
+        # Validate session ID
+        if not session_id:
+            raise HTTPException(status_code=400, detail="Session ID is required")
+            
+        # Validate UUID format
+        try:
+            session_uuid = uuid.UUID(session_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid session ID format: {session_id}")
+
+        # Update the session model
+        from session_utils import SessionManager
+        success = await SessionManager.update_session_model(session_uuid, model_id, db_session)
+        
+        if not success:
+            raise HTTPException(status_code=500, detail=f"Failed to update session {session_id}")
+
+        return {"success": True, "model": model_id}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error switching model to {model_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error switching model: {str(e)}"
+        )
 
 @router.get("/models/debug", tags=["debug"])
 async def debug_models(db_session: AsyncSession = Depends(get_db_session)):

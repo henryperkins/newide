@@ -392,12 +392,14 @@ function initChatInterface() {
   // Initialize error handling
   initErrorDisplay();
   
-  // Show welcome message if no conversation exists
+  // Show welcome message if no conversation exists and it hasn't been shown yet
   const conversationExists = localStorage.getItem('conversation') && 
     JSON.parse(localStorage.getItem('conversation')).length > 0;
+  const welcomeShown = sessionStorage.getItem('welcome_message_shown');
     
-  if (!conversationExists) {
+  if (!conversationExists && !welcomeShown) {
     showWelcomeMessage();
+    sessionStorage.setItem('welcome_message_shown', 'true');
   }
 }
 
@@ -422,6 +424,12 @@ function showWelcomeMessage() {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return;
   
+  // Check if welcome message has already been shown this session
+  if (sessionStorage.getItem('welcome_message_shown') === 'true') {
+    console.log('Welcome message already shown in this session');
+    return;
+  }
+  
   const welcomeMessage = document.createElement('div');
   welcomeMessage.className = 'mx-auto max-w-2xl text-center p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-8';
   welcomeMessage.innerHTML = `
@@ -436,6 +444,9 @@ function showWelcomeMessage() {
   `;
   
   chatHistory.appendChild(welcomeMessage);
+  
+  // Mark welcome message as shown for this session
+  sessionStorage.setItem('welcome_message_shown', 'true');
 }
 
 /**

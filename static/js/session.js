@@ -7,6 +7,7 @@ import { showNotification, showConfirmDialog } from './ui/notificationManager.js
 let sessionId = null;
 let sessionLastChecked = 0;
 const SESSION_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+let lastUserMessage = null; // Store last user message for retry scenarios
 
 /**
  * Get the current session ID
@@ -14,6 +15,22 @@ const SESSION_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
  */
 export function getSessionId() {
   return sessionId;
+}
+
+/**
+ * Store the last user message for retry purposes
+ * @param {string} message - The message to store
+ */
+export function setLastUserMessage(message) {
+  lastUserMessage = message;
+}
+
+/**
+ * Get the last user message
+ * @returns {string|null} The last user message or null if none exists
+ */
+export function getLastUserMessage() {
+  return lastUserMessage;
 }
 
 /**

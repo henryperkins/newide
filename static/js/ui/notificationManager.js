@@ -1,3 +1,4 @@
+// notificationManager.js
 // Enhanced notification and error handling system
 
 let typingState = {
@@ -10,6 +11,10 @@ let typingState = {
 const INDICATOR_TIMEOUT = 30000; // 30s fallback
 const MODAL_CONTAINER = document.getElementById('modal-container');
 const MODAL_CONTENT = document.getElementById('modal-content');
+
+// Track recent notifications to prevent duplicates
+const recentNotifications = new Set();
+const NOTIFICATION_DEDUP_WINDOW = 2000; // 2 seconds
 
 /**
  * Centralized application-level error handler
@@ -76,9 +81,35 @@ export async function handleMessageError(error) {
  * @param {Array} actions - Optional array of action buttons
  */
 export function showNotification(message, type = 'info', duration = 5000, actions = []) {
+  // Skip duplicate notifications within the deduplication window
+  const notificationKey = `${type}:${message}`;
+  if (recentNotifications.has(notificationKey)) {
+    console.debug('Skipping duplicate notification:', message);
+    return;
+  }
+  
+  // Add to recent notifications and remove after the window
+  recentNotifications.add(notificationKey);
+  setTimeout(() => {
+    recentNotifications.delete(notificationKey);
+  }, NOTIFICATION_DEDUP_WINDOW);
+  
+  // Create container if it doesn't exist
   const container = document.getElementById('notification-container') || createNotificationContainer();
+  
+  // Check for duplicate notifications already showing the same message
+  const existingNotifications = container.querySelectorAll('.notification');
+  
+  // Skip if the same message is already being shown
+  for (const existing of existingNotifications) {
+    const existingText = existing.querySelector('p')?.textContent;
+    if (existingText === message) {
+      console.debug('Skipping duplicate notification:', message);
+      return;
+    }
+  }
+  
   const notification = createNotificationElement(message, type, actions);
-
   container.appendChild(notification);
 
   // Provide haptic feedback on supported devices
@@ -275,18 +306,6 @@ export function removeTypingIndicator() {
   }
 }
 
-/* ---------- Private Helpers ---------- */
-
-function createNotificationContainer() {
-  const container = document.createElement('div');
-  container.id = 'notification-container';
-  container.className = 'fixed top-4 right-4 z-50 space-y-2 flex flex-col items-end pointer-events-none max-w-sm w-full px-4 sm:px-0';
-  container.setAttribute('role', 'log');
-  container.setAttribute('aria-live', 'polite');
-  document.body.appendChild(container);
-  return container;
-}
-
 /**
  * Safely enables interactive elements like buttons with proper error handling
  * @param {string} elementId - The ID of the element to enable
@@ -347,92 +366,111 @@ export function enableInteractiveElement(elementId, clickHandler) {
   }
 }
 
-function createNotificationElement(message, type, actions = []) {
-  const notification = document.createElement('div');
+/* ---------- Private Helper Functions ---------- */
 
-  // Base notification styling
-  notification.className = `notification transform translate-y-4 opacity-0 transition-all duration-300 pointer-events-auto w-full`;
+/**
+ * Creates notification container if it doesn't exist
+ * @returns {HTMLElement} The notification container
+ */
+function createNotificationContainer() {
+  let container = document.getElementById('notification-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'notification-container';
+    container.className = 'fixed right-4 top-4 z-50 flex flex-col gap-2 max-w-md';
+    document.body.appendChild(container);
+  }
+  return container;
+}
 
-  // Type-specific icons and styling
+/**
+ * Creates a notification element with proper styling and icon.
+ * @param {string} message - The message to display
+ * @param {string} type - Notification type (info, success, warning, error)
+ * @param {Array} actions - Optional array of action buttons
+ * @returns {HTMLElement} The notification element
+ */
+function createNotificationElement(message, type, actions) {
   const typeData = getNotificationTypeData(type);
+  const notification = document.createElement('div');
+  notification.className = `notification flex items-start p-4 mb-2 rounded-lg shadow-lg border transition-all duration-300 transform opacity-0 translate-y-4 ${typeData.bgClass} ${typeData.borderClass} ${typeData.textClass}`;
   
   notification.innerHTML = `
-    <div class="p-3 flex items-start border-l-4 ${typeData.borderClass}">
-      <div class="flex-shrink-0">
-        ${typeData.icon}
-      </div>
-      <div class="ml-3 flex-1">
-        <p class="text-sm text-dark-800 dark:text-dark-200 whitespace-pre-line">${message}</p>
-        ${actions.length > 0 ? 
-          `<div class="mt-2 flex space-x-2">
-            ${actions.map(action => 
-              `<button class="btn btn-sm ${action.variant || 'btn-secondary'}">${action.label}</button>`
-            ).join('')}
-          </div>` 
-          : ''}
-      </div>
-      <button class="ml-3 text-dark-400 hover:text-dark-500 dark:hover:text-dark-300 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded">
-        <span class="sr-only">Close</span>
-        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-        </svg>
-      </button>
+    <div class="flex-1 flex items-center gap-2">
+      ${typeData.icon}
+      <p class="text-sm font-medium">${message}</p>
+      <div class="actions mt-2 flex gap-2"></div>
     </div>
+    <button class="ml-3 text-gray-400 hover:text-gray-600" aria-label="Close notification">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+      </svg>
+    </button>
   `;
-
-  // Add action button event listeners
-  if (actions.length > 0) {
-    const actionButtons = notification.querySelectorAll('.btn');
-    actionButtons.forEach((button, index) => {
-      if (actions[index] && actions[index].onClick) {
-        button.addEventListener('click', actions[index].onClick);
-      }
+  
+  // Add action buttons if provided
+  if (actions && actions.length) {
+    const actionsContainer = notification.querySelector('.actions');
+    actions.forEach(action => {
+      const btn = document.createElement('button');
+      btn.className = 'text-sm px-2 py-1 rounded bg-white border shadow-sm hover:bg-gray-50';
+      btn.textContent = action.label;
+      btn.onclick = action.onClick;
+      actionsContainer.appendChild(btn);
     });
   }
-
-  // Add close button functionality
-  const closeButton = notification.querySelector('button:last-child');
-  closeButton.addEventListener('click', () => {
-    notification.classList.remove('opacity-100', 'translate-y-0');
-    notification.classList.add('opacity-0', 'translate-y-4');
-    setTimeout(() => notification.remove(), 300);
-  });
-
+  
+  // Add close button event
+  const closeBtn = notification.querySelector('button');
+  closeBtn.addEventListener('click', () => removeNotification(notification.id));
+  
   return notification;
 }
 
+/**
+ * Returns styling and icon data based on notification type.
+ * @param {string} type - Notification type (info, success, warning, error)
+ * @returns {Object} An object containing bgClass, borderClass, textClass, and icon HTML.
+ */
 function getNotificationTypeData(type) {
   switch (type) {
     case 'success':
       return {
-        borderClass: 'border-success-500 dark:border-success-700',
-        icon: '<svg class="w-5 h-5 text-success-500 dark:text-success-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 10-1.414-1.414L9 10.586l-1.293-1.293a1 1 0 10-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>'
+        bgClass: 'bg-green-50',
+        borderClass: 'border-green-200',
+        textClass: 'text-green-800',
+        icon: '<svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 10-1.414-1.414L9 10.586l-1.293-1.293a1 1 0 10-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>'
       };
     case 'error':
       return {
-        borderClass: 'border-error-500 dark:border-error-700',
-        icon: '<svg class="w-5 h-5 text-error-500 dark:text-error-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>'
+        bgClass: 'bg-red-50',
+        borderClass: 'border-red-200',
+        textClass: 'text-red-800',
+        icon: '<svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>'
       };
     case 'warning':
       return {
-        borderClass: 'border-warning-500 dark:border-warning-700',
-        icon: '<svg class="w-5 h-5 text-warning-500 dark:text-warning-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>'
+        bgClass: 'bg-yellow-50',
+        borderClass: 'border-yellow-200',
+        textClass: 'text-yellow-800',
+        icon: '<svg class="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>'
       };
     default: // info
       return {
-        borderClass: 'border-primary-500 dark:border-primary-700',
-        icon: '<svg class="w-5 h-5 text-primary-500 dark:text-primary-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9zM9 5a1 1 0 112 0 1 1 0 01-2 0z" clip-rule="evenodd"></path></svg>'
+        bgClass: 'bg-blue-50',
+        borderClass: 'border-blue-200',
+        textClass: 'text-blue-800',
+        icon: '<svg class="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9zM9 5a1 1 0 112 0 1 1 0 01-2 0z" clip-rule="evenodd"></path></svg>'
       };
   }
 }
 
 /**
- * Classify and normalize errors for consistent user experience
+ * Classify and normalize errors for consistent user experience.
  * @param {Error} error - The error to classify
  * @return {Object} Structured error data
  */
 function classifyError(error) {
-  // Default error data
   const errorData = {
     type: 'unknown',
     severity: 'normal',
@@ -505,8 +543,7 @@ function classifyError(error) {
 }
 
 /**
- * Extract structured error data from a response error
- * 
+ * Extract structured error data from a response error.
  * @param {Error|Response} error - The error object or response
  * @return {Promise<Object>} Structured error data
  */
@@ -530,7 +567,6 @@ async function extractErrorData(error) {
       }
       
       try {
-        // Try to parse JSON body
         const data = await error.json();
         if (data.error) {
           errorData.message = data.error.message || data.error;
@@ -538,12 +574,10 @@ async function extractErrorData(error) {
           errorData.message = data.message;
         }
       } catch (e) {
-        // Not JSON, try text
         const text = await error.text();
-        errorData.message = text.slice(0, 200); // Limit length
+        errorData.message = text.slice(0, 200);
       }
       
-      // Determine error type
       if (error.status === 429) {
         errorData.type = 'rate_limit';
       } else if (error.status === 401 || error.status === 403) {
@@ -564,8 +598,6 @@ async function extractErrorData(error) {
     // General Error object
     else if (error instanceof Error) {
       errorData.message = error.message;
-      
-      // Try to classify from message text
       if (error.message.includes('timeout') || error.message.includes('exceeded time limit')) {
         errorData.type = 'timeout';
       } else if (error.message.includes('rate limit') || error.message.includes('429')) {
@@ -580,8 +612,7 @@ async function extractErrorData(error) {
 }
 
 /**
- * Handle rate limit errors with retry functionality
- * 
+ * Handle rate limit errors with retry functionality.
  * @param {Object} errorData - Structured error data 
  */
 function handleRateLimitError(errorData) {
@@ -591,8 +622,8 @@ function handleRateLimitError(errorData) {
     {
       label: `Retry in ${retryDelay}s`,
       variant: 'btn-primary',
-      onClick: () => {
-        const button = event.target;
+      onClick: (e) => {
+        const button = e.target;
         button.disabled = true;
         button.textContent = 'Retrying...';
         
@@ -600,7 +631,6 @@ function handleRateLimitError(errorData) {
           if (window.sendMessage) {
             window.sendMessage();
           }
-          // Remove notification after triggering retry
           const notification = button.closest('.notification');
           if (notification) {
             notification.remove();
@@ -619,8 +649,7 @@ function handleRateLimitError(errorData) {
 }
 
 /**
- * Handle timeout errors with helpful suggestions
- * 
+ * Handle timeout errors with helpful suggestions.
  * @param {Object} errorData - Structured error data
  */
 function handleTimeoutError(errorData) {
@@ -628,22 +657,18 @@ function handleTimeoutError(errorData) {
     {
       label: 'Reduce Reasoning',
       variant: 'btn-secondary',
-      onClick: () => {
-        // Lower reasoning effort setting
+      onClick: (e) => {
         const slider = document.getElementById('reasoning-effort-slider');
         if (slider) {
           slider.value = Math.max(1, parseInt(slider.value, 10) - 1);
-          // Trigger change event to update UI
           slider.dispatchEvent(new Event('input'));
         }
         
-        // Switch to sidebar config tab
         const configTab = document.getElementById('config-tab');
         if (configTab) {
           configTab.click();
         }
         
-        // Show sidebar if hidden on mobile
         const sidebar = document.getElementById('sidebar');
         if (sidebar && sidebar.classList.contains('translate-x-full')) {
           const sidebarToggle = document.getElementById('sidebar-toggle');
@@ -652,8 +677,7 @@ function handleTimeoutError(errorData) {
           }
         }
         
-        // Remove notification
-        const notification = event.target.closest('.notification');
+        const notification = e.target.closest('.notification');
         if (notification) {
           notification.remove();
         }
@@ -662,12 +686,11 @@ function handleTimeoutError(errorData) {
     {
       label: 'Try Again',
       variant: 'btn-primary',
-      onClick: () => {
+      onClick: (e) => {
         if (window.sendMessage) {
           window.sendMessage();
         }
-        // Remove notification
-        const notification = event.target.closest('.notification');
+        const notification = e.target.closest('.notification');
         if (notification) {
           notification.remove();
         }
@@ -684,8 +707,7 @@ function handleTimeoutError(errorData) {
 }
 
 /**
- * Handle authentication errors
- * 
+ * Handle authentication errors.
  * @param {Object} errorData - Structured error data
  */
 function handleAuthError(errorData) {
