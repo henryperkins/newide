@@ -82,7 +82,7 @@ class ChatCompletionChoice(BaseModel):
     Single choice in a chat completion response.
     """
     index: int
-    message: Dict[str, str]
+    message: Dict[str, Any]  # Changed from Dict[str, str] to Dict[str, Any]
     finish_reason: Optional[str] = None
     content_filter_results: Optional[Dict[str, Any]] = None
 

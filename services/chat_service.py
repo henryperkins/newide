@@ -182,7 +182,7 @@ async def process_chat_message(
                 )
                 content = ""
             else:
-                content = response.choices[0].message.content
+                content = response.choices[0].message.content or ""
 
             # Extract usage info
             usage_data = {
@@ -207,7 +207,7 @@ async def process_chat_message(
                 )
                 content = ""
             else:
-                content = response.choices[0].message.content
+                content = response.choices[0].message.content or ""
 
             # Extract usage
             usage_raw = getattr(response, "usage", None)

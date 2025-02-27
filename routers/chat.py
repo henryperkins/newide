@@ -242,7 +242,7 @@ async def create_chat_completion(
                     {
                         "message": {
                             "role": "assistant",
-                            "content": response.choices[0].message.content,
+                            "content": response.choices[0].message.content or "",
                         },
                         "finish_reason": response.choices[0].finish_reason,
                     }
@@ -405,7 +405,7 @@ async def generate_stream_chunks(
                     if hasattr(choice, "message") and hasattr(
                         choice.message, "content"
                     ):
-                        content_part = choice.message.content
+                        content_part = choice.message.content or ""
                         full_content += content_part
                         partial["delta"]["content"] = content_part
 
@@ -450,7 +450,7 @@ async def generate_stream_chunks(
                     }
 
                     if hasattr(choice.delta, "content", None):
-                        content_part = choice.delta.content
+                        content_part = choice.delta.content or ""
                         full_content += content_part
                         partial["delta"]["content"] = content_part
 
