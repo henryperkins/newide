@@ -102,7 +102,7 @@ export async function handleStreamingResponse(response, controller, config, stat
       // If final chunk => finish_reason==="stop"
       if (
         responseData.choices &&
-        responseData.choices[0].finish_reason === 'stop'
+        responseData.choices[0]?.finish_reason === 'stop'
       ) {
         finalizeStreamingResponse(JSON.stringify(responseData), mainContainer);
         eventSource.close();
@@ -110,7 +110,7 @@ export async function handleStreamingResponse(response, controller, config, stat
       }
 
       // If partial chunk content
-      if (responseData.choices && responseData.choices[0].delta?.content) {
+      if (responseData.choices && responseData.choices[0]?.delta?.content) {
         const chunk = responseData.choices[0].delta.content;
 
         if (showReasoning) {
