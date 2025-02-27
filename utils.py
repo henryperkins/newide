@@ -16,13 +16,35 @@ def handle_client_error(error: Exception) -> dict:
         status_code = error.status_code
         error_message = str(error)
 
+        # Special handling for rate limit errors
+        if status_code == 429:
+            return {
+                "status_code": 429,
+                "message": "Azure AI service is currently rate limited. Please try again in a few moments.",
+                "type": "rate_limit_error",
+                "retry_after": 5,  # Suggest retry after 5 seconds
+            }
+
+        # Try to parse error content if available
         if hasattr(error, "response") and hasattr(error.response, "_content"):
             try:
-                error_content = json.loads(error.response._content.decode("utf-8"))
-                if "error" in error_content:
-                    error_message = error_content["error"].get("message", error_message)
+                content = error.response._content
+                if isinstance(content, bytes):
+                    content_str = content.decode("utf-8", errors="replace")
+                else:
+                    content_str = str(content)
+                
+                # Only try to parse as JSON if it looks like JSON
+                if content_str.strip().startswith('{'):
+                    error_content = json.loads(content_str)
+                    if "error" in error_content:
+                        error_message = error_content["error"].get("message", error_message)
+                else:
+                    # For non-JSON responses, extract useful information
+                    error_message = f"Azure AI error: {content_str[:200]}..."
             except Exception as e:
                 logger.warning(f"Failed to parse error content: {str(e)}")
+                # Don't modify error_message if parsing fails
 
         return {
             "status_code": status_code,
