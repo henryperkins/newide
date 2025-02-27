@@ -240,6 +240,7 @@ async def create_chat_completion(
                 "model": request.model,
                 "choices": [
                     {
+                        "index": 0,  # Add the required index field
                         "message": {
                             "role": "assistant",
                             "content": response.choices[0].message.content or "",
