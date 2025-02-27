@@ -516,3 +516,34 @@ async function buildAzureOpenAIUrl() {
   // use a consistent endpoint on YOUR server
   return `/api/chat/`;
 }
+
+// Initialize the send button when the DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('Initializing send button...');
+  
+  // Import the enableInteractiveElement function if needed
+  import('/static/js/ui/notificationManager.js').then(module => {
+    const { enableInteractiveElement } = module;
+    
+    // Enable the send button with proper error handling
+    enableInteractiveElement('send-button', () => {
+      console.log('Send button clicked');
+      sendMessage();
+    });
+    
+    // Also initialize the user input field to handle Enter key
+    const userInput = document.getElementById('user-input');
+    if (userInput) {
+      userInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+    }
+    
+    console.log('Send button initialized');
+  }).catch(err => {
+    console.error('Failed to initialize send button:', err);
+  });
+});

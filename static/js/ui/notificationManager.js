@@ -287,6 +287,66 @@ function createNotificationContainer() {
   return container;
 }
 
+/**
+ * Safely enables interactive elements like buttons with proper error handling
+ * @param {string} elementId - The ID of the element to enable
+ * @param {Function} clickHandler - The function to call when the element is clicked
+ */
+export function enableInteractiveElement(elementId, clickHandler) {
+  try {
+    const element = document.getElementById(elementId);
+    if (!element) {
+      console.warn(`Element not found: ${elementId}`);
+      return false;
+    }
+    
+    // Remove any existing click listeners to prevent duplicates
+    const newElement = element.cloneNode(true);
+    element.parentNode.replaceChild(newElement, element);
+    
+    // Add the click handler
+    newElement.addEventListener('click', (e) => {
+      e.preventDefault();
+      try {
+        clickHandler(e);
+      } catch (error) {
+        console.error(`Error in click handler for ${elementId}:`, error);
+        showNotification(`An error occurred: ${error.message}`, 'error');
+      }
+    });
+    
+    // Also handle Enter key for accessibility
+    newElement.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        try {
+          clickHandler(e);
+        } catch (error) {
+          console.error(`Error in keydown handler for ${elementId}:`, error);
+          showNotification(`An error occurred: ${error.message}`, 'error');
+        }
+      }
+    });
+    
+    // Ensure the element is not disabled
+    newElement.disabled = false;
+    
+    // Add visual feedback for touch devices
+    newElement.addEventListener('touchstart', () => {
+      newElement.classList.add('active');
+    }, { passive: true });
+    
+    newElement.addEventListener('touchend', () => {
+      newElement.classList.remove('active');
+    }, { passive: true });
+    
+    return true;
+  } catch (error) {
+    console.error(`Failed to enable interactive element ${elementId}:`, error);
+    return false;
+  }
+}
+
 function createNotificationElement(message, type, actions = []) {
   const notification = document.createElement('div');
 

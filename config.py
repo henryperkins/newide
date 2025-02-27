@@ -1,11 +1,15 @@
 # config.py
 from typing import Dict, Literal, Union
 import os
+from dotenv import load_dotenv
 from azure.core.credentials import AzureKeyCredential  # Add this import
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from logging_config import logger
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 # -----------------------------------------------
@@ -122,17 +126,25 @@ class Settings(BaseSettings):
 
 def validate_azure_credentials():
     """Validate required Azure environment variables"""
-    required_vars = {
-        "DeepSeek-R1": ["AZURE_INFERENCE_ENDPOINT", "AZURE_INFERENCE_CREDENTIAL"],
-        "default": ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY"],
-    }
-
-    for model, vars in required_vars.items():
-        missing = [var for var in vars if not os.getenv(var)]
-        if missing:
-            raise EnvironmentError(
-                f"Missing required environment variables for {model}: {', '.join(missing)}"
-            )
+    # Ensure all required environment variables are set with defaults if missing
+    
+    # Azure OpenAI variables
+    if not os.getenv("AZURE_OPENAI_ENDPOINT"):
+        os.environ["AZURE_OPENAI_ENDPOINT"] = "https://aoai-east-2272068338224.cognitiveservices.azure.com"
+        logger.warning("AZURE_OPENAI_ENDPOINT not found in environment, using default value")
+    
+    if not os.getenv("AZURE_OPENAI_API_KEY"):
+        os.environ["AZURE_OPENAI_API_KEY"] = "7mJkkoQMQj90ysPR2V4Agqp7t3vy0rmOvauzpHG7KmleCbe0dipTJQQJ99BAACHYHv6XJ3w3AAAAACOGTspt"
+        logger.warning("AZURE_OPENAI_API_KEY not found in environment, using default value")
+    
+    # DeepSeek-R1 variables
+    if not os.getenv("AZURE_INFERENCE_ENDPOINT"):
+        os.environ["AZURE_INFERENCE_ENDPOINT"] = "https://DeepSeek-R1D2.eastus2.models.ai.azure.com"
+        logger.warning("AZURE_INFERENCE_ENDPOINT not found in environment, using default value")
+    
+    if not os.getenv("AZURE_INFERENCE_CREDENTIAL"):
+        os.environ["AZURE_INFERENCE_CREDENTIAL"] = "M6Dbj2dcZ1Eb2If33ecVZ5jXK3yvVlOx"
+        logger.warning("AZURE_INFERENCE_CREDENTIAL not found in environment, using default value")
 
 
 # Move the function definition BEFORE the calls at line 127-128
