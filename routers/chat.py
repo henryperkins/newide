@@ -250,12 +250,25 @@ async def create_chat_completion(
                 "usage": usage_data,
             }
         else:
-            response = client.chat.completions.create(
-                messages=params["messages"],
-                temperature=params.get("temperature"),
-                max_tokens=params.get("max_tokens"),
-                reasoning_effort=params.get("reasoning_effort", "medium"),
-            )
+            # Conditionally pass "reasoning_effort" if not a DeepSeek model (i.e., O-series or standard)
+            if is_deepseek:
+                # DeepSeek model uses temperature and max_tokens
+                response = client.chat.completions.create(
+                    model=request.model,
+                    messages=params["messages"],
+                    temperature=params.get("temperature"),
+                    max_tokens=params.get("max_tokens"),
+                    stream=False,
+                )
+            else:
+                # O-series or standard Azure OpenAI model can use reasoning_effort, and uses max_completion_tokens instead of max_tokens
+                response = client.chat.completions.create(
+                    model=request.model,
+                    messages=params["messages"],
+                    reasoning_effort=params.get("reasoning_effort", "medium"),
+                    max_completion_tokens=params.get("max_tokens"),
+                    stream=False,
+                )
             response_data = response.model_dump()
 
         # Store the content in the database
