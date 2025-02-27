@@ -274,11 +274,13 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
   // Add developer/system prompt if present
   if (developerConfig) {
     if (isOSeries) {
+      // o-series models use "developer" role
       messages.push({
         role: "developer",
         content: developerConfig
       });
     } else {
+      // Other models use "system" role
       messages.push({
         role: "system", 
         content: developerConfig
@@ -296,37 +298,52 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
   const requestBody = {
     model: modelName,
     messages: messages,
-    session_id: sessionId,
-    stream: document.getElementById('enable-streaming')?.checked || false
+    session_id: sessionId
   };
+
+  // Log the selected model for debugging
+  console.log('[makeApiRequest] Using model:', modelName);
 
   // Set model-specific parameters
   if (isOSeries) {
+    // O-series models - use reasoning_effort
     requestBody.reasoning_effort = reasoningEffort || 'medium';
     
+    // o-series uses max_completion_tokens, not max_tokens
     if (modelConfig?.capabilities?.max_completion_tokens) {
       requestBody.max_completion_tokens = modelConfig.capabilities.max_completion_tokens;
     } else {
-      requestBody.max_completion_tokens = 5000;
+      requestBody.max_completion_tokens = 5000; // Default value
     }
+    
+    // o-series doesn't use temperature
+    delete requestBody.temperature;
   } else if (isDeepSeek) {
-    requestBody.temperature = 0.7;
+    // DeepSeek-R1 model - uses temperature (NOT reasoning_effort)
+    requestBody.temperature = 0.7; // Default from documentation
     if (modelConfig?.capabilities?.max_tokens) {
       requestBody.max_tokens = modelConfig.capabilities.max_tokens;
     } else {
-      requestBody.max_tokens = 32000;
+      requestBody.max_tokens = 32000; // Default for DeepSeek-R1
     }
+    
+    // DeepSeek doesn't use reasoning_effort
+    delete requestBody.reasoning_effort;
+    // DeepSeek doesn't use max_completion_tokens
+    delete requestBody.max_completion_tokens;
   } else {
+    // Standard model
     if (modelConfig?.capabilities?.temperature !== undefined) {
       requestBody.temperature = modelConfig.capabilities.temperature;
     } else {
-      requestBody.temperature = 0.7;
+      requestBody.temperature = 0.7; // Default temperature
     }
     
+    // Standard models use max_tokens, not max_completion_tokens
     if (modelConfig?.capabilities?.max_tokens) {
       requestBody.max_tokens = modelConfig.capabilities.max_tokens;
     } else {
-      requestBody.max_tokens = 4000;
+      requestBody.max_tokens = 4000; // Default value
     }
   }
 
@@ -350,9 +367,9 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
     const response = await fetch(url, init);
     
     if (!response.ok) {
-      console.error('[makeApiRequest] Error response:', response.status, response.statusText);
-      const errorData = await response.json().catch(() => ({}));
-      console.error('[makeApiRequest] Error details:', errorData);
+          console.error('[makeApiRequest] Error response:', response.status, response.statusText);
+          // Skip reading response body here so the caller can parse it once
+          console.warn('[makeApiRequest] Skipping response.json() to avoid using the body multiple times.');
     }
     
     return response;
@@ -451,41 +468,11 @@ function logDeepSeekModelInfo(modelConfig) {
 /**
  * Build the API endpoint for chat completion
  */
-async function buildAzureOpenAIUrl(deploymentName, apiVersion) {
-  const config = await getCurrentConfig();
+async function buildAzureOpenAIUrl() {
+  // IMPORTANT: Always use your backend API, not direct Azure endpoints
+  // This avoids CORS issues and keeps API keys secure
   
-  // Check if this is a DeepSeek model (needs Azure Inference endpoint)
-  const isDeepSeek = (deploymentName || '').toLowerCase().includes('deepseek');
-  
-  let baseUrl;
-  if (isDeepSeek) {
-    // For DeepSeek models, use Azure Inference endpoint
-    baseUrl = config?.azureInference?.endpoint || "https://DeepSeek-R1D2.eastus2.models.ai.azure.com";
-    if (!apiVersion) {
-      apiVersion = "2024-05-01-preview"; // Default API version for DeepSeek
-    }
-  } else {
-    // For other models, use Azure OpenAI endpoint
-    baseUrl = config?.azureOpenAI?.endpoint || "https://aoai-east-2272068338224.cognitiveservices.azure.com";
-    if (!apiVersion) {
-      apiVersion = "2025-01-01-preview";
-    }
-  }
-  
-  if (!baseUrl) {
-    throw new Error('Missing endpoint configuration - check environment variables');
-  }
-
-  // Make sure deploymentName is defined
-  const actualDeployment = deploymentName || config?.deploymentName || "o1hp";
-  
-  // Create proper URL
-  const url = new URL(
-    `openai/deployments/${actualDeployment}/chat/completions`, 
-    baseUrl
-  );
-  
-  // Add API version as query parameter
-  url.searchParams.append('api-version', apiVersion);
-  return url.toString();
+  // Instead of building different URLs for different models,
+  // use a consistent endpoint on YOUR server
+  return `/api/chat/`;
 }
