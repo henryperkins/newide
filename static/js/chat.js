@@ -258,7 +258,7 @@ export async function sendMessage() {
     userInput.value = '';
     userInput.style.height = 'auto';
     
-    // Get current session ID
+    // Get current session ID or initialize a new session
     const currentSessionId = getSessionId();
     if (!currentSessionId) {
       // Add more robust session recovery
@@ -267,18 +267,17 @@ export async function sendMessage() {
         // Show notification to user
         showNotification('Session expired. Attempting to reconnect...', 'warning');
         
-        // Try to create a new session via the session API
-        const sessionResponse = await fetch('/api/session', { method: 'POST' });
-        if (sessionResponse.ok) {
-          const newSession = await sessionResponse.json();
-          if (newSession && newSession.id) {
-            // Store the new session ID
-            localStorage.setItem('current_session_id', newSession.id);
+        // Try to initialize a new session
+        const sessionInitialized = await initializeSession();
+        if (sessionInitialized) {
+          const newSessionId = getSessionId();
+          if (newSessionId) {
             showNotification('Session restored successfully', 'success');
             // Continue with the new session
             return await sendMessage(); // Retry the send with new session
           }
         }
+        
         // If we get here, recovery failed
         throw new Error('Invalid session. Please refresh the page.');
       } catch (error) {

@@ -59,9 +59,55 @@ async def create_session(background_tasks: BackgroundTasks, db_session: AsyncSes
 # unless the project chooses to link it to a user's cookie or other param in the future.
 
 @router.get("", response_model=dict)
-async def get_current_session():
-    # If there's logic to find a session from a cookie or token, that would go here.
-    # For simplicity, returning a placeholder indicating no session found.
+async def get_current_session(db_session: AsyncSession = Depends(get_db_session)):
+    # Try to get session ID from request cookies
+    from fastapi import Request, Cookie
+    from typing import Optional
+    
+    async def get_session_from_request(request: Request, db_session: AsyncSession):
+        # Try to get session ID from cookie
+        session_id = request.cookies.get("session_id")
+        
+        # If no cookie, check for session ID in headers
+        if not session_id:
+            session_id = request.headers.get("X-Session-ID")
+        
+        # If still no session ID, return None
+        if not session_id:
+            return None
+            
+        # Validate session in database
+        from sqlalchemy import select
+        from models import Session
+        
+        stmt = select(Session).where(Session.id == session_id)
+        result = await db_session.execute(stmt)
+        session = result.scalar_one_or_none()
+        
+        # Check if session exists and is not expired
+        if session and (not session.expires_at or session.expires_at > datetime.utcnow()):
+            return session
+            
+        return None
+    
+    # Get current request
+    from fastapi import Request
+    request = Request.scope.get("request")
+    
+    # Try to get session from request
+    session = None
+    if request:
+        session = await get_session_from_request(request, db_session)
+    
+    # If session found, return session info
+    if session:
+        return {
+            "id": str(session.id),
+            "last_model": session.last_model,
+            "expires_at": session.expires_at.isoformat() if session.expires_at else None
+        }
+    
+    # If no session found, return placeholder
     return {"id": None, "last_model": None, "message": "No active session. Call '/api/session/create' to generate a new session."}
 
 # Also support POST method

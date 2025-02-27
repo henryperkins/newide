@@ -16,6 +16,22 @@ export async function initializeSession() {
         const modelConfig = await getModelSettings();
         console.log('[DEBUG] Model config:', modelConfig);
         
+        // First, check if valid session exists
+        try {
+            const checkResponse = await fetch('/api/session');
+            if (checkResponse.ok) {
+                const sessionData = await checkResponse.json();
+                if (sessionData.id) {
+                    sessionId = sessionData.id;
+                    console.log('[DEBUG] Found existing session:', sessionId);
+                    localStorage.setItem('current_session_id', sessionId);
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.log('[DEBUG] No active session found, creating new one:', error);
+        }
+        
         // Add retry logic for session creation
         let retries = 3;
         let success = false;
@@ -24,7 +40,7 @@ export async function initializeSession() {
         while (retries > 0 && !success) {
             try {
                 const response = await fetch(`/api/session/create`, {
-                    method: 'GET',
+                    method: 'POST', // Changed from GET to POST
                     headers: {
                         'x-api-version': modelConfig.api_version || '2025-01-01-preview',
                         'Accept': 'application/json',
