@@ -676,7 +676,20 @@ function createCitationHTML(index, citation) {
 /**
  * If you want to reuse the UI token usage display in this same file, you can define it here.
  */
+// Throttle token usage updates
+let lastTokenUpdateTime = 0;
+const tokenUpdateThreshold = 5000; // 5 seconds between updates
+
 export function updateTokenUsage(usage) {
+  // Only update if significant tokens or enough time has passed
+  const now = Date.now();
+  const significantTokens = usage.total_tokens > 100;
+  const timeThresholdMet = now - lastTokenUpdateTime > tokenUpdateThreshold;
+  
+  if (!significantTokens && !timeThresholdMet) {
+    return; // Skip this update
+  }
+  
   // Update the token display with the usage info
   const promptTokens = document.getElementById('prompt-tokens');
   const completionTokens = document.getElementById('completion-tokens');
@@ -696,4 +709,6 @@ export function updateTokenUsage(usage) {
   if (baseCompletionTokens && usage.base_completion_tokens) {
     baseCompletionTokens.textContent = usage.base_completion_tokens;
   }
+  
+  lastTokenUpdateTime = now;
 }

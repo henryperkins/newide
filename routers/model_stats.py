@@ -159,6 +159,9 @@ async def compare_models(
         "comparison": comparison
     }
 
+# Cache for connection stats to reduce DB queries
+_connection_stats_cache = {"data": None, "timestamp": None}
+
 @router.get("/connections")
 async def get_connection_stats(
     db: AsyncSession = Depends(get_db_session)
@@ -167,8 +170,25 @@ async def get_connection_stats(
     Get active connection statistics including concurrent connections,
     recent connection attempts, and connection trends.
     """
+    global _connection_stats_cache
+    
+    # Return cached data if it's less than 15 seconds old
+    now = datetime.utcnow()
+    if (_connection_stats_cache["timestamp"] and 
+        _connection_stats_cache["data"] and
+        (now - _connection_stats_cache["timestamp"]).total_seconds() < 15):
+        return {"connections": _connection_stats_cache["data"]}
+    
+    # Otherwise get fresh data
     stats_service = ModelStatsService(db)
     connections = await stats_service.get_connection_stats()
+    
+    # Update cache
+    _connection_stats_cache = {
+        "data": connections,
+        "timestamp": now
+    }
+    
     return {"connections": connections}
 
 @router.get("/summary")

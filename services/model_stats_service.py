@@ -27,6 +27,10 @@ class ModelStatsService:
             usage: Usage statistics from the model response
             metadata: Optional additional metadata to store
         """
+        # Skip recording for very small token counts to reduce DB writes
+        if usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0) < 10:
+            return
+            
         try:
             # Extract usage statistics
             stats = ModelUsageStats(

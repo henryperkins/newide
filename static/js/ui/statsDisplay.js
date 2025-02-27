@@ -19,7 +19,7 @@ export default class StatsDisplay {
       
       // Add throttling variables
       this.lastUpdateTime = 0;
-      this.updateThrottleMs = 1000; // Only update UI every 1 second
+      this.updateThrottleMs = 3000; // Only update UI every 3 seconds
       this.pendingUpdate = false;
 
       this.initDisplay();
@@ -50,18 +50,21 @@ export default class StatsDisplay {
     }
   
     startConnectionTracking() {
-      // Example: ping an endpoint every 15s to get # of active connections
+      // Ping endpoint every 30s to get # of active connections
       setInterval(async () => {
         try {
           const response = await fetch('/api/model-stats/connections');
           const data = await response.json();
           this.stats.activeConnections = data.active_connections;
         } catch (e) {
-          console.error('Failed to fetch active connections', e);
+          // Reduce console noise by only logging if debug mode is enabled
+          if (window.DEBUG_MODE) {
+            console.error('Failed to fetch active connections', e);
+          }
           this.stats.activeConnections = 0;
         }
         this.render();
-      }, 15000);
+      }, 30000);
     }
   
     render() {
