@@ -45,7 +45,7 @@ export default class StatsDisplay {
     }
   
     startConnectionTracking() {
-      // Example: ping an endpoint every 5s to get # of active connections
+      // Example: ping an endpoint every 15s to get # of active connections
       setInterval(async () => {
         try {
           const response = await fetch('/api/model-stats/connections');
@@ -56,14 +56,32 @@ export default class StatsDisplay {
           this.stats.activeConnections = 0;
         }
         this.render();
-      }, 5000);
+      }, 15000);
     }
   
-    updateStats(newStats) {
-      // Merge the new stats into our existing stats object
-      Object.assign(this.stats, newStats);
-      this.render();
-      this.triggerAnimations();
+    constructor(containerId = 'performance-stats') {
+      this.container = document.getElementById(containerId);
+      if (!this.container) {
+        console.error(`StatsDisplay container not found: #${containerId}`);
+        return;
+      }
+  
+      this.stats = {
+        latency: 0,
+        tokensPerSecond: 0,
+        activeConnections: 0,
+        totalTokens: 0,
+        chunkCount: 0,
+        partialTokens: 0
+      };
+      
+      // Add throttling variables
+      this.lastUpdateTime = 0;
+      this.updateThrottleMs = 1000; // Only update UI every 1 second
+      this.pendingUpdate = false;
+
+      this.initDisplay();
+      this.startConnectionTracking();
     }
   
     render() {
