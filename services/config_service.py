@@ -178,8 +178,16 @@ class ConfigService:
     async def add_model_config(self, model_id: str, model_config: Dict[str, Any]) -> bool:
         """Add a new model configuration"""
         models = await self.get_model_configs()
-        if model_id in models:
-            return False
+        
+        # Case-insensitive check for existing models
+        existing_model_id = next(
+            (k for k in models.keys() if k.lower() == model_id.lower()), 
+            None
+        )
+        
+        if existing_model_id:
+            logger.info(f"Model {model_id} already exists as {existing_model_id}")
+            return True  # Consider it a success if model already exists
             
         # Apply model-specific configurations
         if config.is_o_series_model(model_id) and "max_completion_tokens" not in model_config:
@@ -217,13 +225,22 @@ class ConfigService:
         if "supports_temperature" not in model_config:
             model_config["supports_temperature"] = config.is_deepseek_model(model_id)
         
-        # Add required numeric fields with defaults
-        if "base_timeout" not in model_config:
-            model_config["base_timeout"] = 120.0
-        if "max_timeout" not in model_config:
-            model_config["max_timeout"] = 300.0
-        if "token_factor" not in model_config:
-            model_config["token_factor"] = 0.05
+        # Add required numeric fields with defaults and ensure they're numbers
+        for field, default in [
+            ("base_timeout", 120.0),
+            ("max_timeout", 300.0),
+            ("token_factor", 0.05),
+            ("max_tokens", 4096)
+        ]:
+            if field not in model_config:
+                model_config[field] = default
+            else:
+                # Ensure numeric fields are actually numbers
+                try:
+                    model_config[field] = float(model_config[field])
+                except (ValueError, TypeError):
+                    logger.warning(f"Converting {field} from {type(model_config[field])} to float")
+                    model_config[field] = default
                 
         # Add to models
         models[model_id] = model_config

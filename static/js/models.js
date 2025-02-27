@@ -911,7 +911,11 @@ class ModelManager {
 
         // Add missing required models to modelConfigs
         for (const [modelId, config] of Object.entries(requiredModels)) {
-            if (!this.modelConfigs[modelId]) {
+            // Case-insensitive check for existing models
+            const existingModel = Object.keys(this.modelConfigs)
+                .find(k => k.toLowerCase() === modelId.toLowerCase());
+            
+            if (!existingModel) {
                 console.log(`Adding missing model ${modelId} to local configs`);
                 this.modelConfigs[modelId] = config;
 
@@ -921,6 +925,11 @@ class ModelManager {
                         console.warn(`Failed to create ${modelId} on server: ${err.message}`);
                     });
                 }
+            } else if (existingModel !== modelId) {
+                // If model exists but with different casing, update the casing
+                console.log(`Updating model casing from ${existingModel} to ${modelId}`);
+                this.modelConfigs[modelId] = this.modelConfigs[existingModel];
+                delete this.modelConfigs[existingModel];
             }
         }
         
@@ -932,8 +941,12 @@ class ModelManager {
      * Create model on server with error handling
      */
     async createModelOnServer(modelId, modelConfig) {
-        // Don't try to recreate models that are being processed
-        if (this.pendingModelActions[modelId]) {
+        // Check for pending actions with case-insensitive comparison
+        const pendingKey = Object.keys(this.pendingModelActions)
+            .find(k => k.toLowerCase() === modelId.toLowerCase());
+            
+        if (pendingKey) {
+            console.warn(`Creation of ${modelId} already pending as ${pendingKey}`);
             return { status: "pending" };
         }
         
@@ -941,13 +954,13 @@ class ModelManager {
             // Track this API call
             this.pendingModelActions[modelId] = 'create';
             
-            // Ensure all required fields are present
+            // Ensure all required fields are present with proper types
             const completeConfig = {
                 ...modelConfig,
                 // Add missing required fields with defaults if not present
-                base_timeout: modelConfig.base_timeout || 120.0,
-                max_timeout: modelConfig.max_timeout || 300.0,
-                token_factor: modelConfig.token_factor || 0.05,
+                base_timeout: modelConfig.base_timeout ?? 120.0,
+                max_timeout: modelConfig.max_timeout ?? 300.0,
+                token_factor: modelConfig.token_factor ?? 0.05,
                 // Ensure these are present
                 name: modelConfig.name || modelId,
                 max_tokens: modelConfig.max_tokens || (modelId.toLowerCase() === "deepseek-r1" ? 32000 : 40000),
@@ -956,6 +969,14 @@ class ModelManager {
                 supports_temperature: modelConfig.supports_temperature !== undefined ? modelConfig.supports_temperature : 
                                      (modelId.toLowerCase() === "deepseek-r1")
             };
+            
+            // Convert numeric values to ensure they're numbers, not strings
+            completeConfig.base_timeout = Number(completeConfig.base_timeout);
+            completeConfig.max_timeout = Number(completeConfig.max_timeout);
+            completeConfig.token_factor = Number(completeConfig.token_factor);
+            completeConfig.max_tokens = Number(completeConfig.max_tokens);
+            
+            console.log(`Creating model ${modelId} with config:`, completeConfig);
             
             // Use relative URL to ensure we're connecting to the current server
             const response = await fetch(`/api/config/models/${modelId}`, {
@@ -971,6 +992,24 @@ class ModelManager {
             
             if (response.ok) {
                 return await response.json();
+            } else if (response.status === 400) {
+                // Log the error response for debugging
+                const errorText = await response.text();
+                console.warn(`Server returned 400 when creating model ${modelId}: ${errorText}`);
+                
+                // Try to parse the error response
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    console.error('Model creation validation error:', errorJson);
+                } catch (e) {
+                    // If not JSON, just log the text
+                    console.error('Model creation error (not JSON):', errorText);
+                }
+                
+                return { status: "error", code: response.status, message: errorText };
+            } else if (response.status === 409 || response.status === 404) {
+                console.warn(`Model ${modelId} already exists or path not found (${response.status})`);
+                return { status: "exists", code: response.status };
             } else {
                 console.warn(`Server returned ${response.status} when creating model ${modelId}`);
                 return { status: "error", code: response.status };

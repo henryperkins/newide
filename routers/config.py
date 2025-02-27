@@ -316,18 +316,28 @@ async def create_model(
     try:
         logger.info(f"Creating model {model_id}")
 
-        # Check if model exists first
+        # Check if model exists first (case-insensitive)
         model_configs = await config_service.get_model_configs()
-        if model_id in model_configs:
-            raise HTTPException(
-                status_code=400, detail=f"Model {model_id} already exists"
-            )
+        
+        # Case-insensitive check for existing models
+        existing_model_id = next(
+            (k for k in model_configs.keys() if k.lower() == model_id.lower()), 
+            None
+        )
+        
+        if existing_model_id:
+            logger.info(f"Model {model_id} already exists as {existing_model_id}")
+            return {
+                "status": "exists", 
+                "model_id": existing_model_id,
+                "message": f"Model already exists as {existing_model_id}"
+            }
 
         # If no model data is provided, create default based on model name
         if not model:
-            if model_id == "DeepSeek-R1":
+            if model_id.lower() == "deepseek-r1":
                 model = {
-                    "name": "DeepSeek-R1",
+                    "name": "DeepSeek-R1",  # Use consistent casing
                     "description": "Model that supports chain-of-thought reasoning with <think> tags",
                     "max_tokens": 32000,
                     "supports_streaming": True,  # Explicitly enable streaming for DeepSeek-R1
@@ -338,7 +348,7 @@ async def create_model(
                     "max_timeout": 300.0,
                     "token_factor": 0.05,
                 }
-            elif model_id == "o1hp" or model_id.startswith("o1"):
+            elif model_id.lower() == "o1hp" or model_id.lower().startswith("o1"):
                 model = {
                     "name": model_id,
                     "description": "Advanced reasoning model for complex tasks",
@@ -364,6 +374,17 @@ async def create_model(
         if model_id.lower() == "deepseek-r1":
             model.setdefault("supports_streaming", True)
             model.setdefault("supports_temperature", True)
+            
+        # Ensure numeric fields are actually numbers
+        for field in ["base_timeout", "max_timeout", "token_factor", "max_tokens"]:
+            if field in model:
+                try:
+                    model[field] = float(model[field])
+                except (ValueError, TypeError):
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Field '{field}' must be a number, got {type(model[field]).__name__}"
+                    )
             
         # Create the model
         success = await config_service.add_model_config(model_id, model)
