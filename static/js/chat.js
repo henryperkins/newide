@@ -1,549 +1,776 @@
-// chat.js
+// Enhanced chat.js with improved error handling and performance
 
-import { initializeSession, sessionId, getLastUserMessage, setLastUserMessage } from '/static/js/session.js';
-import { getCurrentConfig, getModelSettings } from '/static/js/config.js';
-import { showNotification, showTypingIndicator, removeTypingIndicator, handleMessageError } from '/static/js/ui/notificationManager.js';
-import { updateTokenUsage } from '/static/js/utils/helpers.js';
-import { displayMessage, processServerResponseData } from '/static/js/ui/displayManager.js';
-import { handleStreamingResponse } from '/static/js/streaming.js';
-import StatsDisplay from '/static/js/ui/statsDisplay.js'; // If you're instantiating StatsDisplay here
-import { modelManager } from './models.js';
+import { showNotification, handleMessageError, showTypingIndicator, removeTypingIndicator, showConfirmDialog } from './ui/notificationManager.js';
+import { sessionId, getSessionId, setLastUserMessage } from './session.js';
+import { formatFileSize, copyToClipboard, updateTokenUsage, debounce } from './utils/helpers.js';
+import { renderMarkdown, sanitizeHTML, highlightCode } from './ui/markdownParser.js';
 
-// Example: if you want a single StatsDisplay instance for the entire app
-// you might do this once. Or do so in init.js and import statsDisplay from there.
-export const statsDisplay = new StatsDisplay('performance-stats');
+// Configuration defaults
+let streamingEnabled = false;
+let developerConfig = 'You are a helpful AI assistant.';
+let reasoningEffort = 'medium';
+let isProcessing = false;
+let currentController = null;
+let messageQueue = [];
+let isStreamingSupported = true;
 
-// Listen for the global send-message event
-window.addEventListener('send-message', () => {
-  console.log("Global send-message event received");
-  sendMessage();
+// Initialize event listeners when the DOM is fully loaded
+document.addEventListener('DOMContentLoaded', () => {
+  initChatInterface();
+  
+  // Create a global event for message sending
+  window.sendMessage = sendMessage;
+  
+  // Expose the renderMessage function globally for streaming.js
+  window.renderAssistantMessage = renderAssistantMessage;
 });
 
 /**
- *  Main request logic for chat:
- * - Called when user presses "Send" in UI
- * - Gathers user input, handles streaming or non-streaming requests
- * - Displays final message(s) and stats
+ * Initialize the chat interface components and listeners
  */
-// Expose globally for direct access
-window.sendMessage = sendMessage;
-
-export async function sendMessage() {
-  let userInput;
-  console.log('[DEBUG] Send message function executing!');
-
-  const streamingEl = document.getElementById('enable-streaming');
-  const streamingEnabled = streamingEl ? streamingEl.checked : false;
+function initChatInterface() {
+  const userInput = document.getElementById('user-input');
   const sendButton = document.getElementById('send-button');
-
-  // Cache button state to restore later
-  const initialButtonText = sendButton ? sendButton.innerHTML : 'Send';
-  const initialButtonDisabled = sendButton ? sendButton.disabled : false;
-
-  try {
-    userInput = document.getElementById('user-input');
-    
-    // If userInput isn't found, exit gracefully - DOM might not be ready
-    if (!userInput) {
-      console.error('[sendMessage] User input element not found');
-      return;
-    }
-    
-    const message = userInput.value.trim();
-    if (!message) {
-      showNotification('Message cannot be empty', 'warning');
-      return;
-    }
-
-    // Disable button & show feedback - using try/catch for safety
-    try {
-      if (sendButton) {
-        sendButton.disabled = true;
-        sendButton.innerHTML = '<span class="animate-spin inline-block mr-2">&#8635;</span> Sending...';
-      }
-    } catch (btnErr) {
-      console.warn('[sendMessage] Error updating button state:', btnErr);
-    }
-
-    // Initialize session if not done already
-    if (!sessionId) {
-      const initialized = await initializeSession();
-      if (!initialized) {
-        throw new Error('Failed to initialize session');
-      }
-    }
-
-    // Disable input while request is in flight - with error handling
-    try { 
-      if (userInput) {
-        userInput.disabled = true;
-      }
-    } catch (inputErr) {
-      console.warn('[sendMessage] Error disabling input:', inputErr);
-    }
-    
-    setLastUserMessage(message);
-
-    // Display user's message in chat
-    displayMessage(message, 'user');
-    if (userInput) userInput.value = '';
-
-    // Retrieve user config
-    const config = await getCurrentConfig();
-    const modelConfig = await getModelSettings();
-
-    // Log model info for debugging DeepSeek issues
-    logDeepSeekModelInfo(modelConfig);
+  const streamingToggle = document.getElementById('enable-streaming');
+  const developerConfigInput = document.getElementById('developer-config');
+  const reasoningSlider = document.getElementById('reasoning-effort-slider');
+  const charCount = document.getElementById('char-count');
   
-    // Special handling for DeepSeek-R1 model
-    const isDeepSeek = modelConfig?.name?.toLowerCase().includes('deepseek') || 
-                       modelConfig?.name === 'DeepSeek-R1';
+  // Initialize character count
+  if (userInput && charCount) {
+    // Update character count as user types with debounce
+    userInput.addEventListener('input', debounce(function() {
+      const count = this.value.length;
+      charCount.textContent = count;
+      
+      // Adjust input height based on content
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+      
+      // Visual indicator for long messages
+      if (count > 4000) {
+        charCount.classList.add('text-warning-500');
+      } else {
+        charCount.classList.remove('text-warning-500');
+      }
+    }, 100));
+  }
   
-    if (isDeepSeek) {
-      console.log('[sendMessage] Using DeepSeek-R1 specific handling');
-    }
-    
-    // Decide a typical request timeout based on "reasoningEffort" or "serverCalculatedTimeout"
-    const effortLevel = config?.reasoningEffort || 'medium';
-    const timeout = (await getTimeoutDurations(modelConfig))[effortLevel] || 30000;
-    console.log('[Config] Current settings:', { effort: effortLevel, timeout, modelConfig });
-
-    // Show typing indicator
-    showTypingIndicator();
-
-    // Create an AbortController with your desired timeout
-    const { controller } = createAbortController(timeout);
-
-    // Build and send request
-    const response = await handleChatRequest({
-      messageContent: message,
-      controller,
-      developerConfig: config.developerConfig,
-      reasoningEffort: config.reasoningEffort,
-      modelConfig
+  // Initialize send button
+  if (sendButton) {
+    sendButton.addEventListener('click', sendMessage);
+  }
+  
+  // Initialize streaming toggle
+  if (streamingToggle) {
+    streamingToggle.addEventListener('change', (e) => {
+      streamingEnabled = e.target.checked;
+      localStorage.setItem('streamingEnabled', streamingEnabled);
     });
-
-    // Get model details for streaming decision
-    const modelName = modelConfig?.name?.toLowerCase();
-    const supportsStreaming = modelConfig?.capabilities?.supports_streaming === true || 
-                              modelName?.includes('deepseek') || // DeepSeek models support streaming
-                              modelConfig?.name === 'DeepSeek-R1'; // Explicit check for DeepSeek-R1
-
-    // Check if the model supports streaming and user has enabled it
-    if (supportsStreaming && streamingEnabled) {
-      await handleStreamingResponse(response, controller, config, statsDisplay);
+    
+    // Set initial state from localStorage
+    const storedStreamingState = localStorage.getItem('streamingEnabled');
+    if (storedStreamingState !== null) {
+      streamingEnabled = storedStreamingState === 'true';
+      streamingToggle.checked = streamingEnabled;
+    }
+  }
+  
+  // Initialize developer config
+  if (developerConfigInput) {
+    developerConfigInput.addEventListener('change', (e) => {
+      developerConfig = e.target.value;
+      localStorage.setItem('developerConfig', developerConfig);
+    });
+    
+    // Set initial state from localStorage
+    const storedConfig = localStorage.getItem('developerConfig');
+    if (storedConfig) {
+      developerConfig = storedConfig;
+      developerConfigInput.value = developerConfig;
+    }
+  }
+  
+  // Initialize reasoning effort slider
+  if (reasoningSlider) {
+    const effortDisplay = document.getElementById('reasoning-effort-display');
+    const effortDescription = document.getElementById('effort-description-text');
+    
+    // Only add event listener if both display elements exist
+    if (effortDisplay && effortDescription) {
+      reasoningSlider.addEventListener('input', (e) => {
+        const value = parseInt(e.target.value, 10);
+        let effortLevel = 'medium';
+        let description = '';
+        
+        switch (value) {
+          case 1:
+            effortLevel = 'low';
+            description = 'Low: Faster responses (30s-1min) with basic reasoning';
+            break;
+          case 2:
+            effortLevel = 'medium';
+            description = 'Medium: Balanced processing time (1-3min) and quality';
+            break;
+          case 3:
+            effortLevel = 'high';
+            description = 'High: Deeper reasoning (3-5min) for complex questions';
+            break;
+        }
+        
+        reasoningEffort = effortLevel;
+        localStorage.setItem('reasoningEffort', effortLevel);
+        
+        effortDisplay.textContent = effortLevel.charAt(0).toUpperCase() + effortLevel.slice(1);
+        effortDescription.textContent = description;
+      });
     } else {
-      if (streamingEnabled && !supportsStreaming) {
-        console.warn(`Model ${modelName} doesn't support streaming. Using standard request.`);
+      console.warn('Reasoning effort display elements not found in DOM');
+    }
+    
+    // Set initial state from localStorage
+    const storedEffort = localStorage.getItem('reasoningEffort');
+    if (storedEffort) {
+      reasoningEffort = storedEffort;
+      
+      // Set slider position based on effort level
+      switch (storedEffort) {
+        case 'low':
+          reasoningSlider.value = 1;
+          break;
+        case 'medium':
+          reasoningSlider.value = 2;
+          break;
+        case 'high':
+          reasoningSlider.value = 3;
+          break;
       }
       
+      // Trigger input event to update display
+      reasoningSlider.dispatchEvent(new Event('input'));
+    }
+  }
+  
+  // Add keyboard shortcut support
+  userInput?.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+  
+  // Initialize token usage panel toggle
+  const tokenUsageToggle = document.getElementById('token-usage-toggle');
+  const tokenDetails = document.getElementById('token-details');
+  const tokenChevron = document.getElementById('token-chevron');
+  
+  if (tokenUsageToggle && tokenDetails && tokenChevron) {
+    tokenUsageToggle.addEventListener('click', () => {
+      tokenDetails.classList.toggle('hidden');
+      tokenChevron.classList.toggle('rotate-180');
+      
+      // Store preference
+      localStorage.setItem('tokenDetailsVisible', !tokenDetails.classList.contains('hidden'));
+    });
+    
+    // Set initial state from localStorage
+    const tokenDetailsVisible = localStorage.getItem('tokenDetailsVisible') === 'true';
+    if (tokenDetailsVisible) {
+      tokenDetails.classList.remove('hidden');
+      tokenChevron.classList.add('rotate-180');
+    }
+  }
+  
+  // Set up event delegation for copy buttons and code highlights
+  document.addEventListener('click', (e) => {
+    // Copy code block
+    if (e.target.classList.contains('copy-code-button') || e.target.closest('.copy-code-button')) {
+      const button = e.target.classList.contains('copy-code-button') ? 
+                    e.target : e.target.closest('.copy-code-button');
+      const codeBlock = button.nextElementSibling;
+      
+      if (codeBlock) {
+        const code = codeBlock.textContent;
+        copyToClipboard(code)
+          .then(() => {
+            const originalText = button.textContent;
+            button.textContent = 'Copied!';
+            
+            setTimeout(() => {
+              button.textContent = originalText;
+            }, 2000);
+          })
+          .catch(err => {
+            console.error('Copy failed:', err);
+            showNotification('Failed to copy to clipboard', 'error');
+          });
+      }
+    }
+    
+    // Handle thinking process toggle
+    if (e.target.classList.contains('thinking-toggle') || e.target.closest('.thinking-toggle')) {
+      const toggle = e.target.classList.contains('thinking-toggle') ? 
+                    e.target : e.target.closest('.thinking-toggle');
+      const content = toggle.parentElement.nextElementSibling;
+      const icon = toggle.querySelector('.toggle-icon');
+      
+      if (content && icon) {
+        const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', !isExpanded);
+        
+        // Update icon
+        icon.textContent = isExpanded ? '▶' : '▼';
+      }
+    }
+  });
+}
+
+/**
+ * Send a message from the user to the AI
+ */
+export async function sendMessage() {
+  const userInput = document.getElementById('user-input');
+  if (!userInput) return;
+  
+  const messageContent = userInput.value.trim();
+  if (!messageContent || isProcessing) return;
+  
+  try {
+    // Abort any ongoing requests
+    if (currentController) {
+      currentController.abort();
+      currentController = null;
+    }
+    
+    isProcessing = true;
+    
+    // Store message for retry scenarios
+    setLastUserMessage(messageContent);
+    
+    // Update UI
+    const sendButton = document.getElementById('send-button');
+    if (sendButton) {
+      sendButton.disabled = true;
+      sendButton.innerHTML = '<span class="animate-spin inline-block mr-2">&#8635;</span>';
+    }
+    
+    // Clear input field and reset height
+    userInput.value = '';
+    userInput.style.height = 'auto';
+    
+    // Get current session ID
+    const currentSessionId = getSessionId();
+    if (!currentSessionId) {
+      // Add more robust session recovery
       try {
-        // IMPORTANT: First clone the response to read it multiple times if needed
-        const responseClone = response.clone();
+        console.warn('Session ID not found, attempting to recover...');
+        // Show notification to user
+        showNotification('Session expired. Attempting to reconnect...', 'warning');
         
-        // Non-streaming: parse final JSON and display
-        const data = await responseClone.json();
-        
-        if (!response.ok) {
-          console.error('[sendMessage] API Error details:', data);
-          if (response.status === 401 || response.status === 403) {
-            showNotification('Please log in to continue.', 'warning');
-          } else if (response.status === 404) {
-            showNotification('The requested endpoint was not found. Check your server configuration.', 'warning');
+        // Try to create a new session via the session API
+        const sessionResponse = await fetch('/api/session', { method: 'POST' });
+        if (sessionResponse.ok) {
+          const newSession = await sessionResponse.json();
+          if (newSession && newSession.id) {
+            // Store the new session ID
+            localStorage.setItem('current_session_id', newSession.id);
+            showNotification('Session restored successfully', 'success');
+            // Continue with the new session
+            return await sendMessage(); // Retry the send with new session
           }
-          throw new Error(
-            `HTTP error! status: ${response.status}, details: ${JSON.stringify(data)}`
-          );
         }
-
-        // Possibly update stats usage if data.usage is present
-        // Then handle final assistant content in displayManager
-        const modelName = data.model || modelConfig?.name || 'unknown';
-        processServerResponseData(data, modelName);
-      } catch (parseError) {
-        console.error('[sendMessage] Error parsing response:', parseError);
-        showNotification('Error processing response from server', 'error');
-        throw parseError;
+        // If we get here, recovery failed
+        throw new Error('Invalid session. Please refresh the page.');
+      } catch (error) {
+        // Show dialog with refresh option
+        showConfirmDialog('Session expired', 'Your session has expired. Would you like to refresh the page?', () => {
+          window.location.reload();
+        });
+        throw new Error('Invalid session. Please refresh the page.');
       }
     }
-
-  } catch (err) {
-    handleMessageError(err);
-  } finally {
-    // Safely restore UI state
+    
+    // Render user message
+    renderUserMessage(messageContent);
+    
+    // Get model settings
+    const modelSelect = document.getElementById('model-select');
+    let modelName = 'DeepSeek-R1'; // Default model
+    
+    if (modelSelect) {
+      modelName = modelSelect.value;
+    }
+    
+    // Check if streaming is supported for this model
+    const modelConfig = await getModelConfig(modelName);
+    isStreamingSupported = modelConfig?.supports_streaming || false;
+    
+    // Use streaming only if both enabled and supported
+    const useStreaming = streamingEnabled && isStreamingSupported;
+    
+    // Show typing indicator
+    showTypingIndicator();
+    
+    // Set up abort controller for timeout
+    const controller = new AbortController();
+    currentController = controller;
+    
+    // Compute timeout based on message length
+    const timeoutMs = calculateTimeout(messageContent, modelName, reasoningEffort);
+    
+    // Set up timeout
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      console.warn(`Request timed out after ${timeoutMs}ms`);
+    }, timeoutMs);
+    
     try {
-      if (sendButton) {
-        sendButton.disabled = initialButtonDisabled;
-        sendButton.innerHTML = initialButtonText;
+      if (useStreaming) {
+        // Use streaming implementation
+        await import('./streaming.js').then(module => {
+          return module.streamChatResponse(
+            messageContent, 
+            currentSessionId,
+            modelName,
+            developerConfig,
+            reasoningEffort,
+            controller.signal
+          );
+        });
+      } else {
+        // Use standard implementation
+        const response = await fetchChatResponse(
+          messageContent,
+          currentSessionId,
+          modelName,
+          developerConfig,
+          reasoningEffort,
+          controller.signal
+        );
+        
+        // Render response
+        const assistantMessage = response.choices[0].message.content;
+        renderAssistantMessage(assistantMessage);
+        
+        // Update token usage
+        if (response.usage) {
+          updateTokenUsage(response.usage);
+        }
       }
+    } catch (error) {
+      // Only handle errors not related to user-initiated aborts
+      if (error.name !== 'AbortError' || !controller.signal.aborted) {
+        await handleMessageError(error);
+      }
+    } finally {
+      // Clear timeout
+      clearTimeout(timeoutId);
+      
+      // Remove typing indicator
       removeTypingIndicator();
-      if (userInput) {
-        userInput.disabled = false;
-        userInput.focus();
-      }
-    } catch (finalErr) {
-      console.error('[sendMessage] Error in finally block:', finalErr);
+      
+      // Reset controller
+      currentController = null;
     }
+  } catch (error) {
+    console.error('Error in sendMessage:', error);
+    showNotification('Failed to send message', 'error');
+  } finally {
+    // Reset UI
+    isProcessing = false;
+    
+    const sendButton = document.getElementById('send-button');
+    if (sendButton) {
+      sendButton.disabled = false;
+      sendButton.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+        </svg>
+      `;
+    }
+    
+    // Restore focus to input field
+    userInput.focus();
   }
 }
 
 /**
- * If user clicks "Regenerate" button, just re-send the last user message.
+ * Calculate an appropriate timeout based on message length and model
+ * 
+ * @param {string} message - The message content
+ * @param {string} model - The model name
+ * @param {string} reasoningEffort - Reasoning effort level (low, medium, high)
+ * @returns {number} Timeout in milliseconds
  */
-export async function regenerateResponse() {
-  const lastMessage = getLastUserMessage();
-  if (lastMessage) {
-    document.getElementById('user-input').value = lastMessage;
-    await sendMessage();
+function calculateTimeout(message, model, reasoningEffort) {
+  const baseTimeout = 60000; // 60 seconds base
+  const perCharTimeout = 10; // 10ms per character
+  const messageLength = message.length;
+  
+  // Determine if this is an o-series model (which takes longer)
+  const isOSeries = model.toLowerCase().startsWith('o1') || model.toLowerCase().startsWith('o3');
+  
+  // Apply model-specific multiplier
+  const modelMultiplier = isOSeries ? 3 : 1;
+  
+  // Apply reasoning effort multiplier
+  let effortMultiplier = 1;
+  switch (reasoningEffort) {
+    case 'low':
+      effortMultiplier = 0.7;
+      break;
+    case 'medium':
+      effortMultiplier = 1;
+      break;
+    case 'high':
+      effortMultiplier = 1.5;
+      break;
   }
+  
+  // Calculate timeout
+  const timeout = baseTimeout + (messageLength * perCharTimeout * modelMultiplier * effortMultiplier);
+  
+  // Cap at a reasonable maximum
+  return Math.min(timeout, 300000); // Maximum 5 minutes
 }
 
 /**
- * Handles the chat request with optional retries on timeouts.
+ * Fetch chat completion from the API with improved error handling
  */
-async function handleChatRequest({ messageContent, controller, developerConfig, reasoningEffort, modelConfig }) {
-  const maxRetries = 3;
+async function fetchChatResponse(
+  messageContent, 
+  sessionId,
+  modelName = 'DeepSeek-R1',
+  developerConfig = '',
+  reasoningEffort = 'medium',
+  signal
+) {
+  const maxRetries = 2;
+  let retryCount = 0;
   let lastError = null;
-
-  // Get the current selected model from modelManager
-  const selectedModelId = modelManager.currentModel;
-  console.log(`[handleChatRequest] Using model: ${selectedModelId}`);
-
-  // If modelManager has a selected model, ensure it's used
-  if (selectedModelId && (!modelConfig || modelConfig.name !== selectedModelId)) {
-    // Get the config for this model
-    console.log(`[handleChatRequest] Overriding model config with selected model: ${selectedModelId}`);
-    modelConfig = modelManager.modelConfigs[selectedModelId] || modelConfig;
-  }
-
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+  
+  while (retryCount <= maxRetries) {
     try {
-      const response = await makeApiRequest({
-        messageContent,
-        controller,
-        developerConfig,
-        reasoningEffort,
-        modelConfig
+      const apiUrl = '/api/chat';
+      const messages = [];
+      
+      // Add system message if provided
+      if (developerConfig) {
+        messages.push({
+          role: "system",
+          content: developerConfig
+        });
+      }
+      
+      // Add user message
+      messages.push({
+        role: "user",
+        content: messageContent
       });
-      return response;
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          model: modelName,
+          messages: messages,
+          reasoning_effort: reasoningEffort,
+          temperature: 0.7,
+          max_completion_tokens: 5000
+        }),
+        signal
+      });
+      
+      if (!response.ok) {
+        // Handle specific error cases
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('retry-after');
+          const retrySeconds = retryAfter ? parseInt(retryAfter, 10) : 5;
+          
+          if (retryCount < maxRetries) {
+            console.warn(`Rate limited (429). Retrying in ${retrySeconds}s... (${retryCount + 1}/${maxRetries})`);
+            
+            showNotification(
+              `Rate limited. Retrying in ${retrySeconds}s... (${retryCount + 1}/${maxRetries})`, 
+              'warning', 
+              retrySeconds * 1000
+            );
+            
+            await new Promise(resolve => setTimeout(resolve, retrySeconds * 1000));
+            retryCount++;
+            continue;
+          }
+        }
+        
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+      
+      return await response.json();
+      
     } catch (error) {
       lastError = error;
-
-      // Only retry on timeout/abort
-      if (
-        attempt < maxRetries - 1 &&
-        error instanceof DOMException &&
-        (error.name === 'TimeoutError' || error.name === 'AbortError')
-      ) {
-        const delay = 60000 * (attempt + 1); // e.g. 60s, 120s
-        console.warn(
-          `[handleChatRequest] Attempt ${attempt + 1} failed, retrying in ${delay}ms`
-        );
-        await new Promise((resolve) => setTimeout(resolve, delay));
+      
+      // Only retry network errors, not user aborts or validation errors
+      if (error.name === 'TypeError' && error.message.includes('network') && retryCount < maxRetries) {
+        console.warn(`Network error. Retrying (${retryCount + 1}/${maxRetries})...`);
+        retryCount++;
+        await new Promise(resolve => setTimeout(resolve, 2000 * retryCount)); // Increasing delay
         continue;
       }
-      // For other errors, do not retry
+      
       throw error;
     }
   }
+  
   throw lastError;
 }
 
 /**
- * Actually performs the API fetch call to Azure/OpenAI
+ * Render user message in the chat
  */
-async function makeApiRequest({ messageContent, controller, developerConfig, reasoningEffort, modelConfig }) {
-  const config = await getCurrentConfig();
+function renderUserMessage(content) {
+  const chatHistory = document.getElementById('chat-history');
+  if (!chatHistory) return;
+  
+  const messageElement = document.createElement('div');
+  messageElement.className = 'message user-message';
+  
+  // Set ARIA role for screen readers
+  messageElement.setAttribute('role', 'log');
+  messageElement.setAttribute('aria-live', 'polite');
+  
+  // Sanitize and render
+  const sanitizedContent = sanitizeHTML(content);
+  messageElement.innerHTML = sanitizedContent.replace(/\n/g, '<br>');
+  
+  // Append to chat
+  chatHistory.appendChild(messageElement);
+  
+  // Scroll into view with smooth animation
+  setTimeout(() => {
+    messageElement.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, 100);
+  
+  // Store message in chat history
+  storeChatMessage('user', content);
+}
 
-  // Use the selected model from modelManager if available
-  const currentModelId = modelManager.currentModel;
+/**
+ * Render assistant message in the chat
+ */
+export function renderAssistantMessage(content, isThinking = false) {
+  const chatHistory = document.getElementById('chat-history');
+  if (!chatHistory) return;
   
-  // For debugging
-  console.log('[makeApiRequest] Current model from modelManager:', currentModelId);
-  console.log('[makeApiRequest] Passed modelConfig:', modelConfig?.name);
+  const messageElement = document.createElement('div');
+  messageElement.className = `message assistant-message ${isThinking ? 'thinking-message' : ''}`;
   
-  // Use model from modelManager, fallback to passed modelConfig, then deployment name
-  const modelName = currentModelId || modelConfig?.name || config.deploymentName;
+  // Set ARIA role for screen readers
+  messageElement.setAttribute('role', 'log');
+  messageElement.setAttribute('aria-live', 'polite');
   
-  // Initialize session if needed
-  if (!sessionId) {
-    await initializeSession();
-    if (!sessionId) {
-      throw new Error('Could not initialize session');
-    }
+  // Process DeepSeek-R1 thinking blocks
+  if (content.includes('<think>')) {
+    content = processThinkingContent(content);
   }
-
-  // Determine model type for parameter selection
-  const modelNameLower = modelName.toLowerCase();
-  const isDeepSeek = modelNameLower.includes('deepseek');
-  const isOSeries = modelNameLower.startsWith('o1') || modelNameLower.startsWith('o3');
-
-  // IMPORTANT: Structure the messages array properly
-  const messages = [];
   
-  // Add developer/system prompt if present
-  if (developerConfig) {
-    if (isOSeries) {
-      // o-series models use "developer" role
-      messages.push({
-        role: "developer",
-        content: developerConfig
-      });
-    } else {
-      // Other models use "system" role
-      messages.push({
-        role: "system", 
-        content: developerConfig
-      });
-    }
-  }
+  // Render markdown content
+  const markdownContent = renderMarkdown(content);
   
-  // Always add the user's message
-  messages.push({
-    role: 'user',
-    content: messageContent
-  });
-
-  // Basic request body - UPDATED to always use the current model
-  const requestBody = {
-    model: modelName,
-    messages: messages,
-    session_id: sessionId
-  };
-
-  // Log the selected model for debugging
-  console.log('[makeApiRequest] Using model:', modelName);
-
-  // Set model-specific parameters
-  if (isOSeries) {
-    // O-series models - use reasoning_effort
-    requestBody.reasoning_effort = reasoningEffort || 'medium';
-    
-    // o-series uses max_completion_tokens, not max_tokens
-    if (modelConfig?.capabilities?.max_completion_tokens) {
-      requestBody.max_completion_tokens = modelConfig.capabilities.max_completion_tokens;
-    } else {
-      requestBody.max_completion_tokens = 5000; // Default value
-    }
-    
-    // o-series doesn't use temperature
-    delete requestBody.temperature;
-  } else if (isDeepSeek) {
-    // DeepSeek-R1 model - uses temperature (NOT reasoning_effort)
-    requestBody.temperature = 0.7; // Default from documentation
-    if (modelConfig?.capabilities?.max_tokens) {
-      requestBody.max_tokens = modelConfig.capabilities.max_tokens;
-    } else {
-      requestBody.max_tokens = 32000; // Default for DeepSeek-R1
-    }
-    
-    // DeepSeek doesn't use reasoning_effort
-    delete requestBody.reasoning_effort;
-    // DeepSeek doesn't use max_completion_tokens
-    delete requestBody.max_completion_tokens;
-  } else {
-    // Standard model
-    if (modelConfig?.capabilities?.temperature !== undefined) {
-      requestBody.temperature = modelConfig.capabilities.temperature;
-    } else {
-      requestBody.temperature = 0.7; // Default temperature
-    }
-    
-    // Standard models use max_tokens, not max_completion_tokens
-    if (modelConfig?.capabilities?.max_tokens) {
-      requestBody.max_tokens = modelConfig.capabilities.max_tokens;
-    } else {
-      requestBody.max_tokens = 4000; // Default value
-    }
+  // Process code blocks to add copy buttons
+  const processedContent = processCodeBlocks(markdownContent);
+  
+  // Set content
+  messageElement.innerHTML = processedContent;
+  
+  // Append to chat
+  chatHistory.appendChild(messageElement);
+  
+  // Highlight code blocks
+  highlightCode(messageElement);
+  
+  // Scroll into view with smooth animation
+  setTimeout(() => {
+    messageElement.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, 100);
+  
+  // Store message in chat history (only if not thinking content)
+  if (!isThinking) {
+    storeChatMessage('assistant', content);
   }
+}
 
-  // Build the URL - now simplified to your server endpoint
-  const url = await buildAzureOpenAIUrl();
+/**
+ * Store messages in history and local storage
+ */
+function storeChatMessage(role, content) {
+  const currentSessionId = getSessionId();
+  if (!currentSessionId) return;
 
-  console.log('[makeApiRequest] Request URL:', url);
-  console.log('[makeApiRequest] Sending payload:', JSON.stringify(requestBody, null, 2));
+  // Store in backend with retry logic
+  fetchWithRetry(
+    `/api/chat/conversations/store?session_id=${currentSessionId}&role=${role}&content=${encodeURIComponent(content)}`,
+    { method: 'GET' },
+    3  // Max retries
+  ).catch(err => console.warn('Failed to store message in backend after retries:', err));
+  
+  // Store in local storage (limited to recent messages)
+  try {
+    const storageKey = `conversation_${currentSessionId}`;
+    let conversation = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    
+    // Add message
+    conversation.push({ role, content, timestamp: new Date().toISOString() });
+    
+    // Limit to last 50 messages to avoid localStorage limits
+    if (conversation.length > 50) {
+      conversation = conversation.slice(-50);
+    }
+    
+    localStorage.setItem(storageKey, JSON.stringify(conversation));
+  } catch (e) {
+    console.warn('Failed to store message in localStorage:', e);
+  }
+}
 
-  const init = {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    },
-    signal: controller.signal,
-    body: JSON.stringify(requestBody)
-  };
-
-  // Implement retry logic with exponential backoff for rate limit errors
-  const maxRetries = 3;
-  let retryCount = 0;
-  let retryDelay = 2000; // Start with 2 seconds
-
-  while (retryCount <= maxRetries) {
+/**
+ * Fetch with exponential backoff retry logic
+ * @param {string} url - The URL to fetch
+ * @param {Object} options - Fetch options
+ * @param {number} maxRetries - Maximum number of retries
+ * @returns {Promise<Response>} - The fetch response
+ */
+async function fetchWithRetry(url, options = {}, maxRetries = 3) {
+  let retries = 0;
+  
+  while (retries < maxRetries) {
     try {
-      const response = await fetch(url, init);
+      const response = await fetch(url, options);
       
-      // If we get a 429, implement retry with exponential backoff
-      if (response.status === 429) {
-        if (retryCount < maxRetries) {
-          console.warn(`[makeApiRequest] Rate limited (429). Retrying in ${retryDelay/1000}s... (Attempt ${retryCount + 1}/${maxRetries})`);
-          
-          // Show a temporary notification about retrying
-          if (typeof showNotification === 'function') {
-            showNotification(`Rate limited by Azure. Retrying in ${retryDelay/1000}s... (${retryCount + 1}/${maxRetries})`, 'warning', retryDelay);
-          }
-          
-          // Wait for the retry delay
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-          
-          // Increase the retry delay exponentially (2s, 4s, 8s, etc.)
-          retryDelay *= 2;
-          retryCount++;
-          continue;
-        }
+      // If the request was successful or it's a client error (4xx), don't retry
+      if (response.ok || (response.status >= 400 && response.status < 500)) {
+        return response;
       }
       
-      if (!response.ok) {
-        console.error('[makeApiRequest] Error response:', response.status, response.statusText);
-        // Skip reading response body here so the caller can parse it once
-        console.warn('[makeApiRequest] Skipping response.json() to avoid using the body multiple times.');
+      // Only retry on server errors (5xx)
+      if (response.status >= 500) {
+        console.warn(`Server error (${response.status}), retrying... (${retries + 1}/${maxRetries})`);
+      } else {
+        return response; // Don't retry on other status codes
       }
-      
-      return response;
     } catch (error) {
-      console.error('[makeApiRequest] Fetch error:', error);
-      throw error;
+      // Network errors will be caught here
+      console.warn(`Network error, retrying... (${retries + 1}/${maxRetries})`, error);
     }
+    
+    // Exponential backoff with jitter
+    const delay = Math.min(1000 * Math.pow(2, retries) * (0.9 + Math.random() * 0.2), 10000);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    retries++;
   }
   
-  // If we've exhausted all retries, throw an error
-  throw new Error(`Rate limit exceeded after ${maxRetries} retries. Please try again later.`);
+  // If we've exhausted retries, make one final attempt and return whatever we get
+  return fetch(url, options);
 }
 
 /**
- * Creates an AbortController with a fallback/override for server-suggested timeouts.
+ * Process code blocks to add copy buttons
  */
-function createAbortController(timeoutDuration) {
-  const controller = new AbortController();
-
-  // e.g. minimum 90s or server-provided
-  const minTimeout = 90000;
-  const actualTimeout = window.serverCalculatedTimeout
-    ? Math.max(window.serverCalculatedTimeout * 1000, minTimeout)
-    : Math.max(timeoutDuration, minTimeout);
-
-  console.log(`[createAbortController] Setting timeout: ${actualTimeout}ms`);
-
-  const timeoutId = setTimeout(() => {
-    console.log(`[createAbortController] Request timed out after ${actualTimeout}ms`);
-    controller.abort(
-      new DOMException(
-        `Request exceeded time limit of ${actualTimeout}ms`,
-        'TimeoutError'
-      )
-    );
-  }, actualTimeout);
-
-  return { controller, timeoutId };
+function processCodeBlocks(html) {
+  // Add copy buttons to code blocks
+  return html.replace(
+    /<pre><code class="language-([^"]+)">([\s\S]*?)<\/code><\/pre>/g,
+    (match, language, code) => {
+      return `
+        <div class="relative group">
+          <button class="copy-code-button absolute top-2 right-2 p-1 rounded text-xs bg-dark-700/50 text-white opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100 touch-action-manipulation" aria-label="Copy code">
+            Copy
+          </button>
+          <pre><code class="language-${language}">${code}</code></pre>
+        </div>
+      `;
+    }
+  );
 }
 
 /**
- * Retrieves timeouts for low/medium/high effort, adjusting if needed for special models.
+ * Process DeepSeek-R1 thinking content
  */
-async function getTimeoutDurations(modelConfig) {
-  const modelName = modelConfig?.name?.toLowerCase() || '';
-  const isDeepSeek = modelName.includes('deepseek');
-  const isOSeries = modelName.startsWith('o1') || modelName.startsWith('o3');
+function processThinkingContent(content) {
+  // Replace <think>...</think> with collapsible blocks
+  return content.replace(
+    /<think>([\s\S]*?)<\/think>/g,
+    (match, thinking) => {
+      // Add collapsible thinking content
+      return `
+        <div class="thinking-process">
+          <div class="thinking-header">
+            <button class="thinking-toggle" aria-expanded="true">
+              <span class="toggle-icon">▼</span> Thinking Process
+            </button>
+          </div>
+          <div class="thinking-content">
+            <pre class="thinking-pre">${thinking}</pre>
+          </div>
+        </div>
+      `;
+    }
+  );
+}
 
-  if (isDeepSeek) {
-    return {
-      low: 30000,    // 30s
-      medium: 60000, // 60s
-      high: 120000   // 120s
-    };
-  } else if (isOSeries) {
-    return {
-      low: 60000,     // 60s 
-      medium: 120000, // 120s
-      high: 300000    // 300s - O-series models can take much longer
-    };
+/**
+ * Get model configuration for a specific model
+ */
+async function getModelConfig(modelName) {
+  try {
+    // Properly encode the model name in the URL
+    const encodedModelName = encodeURIComponent(modelName);
+    
+    // Try to fetch from API
+    const response = await fetch(`/api/config/models/${encodedModelName}`);
+    
+    if (response.ok) {
+      return await response.json();
+    } else {
+      console.warn(`Could not fetch model config for ${modelName}, status: ${response.status}`);
+      
+      // Enhanced error logging
+      if (response.status === 400) {
+        console.error(`Bad request for model ${modelName}. Check model name format and API compatibility.`);
+      } else if (response.status === 404) {
+        console.error(`Model ${modelName} not found. It may need to be configured.`);
+      }
+      
+      // Fallback defaults
+      if (modelName.toLowerCase() === 'deepseek-r1') {
+        console.info('Using fallback configuration for DeepSeek-R1');
+        return {
+          name: 'DeepSeek-R1',
+          supports_streaming: true,
+          supports_temperature: true,
+          api_version: '2024-05-01-preview'
+        };
+      } else if (modelName.toLowerCase().startsWith('o1')) {
+        console.info(`Using fallback configuration for ${modelName}`);
+        return {
+          name: modelName,
+          supports_streaming: false, 
+          supports_temperature: false,
+          api_version: '2025-01-01-preview'
+        };
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching model config:', error);
   }
-
-  // Default timeouts for standard models
+  
+  // Default fallback
+  console.info('Using generic fallback model configuration');
   return {
-    low: 15000,
-    medium: 30000,
-    high: 60000
+    supports_streaming: false,
+    supports_temperature: true
   };
 }
-
-/**
- * Helper to distinguish if the model is "O1"
- */
-function isO1Model(modelConfig) {
-  const name = modelConfig?.name?.toLowerCase() || '';
-  return name.startsWith('o1') || name.startsWith('o3');
-}
-
-/**
- * Helper to distinguish if the model is "DeepSeek"
- */
-function isDeepSeekModel(modelConfig) {
-  const name = modelConfig?.name?.toLowerCase() || '';
-  return name.includes('deepseek') || modelConfig?.name === 'DeepSeek-R1';
-  // Note: DeepSeek models use temperature parameter, not reasoning_effort
-  // This matches the API documentation in deepseek-reference.md
-}
-
-// Debug helper for DeepSeek models
-function logDeepSeekModelInfo(modelConfig) {
-  if (isDeepSeekModel(modelConfig)) {
-    console.log('DeepSeek model detected:', {
-      name: modelConfig.name,
-      supports_temperature: modelConfig.supports_temperature,
-      supports_streaming: modelConfig.supports_streaming
-    });
-  }
-}
-
-/**
- * Build the API endpoint for chat completion
- */
-async function buildAzureOpenAIUrl() {
-  // IMPORTANT: Always use your backend API, not direct Azure endpoints
-  // This avoids CORS issues and keeps API keys secure
-  
-  // Instead of building different URLs for different models,
-  // use a consistent endpoint on YOUR server
-  return `/api/chat/`;
-}
-
-// Initialize the send button when the DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('Initializing send button...');
-  
-  // Import the enableInteractiveElement function if needed
-  import('/static/js/ui/notificationManager.js').then(module => {
-    const { enableInteractiveElement } = module;
-    
-    // Enable the send button with proper error handling
-    enableInteractiveElement('send-button', () => {
-      console.log('Send button clicked');
-      sendMessage();
-    });
-    
-    // Also initialize the user input field to handle Enter key
-    const userInput = document.getElementById('user-input');
-    if (userInput) {
-      userInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          sendMessage();
-        }
-      });
-    }
-    
-    console.log('Send button initialized');
-  }).catch(err => {
-    console.error('Failed to initialize send button:', err);
-  });
-});
