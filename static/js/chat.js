@@ -421,6 +421,15 @@ export function renderAssistantMessage(content, isThinking = false) {
 
 function storeChatMessage(role, content) {
   const currentSessionId = getSessionId();
+  // Ensure required fields are present
+  if (!currentSessionId || !role || !content) {
+    console.error('[storeChatMessage] Missing required fields:', {
+      session_id: currentSessionId,
+      role,
+      content
+    });
+    return;
+  }
   if (!currentSessionId || !role || !content) {
     console.error('[storeChatMessage] Missing required fields.', {
       sessionId: currentSessionId,
