@@ -421,13 +421,12 @@ export function renderAssistantMessage(content, isThinking = false) {
 
 function storeChatMessage(role, content) {
   const currentSessionId = getSessionId();
-  // Ensure required fields are present
-  if (!currentSessionId) {
-    console.error('No valid session ID found — cannot store message.');
-    return;
-  }
-  if (!role || !content) {
-    console.error('Missing role or content — cannot store message.');
+  if (!currentSessionId || !role || !content) {
+    console.error('[storeChatMessage] Missing required fields.', {
+      sessionId: currentSessionId,
+      role,
+      content
+    });
     return;
   }
   fetchWithRetry(
