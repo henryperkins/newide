@@ -429,9 +429,11 @@ async def generate_stream_chunks(
     try:
         if is_inference_client and is_deepseek:
             # Enhanced DeepSeek-R1 streaming with proper handling of thinking blocks
-            stream = client.begin_chat_completions(
-                deployment=model_name,
-                **params,
+            stream = client.complete(
+                model=model_name,
+                messages=params["messages"],
+                temperature=params.get("temperature", 0.7),
+                max_tokens=params.get("max_tokens", 4096),
                 stream=True
             )
                 

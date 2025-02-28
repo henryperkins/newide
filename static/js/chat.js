@@ -232,7 +232,7 @@ export async function sendMessage() {
     }
     userInput.value = '';
     userInput.style.height = 'auto';
-    let currentSessionId = getSessionId() || localStorage.getItem('current_session_id');
+    let currentSessionId = await getSessionId() || localStorage.getItem('current_session_id');
     if (!currentSessionId) {
       try {
         showNotification('Session expired. Attempting to reconnect...', 'warning');
