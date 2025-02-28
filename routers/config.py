@@ -1,5 +1,6 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import Query
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -331,7 +332,7 @@ import uuid
 @router.post("/models/switch_model/{model_id}")
 async def switch_model_path(
     model_id: str,
-    session_id: str,
+    session_id: str = Query(..., description="Session ID query param"),
     db_session: AsyncSession = Depends(get_db_session),
 ):
     """Switch model using path parameter for model ID and query parameter for session ID"""
