@@ -6,9 +6,11 @@
 export function initTabSystem() {
   const tabButtons = document.querySelectorAll('[data-target-tab]');
   const isMobile = window.matchMedia('(max-width: 768px)').matches;
-  
-  // Initialize sidebar toggle after tab setup
-  initMobileSidebarToggle();
+
+  // Initialize tab click handlers first
+  tabButtons.forEach(button => {
+    button.addEventListener('click', () => handleTabChange(button));
+  });
   
   // Updated button classes
   if (isMobile) {
@@ -92,9 +94,14 @@ function handleTabChange(clickedTab) {
  * Initialize enhanced mobile sidebar handling
  */
 function initMobileSidebarToggle() {
-  const sidebar = document.querySelector('aside');
+  const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
   const toggleButton = document.querySelector('[aria-controls="config-content"]');
+  
+  if (!sidebar || !overlay || !toggleButton) {
+    console.error('Mobile sidebar elements missing:', {sidebar, overlay, toggleButton});
+    return;
+  }
   const closeButton = document.getElementById('close-sidebar');
   
   if (!toggleButton) {
@@ -127,8 +134,9 @@ function initMobileSidebarToggle() {
     });
   }
   
-  // Enhance existing toggle button functionality
+  // Enhanced toggle button functionality with logging
   toggleButton.addEventListener('click', () => {
+    console.log('Sidebar toggle clicked');
     const isExpanded = toggleButton.getAttribute('aria-expanded') === 'true';
     
     if (isExpanded) {
