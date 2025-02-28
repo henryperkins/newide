@@ -161,6 +161,8 @@ export async function streamChatResponse(
 /**
  * Process a streaming chunk of text with improved parsing and batching
  */
+let chunkBuffer = '';
+
 function processStreamingChunk(data) {
   // Ignore if not choice data
   if (!data.choices || data.choices.length === 0) return;
@@ -169,12 +171,30 @@ function processStreamingChunk(data) {
   data.choices.forEach(choice => {
     if (choice.delta && choice.delta.content) {
       const text = choice.delta.content;
-      mainTextBuffer += text;
+      chunkBuffer += text;
+      
+      // Look for unclosed thinking blocks
+      const lastOpening = chunkBuffer.lastIndexOf('<think>');
+      const lastClosing = chunkBuffer.lastIndexOf('</think>');
+      
+      if (lastOpening > lastClosing) {
+        // Incomplete thinking block - buffer until we get the closing tag
+        return;
+      }
+      
+      // Process complete content
+      mainTextBuffer += chunkBuffer;
+      chunkBuffer = '';
     }
     
     // Check for completion
     if (choice.finish_reason) {
       console.log(`[processStreamingChunk] Finished: ${choice.finish_reason}`);
+      // Flush any remaining buffer
+      if (chunkBuffer) {
+        mainTextBuffer += chunkBuffer;
+        chunkBuffer = '';
+      }
     }
   });
 }
