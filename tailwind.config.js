@@ -20,6 +20,8 @@ module.exports = {
     extend: {
       colors: {
         // Define primary design system colors with proper naming
+        'thinking-border': 'oklch(76% 0.12 276)',
+        'thinking-bg': 'oklch(97% 0.01 276)',
         primary: {
           50: 'oklch(97% 0.029 276)',
           100: 'oklch(94% 0.048 276)',
