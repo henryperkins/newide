@@ -7,6 +7,9 @@ export function initTabSystem() {
   const tabButtons = document.querySelectorAll('[data-target-tab]');
   const isMobile = window.matchMedia('(max-width: 768px)').matches;
   
+  // Initialize sidebar toggle after tab setup
+  initMobileSidebarToggle();
+  
   // Updated button classes
   if (isMobile) {
     tabButtons.forEach(button => {
