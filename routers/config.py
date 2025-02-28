@@ -3,12 +3,12 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi import Query
 from typing import Any, Dict, Optional, List, Literal
+from pydantic import BaseModel, Field, validator, model_validator
 
 logger = logging.getLogger(__name__)
 
 from database import get_db_session, AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, Field, validator, root_validator
 from clients import get_client_pool, ClientPool, ModelRegistry
 from services.config_service import get_config_service, ConfigService
 
@@ -134,15 +134,15 @@ class ModelConfigModel(BaseModel):
             return "standard"
         return v
     
-    @root_validator
-    def check_model_specific_params(cls, values):
-        model_type = values.get('model_type')
-        if model_type == "o-series" and values.get('requires_reasoning_effort', False):
-            if not values.get('reasoning_effort'):
-                values['reasoning_effort'] = "medium"
-        if model_type == "deepseek" and values.get('enable_thinking') is None:
-            values['enable_thinking'] = True
-        return values
+    @model_validator(mode='after')
+    def check_model_specific_params(self):
+        model_type = self.model_type
+        if model_type == "o-series" and self.requires_reasoning_effort:
+            if not self.reasoning_effort:
+                self.reasoning_effort = "medium"
+        if model_type == "deepseek" and self.enable_thinking is None:
+            self.enable_thinking = True
+        return self
 
 
 @router.get("/models", response_model=Dict[str, ModelConfigModel])
