@@ -100,7 +100,7 @@ export class DeepSeekProcessor {
                 this.initializeBlock(blockNode);
             }
         });
-
+i
         // Merge with existing content
         this.mergeStreamContent(container, tempDiv);
     }
