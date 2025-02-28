@@ -39,21 +39,21 @@ export async function streamChatResponse(
     
     // Build API URL and parameters
     let apiUrl = `/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
-    let params = new URLSearchParams({
+    let requestParams = new URLSearchParams({
       model: modelName || 'DeepSeek-R1',
       message: messageContent || '',
       reasoning_effort: reasoningEffort || 'medium'
     });
     
     if (developerConfig) {
-      params.append('developer_config', developerConfig);
+      requestParams.append('developer_config', developerConfig);
     }
     
     if (modelName.toLowerCase().includes('deepseek')) {
-      params.append('enable_thinking', 'true');
+      requestParams.append('enable_thinking', 'true');
     }
     
-    const fullUrl = `${apiUrl}&${params.toString()}`;
+    const fullUrl = `${apiUrl}&${requestParams.toString()}`;
     console.log(`[streamChatResponse] Connecting to: ${fullUrl}`);
     
     // Create EventSource with error and timeout handling

@@ -331,7 +331,7 @@ export async function sendMessage() {
     // Get model settings
     const modelSelect = document.getElementById('model-select');
     let modelName = 'DeepSeek-R1'; // Default model
-    
+  
     if (modelSelect) {
       modelName = modelSelect.value;
     }

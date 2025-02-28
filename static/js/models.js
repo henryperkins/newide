@@ -700,8 +700,8 @@ class ModelManager {
      */
     async getSessionId() {
         // Try to get from URL query parameter
-        const urlParams = new URLSearchParams(window.location.search);
-        const paramSessionId = urlParams.get('session_id');
+        const urlSearchParams = new URLSearchParams(window.location.search);
+        const paramSessionId = urlSearchParams.get('session_id');
         if (paramSessionId) return paramSessionId;
         
         // Try to get from localStorage
