@@ -570,9 +570,9 @@ export function renderAssistantMessage(content, isThinking = false) {
   messageElement.setAttribute('role', 'log');
   messageElement.setAttribute('aria-live', 'polite');
   
-  // Process DeepSeek-R1 thinking blocks
+  // Process DeepSeek-R1 thinking blocks through centralized processor
   if (content.includes('<think>')) {
-    content = processThinkingContent(content);
+    content = processDeepSeekResponse(content, true);
   }
   
   // Render markdown content

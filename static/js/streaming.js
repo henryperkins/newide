@@ -182,9 +182,9 @@ function processStreamingChunk(data) {
 }
 
 /**
- * Parse chunk text for reasoning blocks (<think> tags)
+ * Parse chunk text for reasoning blocks (handled by deepseekProcessor)
  */
-function parseChunkForReasoning(text) {
+// parseChunkForReasoning function removed - handled by processDeepSeekResponse()
   if (!isThinking) {
     // Check if this chunk contains a thinking start tag
     const thinkStart = text.indexOf('<think>');
