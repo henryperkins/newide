@@ -1,6 +1,8 @@
-from sqlalchemy import Column, String, DateTime, Text, Boolean, Integer, ForeignKey, BigInteger, text
+from sqlalchemy import Column, String, DateTime, Text, Boolean, Integer, ForeignKey, BigInteger, text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
 from sqlalchemy.ext.declarative import declarative_base
+from datetime import datetime, timedelta
+from fastapi import HTTPException
 
 Base = declarative_base()
 
@@ -16,6 +18,39 @@ class Session(Base):
     last_model = Column(String(50), nullable=True)
     # Renamed to avoid conflict with SQLAlchemy's reserved 'metadata'
     session_metadata = Column(JSONB, nullable=True)
+    # Rate limiting columns
+    request_count = Column(Integer, default=0, nullable=False)
+    last_request = Column(DateTime(timezone=True), server_default=text("NOW()"))
+    
+    def check_rate_limit(self):
+        """Check if session exceeds rate limit (10 requests/minute)"""
+        now = datetime.utcnow()
+        one_minute_ago = now - timedelta(minutes=1)
+        
+        if self.request_count >= 10 and self.last_request and self.last_request > one_minute_ago:
+            reset_time = self.last_request + timedelta(minutes=1)
+            seconds_remaining = int((reset_time - now).total_seconds())
+            
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "rate_limit_exceeded",
+                    "message": "Rate limit exceeded: 10 requests per minute",
+                    "retry_after": seconds_remaining
+                },
+                headers={"Retry-After": str(seconds_remaining)}
+            )
+        
+        # Update rate limit counters
+        if self.last_request and self.last_request < one_minute_ago:
+            # Reset counter if more than a minute has passed
+            self.request_count = 1
+        else:
+            # Increment counter
+            self.request_count += 1
+            
+        self.last_request = now
+        return True
 
 # -------------------------------------------------------------------------
 # Conversations

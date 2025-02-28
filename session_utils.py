@@ -80,8 +80,12 @@ class SessionManager:
             logger.warning(f"Invalid session ID format: {session_id}")
             if require_valid:
                 raise HTTPException(
-                    status_code=400, 
-                    detail="Invalid session ID format"
+                    status_code=422, 
+                    detail={
+                        "error": "invalid_session_id",
+                        "message": "Invalid session ID format: must be a valid UUID",
+                        "session_id": session_id
+                    }
                 )
             return None
             
@@ -89,7 +93,7 @@ class SessionManager:
         stmt = select(Session).where(Session.id == session_uuid)
         result = await db_session.execute(stmt)
         session = result.scalar_one_or_none()
-        
+            
         # Check if session exists and is not expired
         if not session:
             if require_valid:
@@ -98,7 +102,7 @@ class SessionManager:
                     detail="Session not found"
                 )
             return None
-            
+                
         if session.expires_at and session.expires_at < datetime.utcnow():
             if require_valid:
                 raise HTTPException(
@@ -107,6 +111,13 @@ class SessionManager:
                 )
             return None
             
+        # Check rate limits
+        try:
+            session.check_rate_limit()
+        except HTTPException as rate_error:
+            # Re-raise rate limit exception
+            raise rate_error
+                
         # Update last activity
         await db_session.execute(
             update(Session)
@@ -120,6 +131,24 @@ class SessionManager:
     @staticmethod
     async def create_session(db_session: AsyncSession) -> Session:
         """Create a new session"""
+        # Check for rate limiting at IP level
+        # Get count of sessions created in the last minute
+        one_minute_ago = datetime.utcnow() - timedelta(minutes=1)
+        stmt = select(func.count()).select_from(Session).where(Session.created_at >= one_minute_ago)
+        result = await db_session.execute(stmt)
+        recent_sessions_count = result.scalar_one()
+        
+        # Rate limit: max 20 sessions per minute globally
+        if recent_sessions_count >= 20:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "rate_limit_exceeded",
+                    "message": "Too many sessions created. Please try again later.",
+                },
+                headers={"Retry-After": "60"}
+            )
+            
         session_id = uuid.uuid4()
         
         # Create session with expiration time
@@ -128,7 +157,8 @@ class SessionManager:
             id=session_id,
             created_at=datetime.utcnow(),
             last_activity=datetime.utcnow(),
-            expires_at=expires_at
+            expires_at=expires_at,
+            request_count=0
         )
         
         db_session.add(new_session)

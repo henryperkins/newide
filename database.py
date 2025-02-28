@@ -134,13 +134,15 @@ async def init_database():
         # Remove destructive DROP TABLE commands
         pass  # Let Alembic handle migrations in production
         
-        # Create sessions table
+        # Create sessions table with rate limiting columns
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id UUID PRIMARY KEY,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 last_activity TIMESTAMPTZ DEFAULT NOW(),
-                expires_at TIMESTAMPTZ NOT NULL
+                expires_at TIMESTAMPTZ NOT NULL,
+                request_count INTEGER DEFAULT 0,
+                last_request TIMESTAMPTZ DEFAULT NOW()
             )"""))
         
         # Create conversations table

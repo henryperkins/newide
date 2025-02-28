@@ -99,22 +99,32 @@ async def create_session(
     # Extract client from the wrapper
     azure_client = client_wrapper.get("client") if client_wrapper else None
     
-    # Create a new session
-    new_session = await SessionManager.create_session(db_session)
-    
-    # Initialize session services in background
-    if azure_client:
-        background_tasks.add_task(
-            initialize_session_services, 
-            str(new_session.id), 
-            azure_client
-        )
-    
-    return {
-        "session_id": str(new_session.id),
-        "created_at": new_session.created_at.isoformat(),
-        "expires_in": config.SESSION_TIMEOUT_MINUTES * 60
-    }
+    try:
+        # Create a new session
+        new_session = await SessionManager.create_session(db_session)
+        
+        # Initialize session services in background
+        if azure_client:
+            background_tasks.add_task(
+                initialize_session_services, 
+                str(new_session.id), 
+                azure_client
+            )
+        
+        return {
+            "session_id": str(new_session.id),
+            "created_at": new_session.created_at.isoformat(),
+            "expires_in": config.SESSION_TIMEOUT_MINUTES * 60
+        }
+    except Exception as e:
+        logger.error(f"Error creating session: {str(e)}")
+        if "rate limit" in str(e).lower():
+            raise HTTPException(
+                status_code=429,
+                detail="Too many session creation requests. Please try again later.",
+                headers={"Retry-After": "60"}
+            )
+        raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
 
 @router.post("/refresh", response_model=SessionResponse)
 async def refresh_session(
