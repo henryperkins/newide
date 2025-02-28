@@ -192,6 +192,25 @@ async def create_chat_completion(
     Creates a single chat completion in a non-streaming (standard) manner,
     returning a ChatCompletionResponse following Azure OpenAI style.
     """
+    # Validate API version for the requested model
+    model_name = request.model or config.AZURE_OPENAI_DEPLOYMENT_NAME
+    expected_version = config.MODEL_API_VERSIONS.get(model_name, config.MODEL_API_VERSIONS.get("default"))
+    
+    # Get model configuration
+    client_wrapper = await get_model_client_dependency(model_name)
+    model_config = client_wrapper.get("model_config", {})
+    
+    # Check if model requires specific parameters
+    model_type = model_config.get("model_type", "standard")
+    
+    # Validate model-specific parameters
+    if model_type == "o-series" and not request.reasoning_effort:
+        logger.warning(f"Missing reasoning_effort for o-series model {model_name}")
+        request.reasoning_effort = "medium"  # Default value
+        
+    if model_type == "deepseek" and not hasattr(request, "enable_thinking"):
+        logger.info(f"Setting default enable_thinking=True for DeepSeek model {model_name}")
+        # We can't modify the request object directly, but we'll handle this in the processing logic
     try:
         # Ensure we have the required fields
         if not request.messages:
