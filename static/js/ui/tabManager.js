@@ -97,6 +97,24 @@ function initMobileSidebarToggle() {
   const toggleButton = document.querySelector('[aria-controls="config-content"]');
   const closeButton = document.getElementById('close-sidebar');
   
+  if (!toggleButton) {
+    console.error('Sidebar toggle button not found!');
+    return;
+  }
+
+  // Add debug logging
+  console.log('Sidebar toggle initialized');
+  toggleButton.addEventListener('click', () => {
+    console.log('Toggle button clicked');
+    console.log('Current aria-expanded:', toggleButton.getAttribute('aria-expanded'));
+  });
+
+  // Desktop fallback
+  if (window.innerWidth >= 768) { // Match your md breakpoint
+    sidebar.classList.remove('translate-x-full', 'translate-x-0');
+    sidebar.classList.add('md:translate-x-0');
+  }
+  
   if (!sidebar || !overlay || !toggleButton) return;
   
   // Close button handling
