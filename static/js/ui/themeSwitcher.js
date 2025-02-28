@@ -62,14 +62,17 @@ function setInitialTheme() {
   // Check for saved preference
   const savedTheme = localStorage.getItem('theme');
   
-  if (savedTheme === 'dark') {
+  if (savedTheme === 'dark' || savedTheme === 'dracula') {
     document.documentElement.classList.add('dark');
+    document.documentElement.setAttribute('data-theme', 'dracula');
   } else if (savedTheme === 'light') {
     document.documentElement.classList.remove('dark');
+    document.documentElement.setAttribute('data-theme', 'light');
   } else {
     // If no saved preference, check system preference
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
       document.documentElement.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dracula');
     }
   }
   
@@ -86,7 +89,10 @@ function toggleTheme() {
   
   // Store the preference in localStorage
   const isDark = document.documentElement.classList.contains('dark');
-  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  localStorage.setItem('theme', isDark ? 'dracula' : 'light');
+  
+  // Update data-theme attribute
+  document.documentElement.setAttribute('data-theme', isDark ? 'dracula' : 'light');
   
   // Update aria-pressed state for accessibility
   const themeToggle = document.getElementById('theme-toggle');

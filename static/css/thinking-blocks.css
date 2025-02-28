@@ -11,8 +11,8 @@
 }
 
 .dark .thinking-pre .code-block {
-  background-color: oklch(24% 0.018 276 / 0.5);
-  border: 1px solid oklch(42% 0.019 276);
+  background-color: var(--dracula-current-line);
+  border: 1px solid var(--dracula-comment);
 }
 
 .thinking-pre .code-block-header {
@@ -26,9 +26,9 @@
 }
 
 .dark .thinking-pre .code-block-header {
-  color: oklch(76% 0.126 276);
-  background-color: oklch(32% 0.02 276 / 0.5);
-  border-bottom: 1px solid oklch(42% 0.019 276);
+  color: var(--dracula-purple);
+  background-color: var(--dracula-background);
+  border-bottom: 1px solid var(--dracula-comment);
 }
 
 .thinking-pre .code-block code {
@@ -43,7 +43,7 @@
 }
 
 .dark .thinking-pre .code-block code {
-  color: oklch(95% 0.008 276);
+  color: var(--dracula-foreground);
 }
 
 /* Enhance thinking process blocks with animations */
@@ -69,7 +69,7 @@
 }
 
 .dark .thinking-process {
-  border-color: oklch(42% 0.019 276);
+  border-color: var(--dracula-comment);
 }
 
 .thinking-process:hover {
@@ -86,8 +86,8 @@
 }
 
 .dark .thinking-header {
-  background-color: oklch(32% 0.02 276 / 0.3);
-  border-bottom: 1px solid oklch(42% 0.019 276);
+  background-color: var(--dracula-current-line);
+  border-bottom: 1px solid var(--dracula-comment);
 }
 
 /* Thinking toggle button with improved accessibility and animations */
@@ -128,15 +128,15 @@
 }
 
 .dark .thinking-toggle {
-  color: oklch(76% 0.126 276);
+  color: var(--dracula-purple);
 }
 
 .dark .thinking-toggle:hover {
-  color: oklch(83% 0.107 276);
+  color: var(--dracula-pink);
 }
 
 .dark .thinking-toggle::after {
-  background-color: oklch(76% 0.126 276 / 0.3);
+  background-color: var(--dracula-purple);
 }
 
 .toggle-icon {
@@ -161,7 +161,7 @@
 }
 
 .dark .thinking-content {
-  background-color: oklch(24% 0.018 276 / 0.2);
+  background-color: var(--dracula-background);
 }
 
 /* Thinking pre with improved readability */
@@ -179,7 +179,7 @@
 }
 
 .dark .thinking-pre {
-  color: oklch(95% 0.008 276);
+  color: var(--dracula-foreground);
 }
 
 /* Gradient overlay for long content */
@@ -202,8 +202,8 @@
 .dark .thinking-gradient {
   background: linear-gradient(
     to top, 
-    rgba(30, 41, 59, 0.9) 0%, 
-    rgba(30, 41, 59, 0) 100%
+    rgba(40, 42, 54, 0.9) 0%, 
+    rgba(40, 42, 54, 0) 100%
   );
 }
 

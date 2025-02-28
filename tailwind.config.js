@@ -28,14 +28,14 @@ module.exports = {
           200: 'oklch(89% 0.078 276)',
           300: 'oklch(83% 0.107 276)',
           400: 'oklch(76% 0.126 276)',
-          500: 'oklch(68% 0.140 276)', // Base primary color
+          500: 'oklch(68% 0.140 276)', // Base primary color - Dracula Purple
           600: 'oklch(60% 0.135 276)',
           700: 'oklch(52% 0.130 276)',
           800: 'oklch(44% 0.118 276)',
           900: 'oklch(36% 0.095 276)',
           950: 'oklch(28% 0.075 276)',
         },
-        // Secondary accent color
+        // Secondary accent color - Dracula Pink
         secondary: {
           50: 'oklch(97% 0.029 333)',
           100: 'oklch(94% 0.048 333)',
@@ -49,7 +49,7 @@ module.exports = {
           900: 'oklch(36% 0.095 333)',
           950: 'oklch(28% 0.075 333)',
         },
-        // Neutral colors for text and backgrounds
+        // Dark colors for backgrounds - Dracula Background and Surface colors
         dark: {
           50: 'oklch(98% 0.005 276)',
           100: 'oklch(95% 0.008 276)',
@@ -59,29 +59,43 @@ module.exports = {
           500: 'oklch(54% 0.018 276)',
           600: 'oklch(42% 0.019 276)',
           700: 'oklch(32% 0.020 276)',
-          800: 'oklch(24% 0.018 276)',
-          900: 'oklch(18% 0.014 276)',
+          800: 'oklch(24% 0.018 276)', // Dracula Surface
+          900: 'oklch(18% 0.014 276)', // Dracula Background
           950: 'oklch(13% 0.010 276)',
+        },
+        // Add true Dracula palette colors
+        dracula: {
+          background: '#282a36',
+          currentLine: '#44475a',
+          foreground: '#f8f8f2',
+          comment: '#6272a4',
+          cyan: '#8be9fd',
+          green: '#50fa7b',
+          orange: '#ffb86c',
+          pink: '#ff79c6',
+          purple: '#bd93f9',
+          red: '#ff5555',
+          yellow: '#f1fa8c',
         },
         // Consistent semantic colors
         success: {
           50: 'oklch(96% 0.05 145)',
           100: 'oklch(93% 0.08 145)',
-          500: 'oklch(65% 0.22 145)',
+          500: 'oklch(65% 0.22 145)', // Dracula Green
           700: 'oklch(45% 0.18 145)',
           900: 'oklch(33% 0.12 145)',
         },
         warning: {
           50: 'oklch(97% 0.05 85)',
           100: 'oklch(94% 0.08 85)',
-          500: 'oklch(75% 0.20 85)',
+          500: 'oklch(75% 0.20 85)', // Dracula Yellow/Orange
           700: 'oklch(60% 0.18 85)',
           900: 'oklch(40% 0.12 85)',
         },
         error: {
           50: 'oklch(97% 0.05 30)',
           100: 'oklch(94% 0.08 30)',
-          500: 'oklch(65% 0.25 30)',
+          500: 'oklch(65% 0.25 30)', // Dracula Red
           700: 'oklch(50% 0.22 30)',
           900: 'oklch(35% 0.15 30)',
         },
