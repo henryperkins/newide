@@ -147,11 +147,16 @@ function formatThinkingContent(content) {
   // Trim leading/trailing whitespace
   formatted = formatted.trim();
   
+  // Process markdown elements in thinking content
+  // First handle blockquotes, lists, and tables
+  formatted = processMarkdownElements(formatted);
+  
   // Add syntax highlighting for code blocks in thinking content
-  // This regex looks for markdown-style code blocks ```language...```
-  formatted = formatted.replace(/```(\w*)([\s\S]*?)```/g, (match, language, code) => {
-    // Clean up the code
-    const cleanCode = code.trim();
+  // This regex now safely handles multiple code blocks and backticks within code
+  formatted = formatted.replace(/```([\w-]*)\n([\s\S]*?)```/g, (match, language, code) => {
+    // Clean up the code and escape any backticks within it
+    const cleanCode = code.trim()
+      .replace(/`/g, '&#96;'); // Escape backticks to prevent breaking out
     
     // Return with a special class for potential syntax highlighting
     return `<div class="code-block ${language ? `language-${language}` : ''}">
@@ -160,7 +165,42 @@ function formatThinkingContent(content) {
     </div>`;
   });
   
+  // Handle inline code blocks (single backticks)
+  formatted = formatted.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+  
   return formatted;
+}
+
+/**
+ * Process markdown elements like blockquotes, lists, and tables
+ * @param {string} content - Raw content with markdown
+ * @returns {string} - Content with markdown elements processed
+ */
+function processMarkdownElements(content) {
+  if (!content) return '';
+  
+  let processed = content;
+  
+  // Process blockquotes
+  processed = processed.replace(/^>[ \t](.*)$/gm, '<blockquote>$1</blockquote>');
+  
+  // Process unordered lists
+  processed = processed.replace(/^[ \t]*[-*+][ \t]+(.*)$/gm, '<li>$1</li>');
+  processed = processed.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+  
+  // Process ordered lists
+  processed = processed.replace(/^[ \t]*(\d+)\.[ \t]+(.*)$/gm, '<li>$2</li>');
+  processed = processed.replace(/(<li>.*<\/li>\n?)+/g, '<ol>$&</ol>');
+  
+  // Simplify nested list handling
+  processed = processed.replace(/<\/ul>\s*<ul>/g, '');
+  processed = processed.replace(/<\/ol>\s*<ol>/g, '');
+  
+  // Basic table handling
+  processed = processed.replace(/^\|(.+)\|$/gm, '<tr><td>$1</td></tr>');
+  processed = processed.replace(/(<tr>.*<\/tr>\n?)+/g, '<table>$&</table>');
+  
+  return processed;
 }
 
 /**
