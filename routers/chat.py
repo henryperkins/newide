@@ -572,6 +572,10 @@ async def generate_stream_chunks(
 
     except Exception as e:
         logger.exception("[ChatRouter] SSE streaming error")
+        from azure.core.exceptions import HttpResponseError
+        if isinstance(e, HttpResponseError) and e.status_code == 429:
+            yield f"data: {json.dumps({'error': {'code': 429, 'message': 'Rate limit exceeded. Please try again later.'}})}\n\n"
+            return
         error_payload = {
             "error": {
                 "message": "Streaming error occurred",
