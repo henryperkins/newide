@@ -1,3 +1,14 @@
+// build.js - Tailwind CSS build tool with enhanced features
+// Usage:
+//   Development build:       node build.js
+//   Production build:        node build.js --production
+//   Watch mode:              node build.js --watch
+//   Verbose output:          node build.js --verbose
+//   Combine flags:           node build.js --production --verbose
+
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 // Config
 const inputFile = 'static/css/tailwind.css';
