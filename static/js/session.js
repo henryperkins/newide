@@ -2,13 +2,19 @@ import { updateTokenUsage, fetchWithRetry, retry, eventBus } from './utils/helpe
 import { showNotification, handleMessageError, removeTypingIndicator } from './ui/notificationManager.js';
 import { processDeepSeekResponse, deepSeekProcessor } from './ui/deepseekProcessor.js';
 
-export function getSessionId() {
-  let sessionId = sessionStorage.getItem('sessionId');
-  if(!sessionId) {
-    // Generate a valid v4 UUID using the browser's crypto API (available in modern browsers).
-    // This ensures the backend recognizes session_id as a valid UUID.
-    sessionId = crypto.randomUUID();
-    sessionStorage.setItem('sessionId', sessionId);
+export async function getSessionId() {
+  let sessionId = sessionStorage.getItem("sessionId");
+  if (!sessionId) {
+    try {
+      const response = await fetch("/api/session/create", { method: "POST" });
+      if (!response.ok) throw new Error("Failed to create session");
+      const data = await response.json();
+      sessionId = data.session_id;
+      sessionStorage.setItem("sessionId", sessionId);
+    } catch (error) {
+      console.error("Failed to create session:", error);
+      return null;
+    }
   }
   return sessionId;
 }
