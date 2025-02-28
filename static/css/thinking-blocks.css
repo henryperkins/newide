@@ -1,0 +1,138 @@
+/* Additional styling for DeepSeek-R1 thinking blocks */
+
+/* Code blocks within thinking content */
+.thinking-pre .code-block {
+  margin: 1rem 0;
+  border-radius: 0.375rem;
+  overflow: hidden;
+  background-color: oklch(97% 0.01 276 / 0.3);
+  border: 1px solid oklch(86% 0.01 276);
+}
+
+.dark .thinking-pre .code-block {
+  background-color: oklch(24% 0.018 276 / 0.5);
+  border: 1px solid oklch(42% 0.019 276);
+}
+
+.thinking-pre .code-block-header {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: oklch(60% 0.135 276);
+  background-color: oklch(94% 0.048 276 / 0.2);
+  border-bottom: 1px solid oklch(86% 0.01 276);
+}
+
+.dark .thinking-pre .code-block-header {
+  color: oklch(76% 0.126 276);
+  background-color: oklch(32% 0.02 276 / 0.5);
+  border-bottom: 1px solid oklch(42% 0.019 276);
+}
+
+.thinking-pre .code-block code {
+  display: block;
+  padding: 0.75rem 1rem;
+  white-space: pre-wrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  color: oklch(32% 0.02 276);
+  overflow-x: auto;
+}
+
+.dark .thinking-pre .code-block code {
+  color: oklch(95% 0.008 276);
+}
+
+/* Enhance thinking process blocks */
+.thinking-process {
+  border: 1px solid var(--thinking-border, oklch(86% 0.01 276));
+  border-radius: 0.5rem;
+  overflow: hidden;
+  transition: all 0.2s ease-in-out;
+}
+
+.dark .thinking-process {
+  border-color: oklch(42% 0.019 276);
+}
+
+.thinking-process:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Thinking header with improved visual hierarchy */
+.thinking-header {
+  background-color: oklch(97% 0.029 276 / 0.2);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid oklch(86% 0.01 276);
+}
+
+.dark .thinking-header {
+  background-color: oklch(32% 0.02 276 / 0.3);
+  border-bottom: 1px solid oklch(42% 0.019 276);
+}
+
+/* Thinking toggle button with improved accessibility */
+.thinking-toggle {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  color: oklch(60% 0.135 276);
+  font-weight: 500;
+  transition: color 0.2s ease-in-out;
+  cursor: pointer;
+}
+
+.thinking-toggle:hover {
+  color: oklch(52% 0.13 276);
+}
+
+.dark .thinking-toggle {
+  color: oklch(76% 0.126 276);
+}
+
+.dark .thinking-toggle:hover {
+  color: oklch(83% 0.107 276);
+}
+
+.toggle-icon {
+  transition: transform 0.2s ease-in-out;
+}
+
+/* Thinking content area */
+.thinking-content {
+  background-color: oklch(97% 0.029 276 / 0.1);
+  position: relative;
+}
+
+.dark .thinking-content {
+  background-color: oklch(24% 0.018 276 / 0.2);
+}
+
+/* Thinking pre with improved readability */
+.thinking-pre {
+  padding: 1rem;
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: oklch(32% 0.02 276);
+  overflow-y: auto;
+  max-height: 300px;
+}
+
+.dark .thinking-pre {
+  color: oklch(95% 0.008 276);
+}
+
+/* Gradient overlay for long content */
+.thinking-gradient {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3rem;
+  background: linear-gradient(to top, var(--tw-gradient-stops));
+  pointer-events: none;
+}

@@ -15,7 +15,7 @@ let errorState = false;
 let chunkBuffer = '';
 
 const RENDER_INTERVAL_MS = 50;
-const CONNECTION_TIMEOUT_MS = 10000;
+const CONNECTION_TIMEOUT_MS = 30000; // Increased from 10000 to 30000 to allow more time for connection
 const MAX_RETRY_ATTEMPTS = 3;
 
 export async function streamChatResponse(
@@ -32,7 +32,7 @@ export async function streamChatResponse(
     if (!sessionId) {
       throw new Error('Invalid sessionId: Session ID is required for streaming');
     }
-    const apiUrl = `/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
+    const apiUrl = `${window.location.origin}/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
     const params = new URLSearchParams({
       model: modelName || 'DeepSeek-R1',
       message: messageContent || '',
@@ -148,7 +148,7 @@ export async function streamChatResponse(
       }
     };
 
-    eventSource.addEventListener('complete', (e) => {
+    eventSource.addEventListener('complete', async (e) => {
       try {
         if (e.data) {
           const completionData = JSON.parse(e.data);
@@ -163,7 +163,7 @@ export async function streamChatResponse(
       } catch (err) {
         console.error('[streamChatResponse] Error handling completion:', err);
       } finally {
-        cleanupStreaming();
+        await cleanupStreaming();
       }
     });
 
@@ -346,23 +346,29 @@ async function attemptErrorRecovery(messageContent, error) {
       window.addEventListener('online', async () => {
         await new Promise(r => setTimeout(r, 1500));
         showNotification('Connection restored. Retrying...', 'info', 3000);
-        const sessionId = getSessionId();
-        if (!sessionId) {
-          showNotification('Could not retrieve session ID', 'error');
-          resolve(false);
-          return;
-        }
-        const modelName = document.getElementById('model-select')?.value || 'DeepSeek-R1';
-        const developerConfig = document.getElementById('developer-config')?.value || '';
-        const reasoningEffort = getReasoningEffortSetting();
         try {
-          const success = await retry(
-            () => streamChatResponse(messageContent, sessionId, modelName, developerConfig, reasoningEffort),
-            MAX_RETRY_ATTEMPTS
-          );
-          resolve(success);
-        } catch {
-          showNotification('Recovery failed', 'error');
+          const sessionId = await getSessionId();
+          if (!sessionId) {
+            showNotification('Could not retrieve session ID', 'error');
+            resolve(false);
+            return;
+          }
+          const modelName = document.getElementById('model-select')?.value || 'DeepSeek-R1';
+          const developerConfig = document.getElementById('developer-config')?.value || '';
+          const reasoningEffort = getReasoningEffortSetting();
+          try {
+            const success = await retry(
+              () => streamChatResponse(messageContent, sessionId, modelName, developerConfig, reasoningEffort),
+              MAX_RETRY_ATTEMPTS
+            );
+            resolve(success);
+          } catch {
+            showNotification('Recovery failed', 'error');
+            resolve(false);
+          }
+        } catch (err) {
+          console.error('Error retrieving session ID:', err);
+          showNotification('Could not retrieve session ID', 'error');
           resolve(false);
         }
       }, { once: true });
@@ -371,21 +377,27 @@ async function attemptErrorRecovery(messageContent, error) {
   if (error.recoverable || ['ConnectionError', 'NetworkError', 'TimeoutError'].includes(error.name)) {
     showNotification('Retrying connection...', 'info', 3000);
     await new Promise(r => setTimeout(r, 2000));
-    const sessionId = getSessionId();
-    if (!sessionId) {
-      showNotification('Could not retrieve session ID', 'error');
-      return false;
-    }
-    const modelName = document.getElementById('model-select')?.value || 'DeepSeek-R1';
-    const developerConfig = document.getElementById('developer-config')?.value || '';
-    const reasoningEffort = getReasoningEffortSetting();
     try {
-      return await retry(
-        () => streamChatResponse(messageContent, sessionId, modelName, developerConfig, reasoningEffort),
-        MAX_RETRY_ATTEMPTS
-      );
-    } catch {
-      showNotification('Recovery failed', 'error');
+      const sessionId = await getSessionId();
+      if (!sessionId) {
+        showNotification('Could not retrieve session ID', 'error');
+        return false;
+      }
+      const modelName = document.getElementById('model-select')?.value || 'DeepSeek-R1';
+      const developerConfig = document.getElementById('developer-config')?.value || '';
+      const reasoningEffort = getReasoningEffortSetting();
+      try {
+        return await retry(
+          () => streamChatResponse(messageContent, sessionId, modelName, developerConfig, reasoningEffort),
+          MAX_RETRY_ATTEMPTS
+        );
+      } catch {
+        showNotification('Recovery failed', 'error');
+        return false;
+      }
+    } catch (err) {
+      console.error('Error retrieving session ID:', err);
+      showNotification('Could not retrieve session ID', 'error');
       return false;
     }
   }
@@ -408,7 +420,7 @@ function resetStreamingState() {
   errorState = false;
 }
 
-function cleanupStreaming() {
+async function cleanupStreaming() {
   isProcessing = false;
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
@@ -417,13 +429,13 @@ function cleanupStreaming() {
   removeTypingIndicator();
   if (mainTextBuffer && messageContainer) {
     try {
-      const sessionId = getSessionId();
+      const sessionId = await getSessionId();
       if (!sessionId) {
         console.error('No valid session ID found — cannot store message.');
       } else if (!mainTextBuffer) {
         console.error('Missing assistant content — cannot store message.');
       } else {
-        fetchWithRetry('/api/chat/conversations/store', {
+        await fetchWithRetry(`${window.location.origin}/api/chat/conversations/store`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

@@ -6,7 +6,7 @@ export async function getSessionId() {
   let sessionId = sessionStorage.getItem("sessionId");
   if (!sessionId) {
     try {
-      const response = await fetch("/api/session/create", { method: "POST" });
+      const response = await fetch(`${window.location.origin}/api/session/create`, { method: "POST" });
       if (!response.ok) throw new Error("Failed to create session");
       const data = await response.json();
       sessionId = data.session_id;
@@ -16,6 +16,29 @@ export async function getSessionId() {
       return null;
     }
   }
+  
+  // Log the session ID to help with debugging
+  console.log('[getSessionId] Current session ID:', sessionId);
+  
+  // Validate UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(sessionId)) {
+    console.error('[getSessionId] Invalid UUID format:', sessionId);
+    // Try to create a new session
+    try {
+      console.log('[getSessionId] Attempting to create a new session...');
+      const response = await fetch(`${window.location.origin}/api/session/create`, { method: "POST" });
+      if (!response.ok) throw new Error("Failed to create session");
+      const data = await response.json();
+      sessionId = data.session_id;
+      sessionStorage.setItem("sessionId", sessionId);
+      console.log('[getSessionId] Created new session ID:', sessionId);
+    } catch (error) {
+      console.error("[getSessionId] Failed to create new session:", error);
+      return null;
+    }
+  }
+  
   return sessionId;
 }
 
@@ -25,7 +48,7 @@ export function setLastUserMessage(message) {
 
 export async function initializeSession() {
   try {
-    const response = await fetch('/api/session/create', { method: 'POST' });
+    const response = await fetch(`${window.location.origin}/api/session/create`, { method: 'POST' });
     if (!response.ok) throw new Error('Failed to create session');
     const data = await response.json();
     sessionStorage.setItem('sessionId', data.session_id);
@@ -65,7 +88,7 @@ export async function streamChatResponse(
     if (!sessionId) {
       throw new Error('Invalid sessionId: Session ID is required for streaming');
     }
-    const apiUrl = `/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
+    const apiUrl = `${window.location.origin}/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
     const params = new URLSearchParams({
       model: modelName || 'DeepSeek-R1',
       message: messageContent || '',
@@ -452,7 +475,7 @@ function cleanupStreaming() {
     try {
       const sessionId = getSessionId();
       if (sessionId) {
-        fetchWithRetry('/api/chat/conversations/store', {
+        fetchWithRetry(`${window.location.origin}/api/chat/conversations/store`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

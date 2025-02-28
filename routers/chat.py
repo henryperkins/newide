@@ -450,13 +450,21 @@ async def generate_stream_chunks(
                 max_tokens=params.get("max_tokens", 4096),
                 stream=True
             )
-                
-            async for chunk in stream:
+            
+            # Handle StreamingChatCompletions object correctly
+            # The StreamingChatCompletions object is directly iterable
+            # Instead of accessing an 'iterator' property, we iterate over the object itself
+            for chunk in stream:
                 try:
-                    if hasattr(chunk.choices[0].delta, "content") and chunk.choices[0].delta.content:
-                        content = chunk.choices[0].delta.content
-                        full_content += content
-                        yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
+                    # Check if chunk has choices and if the choices list is not empty
+                    if hasattr(chunk, 'choices') and chunk.choices and len(chunk.choices) > 0:
+                        # Now safely access the first choice
+                        first_choice = chunk.choices[0]
+                        # Check if the delta attribute exists and has content
+                        if hasattr(first_choice, 'delta') and hasattr(first_choice.delta, "content") and first_choice.delta.content:
+                            content = first_choice.delta.content
+                            full_content += content
+                            yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
                 except Exception as chunk_error:
                     logger.warning(f"Error processing DeepSeek chunk: {str(chunk_error)}")
                     # Still yield a partial chunk if possible to avoid breaking the stream
@@ -560,14 +568,15 @@ async def generate_stream_chunks(
             )
 
             # Store messages in database
+            # We need to use the db session that was passed to the function, not the get_db_session function
             await save_conversation(
-                get_db_session,
+                db,  # Use the db session that was passed to the function
                 session_id,
                 model_name,
                 message,
                 full_content,
                 formatted_content,
-                response,
+                None,  # We don't need the response object for DeepSeek models
             )
 
     except Exception as e:

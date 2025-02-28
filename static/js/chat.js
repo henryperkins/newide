@@ -337,7 +337,7 @@ async function fetchChatResponse(
     lastError = null;
   while (retryCount <= maxRetries) {
     try {
-      const apiUrl = '/api/chat';
+      const apiUrl = `${window.location.origin}/api/chat`;
       const messages = [];
       if (devConfig) messages.push({ role: 'system', content: devConfig });
       messages.push({ role: 'user', content: messageContent });
@@ -405,8 +405,7 @@ export function renderAssistantMessage(content, isThinking = false) {
   el.setAttribute('role', 'log');
   el.setAttribute('aria-live', 'polite');
   if (content.includes('<think>')) {
-    const processed = deepSeekProcessor.processContent(content, true);
-    content = processed.processedContent;
+    content = deepSeekProcessor.replaceThinkingBlocks(content);
   }
   const markdown = renderMarkdown(content);
   const processedContent = processCodeBlocks(markdown);
@@ -419,42 +418,58 @@ export function renderAssistantMessage(content, isThinking = false) {
   if (!isThinking) storeChatMessage('assistant', content);
 }
 
-function storeChatMessage(role, content) {
-  const currentSessionId = getSessionId();
-  // Ensure required fields are present
-  if (!currentSessionId || !role || !content) {
-    console.error('[storeChatMessage] Missing required fields:', {
+async function storeChatMessage(role, content) {
+  try {
+    const currentSessionId = await getSessionId();
+    // Ensure required fields are present
+    if (!currentSessionId || !role || !content) {
+      console.error('[storeChatMessage] Missing required fields:', {
+        session_id: currentSessionId,
+        role,
+        content
+      });
+      return;
+    }
+    console.log('[storeChatMessage] Sending message to server:', {
       session_id: currentSessionId,
       role,
-      content
+      content: content.substring(0, 50) + (content.length > 50 ? '...' : '')
     });
-    return;
-  }
-  if (!currentSessionId || !role || !content) {
-    console.error('[storeChatMessage] Missing required fields.', {
-      sessionId: currentSessionId,
-      role,
-      content
-    });
-    return;
-  }
-  fetchWithRetry(
-    `/api/chat/conversations/store`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: currentSessionId, role, content })
-    },
-    3
-  ).catch(err => console.warn('Failed to store message in backend:', err));
-  try {
-    const key = `conversation_${currentSessionId}`;
-    let convo = JSON.parse(localStorage.getItem(key) || '[]');
-    convo.push({ role, content, timestamp: new Date().toISOString() });
-    if (convo.length > 50) convo = convo.slice(-50);
-    localStorage.setItem(key, JSON.stringify(convo));
-  } catch (e) {
-    console.warn('Failed to store message locally:', e);
+    
+    try {
+      const response = await fetchWithRetry(
+        `${window.location.origin}/api/chat/conversations/store`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: currentSessionId, role, content })
+        },
+        3
+      );
+      
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('[storeChatMessage] Server error:', response.status, text);
+        throw new Error(`Server returned ${response.status}: ${text}`);
+      }
+      
+      console.log('[storeChatMessage] Message stored successfully');
+    } catch (err) {
+      console.warn('Failed to store message in backend:', err);
+    }
+    
+    // Also store in localStorage as backup
+    try {
+      const key = `conversation_${currentSessionId}`;
+      let convo = JSON.parse(localStorage.getItem(key) || '[]');
+      convo.push({ role, content, timestamp: new Date().toISOString() });
+      if (convo.length > 50) convo = convo.slice(-50);
+      localStorage.setItem(key, JSON.stringify(convo));
+    } catch (e) {
+      console.warn('Failed to store message locally:', e);
+    }
+  } catch (error) {
+    console.error('Error in storeChatMessage:', error);
   }
 }
 
@@ -496,7 +511,7 @@ function processCodeBlocks(html) {
 async function getModelConfig(modelName) {
   try {
     const encoded = encodeURIComponent(modelName);
-    const response = await fetch(`/api/config/models/${encoded}`);
+    const response = await fetch(`${window.location.origin}/api/config/models/${encoded}`);
     if (response.ok) return await response.json();
     console.warn(`Could not fetch model config for ${modelName}, status: ${response.status}`);
     if (response.status === 400) console.error(`Bad request: check model name and API.`);

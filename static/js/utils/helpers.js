@@ -1,5 +1,11 @@
 import { getCurrentConfig } from "/static/js/config.js";
 
+/**
+ * Builds a complete Azure OpenAI API URL
+ * @param {string} deploymentName - The deployment name to use
+ * @param {string} apiVersion - The API version
+ * @returns {Promise<string>} The complete API URL
+ */
 export async function buildAzureOpenAIUrl(deploymentName, apiVersion) {
   const config = await getCurrentConfig();
   const endpoint = config.azureOpenAI?.endpoint || "https://aoai-east-2272068338224.cognitiveservices.azure.com";
@@ -12,6 +18,11 @@ export async function buildAzureOpenAIUrl(deploymentName, apiVersion) {
   return apiUrl.toString();
 }
 
+/**
+ * Formats a file size in bytes to a human-readable string
+ * @param {number} bytes - The size in bytes
+ * @returns {string} Formatted size string (e.g., "1.5 MB")
+ */
 export function formatFileSize(bytes) {
     if (typeof bytes !== 'number' || bytes < 0) return '0 B';
     
@@ -29,6 +40,11 @@ export function formatFileSize(bytes) {
     return `${bytes.toFixed(u === 0 ? 0 : 1)} ${units[u]}`;
 }
 
+/**
+ * Copies text to the clipboard
+ * @param {string} text - The text to copy
+ * @returns {Promise<boolean>} Whether the copy was successful
+ */
 export async function copyToClipboard(text) {
     try {
         await navigator.clipboard.writeText(text);
@@ -39,6 +55,10 @@ export async function copyToClipboard(text) {
     }
 }
 
+/**
+ * Updates token usage display in the UI
+ * @param {Object} usage - Token usage statistics
+ */
 export function updateTokenUsage(usage) {
     if (!usage) return;
 
@@ -109,6 +129,10 @@ export function updateTokenUsage(usage) {
     metricsContainer.innerHTML = generateMetricsHTML(usage);
 }
 
+/**
+ * Creates the advanced metrics container if it doesn't exist
+ * @returns {HTMLElement} The metrics container
+ */
 function createAdvancedMetricsContainer() {
     const container = document.createElement('div');
     container.id = 'advanced-token-metrics';
@@ -122,6 +146,11 @@ function createAdvancedMetricsContainer() {
     return container;
 }
 
+/**
+ * Generates HTML for the advanced metrics display
+ * @param {Object} usage - Token usage statistics
+ * @returns {string} HTML string
+ */
 function generateMetricsHTML(usage) {
     let html = '';
     
@@ -164,6 +193,9 @@ function generateMetricsHTML(usage) {
     return html;
 }
 
+/**
+ * Toggles the theme between light and dark
+ */
 export function toggleTheme() {
     const theme = document.documentElement.getAttribute('data-theme');
     const newTheme = theme === 'dark' ? 'light' : 'dark';
@@ -176,7 +208,9 @@ export function toggleTheme() {
     }
 }
 
-// Initialize theme on load
+/**
+ * Initializes theme based on user preference or system setting
+ */
 export function initializeTheme() {
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
@@ -193,6 +227,12 @@ export function initializeTheme() {
     }
 }
 
+/**
+ * Creates a debounced version of a function
+ * @param {Function} fn - The function to debounce
+ * @param {number} delay - Delay in milliseconds
+ * @returns {Function} Debounced function
+ */
 export function debounce(fn, delay = 300) {
     let timeoutId;
     return (...args) => {
@@ -201,6 +241,12 @@ export function debounce(fn, delay = 300) {
     };
 }
 
+/**
+ * Creates a throttled version of a function
+ * @param {Function} fn - The function to throttle
+ * @param {number} limit - Throttle limit in milliseconds
+ * @returns {Function} Throttled function
+ */
 export function throttle(fn, limit = 300) {
     let timeoutId;
     let lastCall = 0;
@@ -213,12 +259,166 @@ export function throttle(fn, limit = 300) {
     };
 }
 
+/**
+ * Sanitizes input text to prevent XSS attacks
+ * @param {string} text - Input text
+ * @returns {string} Sanitized text
+ */
 export function sanitizeInput(text) {
     return text.replace(/</g, '&lt;').replace(/>/g, '&gt;').trim();
 }
 
+/**
+ * Checks if the current device is mobile
+ * @returns {boolean} True if mobile device
+ */
 export function isMobileDevice() {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
         navigator.userAgent
     );
+}
+
+/**
+ * Creates a cache with expiration for frequently accessed data
+ * @param {number} maxAge - Maximum age in milliseconds
+ * @returns {Object} Cache interface
+ */
+export function createCache(maxAge = 60000) {
+  const cache = new Map();
+  
+  return {
+    get(key) {
+      const item = cache.get(key);
+      if (!item) return undefined;
+      
+      const now = Date.now();
+      if (now > item.expiry) {
+        cache.delete(key);
+        return undefined;
+      }
+      
+      return item.value;
+    },
+    
+    set(key, value) {
+      const expiry = Date.now() + maxAge;
+      cache.set(key, { value, expiry });
+      return value;
+    },
+    
+    clear() {
+      cache.clear();
+    }
+  };
+}
+
+/**
+ * Standardized fetch error handling
+ * @param {string} url - URL to fetch
+ * @param {Object} options - Fetch options
+ * @returns {Promise<any>} - Parsed response
+ */
+export async function fetchWithErrorHandling(url, options = {}) {
+  try {
+    const response = await fetch(url, options);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw {
+        status: response.status,
+        message: errorData.detail || errorData.message || response.statusText,
+        data: errorData
+      };
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`API error: ${error.message || error}`);
+    throw error;
+  }
+}
+
+/**
+ * Simple event bus for pub/sub communication between components
+ */
+export const eventBus = {
+  events: {},
+  
+  subscribe(event, callback) {
+    if (!this.events[event]) this.events[event] = [];
+    this.events[event].push(callback);
+    return () => this.unsubscribe(event, callback);
+  },
+  
+  publish(event, data) {
+    if (!this.events[event]) return;
+    this.events[event].forEach(callback => callback(data));
+  },
+  
+  unsubscribe(event, callback) {
+    if (!this.events[event]) return;
+    this.events[event] = this.events[event].filter(cb => cb !== callback);
+  }
+};
+
+/**
+ * Retry a function with exponential backoff
+ * @param {Function} fn - Function to retry
+ * @param {number} maxRetries - Maximum number of retries
+ * @param {number} baseDelay - Base delay in ms
+ * @returns {Promise<any>} - Result of the function
+ */
+export async function retry(fn, maxRetries = 3, baseDelay = 1000) {
+  let lastError;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      
+      // Don't wait on the final attempt
+      if (attempt < maxRetries - 1) {
+        // Exponential backoff with jitter
+        const delay = baseDelay * Math.pow(2, attempt) * (0.9 + Math.random() * 0.2);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError;
+}
+
+/**
+ * Check if the current environment is mobile
+ * @returns {boolean} True if mobile
+ */
+export function isMobileEnvironment() {
+  return window.matchMedia('(max-width: 768px)').matches || 
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+/**
+ * Fetch with exponential backoff retry logic
+ * @param {string} url - The URL to fetch
+ * @param {Object} options - Fetch options
+ * @param {number} maxRetries - Maximum number of retries
+ * @returns {Promise<Response>} - The fetch response
+ */
+export async function fetchWithRetry(url, options = {}, maxRetries = 3) {
+  return retry(async () => {
+    const response = await fetch(url, options);
+    
+    // If the request was successful or it's a client error (4xx), don't retry
+    if (response.ok || (response.status >= 400 && response.status < 500)) {
+      return response;
+    }
+    
+    // Only retry on server errors (5xx)
+    if (response.status >= 500) {
+      throw new Error(`Server error (${response.status})`);
+    }
+    
+    return response; // Don't retry on other status codes
+  }, maxRetries);
 }
