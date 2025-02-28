@@ -139,7 +139,7 @@ export function safeMarkdownParse(content) {
                 'p', 'br', 'b', 'i', 'em', 'strong', 'a', 'ul', 'ol', 'li',
                 'code', 'pre', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
                 'hr', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
-                'sup', 'sub', 'div', 'span'
+                'sup', 'sub', 'div', 'span', 'think', '/think'
             ],
             ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'target', 'rel'],
             ALLOW_DATA_ATTR: false,

@@ -56,7 +56,8 @@ export function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, think
     mainBuffer: mainBuffer || '',
     thinkingBuffer: thinkingBuffer || '',
     isThinking: isThinking || false,
-    remainingChunk: ''
+    remainingChunk: '',
+    hasMultipleThinking: false
   };
 
   if (!chunkBuffer) return result;
@@ -93,11 +94,27 @@ export function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, think
 
       // Extract thinking content without the tags
       const thinkContent = chunkBuffer.substring(openTagIndex + 7, closeTagIndex);
-      result.thinkingBuffer = thinkContent;
+      
+      // Handle multiple thinking blocks in the same chunk
+      if (result.thinkingBuffer) {
+        result.thinkingBuffer += '\n\n' + thinkContent;
+        result.hasMultipleThinking = true;
+      } else {
+        result.thinkingBuffer = thinkContent;
+      }
 
-      // Process content after closing tag
+      // Check if there are more thinking blocks after this one
       const afterThink = chunkBuffer.substring(closeTagIndex + 8);
-      result.remainingChunk = afterThink;
+      const nextThinkIndex = afterThink.indexOf('<think>');
+      
+      if (nextThinkIndex >= 0) {
+        // We have another thinking block
+        result.remainingChunk = afterThink;
+        result.hasMultipleThinking = true;
+      } else {
+        // No more thinking blocks, process the rest as normal content
+        result.remainingChunk = afterThink;
+      }
     } else {
       // Partial thinking block - still collecting
       result.isThinking = true;
@@ -132,17 +149,23 @@ export function createThinkingBlockHTML(thinkingContent) {
     preElement.setAttribute('aria-live', 'polite');
   }
 
+  const uniqueId = `thinking-content-${Date.now()}`;
   return `
-    <div class="thinking-process shadow-sm my-4" role="region" aria-label="Model reasoning process">
+    <div class="thinking-process shadow-sm my-4 new" 
+         role="region" 
+         aria-label="Model reasoning process" 
+         data-collapsed="false">
       <div class="thinking-header">
-        <button class="thinking-toggle" aria-expanded="false" 
-                aria-controls="thinking-content">
+        <button class="thinking-toggle" 
+                aria-expanded="true" 
+                aria-controls="${uniqueId}">
           <span class="font-medium">Thinking Process</span>
-          <span class="toggle-icon transition-transform duration-200" aria-hidden="true">▼</span>
+          <span class="toggle-icon" aria-hidden="true">▼</span>
         </button>
       </div>
-      <div class="thinking-content" id="thinking-content" hidden>
-        ${doc.body.innerHTML}
+      <div class="thinking-content" id="${uniqueId}">
+        <pre class="thinking-pre">${formattedContent}</pre>
+        <div class="thinking-gradient"></div>
       </div>
     </div>
   `;
@@ -229,14 +252,36 @@ function processMarkdownElements(content) {
 export function replaceThinkingBlocks(content) {
   if (!content) return '';
 
-  // More robust regex with HTML comment fallback and sanitization
-  return content.replace(
-    /<think>([\s\S]*?)<\/think>|<!-- THINKING: (.*?) -->/g,
-    (match, thinking, legacyThinking) => {
-      const content = thinking || legacyThinking || '';
-      return DOMPurify.sanitize(createThinkingBlockHTML(content));
+  // Extract all thinking blocks using our robust extractor
+  const thinkingBlocks = extractThinkingContent(content);
+  
+  // If no thinking blocks found, return the original content
+  if (thinkingBlocks.length === 0) {
+    return content;
+  }
+  
+  // Process content to replace thinking blocks with HTML
+  let result = content;
+  
+  // Handle each thinking block
+  thinkingBlocks.forEach(thinkContent => {
+    // Find the original block in the content and replace it
+    const blockStartIndex = result.indexOf(`<think>${thinkContent}</think>`);
+    if (blockStartIndex !== -1) {
+      const blockEndIndex = blockStartIndex + thinkContent.length + 15; // 15 = <think></think> length
+      const beforeBlock = result.substring(0, blockStartIndex);
+      const afterBlock = result.substring(blockEndIndex);
+      
+      // Insert thinking block HTML
+      const thinkingHTML = DOMPurify.sanitize(createThinkingBlockHTML(thinkContent));
+      result = beforeBlock + thinkingHTML + afterBlock;
     }
-  );
+  });
+  
+  // Clean up any remaining thinking blocks that might be nested
+  result = result.replace(/<think>[\s\S]*?<\/think>/g, '');
+  
+  return result;
 }
 
 /**
@@ -247,14 +292,45 @@ function initializeExistingBlocks() {
   document.querySelectorAll('.thinking-process').forEach(thinkingProcess => {
     const toggleBtn = thinkingProcess.querySelector('.thinking-toggle');
     const content = thinkingProcess.querySelector('.thinking-content');
+    const toggleIcon = thinkingProcess.querySelector('.toggle-icon');
+
+    // Add necessary data attributes for animation state management
+    if (!thinkingProcess.hasAttribute('data-collapsed')) {
+      thinkingProcess.setAttribute('data-collapsed', 'false');
+    }
+
+    // Apply smooth entrance animation to blocks that don't have the 'new' class yet
+    if (!thinkingProcess.classList.contains('new')) {
+      thinkingProcess.classList.add('new');
+      
+      // Remove animation class after it completes
+      setTimeout(() => {
+        thinkingProcess.classList.remove('new');
+      }, 2000);
+    }
 
     if (toggleBtn && content) {
       toggleBtn.addEventListener('click', () => {
         const expanded = toggleBtn.getAttribute('aria-expanded') === 'true';
+        
+        // Update accessibility attributes
         toggleBtn.setAttribute('aria-expanded', !expanded);
+        thinkingProcess.setAttribute('data-collapsed', expanded ? 'false' : 'true');
+        
+        // Apply animations
         content.classList.toggle('hidden', expanded);
-        toggleBtn.querySelector('.toggle-icon').style.transform =
-          expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+        
+        // Ensure height transitions work properly by forcing a reflow
+        if (!expanded) {
+          window.getComputedStyle(content).getPropertyValue('opacity');
+        }
+        
+        // Animate icon with spring physics for a more natural feel
+        if (toggleIcon) {
+          toggleIcon.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+          toggleIcon.style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+          toggleIcon.textContent = '▼'; // Always use same icon but rotate it
+        }
       });
     }
   });
@@ -346,16 +422,34 @@ function createThinkingBlock(thinkingContent) {
     </div>
   `;
 
-  // Add toggle functionality
+  // Add enhanced toggle functionality with animations
   const toggleButton = container.querySelector('.thinking-toggle');
   const contentDiv = container.querySelector('.thinking-content');
+  const toggleIcon = container.querySelector('.toggle-icon');
+  
+  // Add 'new' class for the initial animation
+  container.classList.add('new');
+  
+  // Remove 'new' class after animation completes
+  setTimeout(() => {
+    container.classList.remove('new');
+  }, 2000);
 
   if (toggleButton && contentDiv) {
     toggleButton.addEventListener('click', function() {
       const expanded = this.getAttribute('aria-expanded') === 'true';
+      
+      // Update attributes for accessibility
       this.setAttribute('aria-expanded', !expanded);
+      container.setAttribute('data-collapsed', expanded ? 'false' : 'true');
+      
+      // Apply animations using classes instead of inline styles
       contentDiv.classList.toggle('hidden', expanded);
-      this.querySelector('.toggle-icon').style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+      
+      // Smoother icon rotation with spring physics
+      if (toggleIcon) {
+        toggleIcon.style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+      }
     });
   }
 

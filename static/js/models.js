@@ -446,6 +446,7 @@ class ModelManager {
 
     async switchModel(modelId) {
         if (this.currentModel === modelId) return true;
+    console.log('[switchModel] Initiating switchModel for:', modelId, 'currentModel:', this.currentModel);
         if (!this.modelConfigs[modelId]) {
             console.error(`Model ${modelId} not found in configurations`);
             showNotification(`Model ${modelId} not available`, 'error');
@@ -455,6 +456,7 @@ class ModelManager {
             showNotification(`Switching to ${modelId}...`, 'info');
             this.pendingModelActions[modelId] = 'switch';
             const sessionId = await this.getSessionId();
+  console.log('[switchModel] sessionId is:', sessionId);
             
             // Get full model configuration
             const modelConfig = this.modelConfigs[modelId];
@@ -475,9 +477,14 @@ class ModelManager {
             
             const response = await fetch(`${window.location.origin}/api/config/models/switch`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
-            });
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      });
+console.log('[switchModel] Request body used:', requestBody);
+console.log('[switchModel] Will attempt to switch model.');
+      console.log('[switchModel] Request body used:', requestBody);
+      console.log('[switchModel] Will attempt to switch model.'),
+        });
             
             delete this.pendingModelActions[modelId];
             
@@ -647,6 +654,7 @@ class ModelManager {
 
     async createModelOnServer(modelId, modelConfig) {
         if (this.pendingModelActions[modelId]) {
+        console.log('[createModelOnServer] Already pending creation for:', modelId, 'pendingAction:', this.pendingModelActions[modelId]);
             console.warn(`Creation of ${modelId} already in progress`);
             return { status: "pending" };
         }
@@ -720,7 +728,7 @@ class ModelManager {
             return {
                 name: modelId,
                 description: modelId.startsWith('o1') ? "Advanced reasoning model" : "High-performance reasoning model",
-                azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
+                azure_endpoint: "https://o1models.openai.azure.com",
                 api_version: "2025-01-01-preview",
                 max_tokens: 200000,
                 max_completion_tokens: 5000,

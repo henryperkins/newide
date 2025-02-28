@@ -80,43 +80,35 @@ export async function streamChatResponse(
       }
     };
 
-    const errorHandler = (e) => {
-      clearTimeout(connectionTimeout);
-      if (!navigator.onLine) {
-        handleStreamingError(Object.assign(new Error('Network offline'), {
-          name: 'NetworkError',
-          recoverable: true
-        }));
-        return;
-      }
-      if (e.data && typeof e.data === 'string') {
-        try {
-          const errorData = JSON.parse(e.data);
-          const errorMessage = errorData.error?.message || errorData.message || errorData.detail || 'Server error';
-          handleStreamingError(Object.assign(new Error(errorMessage), {
-            name: 'ServerError',
-            data: errorData,
-            recoverable: true
-          }));
-        } catch {
-          handleStreamingError(new Error(`Server sent invalid response: ${e.data.substring(0, 100)}`));
-        }
-      } else {
-        const err = new Error('Connection error');
-        err.name = 'ConnectionError';
-        err.readyState = e.target?.readyState;
-        err.recoverable = true;
-        handleStreamingError(err);
-      }
-    };
-
-    eventSource.addEventListener('error', errorHandler);
-
     eventSource.onerror = (e) => {
       clearTimeout(connectionTimeout);
       if (!connectionClosed) {
         connectionClosed = true;
         eventSource.close();
+        // If offline:
+        if (!navigator.onLine) {
+          handleStreamingError(Object.assign(new Error('Network offline'), {
+            name: 'NetworkError',
+            recoverable: true
+          }));
+          return;
+        }
+        // If there's an error response in e.data:
+        if (e.data && typeof e.data === 'string') {
+          try {
+            const errorData = JSON.parse(e.data);
+            const errorMessage = errorData.error?.message || errorData.message || errorData.detail || 'Server error';
+            handleStreamingError(Object.assign(new Error(errorMessage), {
+              name: 'ServerError',
+              data: errorData,
+              recoverable: true
+            }));
+            return;
+          } catch {
+            handleStreamingError(new Error(`Server sent invalid response: ${String(e.data).substring(0, 100)}`));
+            return;
+          }
+        }
         if (!errorState) {
           errorState = true;
           if (mainTextBuffer || thinkingTextBuffer) {

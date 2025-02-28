@@ -194,6 +194,7 @@ function initChatInterface() {
             console.error('Copy failed:', err);
             showNotification('Failed to copy to clipboard', 'error');
           });
+        console.log('[sendMessage] Using fetchChatResponse, modelName:', modelName, 'developerConfig:', developerConfig, 'reasoningEffort:', reasoningEffort);
       }
     }
     if (
@@ -216,6 +217,7 @@ function initChatInterface() {
 
 export async function sendMessage() {
   const userInput = document.getElementById('user-input');
+  console.log('[sendMessage] Invoked with userInput:', userInput?.value);
   if (!userInput) return;
   const messageContent = userInput.value.trim();
   if (!messageContent || isProcessing) return;
@@ -237,6 +239,7 @@ export async function sendMessage() {
     if (!currentSessionId) {
       showNotification('Could not retrieve a valid session ID. Please refresh.', 'error');
       return;
+  console.log('[sendMessage] Sending messageContent:', messageContent, 'sessionId:', currentSessionId);
     }
     renderUserMessage(messageContent);
     const modelSelect = document.getElementById('model-select');
@@ -332,6 +335,7 @@ async function fetchChatResponse(
   effort = 'medium',
   signal
 ) {
+  console.log('[fetchChatResponse] Attempting with modelName:', modelName, 'sessionId:', sessionId, 'effort:', effort);
   const maxRetries = 2;
   let retryCount = 0,
     lastError = null;
@@ -368,6 +372,7 @@ async function fetchChatResponse(
         }
         throw new Error(`API error: ${response.status} ${response.statusText}`);
       }
+        console.log('[fetchChatResponse] Received successful response, status:', response.status);
       return await response.json();
     } catch (error) {
       lastError = error;
@@ -522,6 +527,7 @@ function processCodeBlocks(html) {
 }
 
 async function getModelConfig(modelName) {
+  console.log('[getModelConfig] Fetching config for model:', modelName, 'encoded:', encodeURIComponent(modelName));
   try {
     const encoded = encodeURIComponent(modelName);
     const response = await fetch(`${window.location.origin}/api/config/models/${encoded}`);
