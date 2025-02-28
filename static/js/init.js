@@ -103,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialize the sidebar tab system
   initTabSystem();
+  initMobileSidebarToggle();
   
   // Configure markdown parser for chat messages
   configureMarkdown();
