@@ -17,6 +17,7 @@ import { initializeConfig } from './config.js';
  */
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Initializing Azure OpenAI Chat application...');
+  initThemeSwitcher();
   
   // Add special checks for model dropdown
   const modelSelect = document.getElementById('model-select');

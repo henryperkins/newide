@@ -151,6 +151,43 @@ function initChatInterface() {
     }
   }
   
+  // Add event delegation for header interactions
+  document.addEventListener('click', (e) => {
+    // Theme toggle
+    if (e.target.closest('#theme-toggle')) {
+      toggleTheme();
+      return;
+    }
+    
+    // Stats panel toggle
+    if (e.target.closest('#mobile-stats-toggle') || e.target.closest('#performance-stats')) {
+      toggleStatsPanel();
+      return;
+    }
+    
+    // Font controls
+    if (e.target.closest('#mobile-font-up')) {
+      adjustFontSize(1);
+      return;
+    }
+    
+    if (e.target.closest('#mobile-font-down')) {
+      adjustFontSize(-1);
+      return;
+    }
+  });
+
+  // Helper functions
+  function toggleTheme() {
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  }
+
+  function toggleStatsPanel() {
+    const panel = document.getElementById('mobile-stats-panel');
+    if (panel) panel.classList.toggle('hidden');
+  }
+
   // Add keyboard shortcut support
   userInput?.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {

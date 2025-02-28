@@ -91,7 +91,7 @@ function handleTabChange(clickedTab) {
 function initMobileSidebarToggle() {
   const sidebar = document.querySelector('aside');
   const overlay = document.getElementById('sidebar-overlay');
-  const toggleButton = document.querySelector('[aria-controls="config-content files-content"]');
+  const toggleButton = document.querySelector('[aria-controls="config-content"]');
   const closeButton = document.getElementById('close-sidebar');
   
   if (!sidebar || !overlay || !toggleButton) return;

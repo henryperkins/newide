@@ -95,6 +95,20 @@
     .sidebar-transition {
         @apply transition-transform duration-300 ease-in-out;
     }
+    
+    /* Add SVG and mobile button fixes */
+    button svg {
+      pointer-events: none;
+    }
+    
+    #theme-toggle svg {
+      display: block !important;
+    }
+    
+    #mobile-stats-toggle {
+      min-width: 2.5rem;
+      min-height: 2.5rem;
+    }
 }
 
 @layer utilities {
