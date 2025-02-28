@@ -114,20 +114,35 @@ export function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, think
  * @returns {string} - HTML string for the thinking block
  */
 export function createThinkingBlockHTML(thinkingContent) {
-  // Format the thinking content
   const formattedContent = formatThinkingContent(thinkingContent);
+  const safeContent = DOMPurify.sanitize(formattedContent, {
+    ALLOWED_TAGS: ['div', 'span', 'code', 'pre', 'button'],
+    ALLOWED_ATTR: ['class', 'aria-expanded', 'data-language'],
+    FORBID_ATTR: ['style', 'on*']
+  });
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(safeContent, 'text/html');
+  const preElement = doc.querySelector('.thinking-pre');
   
+  // Security-conscious DOM manipulation
+  if (preElement) {
+    preElement.textContent = formattedContent; // Set content as text instead of HTML
+    preElement.setAttribute('data-language', 'thinking');
+    preElement.setAttribute('aria-live', 'polite');
+  }
+
   return `
-    <div class="thinking-process shadow-sm my-4">
+    <div class="thinking-process shadow-sm my-4" role="region" aria-label="Model reasoning process">
       <div class="thinking-header">
-        <button class="thinking-toggle" aria-expanded="true">
+        <button class="thinking-toggle" aria-expanded="false" 
+                aria-controls="thinking-content">
           <span class="font-medium">Thinking Process</span>
-          <span class="toggle-icon transition-transform duration-200">▼</span>
+          <span class="toggle-icon transition-transform duration-200" aria-hidden="true">▼</span>
         </button>
       </div>
-      <div class="thinking-content">
-        <pre class="thinking-pre">${formattedContent}</pre>
-        <div class="thinking-gradient from-thinking-bg/90 dark:from-dark-800/90 to-transparent"></div>
+      <div class="thinking-content" id="thinking-content" hidden>
+        ${doc.body.innerHTML}
       </div>
     </div>
   `;
@@ -211,9 +226,13 @@ function processMarkdownElements(content) {
 export function replaceThinkingBlocks(content) {
   if (!content) return '';
 
+  // More robust regex with HTML comment fallback and sanitization
   return content.replace(
-    /<think>([\s\S]*?)<\/think>/g,
-    (match, thinking) => createThinkingBlockHTML(thinking)
+    /<think>([\s\S]*?)<\/think>|<!-- THINKING: (.*?) -->/g,
+    (match, thinking, legacyThinking) => {
+      const content = thinking || legacyThinking || '';
+      return DOMPurify.sanitize(createThinkingBlockHTML(content));
+    }
   );
 }
 
