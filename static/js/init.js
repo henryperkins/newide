@@ -120,7 +120,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initUserInput();
   
   // Initialize token usage display
-  initTokenUsageDisplay();
+  document.addEventListener('DOMContentLoaded', () => {
+    initTokenUsageDisplay();
+    // Rest of initialization code
+  });
   
   // Add keyboard shortcuts
   registerKeyboardShortcuts();
@@ -628,22 +631,15 @@ function openFileInSidebar(filename) {
  * Initialize token usage display toggles
  */
 function initTokenUsageDisplay() {
-  const tokenUsage = document.querySelector('.token-usage-compact');
+  const tokenUsage = document.getElementById('token-usage');
   const toggleButton = document.getElementById('toggle-token-details');
   
-  if (!tokenUsage || !toggleButton) {
-    console.warn('Token usage elements not found:', { 
-      tokenUsage: !!tokenUsage, 
-      toggleButton: !!toggleButton 
+  if (tokenUsage && toggleButton) {
+    toggleButton.addEventListener('click', () => {
+      tokenUsage.querySelector('#token-details').classList.toggle('hidden');
+      toggleButton.classList.toggle('active');
     });
-    return;
   }
-  
-  toggleButton.addEventListener('click', () => {
-    tokenUsage.classList.toggle('overflow-hidden');
-    const isExpanded = !tokenUsage.classList.contains('h-6');
-    toggleButton.setAttribute('aria-expanded', isExpanded);
-  });
 }
 
 /**

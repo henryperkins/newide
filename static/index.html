@@ -15,8 +15,8 @@
     
     <!-- Preload critical resources with proper as attributes -->
     <link rel="preload" href="/static/css/tailwind.compiled.css" as="style">
-    <link rel="preload" href="/static/fonts/inter/inter-500.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="/static/fonts/jetbrains-mono/jetbrains-mono-400.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/fonts/inter/inter-500.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+    <link rel="preload" href="/static/fonts/jetbrains-mono/jetbrains-mono-400.woff2" as="font" type="font/woff2" crossorigin="anonymous">
     <!-- Remove duplicate preload entries -->
     
     <!-- Styles -->
@@ -185,7 +185,10 @@
                     </div>
                     
                     <!-- Token Usage Panel -->
-                    <div class="token-usage" id="token-usage-panel">
+                    <div class="token-usage" id="token-usage">
+                      <div id="token-stats" class="space-y-2">
+                        <div id="token-usage-compact" class="active">
+                          <button id="toggle-token-details" class="token-usage-toggle">
                         <div class="token-summary" id="token-usage-toggle">
                             <div class="flex items-center space-x-4">
                                 <div class="token-label">
