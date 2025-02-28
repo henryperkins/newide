@@ -232,24 +232,10 @@ export async function sendMessage() {
     }
     userInput.value = '';
     userInput.style.height = 'auto';
-    let currentSessionId = await getSessionId() || localStorage.getItem('current_session_id');
+    let currentSessionId = await getSessionId();
     if (!currentSessionId) {
-      try {
-        showNotification('Session expired. Attempting to reconnect...', 'warning');
-        const sessionInitialized = await initializeSession();
-        if (sessionInitialized) {
-          const newSessionId = getSessionId();
-          if (newSessionId) {
-            showNotification('Session restored successfully', 'success');
-            currentSessionId = newSessionId;
-          } else throw new Error('Failed to get new session ID');
-        } else throw new Error('Failed to initialize new session');
-      } catch (error) {
-        await showConfirmDialog('Session expired','Your session has expired. Refresh the page?',() => {
-          window.location.reload();
-        });
-        throw new Error('Invalid session. Please refresh.');
-      }
+      showNotification('Could not retrieve a valid session ID. Please refresh.', 'error');
+      return;
     }
     renderUserMessage(messageContent);
     const modelSelect = document.getElementById('model-select');
