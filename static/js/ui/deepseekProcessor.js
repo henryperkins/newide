@@ -1,102 +1,185 @@
-/**
- * DeepSeek-R1 Response Processor
- * 
- * This module handles the processing and formatting of 
- * DeepSeek-R1 model responses, particularly the <think>...</think> tags
- * that contain the model's chain-of-thought reasoning.
- */
-
-/**
- * Process DeepSeek-R1 response content to handle thinking tags
- * 
- * @param {string} content - The raw content from the model
- * @param {boolean} showThinking - Whether to display the thinking process (default: true)
- * @returns {string} - Processed content with thinking tags formatted or removed
- */
-export function processDeepSeekResponse(content, showThinking = true) {
-    // Check if we have thinking tags
-    if (!content.includes('<think>')) {
-        // No thinking tags found, return as is
-        return content;
-    }
-    
-    console.log('DeepSeek thinking tags detected in content');
-
-    if (!showThinking) {
-        // Remove thinking tags completely if not showing
-        return content.replace(/<think>[\s\S]*?<\/think>/g, '');
+export class DeepSeekProcessor {
+    constructor() {
+        this.thinkBlockRegex = /<think\b[^>]*>([\s\S]*?)<\/think\b[^>]*>/gi;
+        this.activeBlocks = new Map();
+        this.blockCounter = 0;
+        this.observer = null;
     }
 
-    // Process and format the thinking content
-    let processedContent = content;
-    
-    // Replace <think>...</think> blocks with formatted HTML
-    processedContent = processedContent.replace(/<think>([\s\S]*?)<\/think>/g, (fullMatch, thinkingContent) => {
-        // Format the thinking content with a collapsible section
-        const formattedThinking = `
-            <div class="thinking-process my-3 border border-blue-200 dark:border-blue-800 rounded-md overflow-hidden">
-                <div class="thinking-header bg-blue-50 dark:bg-blue-900/30 px-3 py-2">
-                    <button class="thinking-toggle w-full text-left flex items-center justify-between text-blue-700 dark:text-blue-300" 
-                            aria-expanded="true" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); this.closest('.thinking-process').querySelector('.thinking-content').classList.toggle('hidden');">
-                        <span class="font-medium">Thinking Process</span>
-                        <span class="toggle-icon">▼</span>
-                    </button>
-                </div>
-                <div class="thinking-content bg-blue-50/50 dark:bg-blue-900/10 px-4 py-3">
-                    <div class="thinking-pre font-mono text-sm whitespace-pre-wrap text-gray-800 dark:text-gray-200">${thinkingContent}</div>
+    /**
+     * Process content containing <think> blocks
+     * @param {string} content - Raw model response content
+     * @param {boolean} isStreaming - Whether processing streaming content
+     * @returns {Object} Processed content and extracted thinking blocks
+     */
+    processContent(content, isStreaming = false) {
+        const blocks = new Map();
+        let processedContent = content;
+        let match;
+
+        while ((match = this.thinkBlockRegex.exec(content)) !== null) {
+            const [fullMatch, thinkContent] = match;
+            const blockId = `think-${this.blockCounter++}`;
+            
+            const sanitizedContent = this.sanitizeContent(thinkContent);
+            const html = this.generateBlockHTML(sanitizedContent, blockId);
+            
+            blocks.set(blockId, {
+                content: sanitizedContent,
+                html: html,
+                startIndex: match.index,
+                endIndex: match.index + fullMatch.length
+            });
+        }
+
+        // Replace original think blocks with placeholders
+        processedContent = processedContent.replace(this.thinkBlockRegex, () => {
+            return `<div data-think-id="${Array.from(blocks.keys()).pop()}"></div>`;
+        });
+
+        if (isStreaming) {
+            this.activeBlocks = new Map([...this.activeBlocks, ...blocks]);
+        }
+
+        return {
+            processedContent,
+            thinkingBlocks: blocks
+        };
+    }
+
+    /**
+     * Generate accessible HTML for thinking blocks
+     * @param {string} content - Sanitized thinking content
+     * @param {string} blockId - Unique block identifier
+     * @returns {string} HTML string
+     */
+    generateBlockHTML(content, blockId) {
+        return `
+            <div class="thinking-block group" data-block-id="${blockId}">
+                <button class="thinking-toggle w-full flex justify-between items-center p-2 
+                            bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30
+                            transition-colors border-b border-blue-200 dark:border-blue-800"
+                        id="toggle-${blockId}" 
+                        aria-expanded="false" 
+                        aria-controls="content-${blockId}">
+                    <span class="font-medium text-blue-700 dark:text-blue-300">
+                        Thinking Process
+                    </span>
+                    <span class="toggle-icon transform transition-transform duration-200 
+                               text-blue-500 dark:text-blue-400">
+                        ▼
+                    </span>
+                </button>
+                <div id="content-${blockId}" 
+                     class="thinking-content hidden p-3 bg-white dark:bg-dark-800 
+                            prose-pre:bg-blue-50 dark:prose-pre:bg-blue-900/10">
+                    <pre class="whitespace-pre-wrap break-words font-mono text-sm">${content}</pre>
                 </div>
             </div>
         `;
-        
-        processedContent = processedContent.replace(fullMatch, formattedThinking);
-        return formattedThinking;
-    });
-    
-    return processedContent;
-}
-
-/**
- * Add necessary styles for DeepSeek thinking sections
- * Note: These are added as a fallback in case Tailwind doesn't include them
- */
-function addThinkingStyles() {
-    const styleId = 'deepseek-thinking-styles';
-    if (document.getElementById(styleId)) {
-        return; // Already added
     }
-    
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-        .thinking-process {
-            position: relative;
-            margin: 1rem 0;
-        }
-        
-        .thinking-toggle[aria-expanded="false"] + .thinking-content {
-            display: none;
-        }
-        
-        .thinking-toggle[aria-expanded="false"] .toggle-icon {
-            transform: rotate(-90deg);
-        }
-        
-        .thinking-pre {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        
-        @media (max-width: 640px) {
-            .thinking-pre {
-                max-height: 200px;
+
+    /**
+     * Handle streaming content updates
+     * @param {HTMLElement} container - DOM element to update
+     * @param {string} chunk - New content chunk
+     */
+    processStreamChunk(container, chunk) {
+        const processed = this.processContent(chunk, true);
+        let tempDiv = document.createElement('div');
+        tempDiv.innerHTML = processed.processedContent;
+
+        // Walk through new nodes to find placeholders
+        Array.from(tempDiv.querySelectorAll('[data-think-id]')).forEach(placeholder => {
+            const blockId = placeholder.getAttribute('data-think-id');
+            const block = this.activeBlocks.get(blockId);
+            
+            if (block) {
+                const blockNode = this.htmlToElement(block.html);
+                placeholder.replaceWith(blockNode);
+                this.initializeBlock(blockNode);
             }
+        });
+
+        // Merge with existing content
+        this.mergeStreamContent(container, tempDiv);
+    }
+
+    /**
+     * Initialize block interactions and accessibility
+     * @param {HTMLElement} block - Thinking block element
+     */
+    initializeBlock(block) {
+        const toggle = block.querySelector('.thinking-toggle');
+        const content = block.querySelector('.thinking-content');
+
+        const toggleHandler = () => {
+            const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+            toggle.setAttribute('aria-expanded', !isExpanded);
+            content.classList.toggle('hidden');
+            toggle.querySelector('.toggle-icon').classList.toggle('rotate-180');
+        };
+
+        // Click handler
+        toggle.addEventListener('click', toggleHandler);
+
+        // Keyboard navigation
+        toggle.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleHandler();
+            }
+        });
+    }
+
+    // Helper methods
+    sanitizeContent(content) {
+        return window.sanitizeHTML(content) || '';
+    }
+
+    htmlToElement(html) {
+        const template = document.createElement('template');
+        template.innerHTML = html.trim();
+        return template.content.firstChild;
+    }
+
+    mergeStreamContent(container, newContent) {
+        const walker = document.createTreeWalker(newContent, NodeFilter.SHOW_TEXT);
+        let node;
+        let lastText = '';
+
+        while ((node = walker.nextNode())) {
+            if (node.parentNode.nodeName === 'PRE') continue;
+            lastText += node.textContent;
         }
-    `;
-    
-    document.head.appendChild(style);
+
+        if (container.lastChild?.nodeType === Node.TEXT_NODE) {
+            container.lastChild.textContent += lastText;
+        } else {
+            container.appendChild(document.createTextNode(lastText));
+        }
+
+        Array.from(newContent.children).forEach(child => {
+            if (child.nodeType === Node.ELEMENT_NODE) {
+                container.appendChild(child.cloneNode(true));
+            }
+        });
+    }
+
+    /**
+     * Initialize all thinking blocks on page load
+     */
+    initializeExistingBlocks() {
+        document.querySelectorAll('.thinking-block').forEach(block => {
+            this.initializeBlock(block);
+        });
+    }
 }
 
-// Ensure styles are added when this module is imported
-if (typeof window !== 'undefined') {
-    addThinkingStyles();
-}
+// Singleton instance
+export const deepSeekProcessor = new DeepSeekProcessor();
+
+// Initialize existing blocks on DOM load
+document.addEventListener('DOMContentLoaded', () => {
+    deepSeekProcessor.initializeExistingBlocks();
+});
