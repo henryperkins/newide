@@ -172,15 +172,23 @@ function initMobileSidebarToggle() {
     startY = null;
   }, { passive: true });
   
-  // Handle resize events to ensure proper sidebar state on desktop
+  // Handle resize events to ensure proper sidebar state
   window.addEventListener('resize', () => {
-    if (window.innerWidth >= 768) { // md breakpoint
-      // Reset sidebar position for desktop view
+    const isMobile = window.innerWidth < 768;
+    const isOpen = !sidebar.classList.contains('translate-x-full');
+
+    if (isMobile) {
+      // Mobile view
+      if (isOpen) {
+        overlay.classList.remove('hidden');
+      } else {
+        overlay.classList.add('hidden');
+      }
+    } else {
+      // Desktop view - reset to default state
       sidebar.classList.remove('translate-x-full');
       sidebar.classList.add('md:translate-x-0');
-      
-      // Hide overlay
-      if (overlay) overlay.classList.add('hidden');
+      overlay.classList.add('hidden');
     }
   });
 }

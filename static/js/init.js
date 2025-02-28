@@ -147,6 +147,7 @@ function initMobileUI() {
   const isMobile = window.matchMedia('(max-width: 768px)').matches;
   
   if (isMobile) {
+    console.log('Mobile view detected, initializing mobile UI...');
     // Apply mobile-specific classes
     document.documentElement.classList.add('mobile-view');
     
@@ -154,10 +155,42 @@ function initMobileUI() {
     const statsToggle = document.getElementById('mobile-stats-toggle');
     const statsPanel = document.getElementById('mobile-stats-panel');
     
+    console.log('Mobile stats elements:', { 
+      statsToggle: statsToggle ? 'found' : 'not found', 
+      statsPanel: statsPanel ? 'found' : 'not found' 
+    });
+    
     if (statsToggle && statsPanel) {
-      statsToggle.addEventListener('click', () => {
-        statsPanel.classList.toggle('hidden');
+      console.log('Adding click listener to mobile stats toggle');
+      statsToggle.addEventListener('click', (e) => {
+        console.log('Mobile stats toggle clicked');
+        e.stopPropagation(); // Changed from stopImmediatePropagation for better compatibility
+        const wasHidden = statsPanel.classList.contains('hidden');
+        statsPanel.classList.toggle('hidden', !wasHidden);
+        statsPanel.setAttribute('aria-hidden', String(!wasHidden));
+        statsToggle.setAttribute('aria-expanded', String(wasHidden));
+        
+        // Visual feedback for toggle
+        statsToggle.classList.toggle('bg-gray-100', wasHidden);
+        statsToggle.classList.toggle('dark:bg-gray-700', wasHidden);
+        
+        // Haptic feedback on mobile
+        if ('vibrate' in navigator) {
+          navigator.vibrate(10);
+        }
+
+        // Announce state change for screen readers
+        const liveRegion = document.getElementById('a11y-announcements');
+        if (liveRegion) {
+          liveRegion.textContent = wasHidden 
+            ? 'Settings panel opened' 
+            : 'Settings panel closed';
+        }
       });
+      
+      // Initialize aria state
+      statsPanel.setAttribute('aria-hidden', 'true');
+      statsToggle.setAttribute('aria-expanded', 'false');
     }
     
     // Link desktop and mobile font controls
@@ -579,19 +612,17 @@ function openFileInSidebar(filename) {
  */
 function initTokenUsageDisplay() {
   const tokenUsage = document.querySelector('.token-usage-compact');
-  if (!tokenUsage) return;
+  const toggleButton = document.getElementById('toggle-token-details');
   
-  // Create toggle button
-  const toggleButton = document.createElement('button');
-  toggleButton.className = 'absolute right-2 top-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 focus:outline-none';
-  toggleButton.setAttribute('aria-label', 'Toggle token usage display');
-  toggleButton.innerHTML = '<span aria-hidden="true">⚙️</span>';
+  if (!tokenUsage || !toggleButton) {
+    console.warn('Token usage elements not found:', { 
+      tokenUsage: !!tokenUsage, 
+      toggleButton: !!toggleButton 
+    });
+    return;
+  }
   
-  tokenUsage.appendChild(toggleButton);
-  
-  // Add toggle functionality
   toggleButton.addEventListener('click', () => {
-    tokenUsage.classList.toggle('h-6');
     tokenUsage.classList.toggle('overflow-hidden');
     const isExpanded = !tokenUsage.classList.contains('h-6');
     toggleButton.setAttribute('aria-expanded', isExpanded);
@@ -612,12 +643,13 @@ function registerKeyboardShortcuts() {
     // Escape to close sidebar on mobile
     if (e.key === 'Escape') {
       const sidebar = document.querySelector('aside');
-      if (sidebar && sidebar.classList.contains('translate-x-0') && window.innerWidth < 768) {
-        sidebar.classList.remove('translate-x-0');
+      if (sidebar && !sidebar.classList.contains('translate-x-full') && window.innerWidth < 768) {
         sidebar.classList.add('translate-x-full');
-        
+        sidebar.classList.remove('translate-x-0');
         const overlay = document.getElementById('sidebar-overlay');
         if (overlay) overlay.classList.add('hidden');
+        const toggleButton = document.querySelector('[aria-controls="config-content files-content"]');
+        if (toggleButton) toggleButton.setAttribute('aria-expanded', 'false');
       }
     }
   });

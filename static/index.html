@@ -13,10 +13,11 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/static/img/apple-touch-icon.png">
     <link rel="manifest" href="/static/site.webmanifest">
     
-    <!-- Preload critical resources -->
+    <!-- Preload critical resources with proper as attributes -->
     <link rel="preload" href="/static/css/tailwind.compiled.css" as="style">
     <link rel="preload" href="/static/fonts/inter/inter-500.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/static/fonts/jetbrains-mono/jetbrains-mono-400.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Remove duplicate preload entries -->
     
     <!-- Styles -->
     <link rel="stylesheet" href="/static/css/tailwind.compiled.css">
@@ -81,7 +82,7 @@
                     </button>
                     
                     <!-- Sidebar Toggle - Always Visible -->
-                    <button id="sidebar-toggle" class="btn btn-icon btn-secondary touch-target" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle settings">
+                    <button id="sidebar-toggle" class="btn btn-icon btn-secondary touch-target" aria-expanded="false" aria-controls="config-content files-content" aria-label="Toggle settings">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
