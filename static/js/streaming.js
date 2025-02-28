@@ -169,9 +169,7 @@ function processStreamingChunk(data) {
   data.choices.forEach(choice => {
     if (choice.delta && choice.delta.content) {
       const text = choice.delta.content;
-      
-      // Handle thinking mode toggle for DeepSeek-R1 chain-of-thought
-      parseChunkForReasoning(text);
+      mainTextBuffer += text;
     }
     
     // Check for completion
