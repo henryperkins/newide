@@ -53,17 +53,16 @@ async def store_message(
     2. As query parameters (backward compatibility)
     """
     try:
-        # First try to get parameters from JSON body
+        from json import JSONDecodeError
         try:
             body = await request.json()
-            session_id = body.get("session_id")
-            role = body.get("role")
-            content = body.get("content")
-        except:
-            # Fallback to query parameters
-            session_id = request.query_params.get("session_id")
-            role = request.query_params.get("role")
-            content = request.query_params.get("content")
+        except JSONDecodeError:
+            body = None
+        if not body:
+            raise HTTPException(status_code=400, detail="Invalid or missing JSON body")
+        session_id = body.get("session_id")
+        role = body.get("role")
+        content = body.get("content")
         
         # Validate required parameters
         if not session_id:
