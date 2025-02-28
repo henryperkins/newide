@@ -255,7 +255,15 @@ const pruneOldMessages = debounce(() => {
 
 function storeChatMessage(role, content) {
   const sessionId = getSessionId();
-  if (!sessionId) return;
+  // Ensure required fields are present
+  if (!sessionId) {
+    console.error('No valid session ID found — cannot store message.');
+    return;
+  }
+  if (!role || !content) {
+    console.error('Missing role or content — cannot store message.');
+    return;
+  }
   try {
     const storageKey = `conversation_${sessionId}`;
     let conv = JSON.parse(localStorage.getItem(storageKey) || '[]');

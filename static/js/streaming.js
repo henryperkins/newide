@@ -418,7 +418,11 @@ function cleanupStreaming() {
   if (mainTextBuffer && messageContainer) {
     try {
       const sessionId = getSessionId();
-      if (sessionId) {
+      if (!sessionId) {
+        console.error('No valid session ID found — cannot store message.');
+      } else if (!mainTextBuffer) {
+        console.error('Missing assistant content — cannot store message.');
+      } else {
         fetchWithRetry('/api/chat/conversations/store', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
