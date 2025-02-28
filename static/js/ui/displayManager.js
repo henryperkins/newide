@@ -66,12 +66,37 @@ function handleGlobalClick(e) {
   if (e.target.classList.contains('thinking-toggle') || e.target.closest('.thinking-toggle')) {
     const toggle = e.target.closest('.thinking-toggle');
     if (!toggle) return;
+    
+    const thinkingProcess = toggle.closest('.thinking-process');
+    if (!thinkingProcess) return;
+    
     const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+    
+    // Update accessibility attributes
     toggle.setAttribute('aria-expanded', !isExpanded);
-    const content = toggle.closest('.thinking-process')?.querySelector('.thinking-content');
-    if (content) content.classList.toggle('hidden', isExpanded);
+    thinkingProcess.setAttribute('data-collapsed', isExpanded ? 'false' : 'true');
+    
+    // Get related elements
+    const content = thinkingProcess.querySelector('.thinking-content');
     const icon = toggle.querySelector('.toggle-icon');
-    if (icon) icon.textContent = isExpanded ? '▶' : '▼';
+    
+    // Apply animations
+    if (content) {
+      content.classList.toggle('hidden', isExpanded);
+      
+      // Ensure height transitions work properly by forcing a reflow
+      if (!isExpanded) {
+        // This is a trick to force the browser to recompute styles
+        window.getComputedStyle(content).getPropertyValue('opacity');
+      }
+    }
+    
+    // Animate icon with spring physics for a more natural feel
+    if (icon) {
+      icon.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+      icon.style.transform = isExpanded ? 'rotate(0)' : 'rotate(-90deg)';
+      icon.textContent = '▼'; // Always use same icon but rotate it
+    }
   }
   if (e.target.classList.contains('file-ref-link') || e.target.closest('.file-ref-link')) {
     const link = e.target.closest('.file-ref-link');
