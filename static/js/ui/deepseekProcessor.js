@@ -165,18 +165,21 @@ function formatThinkingContent(content) {
   // Process markdown elements in thinking content
   // First handle blockquotes, lists, and tables
   formatted = processMarkdownElements(formatted);
-  
-  // Add syntax highlighting for code blocks in thinking content
-  // This regex now safely handles multiple code blocks and backticks within code
-  formatted = formatted.replace(/```([\w-]*)\n([\s\S]*?)```/g, (match, language, code) => {
-    // Clean up the code and escape any backticks within it
-    const cleanCode = code.trim()
-      .replace(/`/g, '&#96;'); // Escape backticks to prevent breaking out
-    
-    // Return with a special class for potential syntax highlighting
-    return `<div class="code-block ${language ? `language-${language}` : ''}">
-      <div class="code-block-header">${language || 'code'}</div>
-      <code>${cleanCode}</code>
+
+  // Escape HTML characters before any processing
+  formatted = formatted.replace(/[&<>"']/g, (char) => 
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[char]
+  );
+
+  // Improved code block handling with syntax highlighting
+  formatted = formatted.replace(/```([\w-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const language = lang || 'plaintext';
+    const highlighted = Prism?.highlight(code.trim(), Prism.languages[language], language);
+    return `<div class="code-block" data-language="${language}">
+      <div class="code-block-header" aria-label="${language} code">${language}</div>
+      <pre class="language-${language}"><code class="language-${language}">${
+        highlighted || code.trim()
+      }</code></pre>
     </div>`;
   });
   
