@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "description": "Azure OpenAI Chat Application",
   "scripts": {
-    "build:css": "postcss static/css/tailwind.css -o static/css/tailwind.compiled.css",
-    "watch:css": "postcss static/css/tailwind.css -o static/css/tailwind.compiled.css --watch",
-    "build": "NODE_ENV=production postcss static/css/tailwind.css -o static/css/tailwind.compiled.css",
-    "dev": "npm run watch:css"
+    "build:css": "node build.js --production",
+    "watch:css": "node build.js --watch",
+    "build": "node build.js --production --verbose",
+    "dev": "node build.js --watch",
+    "lint:css": "postcss static/css/tailwind.css --output static/css/tailwind.compiled.css --verbose"
   },
   "dependencies": {
     "dompurify": "^3.2.4",
