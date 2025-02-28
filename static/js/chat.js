@@ -17,6 +17,7 @@ import {
   debounce
 } from './utils/helpers.js';
 import { renderMarkdown, sanitizeHTML, highlightCode } from './ui/markdownParser.js';
+import { deepSeekProcessor } from './ui/deepseekProcessor.js';
 
 let streamingEnabled = false;
 let developerConfig = 'You are a helpful AI assistant.';

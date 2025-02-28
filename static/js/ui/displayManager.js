@@ -160,14 +160,14 @@ function updateLoadMoreButton() {
   if (loadBtn) loadBtn.classList.toggle('hidden', !hasMoreMessages);
 }
 
-export function renderUserMessage(content, skipScroll = false) {
+export function renderUserMessage(content, skipScroll = false, skipStore = false) {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return null;
   const messageElement = createUserMessageElement(content);
   chatHistory.appendChild(messageElement);
   if (!skipScroll) requestAnimationFrame(() => messageElement.scrollIntoView({ behavior: 'smooth', block: 'end' }));
   pruneOldMessages();
-  storeChatMessage('user', content);
+  if (!skipStore) storeChatMessage('user', content);
   return messageElement;
 }
 
@@ -183,7 +183,7 @@ function createUserMessageElement(content) {
   return el;
 }
 
-export function renderAssistantMessage(content, skipScroll = false) {
+export function renderAssistantMessage(content, skipScroll = false, skipStore = false) {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return null;
   const messageElement = createAssistantMessageElement(content);
@@ -194,7 +194,7 @@ export function renderAssistantMessage(content, skipScroll = false) {
   }
   if (!skipScroll) requestAnimationFrame(() => messageElement.scrollIntoView({ behavior: 'smooth', block: 'end' }));
   pruneOldMessages();
-  storeChatMessage('assistant', content);
+  if (!skipStore) storeChatMessage('assistant', content);
   return messageElement;
 }
 
