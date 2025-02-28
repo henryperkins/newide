@@ -210,8 +210,6 @@ export async function loadOlderMessages() {
       });
     }
 
-    // Process any DeepSeek thinking blocks in final content
-    mainTextBuffer = processDeepSeekResponse(mainTextBuffer, true);
     
     // After rendering, calculate new position of reference element
     const scrollTopAfter = firstMessage ? firstMessage.offsetTop : 0;
