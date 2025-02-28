@@ -15,11 +15,29 @@ export function processDeepSeekResponse(content) {
   let processedContent = content.replace(/<\/?think>$/, '');
 
   // Replace thinking blocks with properly formatted blocks
-  processedContent = processedContent.replace(/<think>([\s\S]*?)<\/think>/g, (match, thinking) => {
-    // Thinking blocks have been extracted during streaming
-    // Just remove the tags from the main content
-    return '';
-  });
+  // Use a recursive function to handle nested thinking tags
+  const processThinkingTags = (content) => {
+    // Look for the outermost thinking tags first
+    const regex = /<think>([\s\S]*?)<\/think>/;
+    const match = content.match(regex);
+    
+    if (!match) return content;
+    
+    // Get the content before, inside, and after the thinking tag
+    const beforeThink = content.substring(0, match.index);
+    const afterThink = content.substring(match.index + match[0].length);
+    
+    // Process the content inside the thinking tag recursively
+    const thinkContent = processThinkingTags(match[1]);
+    
+    // Process the content after the thinking tag recursively
+    const processedAfterThink = processThinkingTags(afterThink);
+    
+    // Return the content with thinking tags removed
+    return beforeThink + processedAfterThink;
+  };
+  
+  processedContent = processThinkingTags(processedContent);
 
   return processedContent;
 }
@@ -183,11 +201,62 @@ function initializeExistingBlocks() {
 /**
  * Extract thinking content from a DeepSeek response
  * @param {string} content - Full response content
- * @returns {string} - Extracted thinking content
+ * @returns {Array<string>} - Array of extracted thinking content blocks
  */
 function extractThinkingContent(content) {
-  const thinkingMatch = content.match(/<think>([\s\S]*?)<\/think>/);
-  return thinkingMatch ? thinkingMatch[1] : null;
+  if (!content) return [];
+  
+  const thinkingBlocks = [];
+  let remainingContent = content;
+  let nestedLevel = 0;
+  
+  // Find all thinking blocks, including nested ones
+  const extractRecursive = (text, level = 0) => {
+    const openTagIndex = text.indexOf('<think>');
+    if (openTagIndex === -1) return;
+    
+    // Find the matching closing tag
+    let searchStartIndex = openTagIndex + 7; // length of <think>
+    let openTagCount = 1;
+    let closeTagIndex = -1;
+    
+    while (openTagCount > 0 && searchStartIndex < text.length) {
+      const nextOpenTag = text.indexOf('<think>', searchStartIndex);
+      const nextCloseTag = text.indexOf('</think>', searchStartIndex);
+      
+      // No more tags found
+      if (nextCloseTag === -1) break;
+      
+      // Found another opening tag before a closing tag
+      if (nextOpenTag !== -1 && nextOpenTag < nextCloseTag) {
+        openTagCount++;
+        searchStartIndex = nextOpenTag + 7;
+      } else {
+        // Found a closing tag
+        openTagCount--;
+        if (openTagCount === 0) {
+          closeTagIndex = nextCloseTag;
+        }
+        searchStartIndex = nextCloseTag + 8; // length of </think>
+      }
+    }
+    
+    if (closeTagIndex !== -1) {
+      // Extract this thinking block
+      const thinkContent = text.substring(openTagIndex + 7, closeTagIndex);
+      thinkingBlocks.push(thinkContent);
+      
+      // Continue searching in the remaining text
+      const remainingText = text.substring(closeTagIndex + 8);
+      extractRecursive(remainingText, level + 1);
+      
+      // Also check for nested thinking blocks within this block
+      extractRecursive(thinkContent, level + 1);
+    }
+  };
+  
+  extractRecursive(remainingContent);
+  return thinkingBlocks;
 }
 
 /**
