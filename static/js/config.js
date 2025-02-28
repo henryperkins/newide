@@ -209,13 +209,30 @@ export async function updateModelSpecificUI(modelName) {
   try {
     const modelConfig = modelManager.modelConfigs[modelName] || await modelManager.getModelConfig(modelName);
     if (!modelConfig) return;
-    const isOSeries = modelName.toLowerCase().startsWith('o1') || modelName.toLowerCase().startsWith('o3');
+    
+    // Determine model type
+    const modelType = modelConfig.model_type || 'standard';
+    const isOSeries = modelType === 'o-series' || modelName.toLowerCase().startsWith('o1') || modelName.toLowerCase().startsWith('o3');
+    const isDeepSeek = modelType === 'deepseek' || modelName.toLowerCase().includes('deepseek');
+    
+    // Get capabilities
     const supportsStreaming = modelConfig.supports_streaming || false;
     const supportsVision = modelConfig.supports_vision || false;
+    const apiVersion = modelConfig.api_version || '2025-01-01-preview';
+    
+    // Update reasoning controls visibility
     const reasoningControls = document.getElementById('reasoning-controls');
     if (reasoningControls) {
       reasoningControls.classList.toggle('hidden', !isOSeries);
     }
+    
+    // Update thinking controls visibility (for DeepSeek models)
+    const thinkingControls = document.getElementById('thinking-controls');
+    if (thinkingControls) {
+      thinkingControls.classList.toggle('hidden', !isDeepSeek);
+    }
+    
+    // Update streaming toggle
     const streamingToggle = document.getElementById('enable-streaming');
     if (streamingToggle) {
       streamingToggle.disabled = !supportsStreaming;
@@ -228,22 +245,43 @@ export async function updateModelSpecificUI(modelName) {
         updateConfig({ appSettings: { ...cachedConfig.appSettings, streamingEnabled: false } });
       }
     }
+    
+    // Update model info display
     const modelInfoSection = document.querySelector('.model-info');
     if (modelInfoSection) {
       const features = [];
       if (isOSeries) features.push('advanced reasoning');
+      if (isDeepSeek) features.push('thinking process');
       if (supportsStreaming) features.push('streaming');
       if (supportsVision) features.push('vision');
+      
       const featuresText = features.length > 0 ? `with ${features.join(' & ')}` : '';
-      modelInfoSection.innerHTML = `<p><strong>Model:</strong> ${modelName} ${featuresText}</p>`;
+      const apiVersionText = `<span class="text-xs text-gray-500">(API: ${apiVersion})</span>`;
+      
+      modelInfoSection.innerHTML = `
+        <p><strong>Model:</strong> ${modelName} ${featuresText}</p>
+        <p class="text-xs text-gray-500">Type: ${modelType} ${apiVersionText}</p>
+      `;
     }
+    
+    // Update model badge
     const modelBadge = document.getElementById('model-badge');
     if (modelBadge) {
       modelBadge.textContent = modelName;
     }
+    
+    // Publish event for other components
     eventBus.publish('modelUpdated', {
       modelName,
-      capabilities: { isOSeries, supportsStreaming, supportsVision }
+      modelType,
+      apiVersion,
+      capabilities: { 
+        isOSeries, 
+        isDeepSeek,
+        supportsStreaming, 
+        supportsVision,
+        apiVersion
+      }
     });
   } catch (error) {
     console.error('Error updating model-specific UI:', error);

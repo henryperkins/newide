@@ -243,6 +243,10 @@ async def create_chat_completion(
         is_inference_client = isinstance(client, ChatCompletionsClient)
         is_deepseek = config.is_deepseek_model(request.model)
 
+        # Get model configuration
+        model_config = client_wrapper.get("model_config", {})
+        model_type = model_config.get("model_type", "standard")
+
         # Prepare parameters based on client type and model
         params = {
             "messages": messages,
@@ -252,16 +256,17 @@ async def create_chat_completion(
 
         if is_inference_client:
             # Add necessary parameters for DeepSeek
-            if is_deepseek:
+            if is_deepseek or model_type == "deepseek":
                 params["temperature"] = DEEPSEEK_R1_DEFAULT_TEMPERATURE
                 params["max_tokens"] = DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+                params["enable_thinking"] = True
             else:
                 raise ValueError(
                     "Unsupported model for inference client: " + request.model
                 )
         else:
             # Azure OpenAI client
-            if not is_deepseek:
+            if model_type == "o-series":
                 params["reasoning_effort"] = request.reasoning_effort
 
         # Call the appropriate client method

@@ -455,24 +455,69 @@ class ModelManager {
             showNotification(`Switching to ${modelId}...`, 'info');
             this.pendingModelActions[modelId] = 'switch';
             const sessionId = await this.getSessionId();
-            const response = await fetch(`${window.location.origin}/api/config/models/switch_model/${modelId}${sessionId ? `?session_id=${sessionId}` : ''}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            delete this.pendingModelActions[modelId];
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Failed to switch model: ${errorText}`);
+            
+            // Get full model configuration
+            const modelConfig = this.modelConfigs[modelId];
+            const modelType = modelConfig.model_type || 'standard';
+            
+            // Prepare request body with model-specific parameters
+            const requestBody = {
+                model_id: modelId,
+                session_id: sessionId
+            };
+            
+            // Add model-specific parameters
+            if (modelType === 'o-series') {
+                requestBody.reasoning_effort = modelConfig.reasoning_effort || 'medium';
+            } else if (modelType === 'deepseek') {
+                requestBody.enable_thinking = modelConfig.enable_thinking !== false;
             }
+            
+            const response = await fetch(`${window.location.origin}/api/config/models/switch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+            
+            delete this.pendingModelActions[modelId];
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.detail || await response.text();
+                throw new Error(`Failed to switch model: ${errorMessage}`);
+            }
+            
+            const responseData = await response.json();
+            
+            // Update UI elements
             const modelSelect = document.getElementById('model-select');
             if (modelSelect) modelSelect.value = modelId;
+            
             const modelBadge = document.getElementById('model-badge');
             if (modelBadge) modelBadge.textContent = modelId;
+            
+            // Update model-specific UI
             this.updateModelSpecificUI(modelId);
+            
+            // Update internal state
             this.currentModel = modelId;
             this.updateModelsList();
-            updateConfig({ selectedModel: modelId });
-            eventBus.publish('modelSwitched', { modelId, config: this.modelConfigs[modelId] });
+            
+            // Update global config
+            updateConfig({ 
+                selectedModel: modelId,
+                modelType: modelType,
+                apiVersion: modelConfig.api_version
+            });
+            
+            // Publish event for other components
+            eventBus.publish('modelSwitched', { 
+                modelId, 
+                config: this.modelConfigs[modelId],
+                apiVersion: responseData.api_version,
+                modelType: responseData.model_type
+            });
+            
             showNotification(`Now using model: ${modelId}`, 'success');
             return true;
         } catch (error) {
@@ -686,7 +731,8 @@ class ModelManager {
                 reasoning_effort: "medium",
                 base_timeout: 120.0,
                 max_timeout: 300.0,
-                token_factor: 0.05
+                token_factor: 0.05,
+                model_type: "o-series"
             };
         }
         if (modelId.includes('deepseek')) {
@@ -701,9 +747,11 @@ class ModelManager {
                 supports_streaming: true,
                 supports_vision: false,
                 requires_reasoning_effort: false,
+                enable_thinking: true,
                 base_timeout: 120.0,
                 max_timeout: 300.0,
-                token_factor: 0.05
+                token_factor: 0.05,
+                model_type: "deepseek"
             };
         }
         return {
@@ -719,7 +767,8 @@ class ModelManager {
             requires_reasoning_effort: false,
             base_timeout: 120.0,
             max_timeout: 300.0,
-            token_factor: 0.05
+            token_factor: 0.05,
+            model_type: "standard"
         };
     }
 

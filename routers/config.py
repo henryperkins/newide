@@ -1,13 +1,14 @@
 import logging
+import re
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi import Query
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List, Literal
 
 logger = logging.getLogger(__name__)
 
 from database import get_db_session, AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, root_validator
 from clients import get_client_pool, ClientPool, ModelRegistry
 from services.config_service import get_config_service, ConfigService
 
@@ -107,16 +108,41 @@ async def get_all_configs(
 
 
 class ModelConfigModel(BaseModel):
-    name: str
-    max_tokens: int
+    name: str = Field(..., min_length=3, pattern=r"^[a-zA-Z0-9-_]+$")
+    max_tokens: int = Field(..., gt=0, le=200000)
     supports_streaming: Optional[bool] = False
     supports_temperature: Optional[bool] = False
-    api_version: str
+    api_version: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}(|-preview|-alpha\d+)$")
     azure_endpoint: str
     description: str = ""
     base_timeout: float = 120.0
     max_timeout: float = 300.0
     token_factor: float = 0.05
+    model_type: Optional[str] = Field("standard", alias="type")
+    
+    # O-Series specific fields
+    reasoning_effort: Optional[str] = None
+    requires_reasoning_effort: Optional[bool] = False
+    
+    # DeepSeek specific fields
+    enable_thinking: Optional[bool] = None
+    thinking_tags: Optional[List[str]] = None
+    
+    @validator('model_type')
+    def validate_model_type(cls, v):
+        if v not in ["o-series", "deepseek", "standard"]:
+            return "standard"
+        return v
+    
+    @root_validator
+    def check_model_specific_params(cls, values):
+        model_type = values.get('model_type')
+        if model_type == "o-series" and values.get('requires_reasoning_effort', False):
+            if not values.get('reasoning_effort'):
+                values['reasoning_effort'] = "medium"
+        if model_type == "deepseek" and values.get('enable_thinking') is None:
+            values['enable_thinking'] = True
+        return values
 
 
 @router.get("/models", response_model=Dict[str, ModelConfigModel])
@@ -192,6 +218,34 @@ async def create_model(
         # If no model data provided, use template from registry
         if not model:
             model = ModelRegistry.get_model_template(model_id)
+        
+        # Validate model configuration
+        try:
+            # Determine model type if not specified
+            if "model_type" not in model and "type" not in model:
+                if model_id.lower().startswith(('o1', 'o3')):
+                    model["model_type"] = "o-series"
+                elif "deepseek" in model_id.lower():
+                    model["model_type"] = "deepseek"
+                else:
+                    model["model_type"] = "standard"
+            
+            # Validate API version format
+            api_version = model.get("api_version")
+            if api_version and not re.match(r"^\d{4}-\d{2}-\d{2}(|-preview|-alpha\d+)$", api_version):
+                raise ValueError(f"Invalid API version format: {api_version}")
+            
+            # Ensure required fields based on model type
+            model_type = model.get("model_type") or model.get("type", "standard")
+            if model_type == "o-series" and "reasoning_effort" not in model:
+                model["reasoning_effort"] = "medium"
+                model["requires_reasoning_effort"] = True
+            
+            if model_type == "deepseek" and "enable_thinking" not in model:
+                model["enable_thinking"] = True
+                
+        except ValueError as ve:
+            raise HTTPException(status_code=422, detail=f"Invalid model configuration: {str(ve)}")
             
         # Add to client pool
         success = await client_pool.add_or_update_model(model_id, model, db_session)
@@ -201,7 +255,7 @@ async def create_model(
                 status_code=500, detail=f"Failed to create model {model_id}"
             )
             
-        return {"status": "created", "model_id": model_id}
+        return {"status": "created", "model_id": model_id, "model_type": model.get("model_type", "standard")}
     except HTTPException:
         raise
     except Exception as e:
@@ -308,15 +362,48 @@ async def switch_model(
             if model_id.lower() == "deepseek-r1" or model_id.lower() == "o1hp":
                 model_template = ModelRegistry.get_model_template(model_id)
                 await client_pool.add_or_update_model(model_id, model_template, db_session)
+                model_config = client_pool.get_model_config(model_id)
             else:
                 raise HTTPException(status_code=404, detail=f"Model {model_id} not found")
-
+        
+        # Validate model configuration
+        if not model_config.get("api_version"):
+            raise HTTPException(
+                status_code=422, 
+                detail=f"Invalid model configuration: Missing API version"
+            )
+            
+        # Get current model if session exists
+        current_model = None
+        if session_id:
+            from session_utils import SessionManager
+            session = await SessionManager.get_session(session_id, db_session)
+            if session and session.last_model:
+                current_model = session.last_model
+        
+        # Handle model-specific parameter transitions
+        if current_model and current_model != model_id:
+            old_config = client_pool.get_model_config(current_model) or {}
+            
+            # Clear incompatible parameters when switching model types
+            old_type = old_config.get('model_type', 'standard')
+            new_type = model_config.get('model_type', 'standard')
+            
+            if old_type != new_type:
+                logger.info(f"Switching model types from {old_type} to {new_type}")
+                # Additional model-specific handling could be added here
+        
         # Store the selected model in the session
         if session_id:
             from session_utils import SessionManager
             await SessionManager.update_session_model(session_id, model_id, db_session)
 
-        return {"success": True, "model": model_id}
+        return {
+            "success": True, 
+            "model": model_id,
+            "api_version": model_config.get("api_version"),
+            "model_type": model_config.get("model_type", "standard")
+        }
     except HTTPException:
         raise
     except Exception as e:
