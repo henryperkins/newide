@@ -430,12 +430,12 @@ async def generate_stream_chunks(
     try:
         if is_inference_client and is_deepseek:
             # Enhanced DeepSeek-R1 streaming with proper handling of thinking blocks
-            stream = client.chat_completions.create(
-                **params,
+            stream = client.begin_chat_completions(
                 deployment=model_name,
-                stream=True,
+                **params,
+                stream=True
             )
-            
+                
             async for chunk in stream:
                 try:
                     if hasattr(chunk.choices[0].delta, "content") and chunk.choices[0].delta.content:
