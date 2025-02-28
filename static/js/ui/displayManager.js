@@ -4,6 +4,7 @@ import { getSessionId } from '../session.js';
 import { renderMarkdown, sanitizeHTML, highlightCode } from './markdownParser.js';
 import { showNotification, showConfirmDialog } from './notificationManager.js';
 import { debounce } from '../utils/helpers.js';
+import { processDeepSeekResponse } from './deepseekProcessor.js';
 
 // Configuration
 let messageRenderLimit = 30; // Maximum messages to keep in DOM
@@ -438,29 +439,9 @@ function processImagesForLazyLoading(html) {
 
 /**
  * Process thinking content for DeepSeek-R1
- * 
- * @param {string} content - Content with <think> tags
- * @returns {string} - Processed content with collapsible UI
  */
 function processThinkingContent(content) {
-  // Replace <think>...</think> with collapsible blocks
-  return content.replace(
-    /<think>([\s\S]*?)<\/think>/g,
-    (match, thinking) => {
-      return `
-        <div class="thinking-process">
-          <div class="thinking-header">
-            <button class="thinking-toggle" aria-expanded="true">
-              <span class="toggle-icon">▼</span> Thinking Process
-            </button>
-          </div>
-          <div class="thinking-content">
-            <pre class="thinking-pre">${thinking}</pre>
-          </div>
-        </div>
-      `;
-    }
-  );
+  return processDeepSeekResponse(content);
 }
 
 /**

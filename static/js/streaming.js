@@ -329,32 +329,44 @@ function ensureThinkingContainer() {
   if (!thinkingContainer && messageContainer) {
     // Create thinking process container
     const thinkingProcess = document.createElement('div');
-    thinkingProcess.className = 'thinking-process';
-    
-    // Create header
+    thinkingProcess.className = 'thinking-process border border-blue-200 dark:border-blue-800 rounded-md overflow-hidden my-3';
+
     const thinkingHeader = document.createElement('div');
-    thinkingHeader.className = 'thinking-header';
+    thinkingHeader.className = 'thinking-header bg-blue-50 dark:bg-blue-900/30 px-3 py-2';
     thinkingHeader.innerHTML = `
-      <button class="thinking-toggle" aria-expanded="true">
-        <span class="toggle-icon">▼</span> Thinking Process
+      <button class="thinking-toggle w-full text-left flex items-center justify-between text-blue-700 dark:text-blue-300" aria-expanded="true">
+        <span class="font-medium">Thinking Process</span>
+        <span class="toggle-icon transition-transform duration-200">▼</span>
       </button>
     `;
-    
-    // Create content container
+
+    // Add click handler to toggle
+    thinkingHeader.querySelector('.thinking-toggle').addEventListener('click', function() {
+      const expanded = this.getAttribute('aria-expanded') === 'true';
+      this.setAttribute('aria-expanded', !expanded);
+      const content = this.closest('.thinking-process').querySelector('.thinking-content');
+      content.classList.toggle('hidden', expanded);
+      this.querySelector('.toggle-icon').style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+    });
+
     const thinkingContent = document.createElement('div');
-    thinkingContent.className = 'thinking-content';
-    
+    thinkingContent.className = 'thinking-content bg-blue-50/50 dark:bg-blue-900/10 relative';
+
     // Create pre element for thinking text
     const thinkingPre = document.createElement('pre');
-    thinkingPre.className = 'thinking-pre';
+    thinkingPre.className = 'thinking-pre font-mono text-sm whitespace-pre-wrap text-gray-800 dark:text-gray-200 px-4 py-3 max-h-[300px] overflow-y-auto';
     thinkingContainer = thinkingPre;
-    
-    // Assemble structure
+
+    // Create gradient overlay for preview
+    const gradientOverlay = document.createElement('div');
+    gradientOverlay.className = 'absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-blue-50/90 dark:from-blue-900/30 to-transparent pointer-events-none';
+    gradientOverlay.id = 'thinking-gradient';
+
     thinkingContent.appendChild(thinkingPre);
+    thinkingContent.appendChild(gradientOverlay);
     thinkingProcess.appendChild(thinkingHeader);
     thinkingProcess.appendChild(thinkingContent);
-    
-    // Add to message container
+
     messageContainer.appendChild(thinkingProcess);
   }
 }
@@ -364,21 +376,25 @@ function ensureThinkingContainer() {
  */
 function finalizeThinkingContainer() {
   if (thinkingContainer) {
-    // Set final content
     thinkingContainer.textContent = thinkingTextBuffer;
     
-    // Add highlighting and styling
+    // Get parent elements
     const toggleButton = thinkingContainer.closest('.thinking-process').querySelector('.thinking-toggle');
+    const gradientOverlay = document.getElementById('thinking-gradient');
+    
+    // Remove gradient if content doesn't need scrolling
+    if (thinkingContainer.scrollHeight <= thinkingContainer.clientHeight) {
+      if (gradientOverlay) gradientOverlay.remove();
+    }
+    
+    // Add collapse functionality (initially expanded)
     if (toggleButton) {
-      toggleButton.addEventListener('click', () => {
-        const isExpanded = toggleButton.getAttribute('aria-expanded') === 'true';
-        toggleButton.setAttribute('aria-expanded', !isExpanded);
-        
-        // Update icon
-        const icon = toggleButton.querySelector('.toggle-icon');
-        if (icon) {
-          icon.textContent = isExpanded ? '▶' : '▼';
-        }
+      toggleButton.addEventListener('click', function() {
+        const expanded = this.getAttribute('aria-expanded') === 'true';
+        this.setAttribute('aria-expanded', !expanded);
+        const content = this.closest('.thinking-process').querySelector('.thinking-content');
+        content.classList.toggle('hidden', expanded);
+        this.querySelector('.toggle-icon').style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
       });
     }
     
