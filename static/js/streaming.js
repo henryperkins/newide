@@ -39,7 +39,7 @@ export async function streamChatResponse(
     
     // Build API URL and parameters
     let apiUrl = `/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
-    const params = new URLSearchParams({
+    let params = new URLSearchParams({
       model: modelName || 'DeepSeek-R1',
       message: messageContent || '',
       reasoning_effort: reasoningEffort || 'medium'
