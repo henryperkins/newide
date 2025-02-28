@@ -1,4 +1,5 @@
 import { sendMessage } from './chat.js';
+import { deepSeekProcessor } from './ui/deepseekProcessor.js';
 
 // init.js - Application initialization
 // Imports all necessary modules and bootstraps the application with Tailwind CSS

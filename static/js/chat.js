@@ -572,7 +572,8 @@ export function renderAssistantMessage(content, isThinking = false) {
   
   // Process DeepSeek-R1 thinking blocks through centralized processor
   if (content.includes('<think>')) {
-    content = processDeepSeekResponse(content, true);
+    const processed = deepSeekProcessor.processContent(content, true);
+    content = processed.processedContent;
   }
   
   // Render markdown content
