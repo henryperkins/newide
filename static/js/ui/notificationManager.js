@@ -2,8 +2,8 @@ let typingState = { active: false, element: null, timeoutId: null, animationFram
 const INDICATOR_TIMEOUT = 30000;
 const MODAL_CONTAINER = document.getElementById('modal-container');
 const MODAL_CONTENT = document.getElementById('modal-content');
-const recentNotifications = new Set();
-const NOTIFICATION_DEDUP_WINDOW = 2000;
+const recentNotifications = new Map();
+const NOTIFICATION_DEDUP_WINDOW = 5000;
 
 export function handleApplicationError(error, context = 'application') {
   console.error(`${context} error:`, error);
@@ -36,9 +36,20 @@ export async function handleMessageError(error) {
 
 export function showNotification(message, type = 'info', duration = 5000, actions = []) {
   const notificationKey = `${type}:${message}`;
-  if (recentNotifications.has(notificationKey)) return;
-  recentNotifications.add(notificationKey);
-  setTimeout(() => recentNotifications.delete(notificationKey), NOTIFICATION_DEDUP_WINDOW);
+  const now = Date.now();
+  if (recentNotifications.has(notificationKey)) {
+    const lastTime = recentNotifications.get(notificationKey);
+    if (now - lastTime < NOTIFICATION_DEDUP_WINDOW) return;
+  }
+  recentNotifications.set(notificationKey, now);
+  
+  // Cleanup old notifications to prevent memory leaks
+  if (recentNotifications.size > 20) {
+    const oldestTime = now - NOTIFICATION_DEDUP_WINDOW;
+    recentNotifications.forEach((timestamp, key) => {
+      if (timestamp < oldestTime) recentNotifications.delete(key);
+    });
+  }
   const container = document.getElementById('notification-container') || createNotificationContainer();
   for (const existing of container.querySelectorAll('.notification')) {
     if (existing.querySelector('p')?.textContent === message) return;
@@ -183,7 +194,13 @@ function createNotificationContainer() {
   if (!c) {
     c = document.createElement('div');
     c.id = 'notification-container';
-    c.className = 'fixed right-4 top-4 z-50 flex flex-col gap-2 max-w-md';
+    
+    // Use sticky positioning as a fallback for iOS Safari
+    const iOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    c.className = iOSSafari 
+      ? 'sticky top-4 right-4 z-50 flex flex-col gap-2 max-w-md ml-auto mr-4 pointer-events-none'
+      : 'fixed right-4 top-4 z-50 flex flex-col gap-2 max-w-md pointer-events-none';
+    
     document.body.appendChild(c);
   }
   return c;

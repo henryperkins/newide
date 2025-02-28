@@ -541,8 +541,18 @@ async function getModelConfig(modelName) {
 
 function adjustFontSize(direction) {
   const sizes = ['text-sm','text-base','text-lg','text-xl'];
+  
+  // Handle reset case (direction === 0)
+  if (direction === 0) {
+    document.documentElement.classList.remove(...sizes);
+    document.documentElement.classList.add('text-base'); // Default size
+    localStorage.removeItem('fontSize'); // Clear stored preference
+    showNotification('Font size reset to default', 'info', 2000);
+    return;
+  }
+  
   let currentIndex = sizes.findIndex(sz => document.documentElement.classList.contains(sz));
-  if (currentIndex === -1) currentIndex = 1;
+  if (currentIndex === -1) currentIndex = 1; // Default to text-base (index 1)
   const newIndex = Math.min(Math.max(currentIndex + direction, 0), sizes.length - 1);
   document.documentElement.classList.remove(...sizes);
   document.documentElement.classList.add(sizes[newIndex]);

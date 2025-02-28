@@ -168,7 +168,13 @@ function initMobileSidebarToggle() {
     if (!startX) return;
     
     const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
     const diffX = currentX - startX;
+    const diffY = currentY - startY;
+    
+    // Abort swipe if vertical movement exceeds threshold (prevents accidental closing during scrolling)
+    const VERTICAL_THRESHOLD = 10;
+    if (Math.abs(diffY) > VERTICAL_THRESHOLD) return;
     
     // Only handle horizontal swipes
     if (Math.abs(diffX) > 30) {

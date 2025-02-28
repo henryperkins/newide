@@ -225,3 +225,11 @@
 .thinking-process.new {
   animation: fadeIn 0.5s ease forwards, pulse 1.5s ease-in-out 1;
 }
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .thinking-process.new {
+    animation: fadeIn 0.5s ease forwards;
+    box-shadow: 0 0 0 1px oklch(68% 0.14 276 / 0.4);
+  }
+}

@@ -43,8 +43,10 @@ function setupEventListeners() {
   }
   const fontSizeUpBtn = document.getElementById('font-size-up');
   const fontSizeDownBtn = document.getElementById('font-size-down');
+  const fontSizeResetBtn = document.getElementById('font-size-reset');
   if (fontSizeUpBtn) fontSizeUpBtn.addEventListener('click', () => adjustFontSize(1));
   if (fontSizeDownBtn) fontSizeDownBtn.addEventListener('click', () => adjustFontSize(-1));
+  if (fontSizeResetBtn) fontSizeResetBtn.addEventListener('dblclick', () => adjustFontSize(0));
   document.addEventListener('click', handleGlobalClick);
 }
 
@@ -255,7 +257,7 @@ function processCodeBlocks(html) {
     /<pre><code class="language-([^"]+)">([\s\S]*?)<\/code><\/pre>/g,
     (_, language, code) => `
       <div class="relative group">
-        <button class="copy-code-button absolute top-2 right-2 p-1 rounded text-xs bg-dark-700/50 text-white opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity" aria-label="Copy code">
+        <button class="copy-code-button absolute top-2 right-2 p-1 rounded text-xs bg-dark-700/50 text-white opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity md:opacity-0 sm:opacity-100" aria-label="Copy code">
           Copy
         </button>
         <pre><code class="language-${language}">${code}</code></pre>
@@ -343,6 +345,27 @@ function showWelcomeMessageIfNeeded() {
 }
 
 function initMobileUI() {
+  // Use ResizeObserver to handle orientation changes and viewport adjustments
+  const resizeObserver = new ResizeObserver(entries => {
+    const isMobile = window.innerWidth < 768;
+    const isLandscape = window.innerWidth > window.innerHeight;
+    
+    // Adjust UI based on orientation
+    document.body.classList.toggle('landscape', isLandscape && isMobile);
+    
+    // Fix iOS Safari viewport height issues
+    document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+  });
+  
+  resizeObserver.observe(document.documentElement);
+  
+  // Handle orientation change explicitly for older browsers
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+    }, 100);
+  });
+  
   const statsToggle = document.getElementById('mobile-stats-toggle');
   const statsPanel = document.getElementById('mobile-stats-panel');
   if (statsToggle && statsPanel) {

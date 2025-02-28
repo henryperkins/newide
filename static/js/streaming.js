@@ -222,9 +222,25 @@ function scheduleRender() {
     if (animationFrameId) cancelAnimationFrame(animationFrameId);
     animationFrameId = requestAnimationFrame(() => {
       renderBufferedContent();
+      updateStreamingProgress();
       lastRenderTimestamp = now;
       animationFrameId = null;
     });
+  }
+}
+
+function updateStreamingProgress() {
+  // Create or update streaming progress indicator
+  let progressIndicator = document.getElementById('streaming-progress');
+  if (!progressIndicator && messageContainer) {
+    progressIndicator = document.createElement('div');
+    progressIndicator.id = 'streaming-progress';
+    progressIndicator.className = 'streaming-progress-indicator flex items-center text-xs text-dark-500 dark:text-dark-400 mt-2 mb-1';
+    progressIndicator.innerHTML = `
+      <div class="animate-pulse mr-2 h-1.5 w-1.5 rounded-full bg-primary-500"></div>
+      <span>Receiving response...</span>
+    `;
+    messageContainer.appendChild(progressIndicator);
   }
 }
 
@@ -427,6 +443,12 @@ async function cleanupStreaming() {
     animationFrameId = null;
   }
   removeTypingIndicator();
+  
+  // Remove streaming progress indicator
+  const progressIndicator = document.getElementById('streaming-progress');
+  if (progressIndicator) {
+    progressIndicator.remove();
+  }
   if (mainTextBuffer && messageContainer) {
     try {
       const sessionId = await getSessionId();

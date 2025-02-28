@@ -23,6 +23,13 @@
   html {
     @apply antialiased text-dark-900 dark:text-white;
     font-size: 16px;
+    transition: background-color 300ms ease, color 300ms ease;
+  }
+    
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      transition: none;
+    }
   }
 
   /* System for focus states */

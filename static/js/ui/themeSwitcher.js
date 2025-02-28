@@ -30,6 +30,7 @@ function createThemeToggleIfNeeded() {
   themeToggleButton.id = 'theme-toggle';
   themeToggleButton.className = 'w-10 h-6 rounded-full bg-gray-200 dark:bg-gray-700 relative transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500';
   themeToggleButton.setAttribute('aria-label', 'Toggle dark mode');
+  themeToggleButton.setAttribute('aria-pressed', document.documentElement.classList.contains('dark') ? 'true' : 'false');
   
   // Create the toggle knob
   const toggleKnob = document.createElement('span');
@@ -86,6 +87,12 @@ function toggleTheme() {
   // Store the preference in localStorage
   const isDark = document.documentElement.classList.contains('dark');
   localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  
+  // Update aria-pressed state for accessibility
+  const themeToggle = document.getElementById('theme-toggle');
+  if (themeToggle) {
+    themeToggle.setAttribute('aria-pressed', isDark ? 'true' : 'false');
+  }
   
   // Update toggle appearance
   updateToggleAppearance();

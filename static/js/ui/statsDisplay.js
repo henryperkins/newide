@@ -19,7 +19,7 @@ export default class StatsDisplay {
       
       // Add throttling variables
       this.lastUpdateTime = 0;
-      this.updateThrottleMs = 3000; // Only update UI every 3 seconds
+      this.updateThrottleMs = 1000; // Update UI every second for better responsiveness
       this.pendingUpdate = false;
 
       this.initDisplay();
@@ -50,7 +50,7 @@ export default class StatsDisplay {
     }
   
     startConnectionTracking() {
-      // Ping endpoint every 30s to get # of active connections
+      // Ping endpoint every 15s to get # of active connections
       setInterval(async () => {
         try {
           const response = await fetch('/api/model-stats/connections');
@@ -74,7 +74,7 @@ export default class StatsDisplay {
           this.stats.activeConnections = 0;
         }
         this.render();
-      }, 30000);
+      }, 15000);
     }
   
     render() {
@@ -96,7 +96,10 @@ export default class StatsDisplay {
         this.stats.activeConnections;
   
       this.container.querySelector('#total-tokens-value').textContent =
-        this.stats.totalTokens.toLocaleString();
+        new Intl.NumberFormat('en', { 
+          notation: this.stats.totalTokens > 999999 ? 'compact' : 'standard',
+          maximumFractionDigits: 1 
+        }).format(this.stats.totalTokens);
     }
   
     triggerAnimations() {
