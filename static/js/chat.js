@@ -400,16 +400,29 @@ function renderUserMessage(content) {
 export function renderAssistantMessage(content, isThinking = false) {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return;
+  
+  const currentModel = document.getElementById('model-select')?.value || window.modelManager?.getCurrentModelId() || 'Unknown';
+  
   const el = document.createElement('div');
   el.className = `message assistant-message ${isThinking ? 'thinking-message' : ''}`;
   el.setAttribute('role', 'log');
   el.setAttribute('aria-live', 'polite');
+  
   if (content.includes('<think>')) {
     content = deepSeekProcessor.replaceThinkingBlocks(content);
   }
+  
   const markdown = renderMarkdown(content);
   const processedContent = processCodeBlocks(markdown);
-  el.innerHTML = processedContent;
+  
+  // Add model name display with Tailwind classes
+  el.innerHTML = `
+    ${processedContent}
+    <div class="font-mono text-xs text-gray-400/80 dark:text-gray-500 mt-2 transition-opacity opacity-70 hover:opacity-100">
+      Model: ${currentModel}
+    </div>
+  `;
+  
   chatHistory.appendChild(el);
   highlightCode(el);
   setTimeout(() => {

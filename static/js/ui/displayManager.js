@@ -201,6 +201,9 @@ export function renderAssistantMessage(content, skipScroll = false, skipStore = 
 function createAssistantMessageElement(content) {
   const cacheKey = `assistant-${content}`;
   if (messageCache.has(cacheKey)) return messageCache.get(cacheKey).cloneNode(true);
+  
+  const currentModel = window.modelManager?.getCurrentModelId() || document.getElementById('model-select')?.value || 'Unknown';
+  
   const el = document.createElement('div');
   el.className = 'message assistant-message';
   el.setAttribute('role', 'log');
@@ -209,7 +212,15 @@ function createAssistantMessageElement(content) {
   const md = renderMarkdown(processed);
   const enhanced = processCodeBlocks(md);
   const lazy = processImagesForLazyLoading(enhanced);
-  el.innerHTML = lazy;
+  
+  // Add model name display with Tailwind classes
+  el.innerHTML = `
+    ${lazy}
+    <div class="font-mono text-xs text-gray-400/80 dark:text-gray-500 mt-2 transition-opacity opacity-70 hover:opacity-100">
+      Model: ${currentModel}
+    </div>
+  `;
+  
   messageCache.set(cacheKey, el.cloneNode(true));
   return el;
 }
