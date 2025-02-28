@@ -1,43 +1,37 @@
 /**
  * DeepSeek-R1 Response Processor
  * 
- * This module handles the special formatting and processing needed for
+ * This module handles the processing and formatting of 
  * DeepSeek-R1 model responses, particularly the <think>...</think> tags
  * that contain the model's chain-of-thought reasoning.
  */
 
 /**
  * Process DeepSeek-R1 response content to handle thinking tags
+ * 
  * @param {string} content - The raw content from the model
  * @param {boolean} showThinking - Whether to display the thinking process (default: true)
  * @returns {string} - Processed content with thinking tags formatted or removed
  */
 export function processDeepSeekResponse(content, showThinking = true) {
-    if (!content) return '';
-    
     // Check if we have thinking tags
-    const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
-    
-    if (!content.match(thinkRegex)) {
+    if (!content.includes('<think>')) {
         // No thinking tags found, return as is
         return content;
     }
     
     console.log('DeepSeek thinking tags detected in content');
-    
+
     if (!showThinking) {
         // Remove thinking tags completely if not showing
-        return content.replace(thinkRegex, '');
+        return content.replace(/<think>[\s\S]*?<\/think>/g, '');
     }
-    
+
     // Process and format the thinking content
     let processedContent = content;
-    let match;
     
-    while ((match = thinkRegex.exec(content)) !== null) {
-        const fullMatch = match[0];
-        const thinkingContent = match[1];
-        
+    // Replace <think>...</think> blocks with formatted HTML
+    processedContent = processedContent.replace(/<think>([\s\S]*?)<\/think>/g, (fullMatch, thinkingContent) => {
         // Format the thinking content with a collapsible section
         const formattedThinking = `
             <div class="thinking-process my-3 border border-blue-200 dark:border-blue-800 rounded-md overflow-hidden">
@@ -45,8 +39,7 @@ export function processDeepSeekResponse(content, showThinking = true) {
                     <button class="thinking-toggle w-full text-left flex items-center justify-between text-blue-700 dark:text-blue-300" 
                             aria-expanded="true" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); this.closest('.thinking-process').querySelector('.thinking-content').classList.toggle('hidden');">
                         <span class="font-medium">Thinking Process</span>
-                        <span class="toggle-icon transition-transform duration-200" 
-                              style="transform: rotate(0deg);">▼</span>
+                        <span class="toggle-icon">▼</span>
                     </button>
                 </div>
                 <div class="thinking-content bg-blue-50/50 dark:bg-blue-900/10 px-4 py-3">
@@ -56,22 +49,27 @@ export function processDeepSeekResponse(content, showThinking = true) {
         `;
         
         processedContent = processedContent.replace(fullMatch, formattedThinking);
-    }
+        return formattedThinking;
+    });
     
     return processedContent;
 }
 
 /**
  * Add necessary styles for DeepSeek thinking sections
+ * Note: These are added as a fallback in case Tailwind doesn't include them
  */
-export function injectDeepSeekStyles() {
-    // Check if styles are already added
-    if (document.getElementById('deepseek-styles')) return;
+function addThinkingStyles() {
+    const styleId = 'deepseek-thinking-styles';
+    if (document.getElementById(styleId)) {
+        return; // Already added
+    }
     
-    const styleEl = document.createElement('style');
-    styleEl.id = 'deepseek-styles';
-    styleEl.textContent = `
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
         .thinking-process {
+            position: relative;
             margin: 1rem 0;
         }
         
@@ -84,16 +82,21 @@ export function injectDeepSeekStyles() {
         }
         
         .thinking-pre {
-            white-space: pre-wrap;
-            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
         }
         
         @media (max-width: 640px) {
             .thinking-pre {
-                font-size: 0.75rem;
+                max-height: 200px;
             }
         }
     `;
     
-    document.head.appendChild(styleEl);
+    document.head.appendChild(style);
+}
+
+// Ensure styles are added when this module is imported
+if (typeof window !== 'undefined') {
+    addThinkingStyles();
 }
