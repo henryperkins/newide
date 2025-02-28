@@ -91,6 +91,12 @@
   }
 }
 
+@layer components {
+    .sidebar-transition {
+        @apply transition-transform duration-300 ease-in-out;
+    }
+}
+
 @layer utilities {
   /* Enhance touch targets for mobile */
   .touch-action-manipulation {

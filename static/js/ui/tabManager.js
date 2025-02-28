@@ -136,58 +136,66 @@ function initMobileSidebarToggle() {
   sidebar.addEventListener('touchstart', (e) => {
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
+    
+    // Add transition for smooth animation
+    sidebar.classList.add('transition-transform', 'duration-300');
   }, { passive: true });
-  
+
   sidebar.addEventListener('touchmove', (e) => {
     if (!startX) return;
     
     const currentX = e.touches[0].clientX;
-    const currentY = e.touches[0].clientY;
     const diffX = currentX - startX;
-    const diffY = currentY - startY;
     
-    // Only handle horizontal swipes (ignore more vertical swipes)
-    if (Math.abs(diffX) > Math.abs(diffY) && diffX > 50) {
-      sidebar.style.transform = `translateX(${diffX}px)`;
+    // Only handle horizontal swipes
+    if (Math.abs(diffX) > 30) {
+      // Move sidebar visually but keep it bounded
+      const translateX = Math.min(diffX, sidebar.offsetWidth);
+      sidebar.style.transform = `translateX(${translateX}px)`;
     }
   }, { passive: true });
-  
+
   sidebar.addEventListener('touchend', (e) => {
     if (!startX) return;
     
     const currentX = e.changedTouches[0].clientX;
     const diffX = currentX - startX;
     
+    // Clear inline transform
+    sidebar.style.transform = '';
+    sidebar.classList.remove('transition-transform', 'duration-300');
+    
     if (diffX > 100) {
-      // Close the sidebar if swiped right enough
+      // Close the sidebar
       sidebar.classList.add('translate-x-full');
       sidebar.classList.remove('translate-x-0');
       overlay.classList.add('hidden');
       toggleButton.setAttribute('aria-expanded', 'false');
     }
     
-    // Reset transform
-    sidebar.style.transform = '';
     startX = null;
-    startY = null;
   }, { passive: true });
   
   // Handle resize events to ensure proper sidebar state
   window.addEventListener('resize', () => {
     const isMobile = window.innerWidth < 768;
-    const isOpen = !sidebar.classList.contains('translate-x-full');
+    const isOpen = sidebar.classList.contains('translate-x-0');
 
     if (isMobile) {
-      // Mobile view
+      // Ensure proper mobile state
       if (isOpen) {
         overlay.classList.remove('hidden');
       } else {
+        sidebar.classList.add('translate-x-full');
         overlay.classList.add('hidden');
       }
     } else {
-      // Desktop view - reset to default state
-      sidebar.classList.remove('translate-x-full');
-      sidebar.classList.add('md:translate-x-0');
+      // Reset for desktop
+      sidebar.classList.remove(
+        'fixed', 'translate-x-full', 'translate-x-0', 
+        'md:translate-x-0', 'md:static'
+      );
+      sidebar.classList.add('md:block', 'md:static');
       overlay.classList.add('hidden');
     }
   });
