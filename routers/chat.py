@@ -100,6 +100,20 @@ async def store_message(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("", include_in_schema=False)
+async def create_chat_no_slash(
+    request: CreateChatCompletionRequest,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[User] = Depends(get_current_user),
+    config_service: ConfigService = Depends(get_config_service)
+):
+    """
+    This handles POST /api/chat with no trailing slash,
+    deferring to the same logic as create_chat_completion.
+    """
+    return await create_chat_completion(request, db, current_user, config_service)
+
+
 @router.get("/api/conversations/history")
 async def get_conversation_history(
     session_id: UUID = Query(...),
