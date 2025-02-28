@@ -138,7 +138,7 @@ async def main():
                 else:
                     # Simple direct call to model without storing history
                     if model_name.lower() == "deepseek-r1":
-                        response = client.complete(
+                        response = await client.create(
                             model=model_name,
                             messages=[{"role": "user", "content": user_message}],
                             temperature=config.DEEPSEEK_R1_DEFAULT_TEMPERATURE,
@@ -146,7 +146,7 @@ async def main():
                         )
                         content = response.choices[0].message.content
                     else:
-                        response = client.chat.completions.create(
+                        response = await client.create(
                             model=model_name,
                             messages=[{"role": "user", "content": user_message}],
                             temperature=0.7,

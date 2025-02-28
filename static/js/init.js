@@ -103,7 +103,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialize the sidebar tab system
   initTabSystem();
-  initMobileSidebarToggle();
   
   // Configure markdown parser for chat messages
   configureMarkdown();
@@ -225,6 +224,17 @@ function initMobileUI() {
     
     // Add pull-to-refresh for loading older messages
     initPullToRefresh();
+  } else {
+    // Desktop environment: Hide sidebar by default
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar) {
+      sidebar.classList.add('translate-x-full');
+      sidebar.classList.remove('translate-x-0');
+    }
+    if (overlay) {
+      overlay.classList.add('hidden');
+    }
   }
 }
 
@@ -277,6 +287,27 @@ function initMobileSidebar() {
   console.log('Mobile sidebar initialization delegated to tabManager.js');
   // All sidebar handling is now managed in tabManager.js via initMobileSidebarToggle
 }
+
+/**
+ * Initialize Pull-to-Refresh on the chat history for mobile
+ */
+function initPullToRefresh() {
+  const chatHistory = document.getElementById('chat-history');
+  if (!chatHistory) return;
+  
+  let startY = 0;
+  let isPulling = false;
+  let threshold = 80;
+  let indicator = null;
+
+  // Start tracking if we begin pulling from the very top
+  chatHistory.addEventListener('touchstart', (e) => {
+    if (chatHistory.scrollTop > 0) return;
+    startY = e.touches[0].clientY;
+    isPulling = true;
+  }, { passive: true });
+
+  // Pull in progress
   chatHistory.addEventListener('touchmove', (e) => {
     if (!isPulling) return;
     
@@ -284,13 +315,13 @@ function initMobileSidebar() {
     const pullDistance = currentY - startY;
     
     if (pullDistance > 0 && chatHistory.scrollTop <= 0) {
-      // Prevent default scrolling behavior
+      // Prevent default scrolling
       e.preventDefault();
       
-      // Apply a transform to show visual feedback
+      // Apply a transform for feedback
       chatHistory.style.transform = `translateY(${Math.min(pullDistance / 2, threshold)}px)`;
       
-      // Show/update pull indicator
+      // Show or update the pull indicator
       if (!indicator) {
         indicator = document.createElement('div');
         indicator.className = 'text-center text-gray-500 absolute top-0 left-0 right-0 z-10 py-2 bg-gray-100/80 dark:bg-gray-800/80 backdrop-blur-sm';
@@ -305,16 +336,18 @@ function initMobileSidebar() {
       }
     }
   }, { passive: false });
-  
+
+  // Finish pull
   chatHistory.addEventListener('touchend', (e) => {
     if (!isPulling) return;
     
     const currentY = e.changedTouches[0].clientY;
     const pullDistance = currentY - startY;
     
-    // Reset the transform
+    // Reset transform
     chatHistory.style.transform = '';
     
+    // If exceeded threshold, trigger loading
     if (pullDistance > threshold && chatHistory.scrollTop <= 0) {
       // Show loading indicator
       if (indicator) {
@@ -325,7 +358,7 @@ function initMobileSidebar() {
       window.loadOlderMessages();
     }
     
-    // Remove indicator after animation
+    // Cleanup
     setTimeout(() => {
       if (indicator) {
         indicator.remove();
@@ -337,12 +370,6 @@ function initMobileSidebar() {
   }, { passive: true });
 }
 
-/**
- * Initialize enhanced mobile sidebar handling
- */
-function initMobileSidebar() {
-  // This is now handled in tabManager.js
-}
 
 /**
  * Update stats on both desktop and mobile elements

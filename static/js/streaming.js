@@ -199,56 +199,6 @@ function processStreamingChunk(data) {
   });
 }
 
-/**
- * Parse chunk text for reasoning blocks (handled by deepseekProcessor)
- */
-// parseChunkForReasoning function removed - handled by processDeepSeekResponse()
-  if (!isThinking) {
-    // Check if this chunk contains a thinking start tag
-    const thinkStart = text.indexOf('<think>');
-    
-    if (thinkStart === -1) {
-      // Normal text, add to main buffer
-      mainTextBuffer += text;
-    } else {
-      // Found thinking start tag
-      // Add text before the tag to main buffer
-      mainTextBuffer += text.slice(0, thinkStart);
-      
-      // Switch to thinking mode and process remaining text
-      isThinking = true;
-      const remainingText = text.slice(thinkStart + '<think>'.length);
-      thinkingTextBuffer += remainingText;
-      
-      // Ensure we have the thinking container ready
-      ensureThinkingContainer();
-    }
-  } else {
-    // Already in thinking mode, check for end tag
-    const thinkEnd = text.indexOf('</think>');
-    
-    if (thinkEnd === -1) {
-      // Still in thinking block
-      thinkingTextBuffer += text;
-    } else {
-      // Found end of thinking
-      // Add text up to the end tag to thinking buffer
-      thinkingTextBuffer += text.slice(0, thinkEnd);
-      
-      // Switch back to normal mode
-      isThinking = false;
-      
-      // Process any text after the end tag
-      const remainingText = text.slice(thinkEnd + '</think>'.length);
-      if (remainingText) {
-        mainTextBuffer += remainingText;
-      }
-      
-      // Finalize thinking container
-      finalizeThinkingContainer();
-    }
-  }
-}
 
 /**
  * Schedule a render with debouncing for performance

@@ -4,7 +4,7 @@ import { getSessionId } from '../session.js';
 import { renderMarkdown, sanitizeHTML, highlightCode } from './markdownParser.js';
 import { showNotification, showConfirmDialog } from './notificationManager.js';
 import { debounce } from '../utils/helpers.js';
-import { processDeepSeekResponse } from './deepseekProcessor.js';
+import { deepSeekProcessor } from './deepseekProcessor.js';
 
 // Configuration
 let messageRenderLimit = 30; // Maximum messages to keep in DOM
