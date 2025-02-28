@@ -5,7 +5,47 @@ from logging_config import logger
 from database import get_db_session  # For injection
 from models import AppConfiguration
 from fastapi import Depends
-import config  # Add this import
+import os
+import json
+import time
+from functools import lru_cache
+
+# Global cache variables
+_model_configs_cache = {}
+_model_configs_timestamp = 0
+_cache_ttl = 300  # 5 minutes
+
+# Default model configurations based on documentation
+DEFAULT_MODEL_CONFIGS = {
+    "o1hp": {
+        "name": "o1hp",
+        "description": "Advanced reasoning model for complex tasks",
+        "max_tokens": 200000,  # Input token limit from docs
+        "max_completion_tokens": 5000,  # From docs
+        "supports_temperature": False,  # o1 doesn't support temperature
+        "supports_streaming": False,  # o1 doesn't support streaming
+        "supports_vision": True,  # o1 supports vision
+        "requires_reasoning_effort": True,
+        "reasoning_effort": "medium",
+        "base_timeout": 120.0,
+        "max_timeout": 300.0,
+        "token_factor": 0.05,
+        "api_version": os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
+        "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    },
+    "DeepSeek-R1": {
+        "name": "DeepSeek-R1",
+        "description": "Model that supports chain-of-thought reasoning with <think> tags",
+        "max_tokens": 32000,  # From docs
+        "supports_streaming": True,
+        "supports_temperature": True,
+        "api_version": os.getenv("AZURE_INFERENCE_API_VERSION", "2024-05-01-preview"),
+        "azure_endpoint": os.getenv("AZURE_INFERENCE_ENDPOINT", ""),
+        "base_timeout": 120.0,
+        "max_timeout": 300.0,
+        "token_factor": 0.05
+    }
+}
 
 class ConfigService:
     """
@@ -56,6 +96,13 @@ class ConfigService:
                 logger.info(f"Inserted config for key '{key}'")
 
             await self.db.commit()
+            
+            # Invalidate cache if model_configs is updated
+            if key == "model_configs":
+                global _model_configs_cache, _model_configs_timestamp
+                _model_configs_cache = {}
+                _model_configs_timestamp = 0
+                
             return True
         except Exception as e:
             logger.error(f"Error setting config for key '{key}': {str(e)}")
@@ -69,6 +116,13 @@ class ConfigService:
             )
             await self.db.commit()
             logger.info(f"Deleted config for key '{key}'")
+            
+            # Invalidate cache if model_configs is deleted
+            if key == "model_configs":
+                global _model_configs_cache, _model_configs_timestamp
+                _model_configs_cache = {}
+                _model_configs_timestamp = 0
+                
             return True
         except Exception as e:
             logger.error(f"Error deleting config for key '{key}': {str(e)}")
@@ -86,91 +140,77 @@ class ConfigService:
             return []
             
     async def get_model_configs(self) -> Dict[str, Any]:
-        """Get all model configurations"""
-        db_models = (await self.get_config("model_configs")) or {}
+        """
+        Get all model configurations with caching for better performance.
+        Uses defaults from documentation if database retrieval fails.
+        """
+        global _model_configs_cache, _model_configs_timestamp
         
-        # Ensure DeepSeek-R1 exists with correct casing
-        deepseek_key = next((k for k in db_models.keys() if k.lower() == 'deepseek-r1'), None)
-        if not deepseek_key:
-            db_models["DeepSeek-R1"] = {
-                "name": "DeepSeek-R1",
-                "description": "Model that supports chain-of-thought reasoning with <think> tags",
-                "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT,
-                "api_version": config.AZURE_INFERENCE_API_VERSION,
-                "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
-                "supports_temperature": True,
-                "supports_streaming": True
-            }
-            await self.set_config("model_configs", db_models, "Model configurations", is_secret=True)
-        elif deepseek_key != "DeepSeek-R1":
-            # Fix casing if needed
-            db_models["DeepSeek-R1"] = db_models.pop(deepseek_key)
-            await self.set_config("model_configs", db_models, "Model configurations", is_secret=True)
+        # Check if we have a recent cache
+        current_time = time.time()
+        if _model_configs_cache and (current_time - _model_configs_timestamp) < _cache_ttl:
+            logger.debug("Using cached model configurations")
+            return _model_configs_cache
         
-        # Ensure o1 models exist with proper configuration
-        default_o1 = config.AZURE_OPENAI_DEPLOYMENT_NAME
-        if default_o1 not in db_models and default_o1.startswith("o1"):
-            db_models[default_o1] = {
-                "name": default_o1,
-                "description": "Azure OpenAI o1 model for advanced reasoning",
-                "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
-                "api_version": config.AZURE_OPENAI_API_VERSION,
-                "max_tokens": config.O_SERIES_INPUT_TOKEN_LIMIT,
-                "max_completion_tokens": config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
-                "requires_reasoning_effort": True,
-                "reasoning_effort": config.O_SERIES_DEFAULT_REASONING_EFFORT,
-                "supports_temperature": False,
-                "supports_streaming": False
-            }
-            await self.set_config("model_configs", db_models, "Model configurations with o1", is_secret=True)
-        
-        # Ensure all models have required fields
-        for model_id, model_config in db_models.items():
-            if "name" not in model_config:
-                model_config["name"] = model_id
-            if "description" not in model_config:
-                model_config["description"] = f"Model configuration for {model_id}"
-            if "max_tokens" not in model_config:
-                model_config["max_tokens"] = 4096
-            if "supports_streaming" not in model_config:
-                model_config["supports_streaming"] = False
-            if "supports_temperature" not in model_config:
-                model_config["supports_temperature"] = False
-            if "azure_endpoint" not in model_config:
-                if config.is_deepseek_model(model_id):
-                    model_config["azure_endpoint"] = config.AZURE_INFERENCE_ENDPOINT
-                else:
-                    model_config["azure_endpoint"] = config.AZURE_OPENAI_ENDPOINT
-            if "api_version" not in model_config:
-                if config.is_deepseek_model(model_id):
-                    model_config["api_version"] = config.AZURE_INFERENCE_API_VERSION
-                else:
-                    model_config["api_version"] = config.AZURE_OPENAI_API_VERSION
-                
-            # Add o-series specific fields
-            if config.is_o_series_model(model_id):
-                if "max_completion_tokens" not in model_config:
-                    model_config["max_completion_tokens"] = config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
-                if "requires_reasoning_effort" not in model_config:
-                    model_config["requires_reasoning_effort"] = True
-                if "reasoning_effort" not in model_config:
-                    model_config["reasoning_effort"] = config.O_SERIES_DEFAULT_REASONING_EFFORT
-                if "max_tokens" not in model_config or model_config["max_tokens"] < 100000:
-                    model_config["max_tokens"] = config.O_SERIES_INPUT_TOKEN_LIMIT
-                
-                # o-series models don't support temperature
-                model_config["supports_temperature"] = False
-                model_config["supports_streaming"] = False
+        try:
+            # Fetch from database
+            db_models = await self.get_config("model_configs") or {}
+            model_configs = db_models.copy()
             
-            # DeepSeek-R1 specific fields
-            if config.is_deepseek_model(model_id):
-                if "max_tokens" not in model_config or model_config["max_tokens"] != config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS:
-                    model_config["max_tokens"] = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
-                model_config["supports_temperature"] = True
-                model_config["supports_streaming"] = True
-                model_config["api_version"] = config.DEEPSEEK_R1_DEFAULT_API_VERSION
+            # If empty, use defaults from documentation
+            if not model_configs:
+                logger.warning("No model configurations found in the database. Using defaults.")
+                model_configs = DEFAULT_MODEL_CONFIGS.copy()
                 
-        return db_models
+                # Try to save defaults to database
+                await self.set_config(
+                    "model_configs", 
+                    model_configs, 
+                    "Default model configurations based on documentation", 
+                    is_secret=True
+                )
+            
+            # Ensure required models exist
+            self._ensure_required_models(model_configs)
+            
+            # Update cache
+            _model_configs_cache = model_configs
+            _model_configs_timestamp = current_time
+            
+            return model_configs
+        except Exception as e:
+            logger.error(f"Error fetching model_configs: {str(e)}")
+            
+            # If we have a cache, use it even if stale
+            if _model_configs_cache:
+                logger.warning("Using stale cache for model configurations")
+                return _model_configs_cache
+            
+            # Otherwise fall back to defaults
+            logger.warning("Falling back to default model configurations")
+            return DEFAULT_MODEL_CONFIGS.copy()
+
+    def _ensure_required_models(self, model_configs: Dict[str, Any]) -> None:
+        """
+        Ensure that required models exist in the configuration with proper settings.
+        """
+        # Ensure o1hp exists
+        if "o1hp" not in model_configs:
+            model_configs["o1hp"] = DEFAULT_MODEL_CONFIGS["o1hp"]
+        else:
+            # Ensure o1hp has required fields
+            for field, value in DEFAULT_MODEL_CONFIGS["o1hp"].items():
+                if field not in model_configs["o1hp"]:
+                    model_configs["o1hp"][field] = value
+                    
+        # Ensure DeepSeek-R1 exists
+        if "DeepSeek-R1" not in model_configs:
+            model_configs["DeepSeek-R1"] = DEFAULT_MODEL_CONFIGS["DeepSeek-R1"]
+        else:
+            # Ensure DeepSeek-R1 has required fields
+            for field, value in DEFAULT_MODEL_CONFIGS["DeepSeek-R1"].items():
+                if field not in model_configs["DeepSeek-R1"]:
+                    model_configs["DeepSeek-R1"][field] = value
 
     async def add_model_config(self, model_id: str, model_config: Dict[str, Any]) -> bool:
         """Add a new model configuration"""
@@ -178,21 +218,17 @@ class ConfigService:
         if model_id in models:
             return False
             
-        # Apply model-specific configurations
-        if config.is_o_series_model(model_id) and "max_completion_tokens" not in model_config:
-            model_config["max_completion_tokens"] = config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
-            model_config["requires_reasoning_effort"] = True
-            model_config["reasoning_effort"] = config.O_SERIES_DEFAULT_REASONING_EFFORT
-            model_config["supports_streaming"] = False
-            
-        # Ensure required fields are set
-        if "name" not in model_config:
-            model_config["name"] = model_id
-        if "azure_endpoint" not in model_config:
-            if config.is_deepseek_model(model_id):
-                model_config["azure_endpoint"] = config.AZURE_INFERENCE_ENDPOINT
-            else:
-                model_config["azure_endpoint"] = config.AZURE_OPENAI_ENDPOINT
+        # Apply model-specific configurations and ensure required fields
+        if model_id.lower().startswith("o1") and "max_completion_tokens" not in model_config:
+            # Apply o-series specific defaults
+            for field, value in DEFAULT_MODEL_CONFIGS["o1hp"].items():
+                if field not in model_config:
+                    model_config[field] = value
+        elif model_id.lower() == "deepseek-r1" and "max_tokens" not in model_config:
+            # Apply DeepSeek specific defaults
+            for field, value in DEFAULT_MODEL_CONFIGS["DeepSeek-R1"].items():
+                if field not in model_config:
+                    model_config[field] = value
                 
         # Add to models
         models[model_id] = model_config
@@ -204,13 +240,15 @@ class ConfigService:
         if model_id not in models:
             return False
             
-        # Apply model-specific configurations
-        if config.is_o_series_model(model_id) and "max_completion_tokens" not in model_config:
-            model_config["max_completion_tokens"] = config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
-            model_config["requires_reasoning_effort"] = True
-            model_config["reasoning_effort"] = config.O_SERIES_DEFAULT_REASONING_EFFORT
+        # Merge with existing config
+        existing_config = models[model_id]
+        updated_config = {**existing_config, **model_config}
+        
+        # Ensure model-specific required fields are maintained
+        if model_id.lower().startswith("o1"):
+            updated_config["requires_reasoning_effort"] = True
             
-        models[model_id] = model_config
+        models[model_id] = updated_config
         return await self.set_config("model_configs", models, "Model configurations", is_secret=True)
 
     async def delete_model_config(self, model_id: str) -> bool:
@@ -218,8 +256,20 @@ class ConfigService:
         models = await self.get_model_configs()
         if model_id not in models:
             return False
+            
+        # Prevent deleting core models
+        if model_id in DEFAULT_MODEL_CONFIGS:
+            logger.warning(f"Attempted to delete core model {model_id}. Marking as inactive instead.")
+            models[model_id]["active"] = False
+            return await self.set_config("model_configs", models, "Model configurations", is_secret=True)
+            
         del models[model_id]
         return await self.set_config("model_configs", models, "Model configurations", is_secret=True)
+
+    async def get_model_config(self, model_id: str) -> Optional[Dict[str, Any]]:
+        """Get a specific model configuration"""
+        models = await self.get_model_configs()
+        return models.get(model_id)
 
 def get_config_service(db=Depends(get_db_session)):
     """

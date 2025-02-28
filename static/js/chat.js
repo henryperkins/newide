@@ -6,8 +6,15 @@ import { showNotification, showTypingIndicator, removeTypingIndicator, handleMes
 import { updateTokenUsage } from '/static/js/utils/helpers.js';
 import { displayMessage, processServerResponseData } from '/static/js/ui/displayManager.js';
 import { handleStreamingResponse } from '/static/js/streaming.js';
-import StatsDisplay from '/static/js/ui/statsDisplay.js'; // If you're instantiating StatsDisplay here
+import StatsDisplay from '/static/js/ui/statsDisplay.js';
 import { modelManager } from './models.js';
+import { 
+  isDeepSeekModel, 
+  isOSeriesModel, 
+  getTimeoutDuration, 
+  getModelParameters, 
+  supportsStreaming 
+} from './utils/model_utils.js';
 
 // Example: if you want a single StatsDisplay instance for the entire app
 // you might do this once. Or do so in init.js and import statsDisplay from there.
@@ -92,21 +99,20 @@ export async function sendMessage() {
     const config = await getCurrentConfig();
     const modelConfig = await getModelSettings();
 
-    // Log model info for debugging DeepSeek issues
-    logDeepSeekModelInfo(modelConfig);
-  
-    // Special handling for DeepSeek-R1 model
-    const isDeepSeek = modelConfig?.name?.toLowerCase().includes('deepseek') || 
-                       modelConfig?.name === 'DeepSeek-R1';
-  
-    if (isDeepSeek) {
-      console.log('[sendMessage] Using DeepSeek-R1 specific handling');
-    }
+    // Get the current selected model from modelManager
+    const modelName = modelManager.currentModel || modelConfig?.name || config.deploymentName;
     
     // Decide a typical request timeout based on "reasoningEffort" or "serverCalculatedTimeout"
     const effortLevel = config?.reasoningEffort || 'medium';
-    const timeout = (await getTimeoutDurations(modelConfig))[effortLevel] || 30000;
-    console.log('[Config] Current settings:', { effort: effortLevel, timeout, modelConfig });
+    const timeout = window.serverCalculatedTimeout ? 
+      Math.max(window.serverCalculatedTimeout * 1000, 90000) : 
+      getTimeoutDuration(modelName, effortLevel);
+      
+    console.log('[Config] Current settings:', { 
+      model: modelName,
+      effort: effortLevel, 
+      timeout
+    });
 
     // Show typing indicator
     showTypingIndicator();
@@ -120,20 +126,17 @@ export async function sendMessage() {
       controller,
       developerConfig: config.developerConfig,
       reasoningEffort: config.reasoningEffort,
-      modelConfig
+      modelConfig,
+      modelName
     });
 
-    // Get model details for streaming decision
-    const modelName = modelConfig?.name?.toLowerCase();
-    const supportsStreaming = modelConfig?.capabilities?.supports_streaming === true || 
-                              modelName?.includes('deepseek') || // DeepSeek models support streaming
-                              modelConfig?.name === 'DeepSeek-R1'; // Explicit check for DeepSeek-R1
-
     // Check if the model supports streaming and user has enabled it
-    if (supportsStreaming && streamingEnabled) {
+    const modelSupportsStreaming = supportsStreaming(modelName, modelConfig);
+    
+    if (modelSupportsStreaming && streamingEnabled) {
       await handleStreamingResponse(response, controller, config, statsDisplay);
     } else {
-      if (streamingEnabled && !supportsStreaming) {
+      if (streamingEnabled && !modelSupportsStreaming) {
         console.warn(`Model ${modelName} doesn't support streaming. Using standard request.`);
       }
       
@@ -156,9 +159,7 @@ export async function sendMessage() {
           );
         }
 
-        // Possibly update stats usage if data.usage is present
-        // Then handle final assistant content in displayManager
-        const modelName = data.model || modelConfig?.name || 'unknown';
+        // Process the final response and display it
         processServerResponseData(data, modelName);
       } catch (parseError) {
         console.error('[sendMessage] Error parsing response:', parseError);
@@ -201,20 +202,19 @@ export async function regenerateResponse() {
 /**
  * Handles the chat request with optional retries on timeouts.
  */
-async function handleChatRequest({ messageContent, controller, developerConfig, reasoningEffort, modelConfig }) {
+async function handleChatRequest({ 
+  messageContent, 
+  controller, 
+  developerConfig, 
+  reasoningEffort, 
+  modelConfig,
+  modelName
+}) {
   const maxRetries = 3;
   let lastError = null;
 
-  // Get the current selected model from modelManager
-  const selectedModelId = modelManager.currentModel;
-  console.log(`[handleChatRequest] Using model: ${selectedModelId}`);
-
-  // If modelManager has a selected model, ensure it's used
-  if (selectedModelId && (!modelConfig || modelConfig.name !== selectedModelId)) {
-    // Get the config for this model
-    console.log(`[handleChatRequest] Overriding model config with selected model: ${selectedModelId}`);
-    modelConfig = modelManager.modelConfigs[selectedModelId] || modelConfig;
-  }
+  // Use the current selected model 
+  console.log(`[handleChatRequest] Using model: ${modelName}`);
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
@@ -223,7 +223,8 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
         controller,
         developerConfig,
         reasoningEffort,
-        modelConfig
+        modelConfig,
+        modelName
       });
       return response;
     } catch (error) {
@@ -252,19 +253,14 @@ async function handleChatRequest({ messageContent, controller, developerConfig, 
 /**
  * Actually performs the API fetch call to Azure/OpenAI
  */
-async function makeApiRequest({ messageContent, controller, developerConfig, reasoningEffort, modelConfig }) {
-  const config = await getCurrentConfig();
-
-  // Use the selected model from modelManager if available
-  const currentModelId = modelManager.currentModel;
-  
-  // For debugging
-  console.log('[makeApiRequest] Current model from modelManager:', currentModelId);
-  console.log('[makeApiRequest] Passed modelConfig:', modelConfig?.name);
-  
-  // Use model from modelManager, fallback to passed modelConfig, then deployment name
-  const modelName = currentModelId || modelConfig?.name || config.deploymentName;
-  
+async function makeApiRequest({ 
+  messageContent, 
+  controller, 
+  developerConfig, 
+  reasoningEffort, 
+  modelConfig,
+  modelName
+}) {
   // Initialize session if needed
   if (!sessionId) {
     await initializeSession();
@@ -273,92 +269,16 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
     }
   }
 
-  // Determine model type for parameter selection
-  const modelNameLower = modelName.toLowerCase();
-  const isDeepSeek = modelNameLower.includes('deepseek');
-  const isOSeries = modelNameLower.startsWith('o1') || modelNameLower.startsWith('o3');
-
-  // IMPORTANT: Structure the messages array properly
-  const messages = [];
+  // Get request parameters using shared utility
+  const requestBody = getModelParameters(modelName, modelConfig, messageContent, developerConfig);
   
-  // Add developer/system prompt if present
-  if (developerConfig) {
-    if (isOSeries) {
-      // o-series models use "developer" role
-      messages.push({
-        role: "developer",
-        content: developerConfig
-      });
-    } else {
-      // Other models use "system" role
-      messages.push({
-        role: "system", 
-        content: developerConfig
-      });
-    }
-  }
-  
-  // Always add the user's message
-  messages.push({
-    role: 'user',
-    content: messageContent
-  });
-
-  // Basic request body - UPDATED to always use the current model
-  const requestBody = {
-    model: modelName,
-    messages: messages,
-    session_id: sessionId
-  };
-
-  // Log the selected model for debugging
-  console.log('[makeApiRequest] Using model:', modelName);
-
-  // Set model-specific parameters
-  if (isOSeries) {
-    // O-series models - use reasoning_effort
+  // Add reasoning effort for o-series models if not already set
+  if (isOSeriesModel(modelName) && !requestBody.reasoning_effort) {
     requestBody.reasoning_effort = reasoningEffort || 'medium';
-    
-    // o-series uses max_completion_tokens, not max_tokens
-    if (modelConfig?.capabilities?.max_completion_tokens) {
-      requestBody.max_completion_tokens = modelConfig.capabilities.max_completion_tokens;
-    } else {
-      requestBody.max_completion_tokens = 5000; // Default value
-    }
-    
-    // o-series doesn't use temperature
-    delete requestBody.temperature;
-  } else if (isDeepSeek) {
-    // DeepSeek-R1 model - uses temperature (NOT reasoning_effort)
-    requestBody.temperature = 0.7; // Default from documentation
-    if (modelConfig?.capabilities?.max_tokens) {
-      requestBody.max_tokens = modelConfig.capabilities.max_tokens;
-    } else {
-      requestBody.max_tokens = 32000; // Default for DeepSeek-R1
-    }
-    
-    // DeepSeek doesn't use reasoning_effort
-    delete requestBody.reasoning_effort;
-    // DeepSeek doesn't use max_completion_tokens
-    delete requestBody.max_completion_tokens;
-  } else {
-    // Standard model
-    if (modelConfig?.capabilities?.temperature !== undefined) {
-      requestBody.temperature = modelConfig.capabilities.temperature;
-    } else {
-      requestBody.temperature = 0.7; // Default temperature
-    }
-    
-    // Standard models use max_tokens, not max_completion_tokens
-    if (modelConfig?.capabilities?.max_tokens) {
-      requestBody.max_tokens = modelConfig.capabilities.max_tokens;
-    } else {
-      requestBody.max_tokens = 4000; // Default value
-    }
   }
 
-  // Build the URL - now simplified to your server endpoint
-  const url = await buildAzureOpenAIUrl();
+  // Build the URL - always use your server endpoint
+  const url = '/api/chat/';
 
   console.log('[makeApiRequest] Request URL:', url);
   console.log('[makeApiRequest] Sending payload:', JSON.stringify(requestBody, null, 2));
@@ -420,16 +340,14 @@ async function makeApiRequest({ messageContent, controller, developerConfig, rea
 }
 
 /**
- * Creates an AbortController with a fallback/override for server-suggested timeouts.
+ * Creates an AbortController with a timeout for the API request.
  */
 function createAbortController(timeoutDuration) {
   const controller = new AbortController();
 
   // e.g. minimum 90s or server-provided
   const minTimeout = 90000;
-  const actualTimeout = window.serverCalculatedTimeout
-    ? Math.max(window.serverCalculatedTimeout * 1000, minTimeout)
-    : Math.max(timeoutDuration, minTimeout);
+  const actualTimeout = Math.max(timeoutDuration, minTimeout);
 
   console.log(`[createAbortController] Setting timeout: ${actualTimeout}ms`);
 
@@ -444,75 +362,4 @@ function createAbortController(timeoutDuration) {
   }, actualTimeout);
 
   return { controller, timeoutId };
-}
-
-/**
- * Retrieves timeouts for low/medium/high effort, adjusting if needed for special models.
- */
-async function getTimeoutDurations(modelConfig) {
-  const modelName = modelConfig?.name?.toLowerCase() || '';
-  const isDeepSeek = modelName.includes('deepseek');
-  const isOSeries = modelName.startsWith('o1') || modelName.startsWith('o3');
-
-  if (isDeepSeek) {
-    return {
-      low: 30000,    // 30s
-      medium: 60000, // 60s
-      high: 120000   // 120s
-    };
-  } else if (isOSeries) {
-    return {
-      low: 60000,     // 60s 
-      medium: 120000, // 120s
-      high: 300000    // 300s - O-series models can take much longer
-    };
-  }
-
-  // Default timeouts for standard models
-  return {
-    low: 15000,
-    medium: 30000,
-    high: 60000
-  };
-}
-
-/**
- * Helper to distinguish if the model is "O1"
- */
-function isO1Model(modelConfig) {
-  const name = modelConfig?.name?.toLowerCase() || '';
-  return name.startsWith('o1') || name.startsWith('o3');
-}
-
-/**
- * Helper to distinguish if the model is "DeepSeek"
- */
-function isDeepSeekModel(modelConfig) {
-  const name = modelConfig?.name?.toLowerCase() || '';
-  return name.includes('deepseek') || modelConfig?.name === 'DeepSeek-R1';
-  // Note: DeepSeek models use temperature parameter, not reasoning_effort
-  // This matches the API documentation in deepseek-reference.md
-}
-
-// Debug helper for DeepSeek models
-function logDeepSeekModelInfo(modelConfig) {
-  if (isDeepSeekModel(modelConfig)) {
-    console.log('DeepSeek model detected:', {
-      name: modelConfig.name,
-      supports_temperature: modelConfig.supports_temperature,
-      supports_streaming: modelConfig.supports_streaming
-    });
-  }
-}
-
-/**
- * Build the API endpoint for chat completion
- */
-async function buildAzureOpenAIUrl() {
-  // IMPORTANT: Always use your backend API, not direct Azure endpoints
-  // This avoids CORS issues and keeps API keys secure
-  
-  // Instead of building different URLs for different models,
-  // use a consistent endpoint on YOUR server
-  return `/api/chat/`;
 }

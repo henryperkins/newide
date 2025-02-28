@@ -12,6 +12,9 @@ from azure.core.credentials import AzureKeyCredential
 from logging_config import logger
 import config
 
+# Import shared utility functions
+from utils.model_utils import is_deepseek_model, is_o_series_model, get_azure_credential
+
 # Removed direct database import, now handled by ConfigService
 from services.config_service import ConfigService  # Use for database access.
 
@@ -55,65 +58,6 @@ class ClientPool:
         try:
             db_model_configs = await config_service.get_model_configs()
             
-            # If no configurations found, create defaults
-            if not db_model_configs:
-                logger.warning("No model configs found. Creating defaults.")
-                
-                # Create default o1 model
-                default_o1 = config.AZURE_OPENAI_DEPLOYMENT_NAME
-                logger.info(f"Creating default config for {default_o1}")
-                
-                o1_config = {
-                    "name": default_o1,
-                    "description": "Default Azure OpenAI o1 model",
-                    "max_tokens": 200000,
-                    "max_completion_tokens": config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
-                    "supports_streaming": False,
-                    "supports_temperature": False,
-                    "requires_reasoning_effort": True,
-                    "reasoning_effort": config.O_SERIES_DEFAULT_REASONING_EFFORT,
-                    "base_timeout": config.O_SERIES_BASE_TIMEOUT,
-                    "max_timeout": config.O_SERIES_MAX_TIMEOUT,
-                    "token_factor": config.O_SERIES_TOKEN_FACTOR,
-                    "api_version": config.AZURE_OPENAI_API_VERSION,
-                    "azure_endpoint": config.AZURE_OPENAI_ENDPOINT
-                }
-                
-                # Create DeepSeek-R1 model config
-                deepseek_config = {
-                    "name": "DeepSeek-R1",
-                    "description": "Model that supports chain-of-thought reasoning with <think> tags",
-                    "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
-                    "supports_streaming": True,
-                    "supports_temperature": True,
-                    "supports_json_response": False,
-                    "base_timeout": 120.0,
-                    "max_timeout": 300.0,
-                    "token_factor": 0.05,
-                    "api_version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
-                    "azure_endpoint": config.AZURE_INFERENCE_ENDPOINT
-                }
-                
-                # Ensure the DeepSeek endpoint is set
-                if not deepseek_config["azure_endpoint"]:
-                    logger.error("AZURE_INFERENCE_ENDPOINT is not set but required for DeepSeek-R1")
-                    raise ValueError("Missing AZURE_INFERENCE_ENDPOINT for DeepSeek-R1 model")
-                
-                # Add both models to the configuration
-                db_model_configs = {
-                    default_o1: o1_config,
-                    "DeepSeek-R1": deepseek_config
-                }
-                
-                # Save to database
-                await config_service.set_config(
-                    "model_configs",
-                    db_model_configs,
-                    "Default model configurations",
-                    is_secret=True
-                )
-                logger.info("Created default model configurations")
-
             # Initialize clients from configs
             for model_name, model_config in db_model_configs.items():
                 try:
@@ -149,14 +93,14 @@ class ClientPool:
         - ChatCompletionsClient from azure.ai.inference for DeepSeek models
         - AzureOpenAI from openai for o-series and other models
         """
-        # Determine model type
-        is_deepseek = config.is_deepseek_model(model_name)
-        is_o_series = config.is_o_series_model(model_name)
+        # Use shared utility functions to determine model type
+        is_model_deepseek = is_deepseek_model(model_name)
+        is_model_o_series = is_o_series_model(model_name)
         
         # Set retries based on model type
-        max_retries = config.O_SERIES_MAX_RETRIES if is_o_series else 3
+        max_retries = config.O_SERIES_MAX_RETRIES if is_model_o_series else 3
         
-        if is_deepseek:
+        if is_model_deepseek:
             # Use Azure AI Inference for DeepSeek models
             api_key = os.getenv("AZURE_INFERENCE_CREDENTIAL", "")
             endpoint = model_config.get("azure_endpoint", config.AZURE_INFERENCE_ENDPOINT)
@@ -273,7 +217,7 @@ class ClientPool:
                     logger.warning(f"No configuration found for {model_name}, attempting to create default configuration")
                     
                     # Create default configuration based on model name
-                    if model_name.lower() == "deepseek-r1":
+                    if is_deepseek_model(model_name):
                         model_config = {
                             "name": "DeepSeek-R1",
                             "description": "Model that supports chain-of-thought reasoning with <think> tags",
@@ -289,20 +233,20 @@ class ClientPool:
                         
                         # Try to add to config
                         await config_service.add_model_config("DeepSeek-R1", model_config)
-                    elif model_name.startswith("o1") or model_name.lower() == config.AZURE_OPENAI_DEPLOYMENT_NAME.lower():
+                    elif is_o_series_model(model_name):
                         model_config = {
                             "name": model_name,
                             "description": "Advanced reasoning model for complex tasks",
-                            "max_tokens": 200000,
-                            "max_completion_tokens": 5000,
+                            "max_tokens": config.O_SERIES_INPUT_TOKEN_LIMIT,
+                            "max_completion_tokens": config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
                             "supports_temperature": False,
                             "supports_streaming": False,
                             "supports_vision": True,
                             "requires_reasoning_effort": True,
-                            "reasoning_effort": "medium",
-                            "base_timeout": 120.0,
-                            "max_timeout": 300.0,
-                            "token_factor": 0.05,
+                            "reasoning_effort": config.O_SERIES_DEFAULT_REASONING_EFFORT,
+                            "base_timeout": config.O_SERIES_BASE_TIMEOUT,
+                            "max_timeout": config.O_SERIES_MAX_TIMEOUT,
+                            "token_factor": config.O_SERIES_TOKEN_FACTOR,
                             "api_version": config.AZURE_OPENAI_API_VERSION,
                             "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
                         }
@@ -322,13 +266,13 @@ class ClientPool:
                         elif field == "api_version":
                             model_config["api_version"] = (
                                 config.AZURE_INFERENCE_API_VERSION 
-                                if model_name.lower() == "deepseek-r1" 
+                                if is_deepseek_model(model_name)
                                 else config.AZURE_OPENAI_API_VERSION
                             )
                         elif field == "azure_endpoint":
                             model_config["azure_endpoint"] = (
                                 config.AZURE_INFERENCE_ENDPOINT 
-                                if model_name.lower() == "deepseek-r1" 
+                                if is_deepseek_model(model_name)
                                 else config.AZURE_OPENAI_ENDPOINT
                             )
                 
@@ -401,7 +345,7 @@ async def complete_with_model(
     """
     client = await get_model_client(model_name)
     
-    # Prepare parameters based on client type
+    # Prepare parameters based on client type - using shared utility function is_deepseek_model
     if isinstance(client, ChatCompletionsClient):
         # Using Azure AI Inference client for DeepSeek
         try:
@@ -447,10 +391,10 @@ async def complete_with_model(
             elif max_tokens:  # Fallback for models that use max_tokens
                 params["max_tokens"] = max_tokens
                 
-            if temperature is not None:
+            if temperature is not None and not is_o_series_model(model_name):
                 params["temperature"] = temperature
                 
-            if reasoning_effort and config.is_o_series_model(model_name):
+            if reasoning_effort and is_o_series_model(model_name):
                 params["reasoning_effort"] = reasoning_effort
             
             response = client.chat.completions.create(**params)
