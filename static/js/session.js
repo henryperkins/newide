@@ -1,276 +1,468 @@
-// static/js/session.js - Consolidated version
+import { updateTokenUsage, fetchWithRetry, retry, eventBus } from './utils/helpers.js';
+import { showNotification, handleMessageError, removeTypingIndicator } from './ui/notificationManager.js';
+import { processDeepSeekResponse, deepSeekProcessor } from './ui/deepseekProcessor.js';
 
-// Import notification utilities
-import { showNotification, showConfirmDialog } from './ui/notificationManager.js';
-
-// Session state
-let sessionId = null;
-let sessionLastChecked = 0;
-const SESSION_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
-let lastUserMessage = null; // Store last user message for retry scenarios
-
-/**
- * Get the current session ID
- * @returns {string|null} The current session ID or null if no active session
- */
 export function getSessionId() {
-  // First check URL for session_id parameter
-  const urlParams = new URLSearchParams(window.location.search);
-  const paramSessionId = urlParams.get('session_id');
-  if (paramSessionId && validateSessionId(paramSessionId)) {
-    // Store in localStorage for future use
-    localStorage.setItem('current_session_id', paramSessionId);
-    return paramSessionId;
+  let sessionId = sessionStorage.getItem('sessionId');
+  if(!sessionId) {
+    // Generate a valid v4 UUID using the browser's crypto API (available in modern browsers).
+    // This ensures the backend recognizes session_id as a valid UUID.
+    sessionId = crypto.randomUUID();
+    sessionStorage.setItem('sessionId', sessionId);
   }
-  
-  // Next check localStorage
-  const storedSessionId = localStorage.getItem('current_session_id');
-  if (storedSessionId && validateSessionId(storedSessionId)) {
-    return storedSessionId;
-  }
-  
-  // Generate a new session ID if none found or invalid
-  const newSessionId = generateSessionId();
-  localStorage.setItem('current_session_id', newSessionId);
-  return newSessionId;
+  return sessionId;
 }
 
-/**
- * Validate a session ID format (UUID)
- * @param {string} sessionId - The session ID to validate
- * @returns {boolean} - Whether the session ID is valid
- */
-function validateSessionId(sessionId) {
-  // Simple UUID format validation regex
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(sessionId);
+export function setLastUserMessage(message) {
+  sessionStorage.setItem('lastUserMessage', message);
 }
 
-/**
- * Generate a new UUID-format session ID
- * @returns {string} - A new session ID
- */
-function generateSessionId() {
-  // RFC4122 version 4 compliant UUID generator
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    // eslint-disable-next-line no-bitwise
-    const r = Math.random() * 16 | 0;
-    // eslint-disable-next-line no-bitwise
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
-
-/**
- * Create a new session, replacing the current one
- * @returns {string} - The new session ID
- */
-export function createNewSession() {
-  const newSessionId = generateSessionId();
-  localStorage.setItem('current_session_id', newSessionId);
-  
-  // Update URL without reloading if possible
-  if (window.history && window.history.replaceState) {
-    const url = new URL(window.location);
-    url.searchParams.set('session_id', newSessionId);
-    window.history.replaceState({}, '', url);
+export async function initializeSession() {
+  let sessionId = sessionStorage.getItem('sessionId');
+  if (!sessionId) {
+    sessionId = 'sess_' + Math.random().toString(36).substring(2, 10);
+    sessionStorage.setItem('sessionId', sessionId);
   }
-  
-  return newSessionId;
-}
-
-/**
- * Switch to a specified session
- * @param {string} sessionId - The session ID to switch to
- * @returns {boolean} - Whether the switch was successful
- */
-export function switchToSession(sessionId) {
-  if (!validateSessionId(sessionId)) {
-    console.error(`Invalid session ID format: ${sessionId}`);
-    return false;
-  }
-  
-  localStorage.setItem('current_session_id', sessionId);
-  
-  // Update URL without reloading if possible
-  if (window.history && window.history.replaceState) {
-    const url = new URL(window.location);
-    url.searchParams.set('session_id', sessionId);
-    window.history.replaceState({}, '', url);
-  }
-  
   return true;
 }
 
-/**
- * Store the last user message for retry purposes
- * @param {string} message - The message to store
- */
-export function setLastUserMessage(message) {
-  lastUserMessage = message;
-}
+let mainTextBuffer = '';
+let thinkingTextBuffer = '';
+let messageContainer = null;
+let thinkingContainer = null;
+let isThinking = false;
+let lastRenderTimestamp = 0;
+let animationFrameId = null;
+let isProcessing = false;
+let errorState = false;
+let chunkBuffer = '';
 
-/**
- * Get the last user message
- * @returns {string|null} The last user message or null if none exists
- */
-export function getLastUserMessage() {
-  return lastUserMessage;
-}
+const RENDER_INTERVAL_MS = 50;
+const CONNECTION_TIMEOUT_MS = 10000;
+const MAX_RETRY_ATTEMPTS = 3;
 
-/**
- * Initialize session, creating one if needed
- * @returns {Promise<boolean>} True if session initialized successfully
- */
-export async function initializeSession() {
-  // If we already have a sessionId and it was checked recently, don't reinitialize
-  if (sessionId && (Date.now() - sessionLastChecked < SESSION_CHECK_INTERVAL)) {
-    console.log('[SESSION] Using cached session:', sessionId);
+export async function streamChatResponse(
+  messageContent,
+  sessionId,
+  modelName = 'DeepSeek-R1',
+  developerConfig = '',
+  reasoningEffort = 'medium',
+  signal
+) {
+  resetStreamingState();
+  isProcessing = true;
+  try {
+    if (!sessionId) {
+      throw new Error('Invalid sessionId: Session ID is required for streaming');
+    }
+    const apiUrl = `/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
+    const params = new URLSearchParams({
+      model: modelName || 'DeepSeek-R1',
+      message: messageContent || '',
+      reasoning_effort: reasoningEffort || 'medium'
+    });
+    if (developerConfig) params.append('developer_config', developerConfig);
+    if (modelName.toLowerCase().includes('deepseek')) {
+      params.append('enable_thinking', 'true');
+    }
+    const fullUrl = `${apiUrl}&${params.toString()}`;
+    const eventSource = new EventSource(fullUrl);
+    const connectionTimeout = setTimeout(() => {
+      if (eventSource && eventSource.readyState === 0) {
+        eventSource.close();
+        handleStreamingError(Object.assign(new Error('Connection timeout'), {
+          name: 'TimeoutError',
+          recoverable: true
+        }));
+      }
+    }, CONNECTION_TIMEOUT_MS);
+
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        clearTimeout(connectionTimeout);
+        eventSource.close();
+        handleStreamingError(new Error('Request aborted'));
+      });
+    }
+
+    let connectionClosed = false;
+
+    eventSource.onopen = () => {
+      clearTimeout(connectionTimeout);
+      eventBus.publish('streamingStarted', { modelName });
+    };
+
+    eventSource.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        processDataChunk(data);
+        scheduleRender();
+      } catch (err) {
+        console.error('[streamChatResponse] Error processing message:', err);
+        if (mainTextBuffer || thinkingTextBuffer) forceRender();
+      }
+    };
+
+    const errorHandler = (e) => {
+      clearTimeout(connectionTimeout);
+      if (!navigator.onLine) {
+        handleStreamingError(Object.assign(new Error('Network offline'), {
+          name: 'NetworkError',
+          recoverable: true
+        }));
+        return;
+      }
+      if (e.data && typeof e.data === 'string') {
+        try {
+          const errorData = JSON.parse(e.data);
+          const errorMessage = errorData.error?.message || errorData.message || errorData.detail || 'Server error';
+          handleStreamingError(Object.assign(new Error(errorMessage), {
+            name: 'ServerError',
+            data: errorData,
+            recoverable: true
+          }));
+        } catch {
+          handleStreamingError(new Error(`Server sent invalid response: ${e.data.substring(0, 100)}`));
+        }
+      } else {
+        const err = new Error('Connection error');
+        err.name = 'ConnectionError';
+        err.readyState = e.target?.readyState;
+        err.recoverable = true;
+        handleStreamingError(err);
+      }
+    };
+
+    eventSource.addEventListener('error', errorHandler);
+
+    eventSource.onerror = (e) => {
+      clearTimeout(connectionTimeout);
+      if (!connectionClosed) {
+        connectionClosed = true;
+        eventSource.close();
+        if (!errorState) {
+          errorState = true;
+          if (mainTextBuffer || thinkingTextBuffer) {
+            forceRender();
+          }
+          const err = new Error(!navigator.onLine
+            ? 'Internet connection lost'
+            : (e.status ? `Connection failed with status: ${e.status}` : 'Connection failed'));
+          err.name = !navigator.onLine ? 'NetworkError' : 'ConnectionError';
+          err.recoverable = true;
+          handleMessageError(err);
+          if (navigator.onLine) {
+            showNotification('Connection failed. Would you like to retry?', 'error', 0, [{
+              label: 'Retry',
+              onClick: () => attemptErrorRecovery(messageContent, err)
+            }]);
+          } else {
+            window.addEventListener('online', () => {
+              showNotification('Connection restored. Retrying...', 'info');
+              attemptErrorRecovery(messageContent, err);
+            }, { once: true });
+          }
+        }
+      }
+      try {
+        eventSource.removeEventListener('error', errorHandler);
+      } catch (ex) {
+        console.warn('[streamChatResponse] Error removing event listener:', ex);
+      }
+    };
+
+    eventSource.addEventListener('complete', (e) => {
+      try {
+        if (e.data) {
+          const completionData = JSON.parse(e.data);
+          if (completionData.usage) updateTokenUsage(completionData.usage);
+          eventBus.publish('streamingCompleted', {
+            modelName,
+            usage: completionData.usage
+          });
+        }
+        forceRender();
+        eventSource.close();
+      } catch (err) {
+        console.error('[streamChatResponse] Error handling completion:', err);
+      } finally {
+        cleanupStreaming();
+      }
+    });
+
     return true;
+  } catch (err) {
+    console.error('[streamChatResponse] Setup error:', err);
+    if (err.message && err.message.includes('Failed to fetch')) {
+      err.message = 'Could not connect to API server - network error';
+      err.recoverable = true;
+    }
+    await handleStreamingError(err);
+    return false;
   }
-  
-  console.log('[SESSION] Initializing session...');
-  
-  try {
-    // First try to validate existing session
-    const existingId = localStorage.getItem('current_session_id');
-    if (existingId) {
-      console.log('[SESSION] Found stored session ID:', existingId);
-      
-      // Validate session by calling API
-      const isValid = await validateSession(existingId);
-      if (isValid) {
-        sessionId = existingId;
-        sessionLastChecked = Date.now();
-        return true;
+}
+
+function processDataChunk(data) {
+  if (!data.choices || data.choices.length === 0) return;
+  data.choices.forEach(choice => {
+    if (choice.delta && choice.delta.content) {
+      const text = choice.delta.content;
+      chunkBuffer += text;
+      const result = deepSeekProcessor.processStreamingChunk(
+        chunkBuffer,
+        isThinking,
+        mainTextBuffer,
+        thinkingTextBuffer
+      );
+      mainTextBuffer = result.mainBuffer;
+      thinkingTextBuffer = result.thinkingBuffer;
+      isThinking = result.isThinking;
+      chunkBuffer = result.remainingChunk;
+      if (result.remainingChunk) {
+        chunkBuffer = result.remainingChunk;
+        processDataChunk({ choices: [{ delta: { content: '' } }] });
       }
-      
-      console.log('[SESSION] Stored session is invalid, creating new one');
-    }
-    
-    // Create new session
-    const newSession = await createSession();
-    if (newSession) {
-      sessionId = newSession.session_id;
-      localStorage.setItem('current_session_id', sessionId);
-      sessionLastChecked = Date.now();
-      return true;
-    }
-    
-    throw new Error('Failed to create session');
-  } catch (error) {
-    console.error('[SESSION] Initialization error:', error);
-    showNotification('Failed to initialize session. Please reload the page.', 'error');
-    return false;
-  }
-}
-
-/**
- * Validate a session ID with the server
- * @param {string} id - Session ID to validate
- * @returns {Promise<boolean>} True if session is valid
- */
-async function validateSession(id) {
-  try {
-    const response = await fetch(`/api/session?session_id=${id}`);
-    if (!response.ok) return false;
-    
-    const data = await response.json();
-    return data && data.id === id;
-  } catch (error) {
-    console.warn('[SESSION] Error validating session:', error);
-    return false;
-  }
-}
-
-/**
- * Create a new session
- * @returns {Promise<Object|null>} Session data or null if creation failed
- */
-async function createSession() {
-  try {
-    // Get current model for initialization
-    const modelSelect = document.getElementById('model-select');
-    const modelName = modelSelect ? modelSelect.value : 'DeepSeek-R1';
-    
-    const response = await fetch('/api/session/create', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-Model-Type': modelName
+      if (isThinking && thinkingTextBuffer) {
+        ensureThinkingContainer();
       }
-    });
-    
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Failed to create session: ${text}`);
     }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('[SESSION] Error creating session:', error);
-    return null;
-  }
-}
-
-/**
- * Refresh the current session to extend its expiration
- * @returns {Promise<boolean>} True if session was refreshed successfully
- */
-export async function refreshSession() {
-  if (!sessionId) return false;
-  
-  try {
-    const response = await fetch(`/api/session/refresh?session_id=${sessionId}`, {
-      method: 'POST'
-    });
-    
-    if (response.ok) {
-      sessionLastChecked = Date.now();
-      return true;
+    if (choice.finish_reason) {
+      if (chunkBuffer) {
+        mainTextBuffer = processDeepSeekResponse(mainTextBuffer + chunkBuffer);
+        chunkBuffer = '';
+      }
+      if (isThinking) {
+        finalizeThinkingContainer();
+        isThinking = false;
+      }
     }
-    
-    return false;
-  } catch (error) {
-    console.warn('[SESSION] Error refreshing session:', error);
-    return false;
-  }
+  });
 }
 
-/**
- * Update the model associated with the current session
- * @param {string} modelName - The model name to set for the session
- * @returns {Promise<boolean>} True if model was updated successfully
- */
-export async function updateSessionModel(modelName) {
-  if (!sessionId) return false;
-  
-  try {
-    const response = await fetch(`/api/session/model?session_id=${sessionId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ model: modelName })
+function scheduleRender() {
+  const now = Date.now();
+  if (now - lastRenderTimestamp >= RENDER_INTERVAL_MS) {
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    animationFrameId = requestAnimationFrame(() => {
+      renderBufferedContent();
+      lastRenderTimestamp = now;
+      animationFrameId = null;
     });
-    
-    return response.ok;
-  } catch (error) {
-    console.warn('[SESSION] Error updating session model:', error);
-    return false;
   }
 }
 
-// Set up periodic session check
-setInterval(async () => {
-  if (sessionId && (Date.now() - sessionLastChecked >= SESSION_CHECK_INTERVAL)) {
-    console.log('[SESSION] Performing periodic session refresh');
-    await refreshSession();
+function forceRender() {
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
   }
-}, 60000); // Check every minute
+  renderBufferedContent();
+  lastRenderTimestamp = Date.now();
+}
 
-// Try to restore session on page load
-(async function() {
-  await initializeSession();
-})();
+function renderBufferedContent() {
+  try {
+    if (mainTextBuffer) {
+      ensureMessageContainer();
+      if (messageContainer) {
+        if (window.renderAssistantMessage) {
+          window.renderAssistantMessage(mainTextBuffer);
+        } else {
+          messageContainer.innerHTML = mainTextBuffer;
+          messageContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
+          deepSeekProcessor.initializeExistingBlocks();
+        }
+      }
+    }
+    if (thinkingTextBuffer && thinkingContainer) {
+      thinkingContainer.textContent = thinkingTextBuffer;
+      thinkingContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  } catch (err) {
+    console.error('[renderBufferedContent] Error:', err);
+  }
+}
+
+function ensureMessageContainer() {
+  if (!messageContainer) {
+    const chatHistory = document.getElementById('chat-history');
+    if (!chatHistory) return;
+    messageContainer = document.createElement('div');
+    messageContainer.className = 'message assistant-message';
+    messageContainer.setAttribute('role', 'log');
+    messageContainer.setAttribute('aria-live', 'polite');
+    chatHistory.appendChild(messageContainer);
+  }
+}
+
+function ensureThinkingContainer() {
+  ensureMessageContainer();
+  if (!thinkingContainer && messageContainer) {
+    const thinkingWrapper = document.createElement('div');
+    thinkingWrapper.innerHTML = deepSeekProcessor.createThinkingBlockHTML(thinkingTextBuffer);
+    messageContainer.appendChild(thinkingWrapper.firstElementChild);
+    thinkingContainer = messageContainer.querySelector('.thinking-pre');
+    const toggleButton = messageContainer.querySelector('.thinking-toggle');
+    if (toggleButton) {
+      toggleButton.addEventListener('click', function() {
+        const expanded = this.getAttribute('aria-expanded') === 'true';
+        this.setAttribute('aria-expanded', !expanded);
+        const content = this.closest('.thinking-process').querySelector('.thinking-content');
+        content.classList.toggle('hidden', expanded);
+        this.querySelector('.toggle-icon').style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+      });
+    }
+  }
+  if (thinkingContainer && thinkingTextBuffer) {
+    thinkingContainer.textContent = thinkingTextBuffer;
+  }
+}
+
+function finalizeThinkingContainer() {
+  if (thinkingContainer) {
+    thinkingContainer.textContent = thinkingTextBuffer;
+    const toggleButton = messageContainer.querySelector('.thinking-toggle');
+    const gradientOverlay = messageContainer.querySelector('.thinking-content > div:last-child');
+    if (thinkingContainer.scrollHeight <= thinkingContainer.clientHeight && gradientOverlay) {
+      gradientOverlay.remove();
+    }
+    thinkingContainer = null;
+    thinkingTextBuffer = '';
+  }
+}
+
+async function handleStreamingError(error) {
+  console.error('[handleStreamingError]', error);
+  if (!errorState) {
+    errorState = true;
+    try {
+      if (mainTextBuffer || thinkingTextBuffer) {
+        forceRender();
+      }
+      if (messageContainer && mainTextBuffer) {
+        const errorNotice = document.createElement('div');
+        errorNotice.className = 'py-2 px-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm rounded mt-2';
+        errorNotice.textContent = '⚠️ The response was interrupted. The content above may be incomplete.';
+        messageContainer.appendChild(errorNotice);
+      }
+      removeTypingIndicator();
+      const userFriendlyMessage = !navigator.onLine
+        ? 'Network connection lost'
+        : error.name === 'TimeoutError'
+          ? 'Request timed out'
+          : error.message || 'An unexpected error occurred';
+      await handleMessageError({ ...error, message: userFriendlyMessage });
+      eventBus.publish('streamingError', {
+        error,
+        recoverable: error.recoverable || false
+      });
+    } catch (err) {
+      console.error('[handleStreamingError] Error handling stream error:', err);
+    }
+  }
+}
+
+async function attemptErrorRecovery(messageContent, error) {
+  if (!navigator.onLine) {
+    showNotification('Waiting for internet connection...', 'warning', 0);
+    return new Promise(resolve => {
+      window.addEventListener('online', async () => {
+        await new Promise(r => setTimeout(r, 1500));
+        showNotification('Connection restored. Retrying...', 'info', 3000);
+        const sessionId = getSessionId();
+        if (!sessionId) {
+          showNotification('Could not retrieve session ID', 'error');
+          resolve(false);
+          return;
+        }
+        const modelName = document.getElementById('model-select')?.value || 'DeepSeek-R1';
+        const developerConfig = document.getElementById('developer-config')?.value || '';
+        const reasoningEffort = getReasoningEffortSetting();
+        try {
+          const success = await retry(
+            () => streamChatResponse(messageContent, sessionId, modelName, developerConfig, reasoningEffort),
+            MAX_RETRY_ATTEMPTS
+          );
+          resolve(success);
+        } catch {
+          showNotification('Recovery failed', 'error');
+          resolve(false);
+        }
+      }, { once: true });
+    });
+  }
+  if (error.recoverable || ['ConnectionError', 'NetworkError', 'TimeoutError'].includes(error.name)) {
+    showNotification('Retrying connection...', 'info', 3000);
+    await new Promise(r => setTimeout(r, 2000));
+    const sessionId = getSessionId();
+    if (!sessionId) {
+      showNotification('Could not retrieve session ID', 'error');
+      return false;
+    }
+    const modelName = document.getElementById('model-select')?.value || 'DeepSeek-R1';
+    const developerConfig = document.getElementById('developer-config')?.value || '';
+    const reasoningEffort = getReasoningEffortSetting();
+    try {
+      return await retry(
+        () => streamChatResponse(messageContent, sessionId, modelName, developerConfig, reasoningEffort),
+        MAX_RETRY_ATTEMPTS
+      );
+    } catch {
+      showNotification('Recovery failed', 'error');
+      return false;
+    }
+  }
+  showNotification('Cannot retry - please refresh and try again', 'error');
+  return false;
+}
+
+function resetStreamingState() {
+  mainTextBuffer = '';
+  thinkingTextBuffer = '';
+  messageContainer = null;
+  thinkingContainer = null;
+  isThinking = false;
+  lastRenderTimestamp = 0;
+  chunkBuffer = '';
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+  errorState = false;
+}
+
+function cleanupStreaming() {
+  isProcessing = false;
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+  removeTypingIndicator();
+  if (mainTextBuffer && messageContainer) {
+    try {
+      const sessionId = getSessionId();
+      if (sessionId) {
+        fetchWithRetry('/api/chat/conversations/store', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: sessionId,
+            role: 'assistant',
+            content: mainTextBuffer
+          })
+        }).catch(err => console.warn('Failed to store message:', err));
+      }
+    } catch (e) {
+      console.warn('Failed to store message:', e);
+    }
+  }
+}
+
+function getReasoningEffortSetting() {
+  const slider = document.getElementById('reasoning-effort-slider');
+  if (slider) {
+    const value = parseInt(slider.value);
+    return value === 1 ? 'low' : value === 3 ? 'high' : 'medium';
+  }
+  return 'medium';
+}
