@@ -55,7 +55,17 @@ export default class StatsDisplay {
         try {
           const response = await fetch('/api/model-stats/connections');
           const data = await response.json();
-          this.stats.activeConnections = data.active_connections;
+          
+          // Fix: correctly access the connection data from the response structure
+          // The API returns { "connections": { ... } } with connection data nested
+          if (data.connections && data.connections.concurrent_connections !== undefined) {
+            this.stats.activeConnections = data.connections.concurrent_connections;
+          } else if (data.active_connections !== undefined) {
+            // Fallback for backward compatibility
+            this.stats.activeConnections = data.active_connections;
+          } else {
+            this.stats.activeConnections = 0;
+          }
         } catch (e) {
           // Reduce console noise by only logging if debug mode is enabled
           if (window.DEBUG_MODE) {
@@ -122,4 +132,4 @@ export default class StatsDisplay {
       }
     }
   }
-  
+

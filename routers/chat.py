@@ -406,7 +406,7 @@ async def generate_stream_chunks(
 
     # Prepare parameters based on client type and model
     params = {
-        "messages": [{"role": "user", "content": message}],
+        "messages": messages_list,  # Use full messages list with system message if provided
         "temperature": config.DEEPSEEK_R1_DEFAULT_TEMPERATURE if is_deepseek else 0.7,
         "max_tokens": (
             config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
@@ -416,62 +416,37 @@ async def generate_stream_chunks(
     }
 
     # Handle reasoning effort for o-series models
-    if not is_deepseek:
+    if not is_deepseek and reasoning_effort:
         params["reasoning_effort"] = reasoning_effort
+        
+    # Special handling for DeepSeek to enable thinking blocks
+    if is_deepseek:
+        # DeepSeek-specific parameters for thinking
+        params["enable_thinking"] = True
+        params["stream"] = True
 
     full_content = ""
 
     try:
         if is_inference_client and is_deepseek:
-            # Stream with Azure AI Inference client
-            stream_response = client.complete(
-                model=model_name,
-                messages=params["messages"],
-                temperature=params.get("temperature"),
-                max_tokens=params.get("max_tokens"),
+            # Enhanced DeepSeek-R1 streaming with proper handling of thinking blocks
+            stream = client.chat_completions.create(
+                **params,
+                deployment=model_name,
                 stream=True,
             )
-
-            # Azure AI Inference streaming
-            for chunk in stream_response:
-                response_data = {
-                    "id": f"chatcmpl-{uuid.uuid4()}",
-                    "object": "chat.completion.chunk",
-                    "created": int(time.time()),
-                    "model": model_name,
-                    "choices": [],
-                }
-
-                chunk_choices = []
-                for idx, choice in enumerate(chunk.choices):
-                    partial = {
-                        "index": idx,
-                        "delta": {},
-                        "finish_reason": choice.finish_reason,
-                    }
-
-                    if hasattr(choice, "message") and hasattr(
-                        choice.message, "content"
-                    ):
-                        content_part = choice.message.content or ""
-                        full_content += content_part
-                        partial["delta"]["content"] = content_part
-
-                    if hasattr(choice, "delta"):
-                        partial["delta"]["role"] = getattr(choice.delta, "role", None)
-
-                    # If there are any tool calls or filter results, pass them along
-                    if hasattr(choice.delta, "tool_calls"):
-                        partial["delta"]["tool_calls"] = choice.delta.tool_calls
-                    if hasattr(chunk, "content_filter_results"):
-                        partial["delta"][
-                            "content_filter_results"
-                        ] = chunk.content_filter_results
-
-                    chunk_choices.append(partial)
-
-                response_data["choices"] = chunk_choices
-                yield f"data: {json.dumps(response_data)}\n\n"
+            
+            async for chunk in stream:
+                try:
+                    if hasattr(chunk.choices[0].delta, "content") and chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        full_content += content
+                        yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
+                except Exception as chunk_error:
+                    logger.warning(f"Error processing DeepSeek chunk: {str(chunk_error)}")
+                    # Still yield a partial chunk if possible to avoid breaking the stream
+                    if hasattr(chunk, 'choices') and chunk.choices:
+                        yield f"data: {json.dumps({'choices': [{'delta': {'content': ''}}]})}\n\n"
 
         else:
             # Stream with OpenAI client
@@ -582,8 +557,15 @@ async def generate_stream_chunks(
 
     except Exception as e:
         logger.exception("[ChatRouter] SSE streaming error")
-        error_payload = {"error": str(e)}
-        # Yield an SSE event indicating an error
+        error_payload = {
+            "error": {
+                "message": "Streaming error occurred",
+                "code": 500,
+                "type": "server_error",
+                "details": str(e)
+            }
+        }
+        # Yield an SSE event indicating a structured error
         yield f"data: {json.dumps(error_payload)}\n\n"
 
 @router.get("/sse")

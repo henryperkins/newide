@@ -14,7 +14,92 @@ let lastUserMessage = null; // Store last user message for retry scenarios
  * @returns {string|null} The current session ID or null if no active session
  */
 export function getSessionId() {
-  return sessionId;
+  // First check URL for session_id parameter
+  const urlParams = new URLSearchParams(window.location.search);
+  const paramSessionId = urlParams.get('session_id');
+  if (paramSessionId && validateSessionId(paramSessionId)) {
+    // Store in localStorage for future use
+    localStorage.setItem('current_session_id', paramSessionId);
+    return paramSessionId;
+  }
+  
+  // Next check localStorage
+  const storedSessionId = localStorage.getItem('current_session_id');
+  if (storedSessionId && validateSessionId(storedSessionId)) {
+    return storedSessionId;
+  }
+  
+  // Generate a new session ID if none found or invalid
+  const newSessionId = generateSessionId();
+  localStorage.setItem('current_session_id', newSessionId);
+  return newSessionId;
+}
+
+/**
+ * Validate a session ID format (UUID)
+ * @param {string} sessionId - The session ID to validate
+ * @returns {boolean} - Whether the session ID is valid
+ */
+function validateSessionId(sessionId) {
+  // Simple UUID format validation regex
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(sessionId);
+}
+
+/**
+ * Generate a new UUID-format session ID
+ * @returns {string} - A new session ID
+ */
+function generateSessionId() {
+  // RFC4122 version 4 compliant UUID generator
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    // eslint-disable-next-line no-bitwise
+    const r = Math.random() * 16 | 0;
+    // eslint-disable-next-line no-bitwise
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+/**
+ * Create a new session, replacing the current one
+ * @returns {string} - The new session ID
+ */
+export function createNewSession() {
+  const newSessionId = generateSessionId();
+  localStorage.setItem('current_session_id', newSessionId);
+  
+  // Update URL without reloading if possible
+  if (window.history && window.history.replaceState) {
+    const url = new URL(window.location);
+    url.searchParams.set('session_id', newSessionId);
+    window.history.replaceState({}, '', url);
+  }
+  
+  return newSessionId;
+}
+
+/**
+ * Switch to a specified session
+ * @param {string} sessionId - The session ID to switch to
+ * @returns {boolean} - Whether the switch was successful
+ */
+export function switchToSession(sessionId) {
+  if (!validateSessionId(sessionId)) {
+    console.error(`Invalid session ID format: ${sessionId}`);
+    return false;
+  }
+  
+  localStorage.setItem('current_session_id', sessionId);
+  
+  // Update URL without reloading if possible
+  if (window.history && window.history.replaceState) {
+    const url = new URL(window.location);
+    url.searchParams.set('session_id', sessionId);
+    window.history.replaceState({}, '', url);
+  }
+  
+  return true;
 }
 
 /**

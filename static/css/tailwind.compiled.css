@@ -499,6 +499,19 @@ video {
 [hidden]:where(:not([hidden="until-found"])) {
   display: none;
 }
+  @font-face {
+    font-family: 'JetBrains Mono';
+    src: url('/static/fonts/jetbrains-mono/jetbrains-mono-400.woff2') format('woff2');
+    font-weight: 400;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: 'Inter';
+    src: url('/static/fonts/inter/inter-500.woff2') format('woff2');
+    font-weight: 500;
+    font-display: swap;
+  }
   :root {
     --focus-ring-color: oklch(68% 0.14 276 / 0.5);
   }
