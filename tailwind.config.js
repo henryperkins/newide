@@ -389,6 +389,9 @@ module.exports = {
           '.dark &': {
             border: '1px solid oklch(42% 0.019 276)',
           },
+          position: 'relative',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+          transition: 'all 0.2s ease-in-out'
         },
         '.thinking-header': {
           backgroundColor: 'oklch(94% 0.048 276 / 0.2)',
@@ -398,6 +401,10 @@ module.exports = {
           '.dark &': {
             backgroundColor: 'oklch(60% 0.135 276 / 0.2)',
           },
+          padding: '0.5rem 0.75rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
         },
         '.thinking-toggle': {
           fontWeight: '500',
@@ -410,6 +417,10 @@ module.exports = {
           '.dark &': {
             color: 'oklch(76% 0.126 276)',
           },
+          display: 'flex',
+          justifyContent: 'space-between',
+          userSelect: 'none',
+          transition: 'color 0.2s ease-in-out'
         },
         '.thinking-content': {
           backgroundColor: 'oklch(97% 0.029 276 / 0.2)',
@@ -420,6 +431,8 @@ module.exports = {
           '.dark &': {
             backgroundColor: 'oklch(52% 0.13 276 / 0.1)',
           },
+          position: 'relative',
+          transition: 'all 0.3s ease-in-out'
         },
         '.thinking-pre': {
           margin: '0',
@@ -430,6 +443,19 @@ module.exports = {
           '.dark &': {
             color: 'oklch(86% 0.01 276)',
           },
+          fontFamily: 'monospace',
+          overflowY: 'auto',
+          maxHeight: '300px',
+          padding: '0.75rem 1rem'
+        },
+        '.thinking-gradient': {
+          position: 'absolute',
+          bottom: '0',
+          left: '0',
+          right: '0',
+          height: '2.5rem',
+          background: 'linear-gradient(to top, var(--tw-gradient-stops))',
+          pointerEvents: 'none'
         },
       });
     },
