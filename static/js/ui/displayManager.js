@@ -122,8 +122,8 @@ export function loadConversationFromLocalStorage() {
       chatHistory.innerHTML = '';
       systemMessages.forEach(el => chatHistory.appendChild(el));
       recentMessages.forEach(m => {
-        if (m.role === 'user') renderUserMessage(m.content, true);
-        else if (m.role === 'assistant') renderAssistantMessage(m.content, true);
+        if (m.role === 'user') renderUserMessage(m.content, true, true);
+        else if (m.role === 'assistant') renderAssistantMessage(m.content, true, true);
       });
     }
     updateLoadMoreButton();
