@@ -102,9 +102,20 @@ function updateToggleAppearance() {
   if (!themeToggle) return;
   
   const isDark = document.documentElement.classList.contains('dark');
+  const sunIcon = themeToggle.querySelector('.h-5.w-5:first-child');
+  const moonIcon = themeToggle.querySelector('.h-5.w-5:last-child');
   
-  // This is handle by the Tailwind dark: classes automatically,
-  // but we can add additional visual cues here if needed
+  if (sunIcon && moonIcon) {
+    if (isDark) {
+      // Dark mode: show sun icon, hide moon icon
+      sunIcon.classList.remove('hidden');
+      moonIcon.classList.add('hidden');
+    } else {
+      // Light mode: hide sun icon, show moon icon
+      sunIcon.classList.add('hidden');
+      moonIcon.classList.remove('hidden');
+    }
+  }
 }
 
 /**

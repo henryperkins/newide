@@ -96,18 +96,13 @@ function handleTabChange(clickedTab) {
 function initMobileSidebarToggle() {
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
-  const toggleButton = document.querySelector('[aria-controls="config-content"]');
+  const toggleButton = document.getElementById('sidebar-toggle');
   
   if (!sidebar || !overlay || !toggleButton) {
     console.error('Mobile sidebar elements missing:', {sidebar, overlay, toggleButton});
     return;
   }
   const closeButton = document.getElementById('close-sidebar');
-  
-  if (!toggleButton) {
-    console.error('Sidebar toggle button not found!');
-    return;
-  }
 
   // Add debug logging
   console.log('Sidebar toggle initialized');
@@ -122,7 +117,6 @@ function initMobileSidebarToggle() {
     sidebar.classList.add('md:translate-x-0');
   }
   
-  if (!sidebar || !overlay || !toggleButton) return;
   
   // Close button handling
   if (closeButton) {

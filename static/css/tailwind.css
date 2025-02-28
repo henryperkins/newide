@@ -101,9 +101,6 @@
       pointer-events: none;
     }
     
-    #theme-toggle svg {
-      display: block !important;
-    }
     
     #mobile-stats-toggle {
       min-width: 2.5rem;

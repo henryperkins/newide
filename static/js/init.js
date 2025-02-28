@@ -271,25 +271,12 @@ function initDoubleTapToCopy() {
 }
 
 /**
- * Initialize pull-to-refresh for loading older messages
+ * Initialize enhanced mobile sidebar handling
  */
-function initPullToRefresh() {
-  const chatHistory = document.getElementById('chat-history');
-  if (!chatHistory || typeof window.loadOlderMessages !== 'function') return;
-  
-  let startY = 0;
-  let isPulling = false;
-  const threshold = 80;
-  let indicator;
-  
-  chatHistory.addEventListener('touchstart', (e) => {
-    // Only activate when at top of chat
-    if (chatHistory.scrollTop <= 0) {
-      startY = e.touches[0].clientY;
-      isPulling = true;
-    }
-  }, { passive: true });
-  
+function initMobileSidebar() {
+  console.log('Mobile sidebar initialization delegated to tabManager.js');
+  // All sidebar handling is now managed in tabManager.js via initMobileSidebarToggle
+}
   chatHistory.addEventListener('touchmove', (e) => {
     if (!isPulling) return;
     
