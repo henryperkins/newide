@@ -155,7 +155,27 @@ async def process_chat_message(
         params["temperature"] = config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
         params["max_tokens"] = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
     elif is_inference_client:
-        raise ValueError("Unsupported model for inference client: " + model_name)
+        # Use the same .complete(...) call for non-DeepSeek too
+        response = azure_client.complete(
+            model=model_name,
+            messages=params["messages"],
+            temperature=params["temperature"] if params.get("temperature") is not None else 0.7,
+            max_tokens=params["max_tokens"] if params.get("max_tokens") is not None else 4096,
+        )
+
+        if not response.choices or len(response.choices) == 0:
+            logger.warning(
+                f"[session {session_id}] No choices returned from Azure AI Inference."
+            )
+            content = ""
+        else:
+            content = response.choices[0].message.content or ""
+
+        usage_data = {
+            "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
+            "completion_tokens": getattr(response.usage, "completion_tokens", 0),
+            "total_tokens": getattr(response.usage, "total_tokens", 0),
+        }
     else:
         # OpenAI client
         if not is_deepseek:

@@ -18,12 +18,16 @@ export function setLastUserMessage(message) {
 }
 
 export async function initializeSession() {
-  let sessionId = sessionStorage.getItem('sessionId');
-  if (!sessionId) {
-    sessionId = 'sess_' + Math.random().toString(36).substring(2, 10);
-    sessionStorage.setItem('sessionId', sessionId);
+  try {
+    const response = await fetch('/api/session/create', { method: 'POST' });
+    if (!response.ok) throw new Error('Failed to create session');
+    const data = await response.json();
+    sessionStorage.setItem('sessionId', data.session_id);
+    return true;
+  } catch (error) {
+    console.error('Failed to create session:', error);
+    return false;
   }
-  return true;
 }
 
 let mainTextBuffer = '';
