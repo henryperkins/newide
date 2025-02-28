@@ -451,7 +451,7 @@ async def generate_stream_chunks(
         else:
             # Stream with OpenAI client
             params["stream"] = True
-            response = client.chat.completions.create(**params)
+            response = client.begin_chat_completions(deployment=model_name, **params, stream=True)
 
             full_content = ""
 
