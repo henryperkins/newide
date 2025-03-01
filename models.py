@@ -241,4 +241,4 @@ class Assistant(Base):
     instructions = Column(Text, nullable=True)
     tools = Column(JSONB, default=lambda: [])  # Default to empty array
     file_ids = Column(JSONB, default=lambda: [])  # Default to empty array
-    metadata = Column(JSONB, nullable=True)
+    assistant_metadata = Column(JSONB, nullable=True)  # Renamed from 'metadata' to avoid conflict
