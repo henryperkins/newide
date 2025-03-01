@@ -56,7 +56,7 @@ def db_validation_lifespan(lifespan_func):
                 logger.info("Checking database migrations...")
                 try:
                     # Use the simplified migration checker
-                    migrations_up_to_date = check_database()
+                    migrations_up_to_date = await check_database()
                     if not migrations_up_to_date:
                         message = "Database schema is inconsistent with ORM models."
                         validation_errors.append(message)
