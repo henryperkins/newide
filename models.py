@@ -199,6 +199,7 @@ class ModelUsageStats(Base):
     timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"))
     tracking_id = Column(String(64), nullable=True)    # Match with conversation tracking_id
     usage_metadata = Column(JSONB, nullable=True)
+    metadata = Column(JSONB, nullable=True)  # Add missing metadata column
 
 # -------------------------------------------------------------------------
 # Model Transitions
@@ -222,6 +223,7 @@ class ModelTransition(Base):
     error_message = Column(Text, nullable=True) 
     duration_ms = Column(Integer, nullable=True)  # Time taken for switch
     transition_metadata = Column(JSONB, nullable=True)  # Additional switching metadata
+    metadata = Column(JSONB, nullable=True)  # Add missing metadata column
 
 # -------------------------------------------------------------------------
 # Assistants

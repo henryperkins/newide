@@ -249,6 +249,8 @@ async def init_database():
             "CREATE INDEX IF NOT EXISTS idx_model_usage_stats_session_id ON model_usage_stats(session_id)",
             "CREATE INDEX IF NOT EXISTS idx_model_usage_stats_timestamp ON model_usage_stats(timestamp)",
             "CREATE INDEX IF NOT EXISTS idx_model_usage_stats_tracking_id ON model_usage_stats(tracking_id)",
+            "CREATE INDEX IF NOT EXISTS ix_uploaded_files_upload_time ON uploaded_files(upload_time)",  # Ensure missing index
+            "CREATE INDEX IF NOT EXISTS ix_uploaded_files_status ON uploaded_files(status)",  # Ensure missing index
             
             # Model transitions indexes
             "CREATE INDEX IF NOT EXISTS idx_model_transitions_session_id ON model_transitions(session_id)",
