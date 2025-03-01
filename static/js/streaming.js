@@ -31,11 +31,15 @@ function calculateConnectionTimeout(modelName, reasoningEffort, messageLength) {
   // Base timeout is 90 seconds
   let timeout = BASE_CONNECTION_TIMEOUT_MS;
   
-  // Adjust for model type
-  if (modelName.toLowerCase().startsWith('o1') || modelName.toLowerCase().startsWith('o3')) {
+  const normalizedModelName = modelName ? modelName.toLowerCase() : '';
+  
+  // Adjust for model type with more reliable model detection
+  if (normalizedModelName.includes('o1') || normalizedModelName.includes('o3')) {
     timeout *= 3.5; // Increase timeout for O-series models
-  } else if (modelName.toLowerCase().includes('claude')) {
+  } else if (normalizedModelName.includes('claude')) {
     timeout *= 2.5; // Increase timeout for Claude models
+  } else if (normalizedModelName.includes('deepseek')) {
+    timeout *= 2.0; // Add specific timeout for DeepSeek models
   }
   
   // Adjust for reasoning effort
@@ -66,25 +70,62 @@ export async function streamChatResponse(
 ) {
   resetStreamingState();
   isProcessing = true;
+  let connectionTimeoutId = null;
+  let connectionCheckIntervalId = null;
+  
   try {
     if (!sessionId) {
       throw new Error('Invalid sessionId: Session ID is required for streaming');
     }
+    
+    // Ensure modelName is defined and valid
+    const validModelName = modelName || 'DeepSeek-R1';
+    const normalizedModelName = validModelName.toLowerCase();
+    
     const apiUrl = `${window.location.origin}/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
     const params = new URLSearchParams({
-      model: modelName || 'DeepSeek-R1',
+      model: validModelName,
       message: messageContent || '',
       reasoning_effort: reasoningEffort || 'medium'
     });
+    
     if (developerConfig) params.append('developer_config', developerConfig);
-    if (modelName.toLowerCase().includes('deepseek')) {
+    
+    // More reliable detection for DeepSeek models
+    if (normalizedModelName.includes('deepseek')) {
       params.append('enable_thinking', 'true');
+      console.log('DeepSeek model detected, enabling thinking mode');
     }
+    
     const fullUrl = `${apiUrl}&${params.toString()}`;
+    console.log(`Connecting to streaming endpoint with model: ${validModelName}`);
+    
     const eventSource = new EventSource(fullUrl);
     
     // Calculate dynamic timeout based on model, reasoning effort, and message length
-    const connectionTimeoutMs = calculateConnectionTimeout(modelName, reasoningEffort, messageContent.length);
+    const connectionTimeoutMs = calculateConnectionTimeout(validModelName, reasoningEffort, messageContent.length);
+    console.log(`Setting connection timeout to ${connectionTimeoutMs}ms for ${validModelName}`);
+    
+    // Set up connection timeout to detect stalled connections
+    connectionTimeoutId = setTimeout(() => {
+      if (eventSource && eventSource.readyState !== 2) { // 2 is CLOSED
+        console.warn(`Connection timed out after ${connectionTimeoutMs}ms`);
+        eventSource.close();
+        handleStreamingError(Object.assign(new Error('Connection timeout'), {
+          name: 'TimeoutError',
+          modelName: validModelName,
+          reasoningEffort,
+          recoverable: true
+        }));
+      }
+    }, connectionTimeoutMs);
+    
+    // Set up periodic connection check
+    connectionCheckIntervalId = setInterval(() => {
+      if (eventSource.readyState === 2) { // CLOSED
+        clearInterval(connectionCheckIntervalId);
+      }
+    }, CONNECTION_CHECK_INTERVAL_MS);
 
     if (signal) {
       signal.addEventListener('abort', () => {
@@ -99,8 +140,22 @@ export async function streamChatResponse(
 
     eventSource.onopen = () => {
       if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
+      // Reset connectionTimeoutId with a longer duration after connection is established
+      connectionTimeoutId = setTimeout(() => {
+        if (eventSource && eventSource.readyState !== 2) {
+          console.warn(`Stream appears stalled after ${connectionTimeoutMs * 1.5}ms`);
+          eventSource.close();
+          handleStreamingError(Object.assign(new Error('Stream stalled'), {
+            name: 'TimeoutError',
+            modelName: validModelName,
+            reasoningEffort,
+            recoverable: true
+          }));
+        }
+      }, connectionTimeoutMs * 1.5);
+      
       // Keep the interval for periodic checks even after connection is established
-      eventBus.publish('streamingStarted', { modelName });
+      eventBus.publish('streamingStarted', { modelName: validModelName });
     };
 
     eventSource.onmessage = (e) => {
@@ -112,85 +167,94 @@ export async function streamChatResponse(
         console.error('[streamChatResponse] Error processing message:', err);
         if (mainTextBuffer || thinkingTextBuffer) forceRender();
       }
+      eventSource.addEventListener('ping', (e) => {
+        console.debug('[SSE Ping] keep-alive event received');
+      });
     };
 
-eventSource.onerror = (e) => {
-  if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
-  if (connectionCheckIntervalId) clearInterval(connectionCheckIntervalId);
-  if (!connectionClosed) {
-    connectionClosed = true;
-    eventSource.close();
-    // If offline:
-    if (!navigator.onLine) {
-      handleStreamingError(Object.assign(new Error('Network offline'), {
-        name: 'NetworkError',
-        recoverable: true
-      }));
-      return;
-    }
-    // If there's an error response in e.data:
-    if (e.data && typeof e.data === 'string') {
-      try {
-        const errorData = JSON.parse(e.data);
-        const errorMessage = errorData.error?.message || errorData.message || errorData.detail || 'Server error';
-        handleStreamingError(Object.assign(new Error(errorMessage), {
-          name: 'ServerError',
-          data: errorData,
-          recoverable: true
-        }));
-        return;
-      } catch {
-        handleStreamingError(new Error(`Server sent invalid response: ${String(e.data).substring(0, 100)}`));
-        return;
-      }
-    }
-    if (!errorState) {
-      errorState = true;
-      if (mainTextBuffer || thinkingTextBuffer) {
-        forceRender();
-      }
-      const err = new Error(!navigator.onLine
-        ? 'Internet connection lost'
-        : (e.status ? `Connection failed with status: ${e.status}` : 'Connection failed'));
-      err.name = !navigator.onLine ? 'NetworkError' : 'ConnectionError';
-      err.recoverable = true;
+    eventSource.onerror = (e) => {
+      // This callback is triggered when the SSE connection closes unexpectedly
+      if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
+      if (connectionCheckIntervalId) clearInterval(connectionCheckIntervalId);
+      
+      if (!connectionClosed) {
+        connectionClosed = true;
+        eventSource.close();
+        
+        // If offline:
+        if (!navigator.onLine) {
+          handleStreamingError(Object.assign(new Error('Network offline'), {
+            name: 'NetworkError',
+            recoverable: true
+          }));
+          return;
+        }
+        
+        // If there's an error response in e.data:
+        if (e.data && typeof e.data === 'string') {
+          try {
+            const errorData = JSON.parse(e.data);
+            const errorMessage = errorData.error?.message || errorData.message || errorData.detail || 'Server error';
+            handleStreamingError(Object.assign(new Error(errorMessage), {
+              name: 'ServerError',
+              data: errorData,
+              recoverable: true
+            }));
+            return;
+          } catch {
+            handleStreamingError(new Error(`Server sent invalid response: ${String(e.data).substring(0, 100)}`));
+            return;
+          }
+        }
+        
+        if (!errorState) {
+          errorState = true;
+          if (mainTextBuffer || thinkingTextBuffer) {
+            forceRender();
+          }
+          
+          const err = new Error(!navigator.onLine
+            ? 'Internet connection lost'
+            : (e.status ? `Connection failed with status: ${e.status}` : 'Connection failed (EventSource connection closed)'));
+          
+          err.name = !navigator.onLine ? 'NetworkError' : 'ConnectionError';
+          err.recoverable = true;
 
-      // Include additional diagnostic information
-      if (e.target && e.target.readyState === EventSource.CLOSED) {
-        err.message += ' (EventSource connection closed)';
-      }
-      if (e.target && e.target.url) {
-        err.message += ` (URL: ${e.target.url})`;
-      }
+          // Include additional diagnostic information
+          if (e.target && e.target.readyState === EventSource.CLOSED) {
+            err.message += ' (EventSource connection closed)';
+          }
+          if (e.target && e.target.url) {
+            err.message += ` (URL: ${e.target.url})`;
+          }
 
-      handleMessageError(err);
-      if (navigator.onLine) {
-        showNotification('Connection failed. Would you like to retry?', 'error', 0, [{
-          label: 'Retry',
-          onClick: () => attemptErrorRecovery(messageContent, err)
-        }]);
-      } else {
-        window.addEventListener('online', () => {
-          showNotification('Connection restored. Retrying...', 'info');
-          attemptErrorRecovery(messageContent, err);
-        }, { once: true });
+          handleMessageError(err);
+          
+          if (navigator.onLine) {
+            showNotification('Connection failed. Would you like to retry?', 'error', 0, [{
+              label: 'Retry',
+              onClick: () => attemptErrorRecovery(messageContent, err)
+            }]);
+          } else {
+            window.addEventListener('online', () => {
+              showNotification('Connection restored. Retrying...', 'info');
+              attemptErrorRecovery(messageContent, err);
+            }, { once: true });
+          }
+        }
       }
-    }
-  }
-  try {
-    eventSource.removeEventListener('error', errorHandler);
-  } catch (ex) {
-    console.warn('[streamChatResponse] Error removing event listener:', ex);
-  }
-};
+    };
 
     eventSource.addEventListener('complete', async (e) => {
       try {
+        if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
+        if (connectionCheckIntervalId) clearInterval(connectionCheckIntervalId);
+        
         if (e.data) {
           const completionData = JSON.parse(e.data);
           if (completionData.usage) updateTokenUsage(completionData.usage);
           eventBus.publish('streamingCompleted', {
-            modelName,
+            modelName: validModelName,
             usage: completionData.usage
           });
         }
@@ -199,13 +263,16 @@ eventSource.onerror = (e) => {
       } catch (err) {
         console.error('[streamChatResponse] Error handling completion:', err);
       } finally {
-        await cleanupStreaming();
+        await cleanupStreaming(validModelName);
       }
     });
 
     return true;
   } catch (err) {
     console.error('[streamChatResponse] Setup error:', err);
+    if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
+    if (connectionCheckIntervalId) clearInterval(connectionCheckIntervalId);
+    
     if (err.message && err.message.includes('Failed to fetch')) {
       err.message = 'Could not connect to API server - network error';
       err.recoverable = true;
@@ -213,6 +280,37 @@ eventSource.onerror = (e) => {
     await handleStreamingError(err);
     return false;
   }
+}
+
+/**
+ * Simplified reconnection function that can be called from eventSource.onerror
+ * with better error handling and model persistence
+ */
+function attemptReconnect(messageContent, sessionId, modelName, developerConfig, reasoningEffort) {
+  const validModelName = modelName || 'DeepSeek-R1';
+  
+  console.warn(`[streaming.js] Attempting SSE reconnect in 3 seconds for model ${validModelName}...`);
+  
+  // Show a reconnection notification
+  showNotification(`Connection lost. Attempting to reconnect in 3 seconds...`, 'warning');
+  
+  setTimeout(() => {
+    // Only reconnect if we're online
+    if (navigator.onLine) {
+      console.log(`[streaming.js] Reconnecting with model: ${validModelName}`);
+      streamChatResponse(messageContent, sessionId, validModelName, developerConfig, reasoningEffort);
+    } else {
+      console.warn('[streaming.js] Cannot reconnect - still offline');
+      showNotification('Network is offline. Waiting for connection...', 'error');
+      
+      // When connection is restored, we'll try again
+      window.addEventListener('online', () => {
+        console.log(`[streaming.js] Network connection restored, reconnecting with model: ${validModelName}`);
+        showNotification('Connection restored. Reconnecting...', 'info');
+        streamChatResponse(messageContent, sessionId, validModelName, developerConfig, reasoningEffort);
+      }, { once: true });
+    }
+  }, 3000);
 }
 
 function processDataChunk(data) {
@@ -478,7 +576,17 @@ async function attemptErrorRecovery(messageContent, error) {
             resolve(false);
             return;
           }
-          const modelName = document.getElementById('model-select')?.value || 'DeepSeek-R1';
+          
+          // Get the currently selected model with fallback
+          let modelName;
+          try {
+            const modelSelect = document.getElementById('model-select');
+            modelName = modelSelect && modelSelect.value ? modelSelect.value : 'DeepSeek-R1';
+          } catch (e) {
+            console.warn('Error getting model from UI, using DeepSeek-R1 as fallback:', e);
+            modelName = 'DeepSeek-R1';
+          }
+          
           const developerConfig = document.getElementById('developer-config')?.value || '';
           
           // For timeout errors, try with lower reasoning effort
@@ -569,7 +677,7 @@ function resetStreamingState() {
   errorState = false;
 }
 
-async function cleanupStreaming() {
+async function cleanupStreaming(modelName) {
   isProcessing = false;
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
@@ -582,6 +690,7 @@ async function cleanupStreaming() {
   if (progressIndicator) {
     progressIndicator.remove();
   }
+  
   if (mainTextBuffer && messageContainer) {
     try {
       const sessionId = await getSessionId();
@@ -596,7 +705,8 @@ async function cleanupStreaming() {
           body: JSON.stringify({
             session_id: sessionId,
             role: 'assistant',
-            content: mainTextBuffer
+            content: mainTextBuffer,
+            model: modelName || 'DeepSeek-R1'  // Store the model name with the message
           })
         }).catch(err => console.warn('Failed to store message:', err));
       }

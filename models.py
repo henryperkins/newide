@@ -75,6 +75,7 @@ class Conversation(Base):
     timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"))
     system_fingerprint = Column(String(64), nullable=True)
     model = Column(String(50), nullable=True)
+    tracking_id = Column(String(64), nullable=True)  # Add tracking ID for model switch reliability
     # optional metadata columns
     prompt_filter_results = Column(JSONB, nullable=True)
     content_filter_results = Column(JSONB, nullable=True)

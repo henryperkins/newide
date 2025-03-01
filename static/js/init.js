@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }, 2000);
   }
+  
   import('./models.js').then(module => {
     const { modelManager } = module;
     modelManager.initialize().then(() => {
@@ -58,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }).catch(err => console.error('Error initializing ModelManager:', err));
   });
-  initThemeSwitcher();
+
   initTabSystem();
   configureMarkdown();
   initPerformanceStats();
@@ -72,8 +73,83 @@ document.addEventListener('DOMContentLoaded', () => {
   enhanceAccessibility();
   initializeFontSizeControls();
   initMobileUI();
+  initConversationControls();
   initializeConfig().catch(err => console.error('Error during config initialization:', err));
 });
+
+// Initialize conversation controls
+function initConversationControls() {
+  const chatHistory = document.getElementById('chat-history');
+  if (!chatHistory) return;
+
+  // Create conversation controls container if it doesn't exist
+  let conversationControls = document.querySelector('.conversation-controls');
+  if (!conversationControls) {
+    conversationControls = document.createElement('div');
+    conversationControls.className = 'conversation-controls';
+    
+    // Insert conversation controls at the top of chat history
+    if (chatHistory.firstChild) {
+      chatHistory.insertBefore(conversationControls, chatHistory.firstChild);
+    } else {
+      chatHistory.appendChild(conversationControls);
+    }
+
+    // Add "Load Older Messages" button
+    const loadOlderBtn = document.createElement('button');
+    loadOlderBtn.id = 'load-older-btn';
+    loadOlderBtn.className = 'btn btn-secondary text-sm flex items-center gap-1';
+    loadOlderBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"></polyline><polyline points="17 18 12 13 7 18"></polyline></svg> Load Older Messages';
+    loadOlderBtn.addEventListener('click', () => {
+      loadOlderMessages();
+    });
+    conversationControls.appendChild(loadOlderBtn);
+
+    // Add "Save Conversation" button
+    const saveConvoBtn = document.createElement('button');
+    saveConvoBtn.id = 'save-convo-btn';
+    saveConvoBtn.className = 'btn btn-secondary text-sm flex items-center gap-1';
+    saveConvoBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> Save Conversation';
+    conversationControls.appendChild(saveConvoBtn);
+
+    // Add "Clear Conversation" button
+    const clearConvoBtn = document.createElement('button');
+    clearConvoBtn.id = 'clear-convo-btn';
+    clearConvoBtn.className = 'btn btn-danger text-sm flex items-center gap-1';
+    clearConvoBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg> Clear Conversation';
+    conversationControls.appendChild(clearConvoBtn);
+
+    // Add conversation dropdown selector
+    const convoSelectContainer = document.createElement('div');
+    convoSelectContainer.className = 'flex items-center';
+    
+    const convoSelect = document.createElement('select');
+    convoSelect.id = 'conversation-list';
+    convoSelect.className = 'form-input py-1 px-2 text-sm';
+    convoSelect.innerHTML = '<option value="">-- Select Conversation --</option>';
+    
+    convoSelectContainer.appendChild(convoSelect);
+    conversationControls.appendChild(convoSelectContainer);
+
+    // Populate conversation list
+    refreshConversationList();
+  }
+}
+
+function refreshConversationList() {
+  const convoList = document.getElementById('conversation-list');
+  if (!convoList) return;
+  convoList.innerHTML = '<option value="">-- Select --</option>';
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k.startsWith('conversation_')) {
+      const option = document.createElement('option');
+      option.value = k;
+      option.textContent = k.replace('conversation_', '').replace(/_/g, ' ');
+      convoList.appendChild(option);
+    }
+  }
+}
 
 function initMobileUI() {
   const isMobile = window.matchMedia('(max-width: 768px)').matches;
@@ -277,9 +353,11 @@ function initUserInput() {
   window.triggerSendMessage = function() {
     window.dispatchEvent(new CustomEvent('send-message'));
   };
+  
   const saveConvoBtn = document.getElementById('save-convo-btn');
   const clearConvoBtn = document.getElementById('clear-convo-btn');
   const convoList = document.getElementById('conversation-list');
+  
   if (saveConvoBtn) {
     saveConvoBtn.addEventListener('click', () => {
       const conversation = localStorage.getItem('conversation');
@@ -287,19 +365,30 @@ function initUserInput() {
         alert('No conversation to save!');
         return;
       }
-      const key = `conversation_${Date.now()}`;
+      
+      // Create a timestamp-based name
+      const timestamp = new Date().toLocaleString().replace(/[\/\s:,]/g, '_');
+      const key = `conversation_${timestamp}`;
+      
       localStorage.setItem(key, conversation);
-      alert('Conversation saved as ' + key);
+      alert('Conversation saved!');
       refreshConversationList();
     });
   }
+  
   if (clearConvoBtn) {
-    clearConvoBtn.addEventListener('click', () => {
-      localStorage.removeItem('conversation');
-      alert('Current conversation cleared.');
-      location.reload();
-    });
+      clearConvoBtn.addEventListener('click', () => {
+          if (confirm('Are you sure you want to clear the current conversation?')) {
+              localStorage.removeItem('conversation');
+              const chatHistory = document.getElementById('chat-history');
+              if (chatHistory) {
+                  chatHistory.innerHTML = '';
+              }
+              refreshConversationList();
+          }
+      });
   }
+  
   if (convoList) {
     convoList.addEventListener('change', (e) => {
       const key = e.target.value;
@@ -309,29 +398,25 @@ function initUserInput() {
         alert('Selected conversation not found.');
         return;
       }
-      localStorage.setItem('conversation', savedConvo);
-      alert('Conversation loaded.');
-      location.reload();
+      
+      if (confirm('Load this conversation? This will replace your current conversation.')) {
+        localStorage.setItem('conversation', savedConvo);
+        location.reload();
+      } else {
+        // Reset select to default option if user cancels
+        convoList.selectedIndex = 0;
+      }
     });
   }
-  function refreshConversationList() {
-    if (!convoList) return;
-    convoList.innerHTML = '<option value="">-- Select --</option>';
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k.startsWith('conversation_')) {
-        const option = document.createElement('option');
-        option.value = k;
-        option.textContent = k;
-        convoList.appendChild(option);
-      }
-    }
-  }
-  refreshConversationList();
+
+  // Make the Load Older Messages button work correctly
   const loadOlderBtn = document.getElementById('load-older-btn');
   if (loadOlderBtn) {
-    loadOlderBtn.addEventListener('click', loadOlderMessages);
+    loadOlderBtn.addEventListener('click', () => {
+      loadOlderMessages();
+    });
   }
+
   document.addEventListener('click', (e) => {
     const link = e.target.closest('.file-ref-link');
     if (link) {
@@ -340,6 +425,7 @@ function initUserInput() {
       openFileInSidebar(fname);
     }
   });
+
   if (!userInput || !sendButton) return;
   userInput.addEventListener('input', function() {
     this.style.height = 'auto';

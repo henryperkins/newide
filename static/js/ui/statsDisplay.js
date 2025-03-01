@@ -50,31 +50,48 @@ export default class StatsDisplay {
     }
   
     startConnectionTracking() {
-      // Ping endpoint every 15s to get # of active connections
-      setInterval(async () => {
-        try {
-          const response = await fetch('/api/model-stats/connections');
-          const data = await response.json();
-          
-          // Fix: correctly access the connection data from the response structure
-          // The API returns { "connections": { ... } } with connection data nested
-          if (data.connections && data.connections.concurrent_connections !== undefined) {
-            this.stats.activeConnections = data.connections.concurrent_connections;
-          } else if (data.active_connections !== undefined) {
-            // Fallback for backward compatibility
-            this.stats.activeConnections = data.active_connections;
-          } else {
+      // Ping endpoint every 60s, with simple failure backoff and optional disable
+      const DISABLE_CONNECTION_TRACKING = window.DISABLE_CONNECTION_TRACKING === true;
+      const MAX_FAILED_ATTEMPTS = 3;
+      let failedAttempts = 0;
+  
+      if (!DISABLE_CONNECTION_TRACKING) {
+        const fetchConnections = async () => {
+          try {
+            const response = await fetch('/api/model-stats/connections');
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            if (data.connections && data.connections.concurrent_connections !== undefined) {
+              this.stats.activeConnections = data.connections.concurrent_connections;
+            } else if (data.active_connections !== undefined) {
+              // Fallback for backward compatibility
+              this.stats.activeConnections = data.active_connections;
+            } else {
+              this.stats.activeConnections = 0;
+            }
+            failedAttempts = 0;
+          } catch (e) {
+            failedAttempts++;
+            if (window.DEBUG_MODE) {
+              console.error('Failed to fetch active connections', e);
+            }
             this.stats.activeConnections = 0;
+            // If too many consecutive failures, skip further polls
+            if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
+              if (window.DEBUG_MODE) {
+                console.warn('Too many consecutive connection fetch failures, disabling tracking.');
+              }
+              return;
+            }
           }
-        } catch (e) {
-          // Reduce console noise by only logging if debug mode is enabled
-          if (window.DEBUG_MODE) {
-            console.error('Failed to fetch active connections', e);
+          this.render();
+          // Reschedule after 60s if not disabled
+          if (failedAttempts < MAX_FAILED_ATTEMPTS) {
+            setTimeout(fetchConnections, 60000);
           }
-          this.stats.activeConnections = 0;
-        }
-        this.render();
-      }, 15000);
+        };
+        fetchConnections();
+      }
     }
   
     render() {

@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi import Depends  # Import Depends
 
-from database import init_database
+from init_db import init_database
 from routers.session import router as session_router
 from routers.chat import router as chat_router
 from routers.files import router as files_router

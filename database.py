@@ -30,8 +30,7 @@ POSTGRES_URL = (
 engine = create_async_engine(
     POSTGRES_URL,
     connect_args={
-        "ssl": ssl_context,
-        "options": "-c timezone=utc"
+        "ssl": ssl_context
     },
     json_serializer=lambda obj: json.dumps(obj, default=str)
 )
@@ -54,12 +53,19 @@ class SessionModel(Base):
     created_at = Column(DateTime(timezone=True), server_default=text("NOW()"))
     last_activity = Column(DateTime(timezone=True), server_default=text("NOW()"))
     expires_at = Column(DateTime(timezone=True), nullable=False)
+    # Track model preferences and transitions
+    last_model = Column(String(50), nullable=True)
+    session_metadata = Column(JSONB, nullable=True)
+    request_count = Column(Integer, default=0)
+    last_request = Column(DateTime(timezone=True), server_default=text("NOW()"))
 
 class Conversation(Base):
     """ORM model for conversation messages."""
     __tablename__ = "conversations"
     __table_args__ = (
         Index('ix_conversations_session_timestamp', 'session_id', 'timestamp'),
+        Index('ix_conversations_model', 'model'),  # Index by model for analytics
+        Index('ix_conversations_tracking_id', 'tracking_id'),  # Index for tracking model transitions
     )
     
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -67,13 +73,16 @@ class Conversation(Base):
     user_id = Column(PGUUID, ForeignKey("users.id", ondelete='SET NULL'), nullable=True)
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
+    formatted_content = Column(Text, nullable=True)
+    raw_response = Column(JSONB, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"))
-    system_fingerprint = Column(String(64))
+    system_fingerprint = Column(String(64), nullable=True)
     model = Column(String(50), nullable=True)
-    prompt_filter_results = Column(JSONB)
-    content_filter_results = Column(JSONB)
-    model_version = Column(String(50))  # Stores the model version from API response
-    service_tier = Column(String(50))   # Stores the service tier from API response
+    tracking_id = Column(String(64), nullable=True)  # For tracking model transitions
+    prompt_filter_results = Column(JSONB, nullable=True)
+    content_filter_results = Column(JSONB, nullable=True)
+    model_version = Column(String(50), nullable=True)
+    service_tier = Column(String(50), nullable=True)
 
 class UploadedFile(Base):
     """Enhanced ORM model for uploaded files."""
@@ -119,6 +128,43 @@ class FileCitation(Base):
     created_at = Column(DateTime(timezone=True), server_default=text("NOW()"))
     file_metadata = Column(JSONB, nullable=True)  # Renamed from metadata
 
+class ModelUsageStats(Base):
+    """ORM model for tracking model usage statistics."""
+    __tablename__ = "model_usage_stats"
+    __table_args__ = (
+        Index('ix_model_usage_stats_model', 'model'),
+        Index('ix_model_usage_stats_timestamp', 'timestamp'),
+        Index('ix_model_usage_stats_session_model', 'session_id', 'model'),
+    )
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    model = Column(String(50), nullable=False)
+    session_id = Column(PGUUID, ForeignKey("sessions.id", ondelete='CASCADE'), nullable=True)
+    prompt_tokens = Column(Integer, nullable=False)
+    completion_tokens = Column(Integer, nullable=False)
+    total_tokens = Column(Integer, nullable=False)
+    reasoning_tokens = Column(Integer, nullable=True)  # Track o-series processing tokens
+    cached_tokens = Column(Integer, nullable=True)     # Track cached tokens for efficiency
+    content_analysis = Column(JSONB, nullable=True)    # Store DeepSeek thinking process
+    timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"))
+    # Track model transition events
+    tracking_id = Column(String(64), nullable=True)    # Match with conversation tracking_id
+    usage_metadata = Column(JSONB, nullable=True)
+    
+class ModelTransition(Base):
+    """New ORM model for tracking model switching events."""
+    __tablename__ = "model_transitions"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(PGUUID, ForeignKey("sessions.id", ondelete='CASCADE'), nullable=False)
+    from_model = Column(String(50), nullable=True)  # Null for first model
+    to_model = Column(String(50), nullable=False)
+    tracking_id = Column(String(64), nullable=True)  # For correlation with conversations
+    timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"))
+    success = Column(Integer, default=1)  # 1=success, 0=failed
+    error_message = Column(Text, nullable=True) 
+    duration_ms = Column(Integer, nullable=True)  # Time taken for switch
+    transition_metadata = Column(JSONB, nullable=True)  # Additional switching metadata
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """
@@ -132,91 +178,3 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             yield session
         finally:
             await session.close()
-
-async def init_database():
-    """Initialize the database by creating necessary tables if they don't exist."""
-    async with engine.begin() as conn:
-        # Drop existing tables to ensure clean slate
-        # Remove destructive DROP TABLE commands
-        pass  # Let Alembic handle migrations in production
-        
-        # Create sessions table with rate limiting columns
-        await conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS sessions (
-                id UUID PRIMARY KEY,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                last_activity TIMESTAMPTZ DEFAULT NOW(),
-                expires_at TIMESTAMPTZ NOT NULL,
-                request_count INTEGER DEFAULT 0,
-                last_request TIMESTAMPTZ DEFAULT NOW()
-            )"""))
-        
-        # Create conversations table
-        await conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS conversations (
-                id SERIAL PRIMARY KEY,
-                session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
-                role VARCHAR(20) NOT NULL,
-                content TEXT NOT NULL,
-                timestamp TIMESTAMPTZ DEFAULT NOW(),
-                system_fingerprint VARCHAR(64),
-                prompt_filter_results JSONB,
-                content_filter_results JSONB,
-                model_version VARCHAR(50),
-                service_tier VARCHAR(50)
-            )"""))
-        
-        # Create uploaded_files table with enhanced fields
-        await conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS uploaded_files (
-                id UUID PRIMARY KEY,
-                session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
-                filename TEXT NOT NULL,
-                content TEXT NOT NULL,
-                size BIGINT NOT NULL,
-                upload_time TIMESTAMPTZ DEFAULT NOW(),
-                file_type VARCHAR(50),
-                status VARCHAR(20) DEFAULT 'ready',
-                chunk_count INTEGER DEFAULT 1,
-                token_count INTEGER,
-                embedding_id VARCHAR(255),
-                file_metadata JSONB,
-                azure_status VARCHAR(20)
-            )"""))
-        
-        # Create vector_stores table
-        await conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS vector_stores (
-                id UUID PRIMARY KEY,
-                session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
-                name TEXT NOT NULL,
-                azure_id VARCHAR(255),
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                status VARCHAR(20) DEFAULT 'active',
-                file_metadata JSONB
-            )"""))
-        
-        # Create file_citations table
-        await conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS file_citations (
-                id UUID PRIMARY KEY,
-                conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
-                file_id UUID REFERENCES uploaded_files(id) ON DELETE SET NULL,
-                snippet TEXT NOT NULL,
-                position INTEGER,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                file_metadata JSONB
-            )"""))
-        
-        # Create indexes
-        await conn.execute(text("""
-            CREATE INDEX IF NOT EXISTS ix_uploaded_files_session_id 
-            ON uploaded_files(session_id)"""))
-        
-        await conn.execute(text("""
-            CREATE INDEX IF NOT EXISTS ix_uploaded_files_status
-            ON uploaded_files(status)"""))
-        
-        await conn.execute(text("""
-            CREATE INDEX IF NOT EXISTS ix_file_citations_conversation_id
-            ON file_citations(conversation_id)"""))

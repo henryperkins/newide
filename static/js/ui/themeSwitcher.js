@@ -105,6 +105,9 @@ function toggleTheme() {
   
   // Announce theme change for screen readers
   announceThemeChange(isDark);
+
+  // Dispatch an event for other components to react to theme changes
+  document.dispatchEvent(new CustomEvent('themeChanged', { detail: { isDark } }));
 }
 
 /**
@@ -162,6 +165,9 @@ function listenForSystemThemeChanges() {
     });
   }
 }
+
+// Export the toggleTheme function so it can be used elsewhere
+export { toggleTheme };
 
 // Initialize theme system when the module is loaded
 listenForSystemThemeChanges();

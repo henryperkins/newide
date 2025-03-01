@@ -1,6 +1,6 @@
 {
-  "name": "azure-openai-chat",
-  "version": "1.0.0",
+  "name": "Azure OpenAI Chat Application",
+  "version": "2.0.0",
   "description": "Azure OpenAI Chat Application",
   "scripts": {
     "build:css": "node build.js --production",
@@ -24,10 +24,17 @@
   },
   "main": "postcss.config.js",
   "directories": {
-    "doc": "docs",
-    "test": "test"
+    "doc": "docs"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "author": "Henry Perkins",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/henryperkins/newide.git"
+  },
+  "bugs": {
+    "url": "https://github.com/henryperkins/newide/issues"
+  },
+  "homepage": "https://github.com/henryperkins/newide#readme"
 }

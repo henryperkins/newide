@@ -42,11 +42,6 @@ export function initTabSystem() {
     });
   });
 
-  // Setup event listeners for tab buttons
-  tabButtons.forEach(button => {
-    button.addEventListener('click', () => handleTabChange(button));
-  });
-  
   // Initialize mobile sidebar toggle
   initMobileSidebarToggle();
 }
@@ -98,136 +93,210 @@ function initMobileSidebarToggle() {
   const overlay = document.getElementById('sidebar-overlay');
   const toggleButton = document.getElementById('sidebar-toggle');
   
-  if (!sidebar || !overlay || !toggleButton) {
-    console.error('Mobile sidebar elements missing:', {sidebar, overlay, toggleButton});
+  if (!sidebar || !overlay) {
+    console.error('Mobile sidebar elements missing:', {sidebar, overlay});
     return;
   }
-  const closeButton = document.getElementById('close-sidebar');
 
-  // Add debug logging
-  console.log('Sidebar toggle initialized');
-  toggleButton.addEventListener('click', () => {
-    console.log('Toggle button clicked');
-    console.log('Current aria-expanded:', toggleButton.getAttribute('aria-expanded'));
-  });
+  // Create close button if it doesn't exist
+  let closeButton = document.getElementById('close-sidebar');
+  if (!closeButton && sidebar) {
+    closeButton = document.createElement('button');
+    closeButton.id = 'close-sidebar';
+    closeButton.className = 'sidebar-close';
+    closeButton.setAttribute('aria-label', 'Close sidebar');
+    closeButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+    </svg>`;
+    sidebar.prepend(closeButton);
+  }
 
   // Desktop fallback
   if (window.innerWidth >= 768) { // Match your md breakpoint
-    sidebar.classList.remove('translate-x-full', 'translate-x-0');
-    sidebar.classList.add('md:translate-x-0');
+    if (sidebar) {
+      sidebar.classList.remove('translate-x-full', 'translate-x-0');
+      if (sidebar.classList.contains('sidebar-open')) {
+        sidebar.classList.add('translate-x-0');
+        document.getElementById('chat-container')?.classList.add('sidebar-open');
+      } else {
+        sidebar.classList.add('translate-x-full');
+        document.getElementById('chat-container')?.classList.remove('sidebar-open');
+      }
+    }
   }
   
+  // Create toggle button if it doesn't exist
+  if (!toggleButton) {
+    // Try to find any element that might be the toggle button
+    const possibleToggle = document.querySelector('[aria-controls="config-content files-content"]');
+    if (possibleToggle) {
+      possibleToggle.id = 'sidebar-toggle';
+      toggleButton = possibleToggle;
+    } else {
+      // Create a new toggle button in the header
+      const header = document.querySelector('header');
+      if (header) {
+        toggleButton = document.createElement('button');
+        toggleButton.id = 'sidebar-toggle';
+        toggleButton.className = 'ml-auto p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700';
+        toggleButton.setAttribute('aria-label', 'Toggle sidebar');
+        toggleButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>`;
+        header.appendChild(toggleButton);
+      }
+    }
+  }
   
   // Close button handling
   if (closeButton) {
     closeButton.addEventListener('click', () => {
-      sidebar.classList.add('translate-x-full');
-      sidebar.classList.remove('translate-x-0');
-      overlay.classList.add('hidden');
-      toggleButton.setAttribute('aria-expanded', 'false');
+      toggleSidebar(false);
     });
   }
   
-  // Enhanced toggle button functionality with logging
-  toggleButton.addEventListener('click', () => {
-    console.log('Sidebar toggle clicked');
-    const isExpanded = toggleButton.getAttribute('aria-expanded') === 'true';
+  // Enhanced toggle button functionality
+  if (toggleButton) {
+    toggleButton.setAttribute('aria-expanded', sidebar?.classList.contains('sidebar-open') ? 'true' : 'false');
     
-    if (isExpanded) {
-      sidebar.classList.add('translate-x-full');
-      sidebar.classList.remove('translate-x-0');
-      overlay.classList.add('hidden');
-    } else {
-      sidebar.classList.remove('translate-x-full');
-      sidebar.classList.add('translate-x-0');
-      overlay.classList.remove('hidden');
-    }
-    
-    toggleButton.setAttribute('aria-expanded', !isExpanded);
-  });
+    toggleButton.addEventListener('click', () => {
+      const isExpanded = toggleButton.getAttribute('aria-expanded') === 'true';
+      toggleSidebar(!isExpanded);
+    });
+  }
   
   // Close sidebar when overlay is clicked
-  overlay.addEventListener('click', () => {
-    sidebar.classList.add('translate-x-full');
-    sidebar.classList.remove('translate-x-0');
-    overlay.classList.add('hidden');
-    toggleButton.setAttribute('aria-expanded', 'false');
-  });
+  if (overlay) {
+    overlay.addEventListener('click', () => {
+      toggleSidebar(false);
+    });
+  }
   
   // Handle swipe to close
-  let startX, startY;
-  sidebar.addEventListener('touchstart', (e) => {
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-    
-    // Add transition for smooth animation
-    sidebar.classList.add('transition-transform', 'duration-300');
-  }, { passive: true });
+  if (sidebar) {
+    let startX, startY;
+    sidebar.addEventListener('touchstart', (e) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      
+      // Add transition for smooth animation
+      sidebar.classList.add('transition-transform', 'duration-300');
+    }, { passive: true });
 
-  sidebar.addEventListener('touchmove', (e) => {
-    if (!startX) return;
-    
-    const currentX = e.touches[0].clientX;
-    const currentY = e.touches[0].clientY;
-    const diffX = currentX - startX;
-    const diffY = currentY - startY;
-    
-    // Abort swipe if vertical movement exceeds threshold (prevents accidental closing during scrolling)
-    const VERTICAL_THRESHOLD = 10;
-    if (Math.abs(diffY) > VERTICAL_THRESHOLD) return;
-    
-    // Only handle horizontal swipes
-    if (Math.abs(diffX) > 30) {
-      // Move sidebar visually but keep it bounded
-      const translateX = Math.min(diffX, sidebar.offsetWidth);
-      sidebar.style.transform = `translateX(${translateX}px)`;
-    }
-  }, { passive: true });
+    sidebar.addEventListener('touchmove', (e) => {
+      if (!startX) return;
+      
+      const currentX = e.touches[0].clientX;
+      const currentY = e.touches[0].clientY;
+      const diffX = currentX - startX;
+      const diffY = currentY - startY;
+      
+      // Abort swipe if vertical movement exceeds threshold (prevents accidental closing during scrolling)
+      const VERTICAL_THRESHOLD = 10;
+      if (Math.abs(diffY) > VERTICAL_THRESHOLD) return;
+      
+      // Only handle horizontal swipes
+      if (Math.abs(diffX) > 30) {
+        // Move sidebar visually but keep it bounded
+        const translateX = Math.min(diffX, sidebar.offsetWidth);
+        sidebar.style.transform = `translateX(${translateX}px)`;
+      }
+    }, { passive: true });
 
-  sidebar.addEventListener('touchend', (e) => {
-    if (!startX) return;
-    
-    const currentX = e.changedTouches[0].clientX;
-    const diffX = currentX - startX;
-    
-    // Clear inline transform
-    sidebar.style.transform = '';
-    sidebar.classList.remove('transition-transform', 'duration-300');
-    
-    if (diffX > 100) {
-      // Close the sidebar
-      sidebar.classList.add('translate-x-full');
-      sidebar.classList.remove('translate-x-0');
-      overlay.classList.add('hidden');
-      toggleButton.setAttribute('aria-expanded', 'false');
-    }
-    
-    startX = null;
-  }, { passive: true });
+    sidebar.addEventListener('touchend', (e) => {
+      if (!startX) return;
+      
+      const currentX = e.changedTouches[0].clientX;
+      const diffX = currentX - startX;
+      
+      // Clear inline transform
+      sidebar.style.transform = '';
+      sidebar.classList.remove('transition-transform', 'duration-300');
+      
+      if (diffX > 100) {
+        // Close the sidebar
+        toggleSidebar(false);
+      }
+      
+      startX = null;
+    }, { passive: true });
+  }
   
   // Handle resize events to ensure proper sidebar state
   window.addEventListener('resize', () => {
     const isMobile = window.innerWidth < 768;
-    const isOpen = sidebar.classList.contains('translate-x-0');
+    const isOpen = sidebar?.classList.contains('sidebar-open');
 
     if (isMobile) {
       // Ensure proper mobile state
       if (isOpen) {
-        overlay.classList.remove('hidden');
-      } else {
+        if (overlay) overlay.classList.remove('hidden');
+      } else if (sidebar) {
         sidebar.classList.add('translate-x-full');
-        overlay.classList.add('hidden');
+        sidebar.classList.remove('translate-x-0');
+        if (overlay) overlay.classList.add('hidden');
       }
-    } else {
-      // Reset for desktop
-      sidebar.classList.remove(
-        'fixed', 'translate-x-full', 'translate-x-0', 
-        'md:translate-x-0', 'md:static'
-      );
-      sidebar.classList.add('md:block', 'md:static');
-      overlay.classList.add('hidden');
+    } else if (sidebar) {
+      // On desktop, adjust the chat container padding
+      const chatContainer = document.getElementById('chat-container');
+      if (chatContainer) {
+        chatContainer.classList.toggle('sidebar-open', isOpen);
+      }
+      
+      if (overlay) overlay.classList.add('hidden');
     }
   });
+  
+  // Add keyboard shortcut (Escape) to close sidebar
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (sidebar?.classList.contains('sidebar-open')) {
+        toggleSidebar(false);
+      }
+    }
+  });
+}
+
+/**
+ * Toggle sidebar visibility
+ * @param {boolean} show Whether to show the sidebar
+ */
+function toggleSidebar(show) {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const toggleButton = document.getElementById('sidebar-toggle');
+  const chatContainer = document.getElementById('chat-container');
+  
+  if (!sidebar) return;
+  
+  const isMobile = window.innerWidth < 768;
+  
+  if (show) {
+    if (isMobile) {
+      sidebar.classList.add('fixed');
+      sidebar.classList.remove('md:static');
+    }
+    sidebar.classList.remove('translate-x-full');
+    sidebar.classList.add('sidebar-open', 'translate-x-0');
+    if (overlay && isMobile) overlay.classList.remove('hidden');
+    if (toggleButton) toggleButton.setAttribute('aria-expanded', 'true');
+    if (chatContainer && !isMobile) chatContainer.classList.add('sidebar-open');
+  } else {
+    sidebar.classList.add('translate-x-full');
+    sidebar.classList.remove('translate-x-0', 'sidebar-open');
+    if (isMobile) {
+      sidebar.classList.remove('fixed');
+      sidebar.classList.add('md:static');
+    }
+    if (overlay) overlay.classList.add('hidden');
+    if (toggleButton) toggleButton.setAttribute('aria-expanded', 'false');
+    if (chatContainer) chatContainer.classList.remove('sidebar-open');
+  }
+  
+  // Publish sidebar state change event
+  if (window.eventBus) {
+    window.eventBus.publish('sidebarStateChange', { isOpen: show });
+  }
 }
 
 /**
