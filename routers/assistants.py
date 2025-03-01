@@ -6,6 +6,7 @@ from errors import create_error_response
 from routers.security import validate_auth
 import uuid
 import datetime
+import config
 
 router = APIRouter(dependencies=[Depends(validate_auth)])
 
