@@ -17,10 +17,11 @@ from fastapi import (
 from logging_config import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, update
-from database import get_db_session, UploadedFile, AsyncSessionLocal
+from database import get_db_session, AsyncSessionLocal
 from errors import create_error_response
 from pydantic_models import FileResponseModel, FileListResponse, DeleteFileResponse
 from utils import count_tokens
+from models import UploadedFile
 from services.azure_file_service import AzureFileService
 from services.azure_search_service import AzureSearchService
 from clients import get_model_client_dependency
