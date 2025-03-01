@@ -171,7 +171,7 @@ class SessionManager:
             logger.info(f"Created new session ID: {session_id}")
             
             # Create session with expiration time
-            expires_at = datetime.utcnow() + timedelta(minutes=session_timeout)
+            expires_at = datetime.now(timezone.utc) + timedelta(minutes=session_timeout)
             logger.info(f"Setting expires_at to: {expires_at}")
             
             new_session = Session(

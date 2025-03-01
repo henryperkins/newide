@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, DateTime, Text, Boolean, Integer, ForeignKey, BigInteger, text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
 from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 
 Base = declarative_base()
@@ -24,25 +24,31 @@ class Session(Base):
     
     def check_rate_limit(self):
         """Check if session exceeds rate limit (10 requests/minute)"""
-        now = datetime.utcnow()
-        one_minute_ago = now - timedelta(minutes=1)
-        
-        if self.request_count >= 10 and self.last_request and self.last_request > one_minute_ago:
-            reset_time = self.last_request + timedelta(minutes=1)
-            seconds_remaining = int((reset_time - now).total_seconds())
-            
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "error": "rate_limit_exceeded",
-                    "message": "Rate limit exceeded: 10 requests per minute",
-                    "retry_after": seconds_remaining
-                },
-                headers={"Retry-After": str(seconds_remaining)}
-            )
+        if self.request_count >= 10:
+            # Get timezone-aware current time
+            now = datetime.now(timezone.utc)
+            one_minute_ago = now - timedelta(minutes=1)
+
+            # Force timezone-aware comparison
+            if self.last_request and self.last_request.astimezone(timezone.utc) > one_minute_ago:
+                reset_time = self.last_request + timedelta(minutes=1)
+                seconds_remaining = int((reset_time - now).total_seconds())
+                
+                raise HTTPException(
+                    status_code=429,
+                    detail={
+                        "error": "rate_limit_exceeded",
+                        "message": "Rate limit exceeded: 10 requests per minute",
+                        "retry_after": seconds_remaining
+                    },
+                    headers={"Retry-After": str(seconds_remaining)}
+                )
         
         # Update rate limit counters
-        if self.last_request and self.last_request < one_minute_ago:
+        now = datetime.now(timezone.utc)
+        one_minute_ago = now - timedelta(minutes=1)
+        
+        if self.last_request and self.last_request.astimezone(timezone.utc) < one_minute_ago:
             # Reset counter if more than a minute has passed
             self.request_count = 1
         else:

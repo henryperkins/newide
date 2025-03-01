@@ -29,8 +29,10 @@ POSTGRES_URL = (
 engine = create_async_engine(
     POSTGRES_URL,
     connect_args={
-        "ssl": ssl_context
-    }
+        "ssl": ssl_context,
+        "options": "-c timezone=utc"
+    },
+    json_serializer=lambda obj: json.dumps(obj, default=str)
 )
 
 # Create a session maker for async sessions
