@@ -309,10 +309,29 @@ async def create_chat_completion(
         is_inference_client = isinstance(client, ChatCompletionsClient)
         deepseek_check = is_deepseek_model(request.model)
 
-        # Handle O-series logic
-        if model_type == "o-series" and not request.reasoning_effort:
-            logger.warning(f"Missing reasoning_effort for O-series model {request.model}. Defaulting to 'medium'.")
-            request.reasoning_effort = "medium"
+        # Validate parameters based on model type
+        if is_o_series_model(request.model):
+            if request.temperature is not None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Temperature parameter not supported for o-series models"
+                )
+            if not request.reasoning_effort:
+                request.reasoning_effort = "medium"
+            elif request.reasoning_effort not in ["low", "medium", "high"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid reasoning_effort. Must be 'low', 'medium', or 'high'"
+                )
+
+        if is_deepseek_model(request.model):
+            if not request.max_completion_tokens:
+                request.max_completion_tokens = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+            elif request.max_completion_tokens > config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"max_completion_tokens cannot exceed {config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS} for DeepSeek models"
+                )
 
         # Prepare the final response structure
         response_data: Dict[str, Any] = {}

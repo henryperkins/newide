@@ -197,21 +197,24 @@ class ClientPool:
             
     def _create_client(self, model_id: str, model_config: Dict[str, Any]):
         """Create the appropriate client based on model type"""
-        # Determine if this is a DeepSeek model
-        is_deepseek = config.is_deepseek_model(model_id)
-        
-        if is_deepseek:
-            # Create Azure AI Inference client for DeepSeek
-            credential = AzureKeyCredential(os.getenv("AZURE_INFERENCE_CREDENTIAL", ""))
-            endpoint = model_config.get("azure_endpoint", config.AZURE_INFERENCE_ENDPOINT)
-            timeout = model_config.get("base_timeout", 120.0)
-            
-            logger.info(f"Creating Azure AI Inference client for {model_id} at {endpoint} with timeout {timeout}")
+        # DeepSeek-R1 needs different endpoints and credentials
+        if "deepseek" in model_id.lower():
             return ChatCompletionsClient(
-                endpoint=endpoint,
-                credential=credential,
-                connection_timeout=timeout,
-                read_timeout=timeout
+                endpoint=config.AZURE_INFERENCE_ENDPOINT,
+                credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
+                api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+                connection_timeout=120.0,
+                read_timeout=120.0
+            )
+        # o-series uses standard OpenAI client with reasoning effort
+        elif "o1" in model_id.lower() or "o3" in model_id.lower():
+            return AzureOpenAI(
+                api_key=config.AZURE_OPENAI_API_KEY,
+                api_version=config.O_SERIES_API_VERSION,
+                azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
+                default_headers={"reasoning-effort": "medium"},
+                max_retries=3,
+                timeout=120.0
             )
         else:
             # Create Azure OpenAI client for other models

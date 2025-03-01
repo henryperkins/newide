@@ -213,13 +213,22 @@ async def process_chat_message(
 
             # Extract usage
             usage_raw = getattr(response, "usage", None)
-            usage_data = {}
-            if usage_raw:
-                usage_data = {
-                    "prompt_tokens": getattr(usage_raw, "prompt_tokens", 0),
-                    "completion_tokens": getattr(usage_raw, "completion_tokens", 0),
-                    "total_tokens": getattr(usage_raw, "total_tokens", 0),
-                }
+            usage_data = {
+                "prompt_tokens": getattr(usage_raw, "prompt_tokens", 0),
+                "completion_tokens": getattr(usage_raw, "completion_tokens", 0),
+                "total_tokens": getattr(usage_raw, "total_tokens", 0),
+            }
+            
+            # Extract reasoning tokens for o-series
+            if hasattr(usage_raw, 'completion_tokens_details'):
+                usage_data['reasoning_tokens'] = \
+                    getattr(usage_raw.completion_tokens_details, 'reasoning_tokens', 0)
+            
+            # Extract thinking process for DeepSeek
+            if is_deepseek_model(model_name) and hasattr(response.choices[0].message, 'content'):
+                content = response.choices[0].message.content
+                if "<think>" in content and "</think>" in content:
+                    usage_data['thinking_process'] = content.split("<think>")[1].split("</think>")[0]
 
     except HttpResponseError as e:
         # Enhanced error handling for Azure AI Inference

@@ -191,10 +191,16 @@ AZURE_OPENAI_API_KEY = settings.AZURE_OPENAI_API_KEY
 AZURE_OPENAI_API_VERSION = settings.AZURE_OPENAI_API_VERSION
 # MODEL_CONFIGS has been removed from config.py and should be loaded from a database or external config.
 
+# Model-specific settings
+O_SERIES_API_VERSION = "2025-01-01-preview"
+DEEPSEEK_API_VERSION = "2024-05-01-preview"
+O_SERIES_BASE_TIMEOUT = 120  # Longer timeout for complex reasoning
+DEEPSEEK_DEFAULT_MAX_TOKENS = 32000
+
 # DeepSeek-R1 specific settings with proper fallbacks
 DEEPSEEK_R1_DEFAULT_TEMPERATURE = 0.7  # DeepSeek-R1 supports temperature parameter
-DEEPSEEK_R1_DEFAULT_MAX_TOKENS = 32000  # Max tokens for DeepSeek-R1
-DEEPSEEK_R1_DEFAULT_API_VERSION = "2024-05-01-preview"  # API version for DeepSeek-R1
+DEEPSEEK_R1_DEFAULT_MAX_TOKENS = DEEPSEEK_DEFAULT_MAX_TOKENS
+DEEPSEEK_R1_DEFAULT_API_VERSION = DEEPSEEK_API_VERSION
 AZURE_INFERENCE_API_VERSION = os.getenv(
     "AZURE_INFERENCE_API_VERSION", DEEPSEEK_R1_DEFAULT_API_VERSION
 )

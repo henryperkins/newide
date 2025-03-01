@@ -155,8 +155,9 @@ class ModelUsageStats(Base):
     prompt_tokens = Column(Integer, nullable=False)
     completion_tokens = Column(Integer, nullable=False)
     total_tokens = Column(Integer, nullable=False)
-    reasoning_tokens = Column(Integer, nullable=True)
+    reasoning_tokens = Column(Integer, nullable=True)  # Track o-series processing time
     cached_tokens = Column(Integer, nullable=True)
+    content_analysis = Column(JSONB, nullable=True)  # Store DeepSeek's thinking process
     timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"))
     # Renamed to avoid conflict with SQLAlchemy's reserved 'metadata'
     usage_metadata = Column(JSONB, nullable=True)
