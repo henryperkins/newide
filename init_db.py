@@ -165,7 +165,7 @@ async def init_database():
                 instructions TEXT,
                 tools JSONB DEFAULT '[]'::jsonb,
                 file_ids JSONB DEFAULT '[]'::jsonb,
-                metadata JSONB
+                assistant_metadata JSONB
             )
         """))
 
