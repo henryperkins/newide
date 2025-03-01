@@ -199,6 +199,23 @@ async def init_database():
                 ALTER TABLE app_configurations
                 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             """))
+
+            # Align existing tables with ORM definitions
+            await conn.execute(text("ALTER TABLE model_transitions ALTER COLUMN session_id SET NOT NULL"))
+            await conn.execute(text("ALTER TABLE model_transitions ADD COLUMN IF NOT EXISTS transition_metadata JSONB"))
+
+            await conn.execute(text("ALTER TABLE uploaded_files ALTER COLUMN session_id SET NOT NULL"))
+
+            await conn.execute(text("ALTER TABLE sessions ALTER COLUMN expires_at DROP NOT NULL"))
+            await conn.execute(text("ALTER TABLE sessions ALTER COLUMN request_count SET NOT NULL"))
+
+            await conn.execute(text("ALTER TABLE file_citations ALTER COLUMN conversation_id SET NOT NULL"))
+
+            await conn.execute(text("ALTER TABLE model_usage_stats ADD COLUMN IF NOT EXISTS usage_metadata JSONB"))
+
+            await conn.execute(text("ALTER TABLE conversations ALTER COLUMN session_id SET NOT NULL"))
+
+            await conn.execute(text("ALTER TABLE vector_stores ALTER COLUMN session_id SET NOT NULL"))
         except Exception as e:
             print(f"Error adding columns: {e}")
         
