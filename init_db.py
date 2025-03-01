@@ -218,15 +218,18 @@ async def init_database():
             await conn.execute(text("ALTER TABLE conversations ALTER COLUMN session_id SET NOT NULL"))
 
             await conn.execute(text("ALTER TABLE vector_stores ALTER COLUMN session_id SET NOT NULL"))
-        # Remove old "metadata" columns
-        await conn.execute(text("""
-            ALTER TABLE model_usage_stats
-                DROP COLUMN IF EXISTS metadata;
-        """))
-        await conn.execute(text("""
-            ALTER TABLE model_transitions
-                DROP COLUMN IF EXISTS metadata;
-        """))
+
+            # Remove old "metadata" columns
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                    DROP COLUMN IF EXISTS metadata;
+            """))
+            await conn.execute(text("""
+                ALTER TABLE model_transitions
+                    DROP COLUMN IF EXISTS metadata;
+            """))
+        except Exception as e:
+            print(f"Error adding columns or dropping old metadata columns: {e}")
 
         # Add missing indexes
         index_statements = [
