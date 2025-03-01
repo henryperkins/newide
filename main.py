@@ -1,11 +1,10 @@
-# main.py
 import datetime
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from fastapi import Depends  # Import Depends
+from fastapi import Depends
 
 from init_db import init_database
 from routers.session import router as session_router
@@ -13,34 +12,39 @@ from routers.chat import router as chat_router
 from routers.files import router as files_router
 from routers.config import router as config_router
 from routers.model_stats import router as model_stats_router
-
 from routers.auth import router as auth_router
 
 import config
-from services.config_service import ConfigService  # Import ConfigService
+from services.config_service import ConfigService
 
+# Import schema validation 
+from startup_validation import db_validation_lifespan
 
-def lifespan(app: FastAPI):
-    print(
-        f"[DEBUG] AZURE_OPENAI_DEPLOYMENT_NAME from config: {config.settings.AZURE_OPENAI_DEPLOYMENT_NAME}"
-    )
-
-    async def startup_event():
-        await init_database()
-        from clients import init_client_pool
-
-        # Pass the ConfigService dependency to init_client_pool
-        # await init_client_pool(config_service=ConfigService(db=None))  # Corrected ConfigService instantiation - removed to avoid double init.
-        pass  # The init will be done in get_client_pool() which depends on ConfigService
-
+@db_validation_lifespan
+async def lifespan(app: FastAPI):
+    """
+    Combined lifespan that runs both db validation and other startup tasks.
+    The db_validation_lifespan is used as a decorator to run validation first.
+    """
+    # Initialize the database schema
+    await init_database()
+    
+    # Initialize client pool
+    from clients import init_client_pool
+    await init_client_pool()
+    
     yield
-
 
 # Resolve absolute path to the static directory
 STATIC_DIR = Path(__file__).parent / "static"
 
+# Create FastAPI app with lifespan
 app = FastAPI(
-    docs_url=None, redoc_url=None, openapi_url=None, debug=True, lifespan=lifespan
+    docs_url=None, 
+    redoc_url=None, 
+    openapi_url=None, 
+    debug=True, 
+    lifespan=lifespan
 )
 
 # Add middleware
@@ -96,5 +100,4 @@ def serve_register():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "timestamp": datetime.datetime.utcnow(), "version": "1.0.0"}
     return {"status": "ok", "timestamp": datetime.datetime.utcnow(), "version": "1.0.0"}
