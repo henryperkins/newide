@@ -18,8 +18,7 @@ import logging
 import asyncio
 from typing import Dict, List, Set, Tuple, Optional, Any
 from sqlalchemy import inspect, MetaData, Table, Column, text
-from sqlalchemy.engine import Inspector
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, AsyncConnection
 from sqlalchemy.sql.schema import Index
 import sqlalchemy.types as sqltypes
 
@@ -64,90 +63,125 @@ class SchemaValidator:
         self.errors = []
         self.warnings = []
         
-        # Get SQLAlchemy inspector
-        async with self.engine.connect() as conn:
-            # Get database inspector
-            insp = inspect(conn)
+        try:
+            # Get SQLAlchemy inspector
+            async with self.engine.connect() as conn:
+                # Get database inspector using run_sync to handle async connection
+                tables = await self._get_tables(conn)
+                
+                # Check for missing tables
+                await self._validate_tables(tables)
+                
+                # Check columns for each table that exists in both ORM and DB
+                await self._validate_columns(conn, tables)
+                
+                # Check indexes and foreign keys for tables that exist in both
+                await self._validate_constraints(conn, tables)
             
-            # Check for missing tables
-            await self._validate_tables(insp)
+            # Determine overall validation result
+            passed = len(self.errors) == 0
             
-            # Check columns for each table
-            await self._validate_columns(insp)
-            
-            # Check indexes
-            await self._validate_indexes(insp)
-            
-            # Check foreign keys
-            await self._validate_foreign_keys(insp)
-        
-        # Determine overall validation result
-        passed = len(self.errors) == 0
-        
-        # Log results
-        if passed:
-            if self.warnings:
-                logger.warning("Schema validation completed with warnings:")
-                for warning in self.warnings:
-                    logger.warning(f"  - {warning}")
+            # Log results
+            if passed:
+                if self.warnings:
+                    logger.warning("Schema validation completed with warnings:")
+                    for warning in self.warnings:
+                        logger.warning(f"  - {warning}")
+                else:
+                    logger.info("Schema validation completed successfully. ORM models match database schema.")
             else:
-                logger.info("Schema validation completed successfully. ORM models match database schema.")
-        else:
-            logger.error("Schema validation failed. ORM models do not match database schema:")
-            for error in self.errors:
-                logger.error(f"  - {error}")
+                logger.error("Schema validation failed. ORM models do not match database schema:")
+                for error in self.errors:
+                    logger.error(f"  - {error}")
+                
+                if self.fail_on_error:
+                    error_message = "Database schema validation failed. See logs for details."
+                    logger.error(error_message)
+                    raise ValueError(error_message)
             
+            return passed, self.errors, self.warnings
+            
+        except Exception as e:
+            logger.error(f"Error during schema validation: {str(e)}")
             if self.fail_on_error:
-                error_message = "Database schema validation failed. See logs for details."
-                logger.error(error_message)
-                raise ValueError(error_message)
-        
-        return passed, self.errors, self.warnings
+                raise
+            return False, [str(e)], []
     
-    async def _validate_tables(self, inspector: Inspector) -> None:
+    async def _get_tables(self, conn: AsyncConnection) -> Dict[str, bool]:
+        """
+        Get all tables from the database using run_sync for async compatibility.
+        
+        Args:
+            conn: AsyncConnection to the database
+            
+        Returns:
+            Dictionary of table names mapping to whether they exist in DB
+        """
+        # Get all table names from ORM models
+        orm_tables = set(self.metadata.tables.keys())
+        
+        # Get all table names from database
+        db_tables = set(await conn.run_sync(lambda sync_conn: sync_conn.dialect.get_table_names(sync_conn)))
+        
+        # Create a dictionary of all tables and whether they exist in the database
+        tables = {table: table in db_tables for table in orm_tables}
+        tables.update({table: table in orm_tables for table in db_tables})
+        
+        return tables
+    
+    async def _validate_tables(self, tables: Dict[str, bool]) -> None:
         """
         Validate that all tables defined in ORM models exist in the database
         and vice versa.
         
         Args:
-            inspector: SQLAlchemy inspector
+            tables: Dictionary mapping table names to whether they exist in DB
         """
-        # Get all table names from database
-        db_tables = set(await inspector.get_table_names())
-        
-        # Get all table names from ORM models
-        orm_tables = set(self.metadata.tables.keys())
-        
-        # Check for tables in ORM but not in database
-        missing_tables = orm_tables - db_tables
-        for table_name in missing_tables:
-            self.errors.append(f"Table '{table_name}' is defined in ORM models but does not exist in database")
-        
-        # Check for tables in database but not in ORM (warning only)
-        extra_tables = db_tables - orm_tables
-        for table_name in extra_tables:
-            # Skip alembic_version table if it exists
-            if table_name == 'alembic_version':
-                continue
-            self.warnings.append(f"Table '{table_name}' exists in database but is not defined in ORM models")
+        for table_name, exists_in_db in tables.items():
+            # Check if table is in ORM models
+            exists_in_orm = table_name in self.metadata.tables
+            
+            # Table in ORM but not in DB
+            if exists_in_orm and not exists_in_db:
+                self.errors.append(f"Table '{table_name}' is defined in ORM models but does not exist in database")
+            
+            # Table in DB but not in ORM
+            elif not exists_in_orm and exists_in_db:
+                # Skip alembic_version table if it exists
+                if table_name == 'alembic_version':
+                    continue
+                self.warnings.append(f"Table '{table_name}' exists in database but is not defined in ORM models")
     
-    async def _validate_columns(self, inspector: Inspector) -> None:
+    async def _validate_columns(self, conn: AsyncConnection, tables: Dict[str, bool]) -> None:
         """
         Validate that columns in ORM models match columns in database tables.
         
         Args:
-            inspector: SQLAlchemy inspector
+            conn: AsyncConnection to the database
+            tables: Dictionary mapping table names to whether they exist in DB
         """
-        # For each table in ORM models
-        for table_name, table in self.metadata.tables.items():
-            # Skip if table doesn't exist in database
+        # For each table in ORM models that also exists in DB
+        for table_name, exists_in_db in tables.items():
+            if not exists_in_db or table_name not in self.metadata.tables:
+                continue
+                
+            # Get ORM table
+            orm_table = self.metadata.tables[table_name]
+            
+            # Get database columns using run_sync for async compatibility
             try:
-                db_columns = {col['name']: col for col in await inspector.get_columns(table_name)}
-            except:
+                # Use run_sync to get columns from sync inspector
+                db_columns = await conn.run_sync(
+                    lambda sync_conn: {
+                        col["name"]: col for col in inspect(sync_conn).get_columns(table_name)
+                    }
+                )
+            except Exception as e:
+                self.warnings.append(f"Could not inspect columns for table '{table_name}': {str(e)}")
                 continue
             
             # Check each column in the ORM model
-            for orm_column in table.columns:
+            for orm_column in orm_table.columns:
                 col_name = orm_column.name
                 
                 # Check if column exists in database
@@ -169,7 +203,7 @@ class SchemaValidator:
                 self._check_column_type(table_name, col_name, orm_column, db_column)
             
             # Check for columns in database but not in ORM
-            orm_column_names = {col.name for col in table.columns}
+            orm_column_names = {col.name for col in orm_table.columns}
             for db_col_name in db_columns:
                 if db_col_name not in orm_column_names:
                     self.warnings.append(f"Column '{db_col_name}' in table '{table_name}' exists in database but not in ORM")
@@ -231,92 +265,117 @@ class SchemaValidator:
                     f"ORM={orm_type}, DB={db_type}"
                 )
     
-    async def _validate_indexes(self, inspector: Inspector) -> None:
+    async def _validate_constraints(self, conn: AsyncConnection, tables: Dict[str, bool]) -> None:
+        """
+        Validate indexes and foreign keys in database tables.
+        
+        Args:
+            conn: AsyncConnection to the database
+            tables: Dictionary mapping table names to whether they exist in DB
+        """
+        # For each table in ORM models that also exists in DB
+        for table_name, exists_in_db in tables.items():
+            if not exists_in_db or table_name not in self.metadata.tables:
+                continue
+                
+            # Get ORM table
+            orm_table = self.metadata.tables[table_name]
+            
+            # Check indexes
+            await self._validate_indexes(conn, table_name, orm_table)
+            
+            # Check foreign keys
+            await self._validate_foreign_keys(conn, table_name, orm_table)
+    
+    async def _validate_indexes(self, conn: AsyncConnection, table_name: str, orm_table: Table) -> None:
         """
         Validate that indexes in ORM models match indexes in database.
         
         Args:
-            inspector: SQLAlchemy inspector
+            conn: AsyncConnection to the database
+            table_name: Name of the table to check
+            orm_table: SQLAlchemy Table object for the table
         """
-        # For each table in ORM models
-        for table_name, table in self.metadata.tables.items():
-            # Skip if table doesn't exist in database
-            try:
-                db_indexes = await inspector.get_indexes(table_name)
-                db_index_names = {idx['name'] for idx in db_indexes if idx['name'] is not None}
-            except:
-                continue
-            
-            # Create a set of ORM index names
-            orm_indexes = [idx for idx in table.indexes]
-            orm_index_names = {idx.name for idx in orm_indexes if idx.name is not None}
-            
-            # Some indexes might not have explicit names, so this is a best-effort check
-            
-            # Check for missing indexes (warning only as some indexes may be generated with different names)
-            for orm_idx in orm_indexes:
-                if orm_idx.name and orm_idx.name not in db_index_names:
-                    # Skip primary key indexes which are handled separately
-                    if not any(col.primary_key for col in orm_idx.columns):
-                        self.warnings.append(f"Index '{orm_idx.name}' on table '{table_name}' is defined in ORM but not found in database")
-            
-            # We don't check for extra indexes in the DB as they might be created outside of the ORM
+        try:
+            # Get database indexes using run_sync
+            db_indexes = await conn.run_sync(
+                lambda sync_conn: inspect(sync_conn).get_indexes(table_name)
+            )
+            db_index_names = {idx["name"] for idx in db_indexes if idx["name"] is not None}
+        except Exception as e:
+            self.warnings.append(f"Could not inspect indexes for table '{table_name}': {str(e)}")
+            return
+        
+        # Create a set of ORM index names
+        orm_indexes = [idx for idx in orm_table.indexes]
+        orm_index_names = {idx.name for idx in orm_indexes if idx.name is not None}
+        
+        # Check for missing indexes (warning only as some indexes may be generated with different names)
+        for orm_idx in orm_indexes:
+            if orm_idx.name and orm_idx.name not in db_index_names:
+                # Skip primary key indexes which are handled separately
+                if not any(col.primary_key for col in orm_idx.columns):
+                    self.warnings.append(f"Index '{orm_idx.name}' on table '{table_name}' is defined in ORM but not found in database")
     
-    async def _validate_foreign_keys(self, inspector: Inspector) -> None:
+    async def _validate_foreign_keys(self, conn: AsyncConnection, table_name: str, orm_table: Table) -> None:
         """
         Validate that foreign keys in ORM models match foreign keys in database.
         
         Args:
-            inspector: SQLAlchemy inspector
+            conn: AsyncConnection to the database
+            table_name: Name of the table to check
+            orm_table: SQLAlchemy Table object for the table
         """
-        # For each table in ORM models
-        for table_name, table in self.metadata.tables.items():
-            # Skip if table doesn't exist in database
-            try:
-                db_fks = await inspector.get_foreign_keys(table_name)
-            except:
-                continue
-            
-            # Create a dictionary of database FKs for easier lookup
-            db_fk_dict = {}
-            for fk in db_fks:
-                src_cols = tuple(fk['constrained_columns'])
-                referred_cols = tuple(fk['referred_columns'])
-                referred_table = fk['referred_table']
+        try:
+            # Get database foreign keys using run_sync
+            db_fks = await conn.run_sync(
+                lambda sync_conn: inspect(sync_conn).get_foreign_keys(table_name)
+            )
+        except Exception as e:
+            self.warnings.append(f"Could not inspect foreign keys for table '{table_name}': {str(e)}")
+            return
+        
+        # Create a dictionary of database FKs for easier lookup
+        db_fk_dict = {}
+        for fk in db_fks:
+            src_cols = tuple(fk.get('constrained_columns', []))
+            referred_cols = tuple(fk.get('referred_columns', []))
+            referred_table = fk.get('referred_table')
+            if src_cols and referred_table and referred_cols:
                 key = (src_cols, referred_table, referred_cols)
                 db_fk_dict[key] = fk
+        
+        # Check each foreign key in ORM model
+        for fk in orm_table.foreign_keys:
+            col_name = fk.parent.name
+            referred_table = fk.column.table.name
+            referred_col = fk.column.name
             
-            # Check each foreign key in ORM model
-            for fk in table.foreign_keys:
-                col_name = fk.parent.name
-                referred_table = fk.column.table.name
-                referred_col = fk.column.name
-                
-                # Create a key for lookup
-                key = ((col_name,), referred_table, (referred_col,))
-                
-                # Check if this foreign key exists in the database
-                if key not in db_fk_dict:
-                    self.errors.append(
-                        f"Foreign key from '{table_name}.{col_name}' to '{referred_table}.{referred_col}' "
-                        f"is defined in ORM but not in database"
-                    )
+            # Create a key for lookup
+            key = ((col_name,), referred_table, (referred_col,))
             
-            # Check for foreign keys in database but not in ORM
-            orm_fks = set()
-            for fk in table.foreign_keys:
-                col_name = fk.parent.name
-                referred_table = fk.column.table.name
-                referred_col = fk.column.name
-                orm_fks.add(((col_name,), referred_table, (referred_col,)))
-            
-            for key in db_fk_dict:
-                if key not in orm_fks:
-                    src_cols, referred_table, referred_cols = key
-                    self.warnings.append(
-                        f"Foreign key from '{table_name}.{src_cols}' to '{referred_table}.{referred_cols}' "
-                        f"exists in database but not in ORM"
-                    )
+            # Check if this foreign key exists in the database
+            if key not in db_fk_dict:
+                self.errors.append(
+                    f"Foreign key from '{table_name}.{col_name}' to '{referred_table}.{referred_col}' "
+                    f"is defined in ORM but not in database"
+                )
+        
+        # Check for foreign keys in database but not in ORM
+        orm_fks = set()
+        for fk in orm_table.foreign_keys:
+            col_name = fk.parent.name
+            referred_table = fk.column.table.name
+            referred_col = fk.column.name
+            orm_fks.add(((col_name,), referred_table, (referred_col,)))
+        
+        for key in db_fk_dict:
+            if key not in orm_fks:
+                src_cols, referred_table, referred_cols = key
+                self.warnings.append(
+                    f"Foreign key from '{table_name}.{src_cols}' to '{referred_table}.{referred_cols}' "
+                    f"exists in database but not in ORM"
+                )
 
 
 async def validate_database_schema(fail_on_error: bool = False) -> bool:
@@ -330,9 +389,15 @@ async def validate_database_schema(fail_on_error: bool = False) -> bool:
     Returns:
         Boolean indicating if validation passed
     """
-    validator = SchemaValidator(engine, Base.metadata, fail_on_error)
-    passed, errors, warnings = await validator.validate_schema()
-    return passed
+    try:
+        validator = SchemaValidator(engine, Base.metadata, fail_on_error)
+        passed, errors, warnings = await validator.validate_schema()
+        return passed
+    except Exception as e:
+        logger.error(f"Error during database validation: {str(e)}")
+        if fail_on_error:
+            raise
+        return False
 
 if __name__ == "__main__":
     """

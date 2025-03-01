@@ -13,6 +13,7 @@ from typing import Dict, List, Any, Optional, Callable, AsyncGenerator
 from fastapi import FastAPI, HTTPException
 from sqlalchemy.ext.asyncio import AsyncEngine
 from contextlib import asynccontextmanager
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,10 +21,9 @@ logger = logging.getLogger(__name__)
 
 # Import the schema validation function
 from schema_validation import validate_database_schema
-from migrate import check_database as check_migrations
 
-# Import your FastAPI app's configuration
-import config
+# Import the migration utilities instead of full Alembic dependencies
+from migrate_utils import check_database, ensure_migrations_dir_exists
 
 def db_validation_lifespan(lifespan_func):
     """
@@ -45,14 +45,20 @@ def db_validation_lifespan(lifespan_func):
         validation_errors = []
         
         try:
+            # Create migrations directory if it doesn't exist
+            try:
+                ensure_migrations_dir_exists()
+            except Exception as e:
+                logger.error(f"Error ensuring migrations directory exists: {str(e)}")
+            
             # Check migrations if enabled
             if check_migrations_flag:
                 logger.info("Checking database migrations...")
                 try:
-                    # Call the migrate.py check function
-                    migrations_up_to_date = await asyncio.to_thread(check_migrations)
+                    # Use the simplified migration checker
+                    migrations_up_to_date = check_database()
                     if not migrations_up_to_date:
-                        message = "Database migrations are not up-to-date. Run 'python migrate.py upgrade' to update."
+                        message = "Database schema is inconsistent with ORM models."
                         validation_errors.append(message)
                         logger.error(message)
                 except Exception as e:
@@ -62,10 +68,14 @@ def db_validation_lifespan(lifespan_func):
             
             # Validate database schema
             logger.info("Validating database schema against ORM models...")
-            schema_valid = await validate_database_schema(fail_on_error=False)  # Never fail here, collect errors instead
-            
-            if not schema_valid:
-                message = "Database schema validation failed. Database schema does not match ORM models."
+            try:
+                schema_valid = await validate_database_schema(fail_on_error=False)
+                if not schema_valid:
+                    message = "Database schema validation failed. Database schema does not match ORM models."
+                    validation_errors.append(message)
+                    logger.error(message)
+            except Exception as e:
+                message = f"Error during database validation: {str(e)}"
                 validation_errors.append(message)
                 logger.error(message)
             
@@ -73,11 +83,13 @@ def db_validation_lifespan(lifespan_func):
             if validation_errors and fail_on_error:
                 error_message = "Database validation failed:\n" + "\n".join(validation_errors)
                 logger.error(error_message)
-                raise HTTPException(status_code=500, detail=error_message)
+                raise RuntimeError(error_message)
             
             # Validation passed or errors were ignored
             if not validation_errors:
                 logger.info("Database validation passed successfully.")
+            else:
+                logger.warning("Database validation had issues, but continuing anyway.")
             
             # Call the original lifespan function
             async for value in lifespan_func(app):
@@ -89,67 +101,16 @@ def db_validation_lifespan(lifespan_func):
                 raise
             
             # If not failing on error, still run the original lifespan
+            logger.warning("Continuing despite validation errors...")
+            
+            # Add small delay to ensure logs are visible
+            await asyncio.sleep(0.5)
+            
             async for value in lifespan_func(app):
                 yield value
     
     return wrapped_lifespan
 
-# Original context manager version (kept for backwards compatibility)
-@asynccontextmanager
-async def db_validation_context(app: FastAPI):
-    """
-    FastAPI lifespan context manager that validates database schema on startup.
-    
-    Example usage:
-        app = FastAPI(lifespan=db_validation_context)
-    """
-    # Get validation settings from environment or config
-    fail_on_error = os.getenv("DB_VALIDATION_FAIL_ON_ERROR", "false").lower() == "true"
-    check_migrations_flag = os.getenv("DB_CHECK_MIGRATIONS", "true").lower() == "true"
-    
-    # Schema validation errors
-    validation_errors = []
-    
-    try:
-        # Check migrations if enabled
-        if check_migrations_flag:
-            logger.info("Checking database migrations...")
-            try:
-                # Call the migrate.py check function
-                migrations_up_to_date = await asyncio.to_thread(check_migrations)
-                if not migrations_up_to_date:
-                    message = "Database migrations are not up-to-date. Run 'python migrate.py upgrade' to update."
-                    validation_errors.append(message)
-                    logger.error(message)
-            except Exception as e:
-                message = f"Error checking migrations: {str(e)}"
-                validation_errors.append(message)
-                logger.error(message)
-        
-        # Validate database schema
-        logger.info("Validating database schema against ORM models...")
-        schema_valid = await validate_database_schema(fail_on_error=False)  # Never fail here, collect errors instead
-        
-        if not schema_valid:
-            message = "Database schema validation failed. Database schema does not match ORM models."
-            validation_errors.append(message)
-            logger.error(message)
-        
-        # If there are validation errors and we should fail, raise exception
-        if validation_errors and fail_on_error:
-            error_message = "Database validation failed:\n" + "\n".join(validation_errors)
-            logger.error(error_message)
-            raise HTTPException(status_code=500, detail=error_message)
-        
-        # Validation passed or errors were ignored
-        if not validation_errors:
-            logger.info("Database validation passed successfully.")
-        
-        # Yield control to FastAPI
-        yield
-    finally:
-        # Cleanup (if needed)
-        pass
 
 def setup_startup_validation(app: FastAPI) -> None:
     """
@@ -166,15 +127,20 @@ def setup_startup_validation(app: FastAPI) -> None:
         fail_on_error = os.getenv("DB_VALIDATION_FAIL_ON_ERROR", "false").lower() == "true"
         check_migrations_flag = os.getenv("DB_CHECK_MIGRATIONS", "true").lower() == "true"
         
+        # Create migrations directory if it doesn't exist
+        try:
+            ensure_migrations_dir_exists()
+        except Exception as e:
+            logger.error(f"Error ensuring migrations directory exists: {str(e)}")
+        
         # Check migrations if enabled
         if check_migrations_flag:
             logger.info("Checking database migrations...")
             try:
-                # Call the migrate.py check function 
-                # Since check_migrations is a sync function, run it in a thread
-                migrations_up_to_date = await asyncio.to_thread(check_migrations)
+                # Use the simplified migration checker
+                migrations_up_to_date = check_database()
                 if not migrations_up_to_date:
-                    message = "Database migrations are not up-to-date. Run 'python migrate.py upgrade' to update."
+                    message = "Database schema is inconsistent with ORM models."
                     logger.error(message)
                     if fail_on_error:
                         raise RuntimeError(message)
@@ -187,9 +153,11 @@ def setup_startup_validation(app: FastAPI) -> None:
         # Validate database schema
         logger.info("Validating database schema against ORM models...")
         try:
-            schema_valid = await validate_database_schema(fail_on_error=fail_on_error)
+            schema_valid = await validate_database_schema(fail_on_error=False)
             if schema_valid:
                 logger.info("Database validation passed successfully.")
+            elif fail_on_error:
+                raise RuntimeError("Database schema validation failed.")
         except Exception as e:
             logger.error(f"Database validation failed: {str(e)}")
             if fail_on_error:
