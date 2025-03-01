@@ -75,7 +75,7 @@ export function streamChatResponse(
   
   return new Promise((resolve, reject) => {
     if (!sessionId) {
-      throw new Error('Invalid sessionId: Session ID is required for streaming');
+      reject(new Error('Invalid sessionId: Session ID is required for streaming'));
     }
     
     // Ensure modelName is defined and valid
@@ -312,7 +312,7 @@ export function streamChatResponse(
  * Simplified reconnection function that can be called from eventSource.onerror
  * with better error handling and model persistence
  */
-function attemptReconnect(messageContent, sessionId, modelName, developerConfig, reasoningEffort) {
+export function attemptReconnect(messageContent, sessionId, modelName, developerConfig, reasoningEffort) {
   const validModelName = modelName || 'DeepSeek-R1';
   
   console.warn(`[streaming.js] Attempting SSE reconnect in 3 seconds for model ${validModelName}...`);
