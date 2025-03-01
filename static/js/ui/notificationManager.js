@@ -19,9 +19,25 @@ export async function handleMessageError(error) {
   console.error('[handleMessageError]', error);
   removeTypingIndicator();
   
+  // Check if this error has already been processed (to prevent duplicates)
+  if (error.hasBeenProcessed) {
+    console.log('[handleMessageError] Skipping already processed error:', error.message);
+    return;
+  }
+  
+  // Mark this error as processed to prevent duplicates
+  error.hasBeenProcessed = true;
+  
   let errorData;
   try {
     errorData = await extractErrorData(error);
+    
+    // Add unique error ID if not already present
+    if (!errorData.errorId && !error.errorId) {
+      errorData.errorId = `error-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    } else if (error.errorId) {
+      errorData.errorId = error.errorId;
+    }
     
     // Log more details about server errors
     if (errorData.type === 'server' || error.message?.includes('500')) {
@@ -29,10 +45,21 @@ export async function handleMessageError(error) {
         message: error.message,
         status: errorData.status,
         errorType: errorData.type,
-        errorDetails: errorData.message
+        errorDetails: errorData.message,
+        errorId: errorData.errorId
       });
     }
     
+    // Track handled error IDs in session storage to prevent duplicates across handlers
+    const handledErrors = JSON.parse(sessionStorage.getItem('handled_errors') || '[]');
+    if (handledErrors.includes(errorData.errorId)) {
+      console.log(`[handleMessageError] Error ${errorData.errorId} already handled, skipping`);
+      return;
+    }
+    handledErrors.push(errorData.errorId);
+    sessionStorage.setItem('handled_errors', JSON.stringify(handledErrors.slice(-20))); // Keep last 20
+    
+    // Handle specific error types
     if (errorData.type === 'rate_limit') {
       handleRateLimitError(errorData);
       return;
@@ -61,7 +88,20 @@ export async function handleMessageError(error) {
           <li><strong>Ready State:</strong> ${error.target?.readyState || 'N/A'}</li>
         </ul>
       `, [
-        { label: 'Retry', variant: 'btn-primary', action: () => window.location.reload() }
+        { 
+          label: 'Retry', 
+          variant: 'btn-primary', 
+          action: () => {
+            // Safer approach for retry
+            const btn = document.createElement('button');
+            btn.id = `retry-btn-${errorData.errorId}`;
+            btn.style.display = 'none';
+            document.body.appendChild(btn);
+            btn.addEventListener('click', () => window.location.reload());
+            setTimeout(() => btn.click(), 100);
+            setTimeout(() => btn.remove(), 500);
+          } 
+        }
       ]);
       return;
     }
@@ -74,13 +114,38 @@ export async function handleMessageError(error) {
 }
 
 export function showNotification(message, type = 'info', duration = 5000, actions = []) {
-  const notificationKey = `${type}:${message}`;
+  // Create a unique hash based on message content and error type for better deduplication
+  const messageHash = `${type}:${message.trim().toLowerCase().replace(/\s+/g, ' ')}`;
   const now = Date.now();
-  if (recentNotifications.has(notificationKey)) {
-    const lastTime = recentNotifications.get(notificationKey);
-    if (now - lastTime < NOTIFICATION_DEDUP_WINDOW) return;
+  
+  // Check both key-based and DOM-based duplicates at once
+  if (recentNotifications.has(messageHash)) {
+    const lastTime = recentNotifications.get(messageHash);
+    if (now - lastTime < NOTIFICATION_DEDUP_WINDOW) {
+      console.log(`[showNotification] Skipping duplicate notification: ${message.substring(0, 30)}...`);
+      return;
+    }
   }
-  recentNotifications.set(notificationKey, now);
+  
+  // Check and deduplicate similar messages by normalizing and comparing content
+  const container = document.getElementById('notification-container') || createNotificationContainer();
+  const normalizedMessage = message.trim().toLowerCase().replace(/\s+/g, ' ');
+  
+  for (const existing of container.querySelectorAll('.notification')) {
+    const existingText = existing.querySelector('p')?.textContent || '';
+    const existingNormalized = existingText.trim().toLowerCase().replace(/\s+/g, ' ');
+    
+    // If messages are very similar (>80% match) or exact, don't show duplicate
+    if (existingNormalized === normalizedMessage || 
+        (existingNormalized.length > 10 && 
+         (existingNormalized.includes(normalizedMessage) || normalizedMessage.includes(existingNormalized)))) {
+      console.log(`[showNotification] Similar notification already visible: ${existingText.substring(0, 30)}...`);
+      return;
+    }
+  }
+  
+  // Record this notification to prevent duplicates
+  recentNotifications.set(messageHash, now);
   
   // Cleanup old notifications to prevent memory leaks
   if (recentNotifications.size > 20) {
@@ -89,25 +154,26 @@ export function showNotification(message, type = 'info', duration = 5000, action
       if (timestamp < oldestTime) recentNotifications.delete(key);
     });
   }
-  const container = document.getElementById('notification-container') || createNotificationContainer();
-  for (const existing of container.querySelectorAll('.notification')) {
-    if (existing.querySelector('p')?.textContent === message) return;
-  }
+  
   const notification = createNotificationElement(message, type, actions);
+  const notificationId = `notification-${Date.now()}`;
+  notification.id = notificationId;
   container.appendChild(notification);
+  
   if (navigator.vibrate && (type === 'error' || type === 'warning')) {
     navigator.vibrate(type === 'error' ? [100, 50, 100] : [50]);
   }
+  
   notification.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
   requestAnimationFrame(() => {
     notification.classList.add('opacity-100', 'translate-y-0');
     notification.classList.remove('opacity-0', 'translate-y-4');
   });
-  const notificationId = `notification-${Date.now()}`;
-  notification.id = notificationId;
+  
   if (duration > 0) {
     setTimeout(() => removeNotification(notificationId), duration);
   }
+  
   return notificationId;
 }
 
@@ -204,23 +270,40 @@ export function enableInteractiveElement(elementId, clickHandler) {
   try {
     const element = document.getElementById(elementId);
     if (!element) return false;
-    const newElement = element.cloneNode(true);
-    element.parentNode.replaceChild(newElement, element);
-    newElement.addEventListener('click', e => {
+    
+    // Rather than clone and replace (which loses event listeners),
+    // directly modify the original element
+    element.disabled = false;
+    
+    // Remove any existing handlers to avoid duplication
+    const newElement = element;
+    const newHandler = e => {
       e.preventDefault();
       try { clickHandler(e); }
       catch (err) { console.error(`Error in click handler:`, err); showNotification(`An error occurred: ${err.message}`, 'error'); }
-    });
-    newElement.addEventListener('keydown', e => {
-      if (e.key==='Enter' || e.key===' ') {
-        e.preventDefault();
-        try { clickHandler(e); }
-        catch (err) { console.error(`Error in keydown handler:`, err); showNotification(`An error occurred: ${err.message}`, 'error'); }
-      }
-    });
-    newElement.disabled = false;
-    newElement.addEventListener('touchstart', () => newElement.classList.add('active'), { passive: true });
-    newElement.addEventListener('touchend', () => newElement.classList.remove('active'), { passive: true });
+    };
+    
+    // Use custom attribute to track if we've already attached handlers
+    if (!element.hasAttribute('data-handler-attached')) {
+      newElement.addEventListener('click', newHandler);
+      newElement.addEventListener('keydown', e => {
+        if (e.key==='Enter' || e.key===' ') {
+          e.preventDefault();
+          try { clickHandler(e); }
+          catch (err) { console.error(`Error in keydown handler:`, err); showNotification(`An error occurred: ${err.message}`, 'error'); }
+        }
+      });
+      newElement.addEventListener('touchstart', () => newElement.classList.add('active'), { passive: true });
+      newElement.addEventListener('touchend', () => newElement.classList.remove('active'), { passive: true });
+      
+      // Mark this element as having handlers attached
+      element.setAttribute('data-handler-attached', 'true');
+      
+      // Ensure the element is visible and has pointer events
+      newElement.style.pointerEvents = 'auto';
+      newElement.classList.remove('invisible', 'hidden');
+    }
+    
     return true;
   } catch (error) {
     console.error(`Failed to enable element ${elementId}:`, error);
@@ -248,14 +331,14 @@ function createNotificationContainer() {
 function createNotificationElement(message, type, actions) {
   const tData = getNotificationTypeData(type);
   const el = document.createElement('div');
-  el.className = `notification flex items-start p-4 mb-2 rounded-lg shadow-lg border transition-all duration-300 transform opacity-0 translate-y-4 ${tData.bgClass} ${tData.borderClass} ${tData.textClass}`;
+  el.className = `notification flex items-start p-4 mb-2 rounded-lg shadow-lg border transition-all duration-300 transform opacity-0 translate-y-4 ${tData.bgClass} ${tData.borderClass} ${tData.textClass} pointer-events-auto`;
   el.innerHTML = `
     <div class="flex-1 flex items-center gap-2">
       ${tData.icon}
       <p class="text-sm font-medium">${message}</p>
-      <div class="actions mt-2 flex gap-2"></div>
+      <div class="actions mt-2 flex gap-2 pointer-events-auto"></div>
     </div>
-    <button class="ml-3 text-gray-400 hover:text-gray-600" aria-label="Close notification">
+    <button class="ml-3 text-gray-400 hover:text-gray-600 pointer-events-auto" aria-label="Close notification">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
       </svg>
@@ -265,9 +348,10 @@ function createNotificationElement(message, type, actions) {
     const actionsContainer = el.querySelector('.actions');
     actions.forEach(a => {
       const btn = document.createElement('button');
-      btn.className = 'text-sm px-2 py-1 rounded bg-white border shadow-sm hover:bg-gray-50';
+      btn.className = 'text-sm px-2 py-1 rounded bg-white border shadow-sm hover:bg-gray-50 pointer-events-auto';
       btn.textContent = a.label;
-      btn.onclick = a.onClick;
+      // Direct event assignment instead of using cloning approach
+      btn.addEventListener('click', a.onClick);
       actionsContainer.appendChild(btn);
     });
   }

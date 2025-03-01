@@ -148,12 +148,17 @@
                 <!-- Input Area -->
                 <div class="border-t border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-800 safe-area-inset-bottom">
                     <!-- "Load Older Messages" button (initially hidden) -->
-                    <div class="flex justify-center py-2 px-4">
+                    <div class="flex justify-center items-center gap-2 py-2 px-4">
                         <button id="load-older-btn" class="btn btn-secondary hidden">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12" />
                             </svg>
                             Load Older Messages
+                        </button>
+                        <button id="save-older-btn" class="btn btn-icon btn-secondary hidden" aria-label="Save older messages" title="Save conversation">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
                         </button>
                     </div>
                     

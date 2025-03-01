@@ -26,6 +26,13 @@ function initDisplayManager() {
 function setupEventListeners() {
   const loadOlderBtn = document.getElementById('load-older-btn');
   if (loadOlderBtn) loadOlderBtn.addEventListener('click', loadOlderMessages);
+  
+  const saveOlderBtn = document.getElementById('save-older-btn');
+  if (saveOlderBtn) {
+    saveOlderBtn.addEventListener('click', saveConversation);
+    saveOlderBtn.hasEventListener = true;
+  }
+  
   const tokenUsageToggle = document.getElementById('toggle-token-details');
   const tokenDetails = document.getElementById('token-details');
   const tokenChevron = document.getElementById('token-chevron');
@@ -141,6 +148,7 @@ export function loadConversationFromLocalStorage() {
   try {
     let messages = JSON.parse(storedConversation);
     hasMoreMessages = messages.length > messageRenderLimit;
+    const unloadedCount = Math.max(0, messages.length - messageRenderLimit);
     const recentMessages = messages.slice(-messageRenderLimit);
     const chatHistory = document.getElementById('chat-history');
     const systemMessages = [];
@@ -153,7 +161,7 @@ export function loadConversationFromLocalStorage() {
         else if (m.role === 'assistant') renderAssistantMessage(m.content, true, true);
       });
     }
-    updateLoadMoreButton();
+    updateLoadMoreButton(unloadedCount);
   } catch (e) {
     console.error('Error loading conversation:', e);
     showNotification('Failed to load previous conversation', 'error');
@@ -174,17 +182,139 @@ export async function loadOlderMessages() {
       loadBtn.disabled = true;
       loadBtn.innerHTML = '<span class="animate-spin inline-block mr-2">&#8635;</span> Loading...';
     }
-    // The implementation continues in full code; truncated in original for brevity
-    // but we do not remove functionality, so only minor logs or comments are omitted.
-    // ... (the rest of the older messages loading logic)
+    
+    const allMessages = JSON.parse(storedConversation);
+    const unloadedCount = Math.max(0, allMessages.length - messageRenderLimit);
+    const chatHistory = document.getElementById('chat-history');
+    
+    if (chatHistory && unloadedCount > 0) {
+      const batchSize = Math.min(messageRenderLimit, unloadedCount);
+      const messagesToAdd = allMessages.slice(-messageRenderLimit - batchSize, -messageRenderLimit);
+      
+      // Save scroll position
+      const scrollHeightBefore = chatHistory.scrollHeight;
+      const scrollPositionBefore = chatHistory.scrollTop;
+      
+      // Insert older messages at the top
+      messagesToAdd.forEach(m => {
+        const messageElement = m.role === 'user' 
+          ? createUserMessageElement(m.content) 
+          : createAssistantMessageElement(m.content);
+          
+        chatHistory.insertBefore(messageElement, chatHistory.firstChild);
+        if (m.role === 'assistant' && messageObserver) {
+          messageElement.classList.add('observed');
+          messageObserver.observe(messageElement);
+        }
+      });
+      
+      // Adjust scroll position to maintain view
+      requestAnimationFrame(() => {
+        const heightDiff = chatHistory.scrollHeight - scrollHeightBefore;
+        chatHistory.scrollTop = scrollPositionBefore + heightDiff;
+      });
+      
+      // Update hasMoreMessages status
+      hasMoreMessages = allMessages.length > (messageRenderLimit + batchSize);
+      updateLoadMoreButton(allMessages.length - (messageRenderLimit + batchSize));
+      
+      // Show save button after successfully loading older messages
+      const saveBtn = document.getElementById('save-older-btn');
+      if (saveBtn) {
+        saveBtn.classList.remove('hidden');
+        if (!saveBtn.hasEventListener) {
+          saveBtn.addEventListener('click', saveConversation);
+          saveBtn.hasEventListener = true;
+        }
+      }
+    }
+    
+    isLoadingPrevious = false;
+    const loadButton = document.getElementById('load-older-btn');
+    if (loadButton) {
+      loadButton.disabled = false;
+    }
   } catch (e) {
     console.error(e);
+    isLoadingPrevious = false;
+    const loadButton = document.getElementById('load-older-btn');
+    if (loadButton) {
+      loadButton.disabled = false;
+      updateLoadMoreButton();
+    }
   }
 }
 
-function updateLoadMoreButton() {
+function saveConversation() {
+  const sessionId = getSessionId();
+  if (!sessionId) {
+    showNotification('No valid session found', 'error');
+    return;
+  }
+  
+  const storageKey = `conversation_${sessionId}`;
+  const storedConversation = localStorage.getItem(storageKey);
+  
+  if (!storedConversation) {
+    showNotification('No conversation to save', 'error');
+    return;
+  }
+  
+  try {
+    // Create a new key with timestamp for saved conversation
+    const savedKey = `saved_conversation_${Date.now()}`;
+    localStorage.setItem(savedKey, storedConversation);
+    
+    showNotification('Conversation saved successfully', 'success');
+  } catch (e) {
+    console.error('Error saving conversation:', e);
+    showNotification('Failed to save conversation', 'error');
+  }
+}
+
+function updateLoadMoreButton(unloadedCount) {
   const loadBtn = document.getElementById('load-older-btn');
-  if (loadBtn) loadBtn.classList.toggle('hidden', !hasMoreMessages);
+  if (!loadBtn) return;
+  
+  loadBtn.classList.toggle('hidden', !hasMoreMessages);
+  
+  if (hasMoreMessages) {
+    const sessionId = getSessionId();
+    if (sessionId) {
+      try {
+        // If unloadedCount wasn't passed as a parameter, calculate it
+        if (unloadedCount === undefined) {
+          const storageKey = `conversation_${sessionId}`;
+          const storedConversation = localStorage.getItem(storageKey);
+          if (storedConversation) {
+            const allMessages = JSON.parse(storedConversation);
+            unloadedCount = Math.max(0, allMessages.length - messageRenderLimit);
+          } else {
+            unloadedCount = 0;
+          }
+        }
+        
+        // Update button text to show number of unloaded messages
+        if (unloadedCount > 0) {
+          loadBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12" />
+            </svg>
+            Load Older Messages (${unloadedCount})
+          `;
+        } else {
+          loadBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12" />
+            </svg>
+            Load Older Messages
+          `;
+        }
+      } catch (e) {
+        console.error('Error updating load more button:', e);
+      }
+    }
+  }
 }
 
 export function renderUserMessage(content, skipScroll = false, skipStore = false) {
@@ -283,7 +413,28 @@ const pruneOldMessages = debounce(() => {
     const scrollPositionBefore = chatHistory.scrollTop;
     for (let i = 0; i < removeCount; i++) chatHistory.removeChild(msgs[i]);
     hasMoreMessages = true;
-    updateLoadMoreButton();
+    
+    // Calculate the unloaded count after pruning
+    const sessionId = getSessionId();
+    if (sessionId) {
+      const storageKey = `conversation_${sessionId}`;
+      const storedConversation = localStorage.getItem(storageKey);
+      if (storedConversation) {
+        try {
+          const allMessages = JSON.parse(storedConversation);
+          const unloadedCount = Math.max(0, allMessages.length - messageRenderLimit);
+          updateLoadMoreButton(unloadedCount);
+        } catch (e) {
+          console.error('Error calculating unloaded messages count:', e);
+          updateLoadMoreButton();
+        }
+      } else {
+        updateLoadMoreButton();
+      }
+    } else {
+      updateLoadMoreButton();
+    }
+    
     requestAnimationFrame(() => {
       const heightDiff = scrollHeightBefore - chatHistory.scrollHeight;
       chatHistory.scrollTop = Math.max(0, scrollPositionBefore - heightDiff);
@@ -514,12 +665,20 @@ function clearConversation() {
     }
     messageCache.clear();
     hasMoreMessages = false;
-    updateLoadMoreButton();
+    updateLoadMoreButton(0);
+    
+    // Hide save button when conversation is cleared
+    const saveBtn = document.getElementById('save-older-btn');
+    if (saveBtn) {
+      saveBtn.classList.add('hidden');
+    }
+    
     showNotification('Conversation cleared', 'success');
   });
 }
 
 export {
   initDisplayManager,
-  clearConversation
+  clearConversation,
+  saveConversation
 };

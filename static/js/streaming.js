@@ -346,26 +346,58 @@ async function handleStreamingError(error) {
           ? 'Request timed out. Consider reducing reasoning effort or retrying.'
           : error.message || 'An unexpected error occurred';
 
+      // Generate a unique error ID to prevent duplicate handling
+      const errorId = `stream-error-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      error.errorId = errorId;
+
       // Display timeout-specific instructions in a modal
       if (error.name === 'TimeoutError') {
-        showErrorModal('Timeout Error', `
-          <p>${userFriendlyMessage}</p>
-          <p><strong>Suggestions:</strong></p>
-          <ul>
-            <li>Reduce reasoning effort in the settings.</li>
-            <li>Retry the request.</li>
-          </ul>
-        `, [
-          { label: 'Retry', variant: 'btn-primary', action: () => window.sendMessage?.() },
-          { label: 'Settings', variant: 'btn-secondary', action: () => document.getElementById('config-tab')?.click() }
-        ]);
+        // Import directly to avoid circular dependencies
+        import('./ui/notificationManager.js').then(module => {
+          module.showErrorModal('Timeout Error', `
+            <p>${userFriendlyMessage}</p>
+            <p><strong>Suggestions:</strong></p>
+            <ul>
+              <li>Reduce reasoning effort in the settings.</li>
+              <li>Retry the request.</li>
+            </ul>
+          `, [
+            { 
+              label: 'Retry', 
+              variant: 'btn-primary', 
+              action: () => {
+                // Direct button click handler with proper access
+                const btn = document.createElement('button');
+                btn.id = `retry-btn-${errorId}`;
+                btn.style.display = 'none';
+                document.body.appendChild(btn);
+                btn.addEventListener('click', () => window.sendMessage?.());
+                setTimeout(() => btn.click(), 100);
+                setTimeout(() => btn.remove(), 500);
+              }
+            },
+            { 
+              label: 'Settings', 
+              variant: 'btn-secondary', 
+              action: () => {
+                const configTab = document.getElementById('config-tab');
+                if (configTab) {
+                  // Use direct click instead of programmatic
+                  configTab.click();
+                }
+              } 
+            }
+          ]);
+        });
       } else {
-        await handleMessageError({ ...error, message: userFriendlyMessage });
+        // Use a separate error handler path with error ID to prevent double reporting
+        await handleMessageError({ ...error, message: userFriendlyMessage, errorId });
       }
 
       eventBus.publish('streamingError', {
         error,
-        recoverable: error.recoverable || false
+        recoverable: error.recoverable || false,
+        errorId
       });
     } catch (err) {
       console.error('[handleStreamingError] Error handling stream error:', err);
