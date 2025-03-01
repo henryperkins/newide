@@ -60,7 +60,7 @@ function calculateConnectionTimeout(modelName, reasoningEffort, messageLength) {
   return Math.min(timeout, MAX_CONNECTION_TIMEOUT_MS);
 }
 
-export async function streamChatResponse(
+export function streamChatResponse(
   messageContent,
   sessionId,
   modelName = 'DeepSeek-R1',
@@ -306,18 +306,6 @@ export async function streamChatResponse(
         reject(e);  // Reject the promise
       };
     });
-  } catch (err) {
-    console.error('[streamChatResponse] Setup error:', err);
-    if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
-    if (connectionCheckIntervalId) clearInterval(connectionCheckIntervalId);
-    
-    if (err.message && err.message.includes('Failed to fetch')) {
-      err.message = 'Could not connect to API server - network error';
-      err.recoverable = true;
-    }
-    await handleStreamingError(err);
-    return Promise.reject(err);  // Return a rejected promise
-  }
 }
 
 /**
