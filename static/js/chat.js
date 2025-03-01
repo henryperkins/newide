@@ -301,7 +301,6 @@ export async function sendMessage() {
       }
     } finally {
       clearTimeout(timeoutId);
-      removeTypingIndicator();
       currentController = null;
     }
   } catch (error) {

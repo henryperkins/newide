@@ -267,7 +267,37 @@ export async function streamChatResponse(
       }
     });
 
-    return true;
+    return new Promise((resolve, reject) => {
+      eventSource.addEventListener('complete', async (e) => {
+        try {
+          if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
+          if (connectionCheckIntervalId) clearInterval(connectionCheckIntervalId);
+          
+          if (e.data) {
+            const completionData = JSON.parse(e.data);
+            if (completionData.usage) updateTokenUsage(completionData.usage);
+            eventBus.publish('streamingCompleted', {
+              modelName: validModelName,
+              usage: completionData.usage
+            });
+          }
+          forceRender();
+          eventSource.close();
+        } catch (err) {
+          console.error('[streamChatResponse] Error handling completion:', err);
+        } finally {
+          await cleanupStreaming(validModelName);
+          resolve(true);  // Resolve the promise
+        }
+      });
+
+      eventSource.onerror = (e) => {
+        if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
+        if (connectionCheckIntervalId) clearInterval(connectionCheckIntervalId);
+        handleStreamingError(new Error('Connection error during streaming'));
+        reject(e);  // Reject the promise
+      };
+    });
   } catch (err) {
     console.error('[streamChatResponse] Setup error:', err);
     if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
@@ -278,7 +308,7 @@ export async function streamChatResponse(
       err.recoverable = true;
     }
     await handleStreamingError(err);
-    return false;
+    return Promise.reject(err);  // Return a rejected promise
   }
 }
 
