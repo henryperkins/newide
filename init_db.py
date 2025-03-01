@@ -218,8 +218,40 @@ async def init_database():
             await conn.execute(text("ALTER TABLE conversations ALTER COLUMN session_id SET NOT NULL"))
 
             await conn.execute(text("ALTER TABLE vector_stores ALTER COLUMN session_id SET NOT NULL"))
-        except Exception as e:
-            print(f"Error adding columns: {e}")
+        # Remove old "metadata" columns
+        await conn.execute(text("""
+            ALTER TABLE model_usage_stats
+                DROP COLUMN IF EXISTS metadata;
+        """))
+        await conn.execute(text("""
+            ALTER TABLE model_transitions
+                DROP COLUMN IF EXISTS metadata;
+        """))
+
+        # Add missing indexes
+        index_statements = [
+            "CREATE INDEX IF NOT EXISTS ix_vector_stores_status ON vector_stores (status)",
+            "CREATE INDEX IF NOT EXISTS ix_vector_stores_session_id ON vector_stores (session_id)",
+            "CREATE INDEX IF NOT EXISTS ix_conversations_tracking_id ON conversations (tracking_id)",
+            "CREATE INDEX IF NOT EXISTS ix_conversations_session_id ON conversations (session_id)",
+            "CREATE INDEX IF NOT EXISTS ix_conversations_timestamp ON conversations (timestamp)",
+            "CREATE INDEX IF NOT EXISTS ix_conversations_model ON conversations (model)",
+            "CREATE INDEX IF NOT EXISTS ix_file_citations_file_id ON file_citations (file_id)",
+            "CREATE INDEX IF NOT EXISTS ix_sessions_expires_at ON sessions (expires_at)",
+            "CREATE INDEX IF NOT EXISTS ix_sessions_created_at ON sessions (created_at)",
+            "CREATE INDEX IF NOT EXISTS ix_model_usage_stats_timestamp ON model_usage_stats (timestamp)",
+            "CREATE INDEX IF NOT EXISTS ix_model_usage_stats_session_model ON model_usage_stats (session_id, model)",
+            "CREATE INDEX IF NOT EXISTS ix_model_usage_stats_model ON model_usage_stats (model)",
+            "CREATE INDEX IF NOT EXISTS ix_model_usage_stats_tracking_id ON model_usage_stats (tracking_id)",
+            "CREATE INDEX IF NOT EXISTS ix_assistants_created_at ON assistants (created_at)",
+            "CREATE INDEX IF NOT EXISTS ix_model_transitions_tracking_id ON model_transitions (tracking_id)",
+            "CREATE INDEX IF NOT EXISTS ix_model_transitions_models ON model_transitions (from_model, to_model)",
+            "CREATE INDEX IF NOT EXISTS ix_model_transitions_session_id ON model_transitions (session_id)",
+            "CREATE INDEX IF NOT EXISTS ix_model_transitions_timestamp ON model_transitions (timestamp)"
+        ]
+        
+        for stmt in index_statements:
+            await conn.execute(text(stmt))
         
         # Create all needed indexes
         index_statements = [
