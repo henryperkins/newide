@@ -1,24 +1,39 @@
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
+"""
+This module provides file upload, listing, and deletion endpoints using FastAPI.
+It also schedules an Azure processing background task if requested. Files may be
+split into chunks for large text content, and associated metadata is stored in
+the database for retrieval or further processing.
+"""
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    UploadFile,
+    File,
+    Form,
+    HTTPException,
+    BackgroundTasks
+)
 from logging_config import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, update
-from database import get_db_session, UploadedFile, Session, AsyncSessionLocal
+from database import get_db_session, UploadedFile, AsyncSessionLocal
 from errors import create_error_response
 from pydantic_models import FileResponseModel, FileListResponse, DeleteFileResponse
 from utils import count_tokens
 from services.azure_file_service import AzureFileService
 from services.azure_search_service import AzureSearchService
-from clients import get_model_client_dependency  # Changed from get_model_client
+from clients import get_model_client_dependency
 import uuid
 import config
 import datetime
 import json
 import os
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any, Optional
 
 router = APIRouter()
 
-# File upload endpoint
+
 @router.post("/upload", response_model=None)
 async def upload_file(
     background_tasks: BackgroundTasks,
@@ -26,62 +41,75 @@ async def upload_file(
     session_id: str = Form(...),
     process_with_azure: bool = Form(False),
     db_session: AsyncSession = Depends(get_db_session),
-    client_wrapper: dict = Depends(get_model_client_dependency),  # Changed to avoid serialization issues
+    client_wrapper: dict = Depends(get_model_client_dependency),
 ):
-    """Upload a file with enhanced processing options.
-
-    Args:
-        background_tasks: BackgroundTasks for scheduling Azure processing.
-        file: The uploaded file.
-        session_id: The session ID associated with the upload.
-        process_with_azure: Boolean to determine if Azure processing is required.
-        db_session: Database session dependency.
-        client_wrapper: Dictionary containing Azure client.
-
-    Returns:
-        dict: Response containing file details and processing status.
     """
-    logger.info(f"File upload: {file.filename} for session {session_id}, azure processing: {process_with_azure}")
+    Upload a file with optional Azure processing.
+
+    - Reads the file content from `UploadFile`
+    - Validates size and file extension
+    - Splits content into chunks if needed
+    - Schedules an Azure processing task if `process_with_azure=True`
+    """
+    logger.info(
+        f"File upload requested: {file.filename}, session: {session_id}, "
+        f"Azure processing: {process_with_azure}"
+    )
 
     try:
-        # Read file contents and validate size
+        # Read file contents and compute size
         contents = await file.read()
         size = len(contents)
-        
-        # Use the new config settings
+
+        # Check max allowable size
         if size > config.settings.MAX_FILE_SIZE:
             raise create_error_response(
                 status_code=413,
-                code="file_too_large", 
-                message=f"File exceeds Azure size limit ({config.settings.MAX_FILE_SIZE_HUMAN})",
+                code="file_too_large",
+                message=(
+                    f"File exceeds max allowable size "
+                    f"({config.settings.MAX_FILE_SIZE_HUMAN})."
+                ),
                 param="file",
                 error_type="validation_error"
             )
-            
-        if size > config.settings.WARNING_FILE_SIZE:
-            logger.warning(f"Large file uploaded: {size} bytes, filename: {file.filename}")
 
+        # Issue a warning if above a certain threshold
+        if size > config.settings.WARNING_FILE_SIZE:
+            logger.warning(
+                f"Large file uploaded: {size} bytes, filename: {file.filename}"
+            )
+
+        # Validate extension
         filename = file.filename or "unnamed_file.txt"
         file_extension = os.path.splitext(filename)[1].lower()
-        supported_extensions = ['.txt', '.md', '.pdf', '.docx', '.doc', '.json', '.js', '.py', '.html', '.css']
-
+        supported_extensions = [
+            '.txt', '.md', '.pdf', '.docx', '.doc',
+            '.json', '.js', '.py', '.html', '.css'
+        ]
         if file_extension not in supported_extensions:
             raise create_error_response(
                 status_code=400,
                 code="unsupported_file_type",
-                message=f"Unsupported file type: {file_extension}. Supported types: {', '.join(supported_extensions)}",
+                message=(
+                    f"Unsupported file type: {file_extension}. "
+                    f"Supported types: {', '.join(supported_extensions)}"
+                ),
                 error_type="validation_error",
                 param="file"
             )
 
-        # Get the client from the wrapper
+        # Client from wrapper (Azure OpenAI, etc.)
         azure_client = client_wrapper.get("client") if client_wrapper else None
-
         model_name = config.AZURE_OPENAI_DEPLOYMENT_NAME
+
+        # Process the file into chunks, token counts, etc.
         from services.file_service import process_uploaded_file
         processed_data = await process_uploaded_file(contents, filename, model_name)
 
         file_id = uuid.uuid4()
+
+        # Prepare parent file metadata
         metadata = {
             "filename": filename,
             "original_size": size,
@@ -108,24 +136,29 @@ async def upload_file(
         )
 
         chunk_ids = []
+        # If chunk_count > 1, we create separate rows for each chunk
         if processed_data["chunk_count"] > 1:
             for i, chunk in enumerate(processed_data["text_chunks"]):
                 chunk_id = uuid.uuid4()
                 chunk_ids.append(str(chunk_id))
+                chunk_size = len(chunk.encode('utf-8'))
+                chunk_metadata = {
+                    "parent_file_id": str(file_id),
+                    "chunk_index": i,
+                    "total_chunks": processed_data["chunk_count"],
+                    "token_count": count_tokens(chunk, model_name)
+                }
+
                 chunk_file = UploadedFile(
                     id=chunk_id,
                     session_id=session_id,
                     filename=f"{filename}.chunk{i+1}",
                     content=chunk,
-                    size=len(chunk.encode('utf-8')),
+                    size=chunk_size,
                     file_type=processed_data["file_type"],
+                    chunk_count=1,  # Each chunk is effectively one chunk
+                    file_metadata=chunk_metadata,
                     status="chunk",
-                    file_metadata={
-                        "parent_file_id": str(file_id),
-                        "chunk_index": i,
-                        "total_chunks": processed_data["chunk_count"],
-                        "token_count": count_tokens(chunk, model_name)
-                    }
                 )
                 db_session.add(chunk_file)
 
@@ -164,62 +197,70 @@ async def upload_file(
             }
         )
 
+
 @router.get("/{session_id}", response_model=FileListResponse)
-async def get_files(session_id: str, db_session: AsyncSession = Depends(get_db_session)):
-    """Get all files for a session with enhanced metadata."""
+async def get_files(
+    session_id: str,
+    db_session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Retrieve the list of parent files in a session (excludes chunks).
+    Returns file metadata such as token counts, size, and timestamps.
+    """
     logger.info(f"Fetching files for session_id: {session_id}")
     try:
-        # Validate session existence
-        result = await db_session.execute(
+        # Validate that the session exists
+        session_result = await db_session.execute(
             text("SELECT id FROM sessions WHERE id = :session_id"),
             {"session_id": session_id}
         )
-        if not result.scalar_one_or_none():
+        if not session_result.scalar_one_or_none():
             logger.warning(f"Session not found: {session_id}")
             return FileListResponse(files=[], total_count=0, total_size=0)
 
-        # Fetch files with simplified query
-        result = await db_session.execute(
+        # Fetch main files (exclude status='chunk')
+        files_result = await db_session.execute(
             text("""
-                SELECT 
-                    id, 
-                    filename, 
-                    size, 
+                SELECT
+                    id,
+                    filename,
+                    size,
                     file_type,
-                    COALESCE(chunk_count, 1) as chunk_count,
-                    COALESCE(status, 'ready') as status,
+                    COALESCE(chunk_count, 1) AS chunk_count,
+                    COALESCE(status, 'ready') AS status,
                     file_metadata,
                     upload_time
                 FROM uploaded_files
-                WHERE session_id = :session_id 
-                AND (status != 'chunk' OR status IS NULL)
+                WHERE session_id = :session_id
+                  AND (status != 'chunk' OR status IS NULL)
                 ORDER BY upload_time DESC
             """),
             {"session_id": session_id}
         )
-        files = result.mappings().all()
+        files = files_result.mappings().all()
 
         files_with_details = []
         total_size = 0
 
         for file in files:
             file_dict = dict(file)
-            
-            # Handle metadata safely
-            try:
-                file_dict["file_metadata"] = (
-                    json.loads(file_dict["file_metadata"])
-                    if isinstance(file_dict["file_metadata"], str)
-                    else file_dict["file_metadata"] or {}
-                )
-            except (json.JSONDecodeError, TypeError):
-                file_dict["file_metadata"] = {}
 
-            # Set default values
+            # Safely parse metadata if it's a string
+            if isinstance(file_dict["file_metadata"], str):
+                try:
+                    file_dict["file_metadata"] = json.loads(file_dict["file_metadata"])
+                except (json.JSONDecodeError, TypeError):
+                    file_dict["file_metadata"] = {}
+            else:
+                file_dict["file_metadata"] = file_dict["file_metadata"] or {}
+
+            # Estimate a default token count if none stored
             file_dict["char_count"] = 0
-            file_dict["token_count"] = file_dict["file_metadata"].get("token_count", file_dict["size"] // 4)
+            file_dict["token_count"] = file_dict["file_metadata"].get(
+                "token_count",
+                file_dict["size"] // 4  # Rough fallback
+            )
             total_size += file_dict["size"]
-            
             files_with_details.append(file_dict)
 
         return FileListResponse(
@@ -244,35 +285,28 @@ async def get_files(session_id: str, db_session: AsyncSession = Depends(get_db_s
 
     except Exception as e:
         logger.exception(f"Error retrieving files for session {session_id}: {e}")
-        # Return empty response instead of throwing error
+        # Return an empty response instead of throwing
         return FileListResponse(files=[], total_count=0, total_size=0)
 
-# Delete file endpoint
+
 @router.delete("/{session_id}/{file_id}", response_model=None)
 async def delete_file(
     session_id: str,
     file_id: str,
     db_session: AsyncSession = Depends(get_db_session),
-    client_wrapper: dict = Depends(get_model_client_dependency),  # Changed to avoid serialization issues
+    client_wrapper: dict = Depends(get_model_client_dependency),
 ):
-    """Delete a file and its associated chunks if applicable.
-
-    Args:
-        session_id: The session ID of the file.
-        file_id: The ID of the file to delete.
-        db_session: Database session dependency.
-        client_wrapper: Dictionary containing Azure client.
-
-    Returns:
-        DeleteFileResponse: Confirmation of deletion.
     """
-    # Extract the client from the wrapper if needed
+    Delete a file by ID, along with its associated chunks if applicable.
+    """
     azure_client = client_wrapper.get("client") if client_wrapper else None
     try:
         file_result = await db_session.execute(
             text("""
-                SELECT id, filename, file_metadata, status FROM uploaded_files 
-                WHERE session_id = :session_id AND id = :file_id::uuid
+                SELECT id, filename, file_metadata, status
+                FROM uploaded_files
+                WHERE session_id = :session_id
+                  AND id = :file_id::uuid
             """),
             {"session_id": session_id, "file_id": file_id}
         )
@@ -291,17 +325,17 @@ async def delete_file(
         if isinstance(metadata, str):
             try:
                 metadata = json.loads(metadata)
-            except:
+            except json.JSONDecodeError:
                 metadata = {}
 
-        # Delete associated chunks if the file is a parent with chunks
+        # Delete associated chunks if the file has chunk_count > 1
         chunk_count = metadata.get("chunk_count", 1)
         if chunk_count > 1:
             await db_session.execute(
                 text("""
-                    DELETE FROM uploaded_files 
-                    WHERE session_id = :session_id 
-                    AND file_metadata->>'parent_file_id' = :file_id
+                    DELETE FROM uploaded_files
+                    WHERE session_id = :session_id
+                      AND file_metadata->>'parent_file_id' = :file_id
                 """),
                 {"session_id": session_id, "file_id": file_id}
             )
@@ -309,12 +343,12 @@ async def delete_file(
         # Delete the parent file
         await db_session.execute(
             text("""
-                DELETE FROM uploaded_files 
-                WHERE session_id = :session_id AND id = :file_id::uuid
+                DELETE FROM uploaded_files
+                WHERE session_id = :session_id
+                  AND id = :file_id::uuid
             """),
             {"session_id": session_id, "file_id": file_id}
         )
-
         await db_session.commit()
 
         return DeleteFileResponse(
@@ -333,72 +367,81 @@ async def delete_file(
             inner_error={"original_error": str(e)},
         )
 
-# Background task for Azure processing
+
 async def process_file_with_azure(
     file_id: str,
     session_id: str,
     chunk_ids: List[str],
-    azure_client: Any  # This is now a model client
+    azure_client: Any
 ):
-    """Process file with Azure OpenAI and update status.
+    """
+    Background task to process a file (or its chunks) in Azure.
 
-    Args:
-        file_id: The ID of the parent file.
-        session_id: The session ID.
-        chunk_ids: List of chunk IDs if applicable.
-        azure_client: Azure client instance (extracted from client_wrapper).
+    Steps:
+    - Create or ensure an Azure search index exists
+    - Upload each file/chunk for vector indexing
+    - Update the record with relevant Azure metadata
     """
     try:
         file_service = AzureFileService(azure_client)
         search_service = AzureSearchService(azure_client)
-        
-        # First, create or ensure search index exists
+
+        # Create/ensure search index for this session
         await search_service.create_search_index(session_id)
-        
-        async def process_single_file(file_id: str):
+
+        async def process_single_file(local_file_id: str):
             async with AsyncSessionLocal() as db_session:
-                file_data = await db_session.get(UploadedFile, file_id)
+                file_data = await db_session.get(UploadedFile, local_file_id)
                 if file_data:
-                    # Create Azure file
                     azure_file_id = await file_service.create_azure_file(
                         file_data.content,
                         file_data.filename
                     )
-                    
-                    # Upload to search index
+                    # Create chunks from the file content
+                    chunks = [{"content": file_data.content}]  # Adjust according to your needs
+                    # Upload content to the Azure Search index
                     search_success = await search_service.upload_file_to_index(
                         session_id=session_id,
                         file_id=str(file_data.id),
                         filename=file_data.filename,
                         content=file_data.content,
-                        file_type=file_data.file_type
+                        file_type=file_data.file_type,
+                        chunks=chunks  # Add the required chunks parameter
                     )
-                    
                     # Get or create vector store
-                    vector_store = await file_service.get_vector_store_for_session(session_id)
+                    vector_store = await file_service.get_vector_store_for_session(
+                        session_id
+                    )
                     vector_store_id = vector_store["id"]
-                    
-                    # Add file to vector store
-                    await file_service.add_file_to_vector_store(vector_store_id, azure_file_id)
-                    vector_success = await file_service.wait_for_file_processing(vector_store_id, azure_file_id)
-                    
+
+                    # Add file to the vector store
+                    await file_service.add_file_to_vector_store(
+                        vector_store_id, azure_file_id
+                    )
+                    vector_success = await file_service.wait_for_file_processing(
+                        vector_store_id, azure_file_id
+                    )
+
+                    # Update status based on success
                     processing_success = search_success and vector_success
                     await update_file_status(
-                        file_id,
+                        local_file_id,
                         "ready" if processing_success else "processing_error",
                         {
-                            "azure_processing": "completed" if processing_success else "failed",
+                            "azure_processing": (
+                                "completed" if processing_success else "failed"
+                            ),
                             "vector_store_id": vector_store_id,
                             "azure_file_id": azure_file_id,
                             "search_index": f"index-{session_id}",
                             "process_complete_time": datetime.datetime.now().isoformat()
                         }
                     )
-        
-        # Process chunks if they exist, otherwise process the main file
+
+        # If there are chunks, process them individually
         if chunk_ids:
-            for chunk_id in chunk_ids:
-                await process_single_file(chunk_id)
+            for cid in chunk_ids:
+                await process_single_file(cid)
         else:
             await process_single_file(file_id)
 
@@ -414,14 +457,18 @@ async def process_file_with_azure(
             }
         )
 
-# Utility function to update file status
-async def update_file_status(file_id: str, status: str, metadata_updates: Dict[str, Any]):
-    """Update the status and metadata of a file.
 
-    Args:
-        file_id: The ID of the file to update.
-        status: New status for the file.
-        metadata_updates: Dictionary of metadata updates.
+async def update_file_status(
+    file_id: str,
+    status: str,
+    metadata_updates: Dict[str, Any]
+):
+    """
+    Utility function to update the status and metadata of a file.
+
+    - `file_id`: The UUID of the file to update
+    - `status`: The new status string
+    - `metadata_updates`: Dict of additional metadata to merge with existing
     """
     async with AsyncSessionLocal() as db_session:
         await db_session.execute(
@@ -429,7 +476,8 @@ async def update_file_status(file_id: str, status: str, metadata_updates: Dict[s
             .where(UploadedFile.id == file_id)
             .values(
                 status=status,
-                file_metadata=UploadedFile.file_metadata.op('||')(metadata_updates)
+                # Use JSONB concatenation for metadata in Postgres
+                file_metadata=UploadedFile.file_metadata.op("||")(metadata_updates)
             )
         )
         await db_session.commit()

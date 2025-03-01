@@ -14,6 +14,10 @@ from services.config_service import get_config_service, ConfigService
 
 router = APIRouter(prefix="/config", tags=["Configuration"])
 
+# Model aliases - Map model aliases to actual model names
+MODEL_ALIASES = {
+    "o1hp": "o1"  # o1hp is an alias for o1
+}
 
 class ConfigUpdate(BaseModel):
     value: Any = Field(..., description="Configuration value")
@@ -165,20 +169,26 @@ async def get_model(
 ):
     """Get a specific model configuration"""
     try:
+        # Check for model aliases
+        actual_model_id = MODEL_ALIASES.get(model_id.lower(), model_id)
+        
+        if actual_model_id != model_id:
+            logger.info(f"Using {actual_model_id} as fallback for {model_id}")
+        
         # Get model from client pool
         client_pool = await get_client_pool(db_session)
-        model_config = client_pool.get_model_config(model_id)
+        model_config = client_pool.get_model_config(actual_model_id)
         
         if model_config:
             return model_config
             
         # Check if this is a known model type that we can create
-        if model_id.lower() == "deepseek-r1" or model_id.lower() == "o1":
+        if actual_model_id.lower() == "deepseek-r1" or actual_model_id.lower() == "o1":
             # Get template from registry
-            model_config = ModelRegistry.get_model_template(model_id)
+            model_config = ModelRegistry.get_model_template(actual_model_id)
             
             # Add to client pool
-            await client_pool.add_or_update_model(model_id, model_config, db_session)
+            await client_pool.add_or_update_model(actual_model_id, model_config, db_session)
             return model_config
             
         # Model not found
@@ -201,23 +211,29 @@ async def create_model(
 ):
     """Create a new model configuration"""
     try:
-        logger.info(f"Creating model {model_id}")
+        # Check for model aliases
+        actual_model_id = MODEL_ALIASES.get(model_id.lower(), model_id)
+        
+        if actual_model_id != model_id:
+            logger.info(f"Using {actual_model_id} as fallback for {model_id}")
+            
+        logger.info(f"Creating model {actual_model_id}")
         
         # Get client pool
         client_pool = await get_client_pool(db_session)
         
         # Check if model already exists
-        existing_config = client_pool.get_model_config(model_id)
+        existing_config = client_pool.get_model_config(actual_model_id)
         if existing_config:
             return {
                 "status": "exists", 
-                "model_id": model_id,
+                "model_id": actual_model_id,
                 "message": f"Model already exists"
             }
             
         # If no model data provided, use template from registry
         if not model:
-            model = ModelRegistry.get_model_template(model_id)
+            model = ModelRegistry.get_model_template(actual_model_id)
         
         # Validate model configuration
         try:
@@ -248,14 +264,14 @@ async def create_model(
             raise HTTPException(status_code=422, detail=f"Invalid model configuration: {str(ve)}")
             
         # Add to client pool
-        success = await client_pool.add_or_update_model(model_id, model, db_session)
+        success = await client_pool.add_or_update_model(actual_model_id, model, db_session)
         
         if not success:
             raise HTTPException(
-                status_code=500, detail=f"Failed to create model {model_id}"
+                status_code=500, detail=f"Failed to create model {actual_model_id}"
             )
             
-        return {"status": "created", "model_id": model_id, "model_type": model.get("model_type", "standard")}
+        return {"status": "created", "model_id": actual_model_id, "model_type": model.get("model_type", "standard")}
     except HTTPException:
         raise
     except Exception as e:
@@ -351,6 +367,13 @@ async def switch_model(
 
         if not model_id:
             raise HTTPException(status_code=400, detail="Model ID is required")
+        
+        # Check for model aliases
+        actual_model_id = MODEL_ALIASES.get(model_id.lower(), model_id)
+        
+        if actual_model_id != model_id:
+            logger.info(f"Using {actual_model_id} as fallback for {model_id}")
+            model_id = actual_model_id
             
         # Get client pool
         client_pool = await get_client_pool(db_session)
@@ -426,6 +449,13 @@ async def switch_model_path(
     try:
         if not model_id:
             raise HTTPException(status_code=400, detail="Model ID is required")
+        
+        # Check for model aliases
+        actual_model_id = MODEL_ALIASES.get(model_id.lower(), model_id)
+        
+        if actual_model_id != model_id:
+            logger.info(f"Using {actual_model_id} as fallback for {model_id}")
+            model_id = actual_model_id
             
         # Get client pool
         client_pool = await get_client_pool(db_session)

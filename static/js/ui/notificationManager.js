@@ -88,9 +88,9 @@ export async function handleMessageError(error) {
           <li><strong>Ready State:</strong> ${error.target?.readyState || 'N/A'}</li>
         </ul>
       `, [
-        { 
-          label: 'Retry', 
-          variant: 'btn-primary', 
+        {
+          label: 'Retry',
+          variant: 'btn-primary',
           action: () => {
             // Safer approach for retry
             const btn = document.createElement('button');
@@ -100,9 +100,12 @@ export async function handleMessageError(error) {
             btn.addEventListener('click', () => window.location.reload());
             setTimeout(() => btn.click(), 100);
             setTimeout(() => btn.remove(), 500);
-          } 
+          }
         }
       ]);
+      return;
+    } else if (error.message && error.message.includes('Too Many Requests')) {
+      handleRateLimitError(errorData);
       return;
     }
 

@@ -266,99 +266,118 @@ async def create_chat_completion(
         model_config = client_wrapper.get("model_config", {})
         model_type = model_config.get("model_type", "standard")
 
-        # Prepare parameters based on client type and model
-        params = {
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-
+        # Call the appropriate client method based on client type and model
         if is_inference_client:
-            # Add necessary parameters for DeepSeek
+            # Azure AI Inference client (DeepSeek)
             if is_deepseek or model_type == "deepseek":
-                params["temperature"] = DEEPSEEK_R1_DEFAULT_TEMPERATURE
-                params["max_tokens"] = DEEPSEEK_R1_DEFAULT_MAX_TOKENS
-                params["enable_thinking"] = True
-                # Make sure these parameters are explicitly passed to the client
-                logger.info(f"Using DeepSeek-R1 specific parameters: enable_thinking=True, temperature={DEEPSEEK_R1_DEFAULT_TEMPERATURE}")
+                # Add retry logic for DeepSeek models
+                max_retries = 3
+                retry_count = 0
+                retry_delay = 2  # seconds
+                last_error = None
+                
+                while retry_count <= max_retries:
+                    try:
+                        # Use complete() for DeepSeek models
+                        response = client.complete(
+                            model=request.model,
+                            messages=messages,
+                            temperature=DEEPSEEK_R1_DEFAULT_TEMPERATURE,
+                            max_tokens=DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
+                            stream=False
+                        )
+                        
+                        # Convert to standard format
+                        usage_data = {
+                            "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
+                            "completion_tokens": (
+                                response.usage.completion_tokens if response.usage else 0
+                            ),
+                            "total_tokens": response.usage.total_tokens if response.usage else 0,
+                        }
+
+                        response_data = {
+                            "id": f"chatcmpl-{uuid.uuid4()}",
+                            "object": "chat.completion",
+                            "created": int(time.time()),
+                            "model": request.model,
+                            "choices": [
+                                {
+                                    "index": 0,
+                                    "message": {
+                                        "role": "assistant",
+                                        "content": response.choices[0].message.content or "",
+                                    },
+                                    "finish_reason": response.choices[0].finish_reason,
+                                }
+                            ],
+                            "usage": usage_data,
+                        }
+                        
+                        # If we get here, the request completed successfully
+                        break
+                        
+                    except Exception as e:
+                        retry_count += 1
+                        last_error = e
+                        
+                        # Check if it's a timeout error
+                        is_timeout = False
+                        if hasattr(e, "__cause__") and e.__cause__:
+                            if "timeout" in str(e.__cause__).lower():
+                                is_timeout = True
+                        elif "timeout" in str(e).lower():
+                            is_timeout = True
+                            
+                        if is_timeout and retry_count <= max_retries:
+                            logger.warning(f"Timeout error in DeepSeek non-streaming request, retrying ({retry_count}/{max_retries})")
+                            # Wait before retrying
+                            import asyncio
+                            await asyncio.sleep(retry_delay)
+                            # Increase delay for next retry (exponential backoff)
+                            retry_delay *= 2
+                        else:
+                            # If it's not a timeout or we've exceeded max retries, re-raise the exception
+                            raise
+                
+                # If we've exhausted all retries and still have an error, raise it
+                if retry_count > max_retries and last_error:
+                    raise last_error
             else:
-                raise ValueError(
-                    "Unsupported model for inference client: " + request.model
-                )
+                # Unsupported model for inference client
+                raise ValueError(f"Unsupported model for inference client: {request.model}")
         else:
             # Azure OpenAI client
-            if model_type == "o-series":
-                params["reasoning_effort"] = request.reasoning_effort
-
-        # Call the appropriate client method
-        if is_inference_client:
-            response = client.complete(
-                model=request.model,
-                messages=params["messages"],
-                temperature=params.get("temperature"),
-                max_tokens=params.get("max_tokens"),
-                stream=False
-            )
-
-            # Convert to standard format
-            usage_data = {
-                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
-                "completion_tokens": (
-                    response.usage.completion_tokens if response.usage else 0
-                ),
-                "total_tokens": response.usage.total_tokens if response.usage else 0,
-            }
-
-            response_data = {
-                "id": f"chatcmpl-{uuid.uuid4()}",
-                "object": "chat.completion",
-                "created": int(time.time()),
-                "model": request.model,
-                "choices": [
-                    {
-                        "index": 0,  # Add the required index field
-                        "message": {
-                            "role": "assistant",
-                            "content": response.choices[0].message.content or "",
-                        },
-                        "finish_reason": response.choices[0].finish_reason,
-                    }
-                ],
-                "usage": usage_data,
-            }
-        else:
-            # Conditionally pass "reasoning_effort" if not a DeepSeek model (i.e., O-series or standard)
             if is_deepseek:
-                # DeepSeek model uses temperature and max_tokens
+                # DeepSeek model with OpenAI client
                 response = client.chat.completions.create(
                     model=request.model,
-                    messages=params["messages"],
-                    temperature=params.get("temperature"),
-                    max_tokens=params.get("max_tokens"),
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    stream=False,
+                )
+            elif config.is_o_series_model(request.model):
+                # O-series model
+                logger.info(f"Using O-series specific parameters for model {request.model}")
+                response = client.chat.completions.create(
+                    model=request.model,
+                    messages=messages,
+                    reasoning_effort=request.reasoning_effort or "medium",
+                    max_completion_tokens=max_tokens or 5000,  # Default to 5000 if not provided
                     stream=False,
                 )
             else:
-                # O-series or standard Azure OpenAI model can use reasoning_effort, and uses max_completion_tokens instead of max_tokens
-                # For O-series models, we explicitly avoid using temperature and other unsupported parameters
-                if config.is_o_series_model(request.model):
-                    logger.info(f"Using O-series specific parameters for model {request.model}")
-                    response = client.chat.completions.create(
-                        model=request.model,
-                        messages=params["messages"],
-                        reasoning_effort=params.get("reasoning_effort", "medium"),
-                        max_completion_tokens=params.get("max_tokens", 5000),  # Default to 5000 if not provided
-                        stream=False,
-                    )
-                else:
-                    # Standard OpenAI model
-                    response = client.chat.completions.create(
-                        model=request.model,
-                        messages=params["messages"],
-                        reasoning_effort=params.get("reasoning_effort", "medium"),
-                        max_completion_tokens=params.get("max_tokens"),
-                        temperature=params.get("temperature"),
-                        stream=False,
-                    )
+                # Standard OpenAI model
+                response = client.chat.completions.create(
+                    model=request.model,
+                    messages=messages,
+                    max_completion_tokens=max_tokens,
+                    temperature=temperature,
+                    stream=False,
+                )
+            
+            # Convert response to standard format
             response_data = response.model_dump()
 
         # Store the content in the database
@@ -478,42 +497,87 @@ async def generate_stream_chunks(
         params["stream"] = True
 
     full_content = ""
+    
+    # Set up a heartbeat mechanism to keep the connection alive
+    heartbeat_interval = 30  # seconds
+    last_heartbeat = time.time()
+    
+    # Function to send a heartbeat
+    async def send_heartbeat():
+        nonlocal last_heartbeat
+        current_time = time.time()
+        if current_time - last_heartbeat >= heartbeat_interval:
+            last_heartbeat = current_time
+            yield f"data: {json.dumps({'heartbeat': True})}\n\n"
 
     try:
         if is_inference_client and is_deepseek:
             # Enhanced DeepSeek-R1 streaming with proper handling of thinking blocks
-            stream = client.complete(
-                model=model_name,
-                messages=params["messages"],
-                temperature=params.get("temperature", 0.7),
-                max_tokens=params.get("max_tokens", 4096),
-                stream=True
-            )
+            # Add retry logic for timeout errors
+            max_retries = 3
+            retry_count = 0
+            retry_delay = 2  # seconds
             
-            # Handle StreamingChatCompletions object correctly
-            # The StreamingChatCompletions object is directly iterable
-            # Instead of accessing an 'iterator' property, we iterate over the object itself
-            for chunk in stream:
+            while retry_count <= max_retries:
                 try:
-                    # Check if chunk has choices and if the choices list is not empty
-                    if hasattr(chunk, 'choices') and chunk.choices and len(chunk.choices) > 0:
-                        # Now safely access the first choice
-                        first_choice = chunk.choices[0]
-                        # Check if the delta attribute exists and has content
-                        if hasattr(first_choice, 'delta') and hasattr(first_choice.delta, "content") and first_choice.delta.content:
-                            content = first_choice.delta.content
-                            full_content += content
-                            yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
-                        elif hasattr(first_choice, 'message') and hasattr(first_choice.message, "content") and first_choice.message.content:
-                            # Handle case where response directly contains message content instead of delta
-                            content = first_choice.message.content
-                            full_content += content
-                            yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
-                except Exception as chunk_error:
-                    logger.warning(f"Error processing DeepSeek chunk: {str(chunk_error)}")
-                    # Still yield a partial chunk if possible to avoid breaking the stream
-                    if hasattr(chunk, 'choices') and chunk.choices:
-                        yield f"data: {json.dumps({'choices': [{'delta': {'content': ''}}]})}\n\n"
+                    stream = client.complete(
+                        model=model_name,
+                        messages=params["messages"],
+                        temperature=params.get("temperature", 0.7),
+                        max_tokens=params.get("max_tokens", 4096),
+                        stream=True
+                    )
+                    
+                    # Handle StreamingChatCompletions object correctly
+                    # The StreamingChatCompletions object is directly iterable
+                    # Instead of accessing an 'iterator' property, we iterate over the object itself
+                    for chunk in stream:
+                        try:
+                            # Check if chunk has choices and if the choices list is not empty
+                            if hasattr(chunk, 'choices') and chunk.choices and len(chunk.choices) > 0:
+                                # Now safely access the first choice
+                                first_choice = chunk.choices[0]
+                                # Check if the delta attribute exists and has content
+                                if hasattr(first_choice, 'delta') and hasattr(first_choice.delta, "content") and first_choice.delta.content:
+                                    content = first_choice.delta.content
+                                    full_content += content
+                                    yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
+                                elif hasattr(first_choice, 'message') and hasattr(first_choice.message, "content") and first_choice.message.content:
+                                    # Handle case where response directly contains message content instead of delta
+                                    content = first_choice.message.content
+                                    full_content += content
+                                    yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
+                        except Exception as chunk_error:
+                            logger.warning(f"Error processing DeepSeek chunk: {str(chunk_error)}")
+                            # Still yield a partial chunk if possible to avoid breaking the stream
+                            if hasattr(chunk, 'choices') and chunk.choices:
+                                yield f"data: {json.dumps({'choices': [{'delta': {'content': ''}}]})}\n\n"
+                    
+                    # If we get here, the streaming completed successfully
+                    break
+                    
+                except Exception as e:
+                    retry_count += 1
+                    # Check if it's a timeout error
+                    is_timeout = False
+                    if hasattr(e, "__cause__") and e.__cause__:
+                        if "timeout" in str(e.__cause__).lower():
+                            is_timeout = True
+                    elif "timeout" in str(e).lower():
+                        is_timeout = True
+                        
+                    if is_timeout and retry_count <= max_retries:
+                        logger.warning(f"Timeout error in DeepSeek streaming, retrying ({retry_count}/{max_retries})")
+                        # Notify the client about the retry
+                        yield f"data: {json.dumps({'choices': [{'delta': {'content': f'\n\n[Connection timed out, retrying... {retry_count}/{max_retries}]'}}]})}\n\n"
+                        # Wait before retrying
+                        import asyncio
+                        await asyncio.sleep(retry_delay)
+                        # Increase delay for next retry (exponential backoff)
+                        retry_delay *= 2
+                    else:
+                        # If it's not a timeout or we've exceeded max retries, re-raise the exception
+                        raise
 
         else:
             # Stream with OpenAI client

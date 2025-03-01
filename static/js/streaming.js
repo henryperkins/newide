@@ -15,8 +15,46 @@ let errorState = false;
 let chunkBuffer = '';
 
 const RENDER_INTERVAL_MS = 50;
-const CONNECTION_TIMEOUT_MS = 30000; // Increased from 10000 to 30000 to allow more time for connection
+const BASE_CONNECTION_TIMEOUT_MS = 90000; // Increase base timeout to 90 seconds
+const MAX_CONNECTION_TIMEOUT_MS = 360000; // Increase max timeout to 6 minutes
 const MAX_RETRY_ATTEMPTS = 3;
+const CONNECTION_CHECK_INTERVAL_MS = 15000; // Check connection status every 15 seconds
+
+/**
+ * Calculate connection timeout based on model type and reasoning effort
+ * @param {string} modelName - The model name
+ * @param {string} reasoningEffort - Reasoning effort (low, medium, high)
+ * @param {number} messageLength - Length of message content
+ * @returns {number} - Connection timeout in milliseconds
+ */
+function calculateConnectionTimeout(modelName, reasoningEffort, messageLength) {
+  // Base timeout is 90 seconds
+  let timeout = BASE_CONNECTION_TIMEOUT_MS;
+  
+  // Adjust for model type
+  if (modelName.toLowerCase().startsWith('o1') || modelName.toLowerCase().startsWith('o3')) {
+    timeout *= 3.5; // Increase timeout for O-series models
+  } else if (modelName.toLowerCase().includes('claude')) {
+    timeout *= 2.5; // Increase timeout for Claude models
+  }
+  
+  // Adjust for reasoning effort
+  if (reasoningEffort === 'high') {
+    timeout *= 2.5; // Increase time for high reasoning
+  } else if (reasoningEffort === 'medium') {
+    timeout *= 1.8; // Increase time for medium reasoning
+  } else if (reasoningEffort === 'low') {
+    timeout *= 1; // No adjustment for low reasoning
+  }
+  
+  // Adjust for message length (longer messages need more time to process)
+  if (messageLength > 1000) {
+    timeout *= 1 + (messageLength / 8000); // Increase timeout for long messages
+  }
+  
+  // Cap at maximum timeout
+  return Math.min(timeout, MAX_CONNECTION_TIMEOUT_MS);
+}
 
 export async function streamChatResponse(
   messageContent,
@@ -44,19 +82,62 @@ export async function streamChatResponse(
     }
     const fullUrl = `${apiUrl}&${params.toString()}`;
     const eventSource = new EventSource(fullUrl);
-    const connectionTimeout = setTimeout(() => {
-      if (eventSource && eventSource.readyState === 0) {
-        eventSource.close();
-        handleStreamingError(Object.assign(new Error('Connection timeout'), {
-          name: 'TimeoutError',
-          recoverable: true
-        }));
+    
+    // Calculate dynamic timeout based on model, reasoning effort, and message length
+    const connectionTimeoutMs = calculateConnectionTimeout(modelName, reasoningEffort, messageContent.length);
+    console.log(`[streamChatResponse] Using connection timeout: ${connectionTimeoutMs}ms for model ${modelName}`);
+    
+    // Set up connection timeout with periodic checks
+    let connectionTimeoutId = null;
+    let connectionCheckIntervalId = null;
+    
+    const setupConnectionTimeout = () => {
+      // Clear any existing timeout
+      if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
+      
+      connectionTimeoutId = setTimeout(() => {
+        if (eventSource && (eventSource.readyState === 0 || eventSource.readyState === 1)) {
+          console.warn(`[streamChatResponse] Connection timeout after ${connectionTimeoutMs}ms`);
+          eventSource.close();
+          handleStreamingError(Object.assign(new Error('Connection timeout - the server is taking too long to respond'), {
+            name: 'TimeoutError',
+            recoverable: true,
+            modelName,
+            reasoningEffort,
+            messageLength: messageContent.length
+          }));
+        }
+        
+        // Clear the interval when timeout occurs
+        if (connectionCheckIntervalId) {
+          clearInterval(connectionCheckIntervalId);
+          connectionCheckIntervalId = null;
+        }
+      }, connectionTimeoutMs);
+    };
+    
+    // Set up periodic connection checks
+    connectionCheckIntervalId = setInterval(() => {
+      if (eventSource) {
+        if (eventSource.readyState === 0) {
+          console.log('[streamChatResponse] Connection still connecting, extending timeout');
+          // Reset the timeout to give more time
+          setupConnectionTimeout();
+        } else if (eventSource.readyState === 2) {
+          // Connection is closed, clear the interval
+          clearInterval(connectionCheckIntervalId);
+          connectionCheckIntervalId = null;
+        }
       }
-    }, CONNECTION_TIMEOUT_MS);
+    }, CONNECTION_CHECK_INTERVAL_MS);
+    
+    // Initial timeout setup
+    setupConnectionTimeout();
 
     if (signal) {
       signal.addEventListener('abort', () => {
-        clearTimeout(connectionTimeout);
+        if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
+        if (connectionCheckIntervalId) clearInterval(connectionCheckIntervalId);
         eventSource.close();
         handleStreamingError(new Error('Request aborted'));
       });
@@ -65,7 +146,8 @@ export async function streamChatResponse(
     let connectionClosed = false;
 
     eventSource.onopen = () => {
-      clearTimeout(connectionTimeout);
+      if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
+      // Keep the interval for periodic checks even after connection is established
       eventBus.publish('streamingStarted', { modelName });
     };
 
@@ -81,7 +163,8 @@ export async function streamChatResponse(
     };
 
 eventSource.onerror = (e) => {
-  clearTimeout(connectionTimeout);
+  if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
+  if (connectionCheckIntervalId) clearInterval(connectionCheckIntervalId);
   if (!connectionClosed) {
     connectionClosed = true;
     eventSource.close();
@@ -354,12 +437,25 @@ async function handleStreamingError(error) {
       if (error.name === 'TimeoutError') {
         // Import directly to avoid circular dependencies
         import('./ui/notificationManager.js').then(module => {
-          module.showErrorModal('Timeout Error', `
+          // Create more detailed message with diagnostic info
+          const modelInfo = error.modelName ? `<li>Model: ${error.modelName}</li>` : '';
+          const reasoningInfo = error.reasoningEffort ? `<li>Reasoning effort: ${error.reasoningEffort}</li>` : '';
+          
+          module.showErrorModal('Connection Timeout', `
             <p>${userFriendlyMessage}</p>
+            ${(modelInfo || reasoningInfo) ? `
+            <p><strong>Diagnostic Information:</strong></p>
+            <ul>
+              ${modelInfo}
+              ${reasoningInfo}
+            </ul>` : ''}
             <p><strong>Suggestions:</strong></p>
             <ul>
-              <li>Reduce reasoning effort in the settings.</li>
-              <li>Retry the request.</li>
+              <li>Check your internet connection</li>
+              <li>Reduce reasoning effort in the settings</li>
+              <li>Try a different model if available</li>
+              <li>Break your request into smaller parts</li>
+              <li>Retry the request</li>
             </ul>
           `, [
             { 
@@ -371,9 +467,19 @@ async function handleStreamingError(error) {
                 btn.id = `retry-btn-${errorId}`;
                 btn.style.display = 'none';
                 document.body.appendChild(btn);
-                btn.addEventListener('click', () => window.sendMessage?.());
-                setTimeout(() => btn.click(), 100);
-                setTimeout(() => btn.remove(), 500);
+                btn.addEventListener('click', () => {
+                  if (typeof window.sendMessage === 'function') {
+                    window.sendMessage();
+                  } else {
+                    console.warn('No sendMessage function available');
+                  }
+                });
+                try {
+                  setTimeout(() => btn.click(), 100);
+                  setTimeout(() => btn.remove(), 500);
+                } catch (ex) {
+                  console.error('Unable to auto-click retry button:', ex);
+                }
               }
             },
             { 
@@ -406,6 +512,7 @@ async function handleStreamingError(error) {
 }
 
 async function attemptErrorRecovery(messageContent, error) {
+  // Check if we're offline
   if (!navigator.onLine) {
     showNotification('Waiting for internet connection...', 'warning', 0);
     return new Promise(resolve => {
@@ -421,7 +528,14 @@ async function attemptErrorRecovery(messageContent, error) {
           }
           const modelName = document.getElementById('model-select')?.value || 'DeepSeek-R1';
           const developerConfig = document.getElementById('developer-config')?.value || '';
-          const reasoningEffort = getReasoningEffortSetting();
+          
+          // For timeout errors, try with lower reasoning effort
+          let reasoningEffort = getReasoningEffortSetting();
+          if (error.name === 'TimeoutError' && reasoningEffort !== 'low') {
+            reasoningEffort = 'low';
+            showNotification('Retrying with lower reasoning effort', 'info', 3000);
+          }
+          
           try {
             const success = await retry(
               () => streamChatResponse(messageContent, sessionId, modelName, developerConfig, reasoningEffort),
@@ -440,6 +554,8 @@ async function attemptErrorRecovery(messageContent, error) {
       }, { once: true });
     });
   }
+  
+  // Handle recoverable errors
   if (error.recoverable || ['ConnectionError', 'NetworkError', 'TimeoutError'].includes(error.name)) {
     showNotification('Retrying connection...', 'info', 3000);
     await new Promise(r => setTimeout(r, 2000));
@@ -449,13 +565,27 @@ async function attemptErrorRecovery(messageContent, error) {
         showNotification('Could not retrieve session ID', 'error');
         return false;
       }
+      
       const modelName = document.getElementById('model-select')?.value || 'DeepSeek-R1';
       const developerConfig = document.getElementById('developer-config')?.value || '';
-      const reasoningEffort = getReasoningEffortSetting();
+      
+      // For timeout errors, try with lower reasoning effort
+      let reasoningEffort = getReasoningEffortSetting();
+      if (error.name === 'TimeoutError' && reasoningEffort !== 'low') {
+        reasoningEffort = 'low';
+        showNotification('Retrying with lower reasoning effort', 'info', 3000);
+      }
+      
       try {
+        // Add exponential backoff between retries
         return await retry(
           () => streamChatResponse(messageContent, sessionId, modelName, developerConfig, reasoningEffort),
-          MAX_RETRY_ATTEMPTS
+          MAX_RETRY_ATTEMPTS,
+          { 
+            backoff: true, 
+            initialDelay: 1000, 
+            maxDelay: 10000 
+          }
         );
       } catch {
         showNotification('Recovery failed', 'error');
@@ -467,6 +597,7 @@ async function attemptErrorRecovery(messageContent, error) {
       return false;
     }
   }
+  
   showNotification('Cannot retry - please refresh and try again', 'error');
   return false;
 }

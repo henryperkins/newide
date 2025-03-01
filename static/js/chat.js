@@ -245,21 +245,27 @@ export async function sendMessage() {
     let modelName = 'DeepSeek-R1';  // This is the model name, not the deployment name which is in the URL
     if (modelSelect) modelName = modelSelect.value;
     
-    // Adjust developer config based on model
-    let devConfigToUse = developerConfig;
-    if (modelName.toLowerCase().startsWith('o1')) {
-      // For o1 models, add the formatting prefix
-      devConfigToUse = "Formatting re-enabled - use markdown code blocks\n" + developerConfig;
-      console.log('[sendMessage] Using o1 model with modified developer config:', devConfigToUse);
+    // Handle o1hp as an alias for o1
+    const actualModelName = modelName.toLowerCase() === 'o1hp' ? 'o1' : modelName;
+    if (modelName.toLowerCase() === 'o1hp') {
+      console.log('[sendMessage] Using o1 as fallback for o1hp');
     }
     
-    const modelConfig = await getModelConfig(modelName);
+    // Adjust developer config based on model
+    let devConfigToUse = developerConfig;
+    if (actualModelName.toLowerCase().startsWith('o1')) {
+      // For o1 models, add the formatting prefix
+      devConfigToUse = "Formatting re-enabled - use markdown code blocks\n" + developerConfig;
+      console.log(`[sendMessage] Using ${actualModelName} model with modified developer config:`, devConfigToUse);
+    }
+    
+    const modelConfig = await getModelConfig(actualModelName);
     isStreamingSupported = modelConfig?.supports_streaming || false;
     const useStreaming = streamingEnabled && isStreamingSupported;
     showTypingIndicator();
     const controller = new AbortController();
     currentController = controller;
-    const timeoutMs = calculateTimeout(messageContent, modelName, reasoningEffort);
+    const timeoutMs = calculateTimeout(messageContent, actualModelName, reasoningEffort);
     const timeoutId = setTimeout(() => {
       controller.abort();
       console.warn(`Request timed out after ${timeoutMs}ms`);
@@ -270,7 +276,7 @@ export async function sendMessage() {
           return module.streamChatResponse(
             messageContent,
             currentSessionId,
-            modelName,
+            actualModelName,
             devConfigToUse, // Use the modified version
             reasoningEffort,
             controller.signal
@@ -280,7 +286,7 @@ export async function sendMessage() {
         const response = await fetchChatResponse(
           messageContent,
           currentSessionId,
-          modelName,
+          actualModelName,
           devConfigToUse, // Use the modified version
           reasoningEffort,
           controller.signal
@@ -317,22 +323,22 @@ export async function sendMessage() {
 }
 
 function calculateTimeout(message, model, effort) {
-  const base = 60000,
-    perChar = 10,
+  const base = 120000, // Increased from 60000 to 120000 (2 minutes)
+    perChar = 20,      // Increased from 10 to 20 
     length = message.length;
   const isO = model.toLowerCase().startsWith('o1') || model.toLowerCase().startsWith('o3');
-  const modelMult = isO ? 3 : 1;
+  const modelMult = isO ? 4 : 1; // Increased from 3 to 4 for O-series models
   let effortMult = 1;
   switch (effort) {
     case 'low':
       effortMult = 0.7;
       break;
     case 'high':
-      effortMult = 1.5;
+      effortMult = 2.0; // Increased from 1.5 to 2.0
       break;
   }
   const timeout = base + length * perChar * modelMult * effortMult;
-  return Math.min(timeout, 300000);
+  return Math.min(timeout, 480000); // Increased maximum from 300000 to 480000 (8 minutes)
 }
 
 async function fetchChatResponse(

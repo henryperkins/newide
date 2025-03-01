@@ -44,8 +44,8 @@ AsyncSessionLocal = sessionmaker(
 # Base class for ORM models
 Base = declarative_base()
 
-class Session(Base):
-    """ORM model for user sessions."""
+class SessionModel(Base):
+    """ORM model for user sessions. (Renamed to avoid overshadowing)"""
     __tablename__ = "sessions"
     id = Column(PGUUID, primary_key=True)
     created_at = Column(DateTime(timezone=True), server_default=text("NOW()"))
@@ -125,7 +125,10 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         AsyncSession: An async database session.
     """
     async with AsyncSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            await session.close()
 
 async def init_database():
     """Initialize the database by creating necessary tables if they don't exist."""

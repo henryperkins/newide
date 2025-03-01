@@ -138,7 +138,8 @@ async def main():
                 else:
                     # Simple direct call to model without storing history
                     if model_name.lower() == "deepseek-r1":
-                        response = await client.create(
+                        # Use complete() for DeepSeek models with ChatCompletionsClient
+                        response = await client.complete(
                             model=model_name,
                             messages=[{"role": "user", "content": user_message}],
                             temperature=config.DEEPSEEK_R1_DEFAULT_TEMPERATURE,
@@ -146,11 +147,11 @@ async def main():
                         )
                         content = response.choices[0].message.content
                     else:
-                        response = await client.create(
+                        # Use chat.completions.create() for OpenAI models
+                        response = await client.chat.completions.create(
                             model=model_name,
                             messages=[{"role": "user", "content": user_message}],
-                            temperature=0.7,
-                            max_tokens=4000,
+                            max_completion_tokens=4000,
                             reasoning_effort="medium",
                         )
                         content = response.choices[0].message.content

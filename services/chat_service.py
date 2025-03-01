@@ -144,46 +144,28 @@ async def process_chat_message(
     is_inference_client = isinstance(azure_client, ChatCompletionsClient)
 
     # Set up parameters based on client type and model
-    params = {
-        "messages": messages,
-        "temperature": temperature if temperature is not None else 0.7,
-        "max_tokens": max_tokens if max_tokens is not None else 4096,
-    }
-
-    if is_inference_client and is_deepseek:
-        # Additional parameters for DeepSeek
-        params["temperature"] = config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
-        params["max_tokens"] = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
-    elif is_inference_client:
-        # Use the same .complete(...) call for non-DeepSeek too
-        response = azure_client.complete(
-            model=model_name,
-            messages=params["messages"],
-            temperature=params["temperature"] if params.get("temperature") is not None else 0.7,
-            max_tokens=params["max_tokens"] if params.get("max_tokens") is not None else 4096,
-        )
-
-        if not response.choices or len(response.choices) == 0:
-            logger.warning(
-                f"[session {session_id}] No choices returned from Azure AI Inference."
-            )
-            content = ""
-        else:
-            content = response.choices[0].message.content or ""
-
-        usage_data = {
-            "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
-            "completion_tokens": getattr(response.usage, "completion_tokens", 0),
-            "total_tokens": getattr(response.usage, "total_tokens", 0),
+    if is_inference_client:
+        # Azure AI Inference client (DeepSeek)
+        params = {
+            "messages": messages,
+            "temperature": config.DEEPSEEK_R1_DEFAULT_TEMPERATURE if is_deepseek else 0.7,
+            "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS if is_deepseek else 4096,
         }
     else:
-        # OpenAI client
-        if not is_deepseek:
-            params["reasoning_effort"] = (
-                chat_message.reasoning_effort
-                if chat_message.reasoning_effort
-                else "medium"
-            )
+        # Azure OpenAI client
+        params = {
+            "messages": messages,
+        }
+        
+        # Add appropriate parameters based on model type
+        if is_deepseek:
+            # DeepSeek model with OpenAI client
+            params["temperature"] = temperature if temperature is not None else config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
+            params["max_tokens"] = max_tokens if max_tokens is not None else config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+        else:
+            # o-series model
+            params["max_completion_tokens"] = max_tokens if max_tokens is not None else config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
+            params["reasoning_effort"] = chat_message.reasoning_effort if chat_message.reasoning_effort else "medium"
 
     try:
         if is_inference_client and is_deepseek:
@@ -442,14 +424,19 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
         f"{m['role'].capitalize()}: {m['content']}" for m in messages
     )
     try:
-        response = AzureOpenAI(
+        client = AzureOpenAI(
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            api_base=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
             api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-        ).completions.create(
-            engine="text-davinci-003",
-            prompt=f"Summarize the following chat:\n\n{combined_text}\n\nBrief Summary:",
-            max_tokens=150,
+        )
+        
+        response = client.chat.completions.create(
+            model=config.AZURE_OPENAI_DEPLOYMENT_NAME,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that summarizes conversations."},
+                {"role": "user", "content": f"Summarize the following chat:\n\n{combined_text}\n\nBrief Summary:"}
+            ],
+            max_completion_tokens=150,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:

@@ -136,7 +136,7 @@ class ClientPool:
         self._model_configs = model_configs or {}
         
     @classmethod
-    async def get_instance(cls, db_session: AsyncSession = None):
+    async def get_instance(cls, db_session: Optional[AsyncSession] = None):
         """Get or create the singleton instance"""
         if not cls._instance:
             cls._instance = cls()
@@ -204,11 +204,14 @@ class ClientPool:
             # Create Azure AI Inference client for DeepSeek
             credential = AzureKeyCredential(os.getenv("AZURE_INFERENCE_CREDENTIAL", ""))
             endpoint = model_config.get("azure_endpoint", config.AZURE_INFERENCE_ENDPOINT)
+            timeout = model_config.get("base_timeout", 120.0)
             
-            logger.info(f"Creating Azure AI Inference client for {model_id} at {endpoint}")
+            logger.info(f"Creating Azure AI Inference client for {model_id} at {endpoint} with timeout {timeout}")
             return ChatCompletionsClient(
                 endpoint=endpoint,
-                credential=credential
+                credential=credential,
+                connection_timeout=timeout,
+                read_timeout=timeout
             )
         else:
             # Create Azure OpenAI client for other models
