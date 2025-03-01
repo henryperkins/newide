@@ -173,7 +173,7 @@ async def get_model(
             return model_config
             
         # Check if this is a known model type that we can create
-        if model_id.lower() == "deepseek-r1" or model_id.lower() == "o1hp":
+        if model_id.lower() == "deepseek-r1" or model_id.lower() == "o1":
             # Get template from registry
             model_config = ModelRegistry.get_model_template(model_id)
             
@@ -359,7 +359,7 @@ async def switch_model(
         model_config = client_pool.get_model_config(model_id)
         if not model_config:
             # Try to create it if it's a known model type
-            if model_id.lower() == "deepseek-r1" or model_id.lower() == "o1hp":
+            if model_id.lower() == "deepseek-r1" or model_id.lower() == "o1":
                 model_template = ModelRegistry.get_model_template(model_id)
                 await client_pool.add_or_update_model(model_id, model_template, db_session)
                 model_config = client_pool.get_model_config(model_id)
@@ -434,7 +434,7 @@ async def switch_model_path(
         model_config = client_pool.get_model_config(model_id)
         if not model_config:
             # Try to create it if it's a known model type
-            if model_id.lower() == "deepseek-r1" or model_id.lower() == "o1hp":
+            if model_id.lower() == "deepseek-r1" or model_id.lower() == "o1":
                 model_template = ModelRegistry.get_model_template(model_id)
                 await client_pool.add_or_update_model(model_id, model_template, db_session)
             else:

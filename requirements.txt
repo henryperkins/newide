@@ -1,3 +1,7 @@
+passlib
+jwt
+pydantic-settings
+azure-ai-inference
 fastapi>=0.103.0
 uvicorn[standard]>=0.22.0
 starlette>=0.27.0

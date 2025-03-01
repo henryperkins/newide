@@ -50,6 +50,22 @@ export async function handleMessageError(error) {
       handleServerError(errorData);
       return;
     }
+
+    // Display detailed error information in a modal
+    if (error.message && error.message.includes('Connection failed')) {
+      showErrorModal('Connection Error', `
+        <p>${error.message}</p>
+        <p><strong>Details:</strong></p>
+        <ul>
+          <li><strong>URL:</strong> ${error.target?.url || 'N/A'}</li>
+          <li><strong>Ready State:</strong> ${error.target?.readyState || 'N/A'}</li>
+        </ul>
+      `, [
+        { label: 'Retry', variant: 'btn-primary', action: () => window.location.reload() }
+      ]);
+      return;
+    }
+
     showNotification(errorData.message || 'An unexpected error occurred', 'error', 8000);
   } catch (parseError) {
     console.error('[handleMessageError] Error parsing error data:', parseError);

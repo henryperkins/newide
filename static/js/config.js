@@ -6,12 +6,12 @@ const DEFAULT_CONFIG = {
   reasoningEffort: "medium",
   developerConfig: "Formatting re-enabled - use markdown code blocks",
   includeFiles: false,
-  selectedModel: "o1hp",
-  deploymentName: "o1hp",
+  selectedModel: "o1",
+  deploymentName: "o1",
   azureOpenAI: {
     apiKey: "",
-    endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
-    deploymentName: "o1hp",
+    endpoint: "https://o1models.openai.azure.com",
+    deploymentName: "o1",
     apiVersion: "2025-01-01-preview"
   },
   appSettings: {
@@ -370,7 +370,7 @@ export async function getModelSettings() {
   } catch (error) {
     console.error('Failed to get model settings:', error);
     return {
-      name: "o1hp",
+      name: "o1",
       api_version: "2025-01-01-preview",
       capabilities: {
         requires_reasoning_effort: true,

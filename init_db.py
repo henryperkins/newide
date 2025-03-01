@@ -138,10 +138,10 @@ async def init_database():
         import json
         import os
         
-        # Create model_configs entries for o1hp and DeepSeek-R1
+        # Create model_configs entries for o1 and DeepSeek-R1
         model_configs = {
-            "o1hp": {
-                "name": "o1hp",
+            "o1": {
+                "name": "o1",
                 "description": "Azure OpenAI o1 high performance model",
                 "max_tokens": 40000,
                 "supports_streaming": False,

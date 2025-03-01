@@ -297,8 +297,7 @@ async def create_chat_completion(
                 messages=params["messages"],
                 temperature=params.get("temperature"),
                 max_tokens=params.get("max_tokens"),
-                stream=False,
-                enable_thinking=params.get("enable_thinking", True)  # Explicitly pass enable_thinking parameter
+                stream=False
             )
 
             # Convert to standard format

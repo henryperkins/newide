@@ -312,7 +312,7 @@
                             <label for="model-select" class="form-label">AI Model</label>
                             <select id="model-select" class="form-input">
                                 <option value="DeepSeek-R1">DeepSeek-R1 (Default)</option>
-                                <option value="o1hp">o1hp (Advanced Reasoning)</option>
+                                <option value="o1">o1 (Advanced Reasoning)</option>
                                 <!-- Options will be populated by ModelManager -->
                             </select>
                         </div>

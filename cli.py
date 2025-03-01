@@ -41,7 +41,7 @@ async def main():
         "-m",
         type=str,
         default="DeepSeek-R1",
-        help="Model to use (DeepSeek-R1 or o1hp)",
+        help="Model to use (DeepSeek-R1 or o1)",
     )
     parser.add_argument(
         "--session",

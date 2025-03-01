@@ -73,7 +73,7 @@ def resolve_api_version(deployment_name: str) -> str:
     version_matrix = {
         "o1-prod": "2025-01-01-preview",
         "o3-mini": "2025-01-01-preview",
-        "deepseek-r1": "2025-01-01-preview",
+        "deepseek-r1": "2024-05-01-preview",
         "gpt-4": "2023-12-01",
     }
     return version_matrix.get(

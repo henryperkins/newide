@@ -80,65 +80,74 @@ export async function streamChatResponse(
       }
     };
 
-    eventSource.onerror = (e) => {
-      clearTimeout(connectionTimeout);
-      if (!connectionClosed) {
-        connectionClosed = true;
-        eventSource.close();
-        // If offline:
-        if (!navigator.onLine) {
-          handleStreamingError(Object.assign(new Error('Network offline'), {
-            name: 'NetworkError',
-            recoverable: true
-          }));
-          return;
-        }
-        // If there's an error response in e.data:
-        if (e.data && typeof e.data === 'string') {
-          try {
-            const errorData = JSON.parse(e.data);
-            const errorMessage = errorData.error?.message || errorData.message || errorData.detail || 'Server error';
-            handleStreamingError(Object.assign(new Error(errorMessage), {
-              name: 'ServerError',
-              data: errorData,
-              recoverable: true
-            }));
-            return;
-          } catch {
-            handleStreamingError(new Error(`Server sent invalid response: ${String(e.data).substring(0, 100)}`));
-            return;
-          }
-        }
-        if (!errorState) {
-          errorState = true;
-          if (mainTextBuffer || thinkingTextBuffer) {
-            forceRender();
-          }
-          const err = new Error(!navigator.onLine
-            ? 'Internet connection lost'
-            : (e.status ? `Connection failed with status: ${e.status}` : 'Connection failed'));
-          err.name = !navigator.onLine ? 'NetworkError' : 'ConnectionError';
-          err.recoverable = true;
-          handleMessageError(err);
-          if (navigator.onLine) {
-            showNotification('Connection failed. Would you like to retry?', 'error', 0, [{
-              label: 'Retry',
-              onClick: () => attemptErrorRecovery(messageContent, err)
-            }]);
-          } else {
-            window.addEventListener('online', () => {
-              showNotification('Connection restored. Retrying...', 'info');
-              attemptErrorRecovery(messageContent, err);
-            }, { once: true });
-          }
-        }
-      }
+eventSource.onerror = (e) => {
+  clearTimeout(connectionTimeout);
+  if (!connectionClosed) {
+    connectionClosed = true;
+    eventSource.close();
+    // If offline:
+    if (!navigator.onLine) {
+      handleStreamingError(Object.assign(new Error('Network offline'), {
+        name: 'NetworkError',
+        recoverable: true
+      }));
+      return;
+    }
+    // If there's an error response in e.data:
+    if (e.data && typeof e.data === 'string') {
       try {
-        eventSource.removeEventListener('error', errorHandler);
-      } catch (ex) {
-        console.warn('[streamChatResponse] Error removing event listener:', ex);
+        const errorData = JSON.parse(e.data);
+        const errorMessage = errorData.error?.message || errorData.message || errorData.detail || 'Server error';
+        handleStreamingError(Object.assign(new Error(errorMessage), {
+          name: 'ServerError',
+          data: errorData,
+          recoverable: true
+        }));
+        return;
+      } catch {
+        handleStreamingError(new Error(`Server sent invalid response: ${String(e.data).substring(0, 100)}`));
+        return;
       }
-    };
+    }
+    if (!errorState) {
+      errorState = true;
+      if (mainTextBuffer || thinkingTextBuffer) {
+        forceRender();
+      }
+      const err = new Error(!navigator.onLine
+        ? 'Internet connection lost'
+        : (e.status ? `Connection failed with status: ${e.status}` : 'Connection failed'));
+      err.name = !navigator.onLine ? 'NetworkError' : 'ConnectionError';
+      err.recoverable = true;
+
+      // Include additional diagnostic information
+      if (e.target && e.target.readyState === EventSource.CLOSED) {
+        err.message += ' (EventSource connection closed)';
+      }
+      if (e.target && e.target.url) {
+        err.message += ` (URL: ${e.target.url})`;
+      }
+
+      handleMessageError(err);
+      if (navigator.onLine) {
+        showNotification('Connection failed. Would you like to retry?', 'error', 0, [{
+          label: 'Retry',
+          onClick: () => attemptErrorRecovery(messageContent, err)
+        }]);
+      } else {
+        window.addEventListener('online', () => {
+          showNotification('Connection restored. Retrying...', 'info');
+          attemptErrorRecovery(messageContent, err);
+        }, { once: true });
+      }
+    }
+  }
+  try {
+    eventSource.removeEventListener('error', errorHandler);
+  } catch (ex) {
+    console.warn('[streamChatResponse] Error removing event listener:', ex);
+  }
+};
 
     eventSource.addEventListener('complete', async (e) => {
       try {
@@ -334,9 +343,26 @@ async function handleStreamingError(error) {
       const userFriendlyMessage = !navigator.onLine
         ? 'Network connection lost'
         : error.name === 'TimeoutError'
-          ? 'Request timed out'
+          ? 'Request timed out. Consider reducing reasoning effort or retrying.'
           : error.message || 'An unexpected error occurred';
-      await handleMessageError({ ...error, message: userFriendlyMessage });
+
+      // Display timeout-specific instructions in a modal
+      if (error.name === 'TimeoutError') {
+        showErrorModal('Timeout Error', `
+          <p>${userFriendlyMessage}</p>
+          <p><strong>Suggestions:</strong></p>
+          <ul>
+            <li>Reduce reasoning effort in the settings.</li>
+            <li>Retry the request.</li>
+          </ul>
+        `, [
+          { label: 'Retry', variant: 'btn-primary', action: () => window.sendMessage?.() },
+          { label: 'Settings', variant: 'btn-secondary', action: () => document.getElementById('config-tab')?.click() }
+        ]);
+      } else {
+        await handleMessageError({ ...error, message: userFriendlyMessage });
+      }
+
       eventBus.publish('streamingError', {
         error,
         recoverable: error.recoverable || false

@@ -3,10 +3,10 @@ import { fetchWithErrorHandling, createCache, eventBus } from './utils/helpers.j
 import { getModelAPIConfig, updateConfig } from './config.js';
 
 const DEFAULT_MODELS = {
-    "o1hp": {
-        name: "o1hp",
+    "o1": {
+        name: "o1",
         description: "Advanced reasoning model for complex tasks",
-        azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
+        azure_endpoint: "https://o1models.openai.azure.com",
         api_version: "2025-01-01-preview",
         max_tokens: 200000,
         max_completion_tokens: 5000,
@@ -320,7 +320,7 @@ class ModelManager {
         } else {
             formIdField.value = '';
             document.getElementById('model-name').disabled = false;
-            document.getElementById('model-endpoint').value = 'https://aoai-east-2272068338224.cognitiveservices.azure.com';
+            document.getElementById('model-endpoint').value = 'https://o1models.openai.azure.com';
             document.getElementById('model-api-version').value = '2025-01-01-preview';
             document.getElementById('model-max-tokens').value = '4096';
         }
@@ -760,7 +760,7 @@ class ModelManager {
         return {
             name: modelId,
             description: "Generic AI model",
-            azure_endpoint: "https://aoai-east-2272068338224.cognitiveservices.azure.com",
+            azure_endpoint: "https://o1models.openai.azure.com",
             api_version: "2024-02-01-preview",
             max_tokens: 16000,
             max_completion_tokens: 4096,

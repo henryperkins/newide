@@ -32,9 +32,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (models['DeepSeek-R1']) {
               modelSelect.value = 'DeepSeek-R1';
               modelManager.updateModelSpecificUI('DeepSeek-R1');
-            } else if (models['o1hp']) {
-              modelSelect.value = 'o1hp';
-              modelManager.updateModelSpecificUI('o1hp');
+            } else if (models['o1']) {
+              modelSelect.value = 'o1';
+              modelManager.updateModelSpecificUI('o1');
             }
           }
         });
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modelManager.initialize().then(() => {
       if (modelSelect && modelSelect.options.length === 0) {
         const defaultModels = [
-          { id: 'o1hp', description: 'Advanced reasoning model for complex tasks' },
+          { id: 'o1', description: 'Advanced reasoning model for complex tasks' },
           { id: 'DeepSeek-R1', description: 'Model that supports chain-of-thought reasoning' }
         ];
         defaultModels.forEach(model => {

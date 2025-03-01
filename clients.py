@@ -56,7 +56,7 @@ class ModelRegistry:
         deepseek_model = cls.MODEL_TEMPLATES["deepseek"].copy()
         default_models["DeepSeek-R1"] = deepseek_model
         
-        # Create o1hp model
+        # Create o1 model
         o1_model = cls.MODEL_TEMPLATES["o_series"].copy()
         o1_model["name"] = config.AZURE_OPENAI_DEPLOYMENT_NAME
         default_models[config.AZURE_OPENAI_DEPLOYMENT_NAME] = o1_model

@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     )
     AZURE_INFERENCE_CREDENTIAL: str = os.getenv("AZURE_INFERENCE_CREDENTIAL")
     AZURE_INFERENCE_DEPLOYMENT: str = os.getenv(
-        "AZURE_INFERENCE_DEPLOYMENT", "DeepSeek-R1D2"
+        "AZURE_INFERENCE_DEPLOYMENT", "DeepSeek-R1"
     )
     AZURE_INFERENCE_API_VERSION: str = os.getenv(
         "AZURE_INFERENCE_API_VERSION", "2024-05-01-preview"
@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT")
     AZURE_OPENAI_API_KEY: str = os.getenv("AZURE_OPENAI_API_KEY")
     AZURE_OPENAI_DEPLOYMENT_NAME: str = os.getenv(
-        "AZURE_OPENAI_DEPLOYMENT_NAME", "o1hp"
+        "AZURE_OPENAI_DEPLOYMENT_NAME", "o1"
     )
     AZURE_OPENAI_API_VERSION: str = os.getenv(
         "AZURE_OPENAI_API_VERSION", "2025-01-01-preview"
@@ -130,7 +130,7 @@ def validate_azure_credentials():
     
     # Azure OpenAI variables
     if not os.getenv("AZURE_OPENAI_ENDPOINT"):
-        os.environ["AZURE_OPENAI_ENDPOINT"] = "https://aoai-east-2272068338224.cognitiveservices.azure.com"
+        os.environ["AZURE_OPENAI_ENDPOINT"] = "https://o1models.openai.azure.com"
         logger.warning("AZURE_OPENAI_ENDPOINT not found in environment, using default value")
     
     if not os.getenv("AZURE_OPENAI_API_KEY"):
@@ -323,7 +323,7 @@ def build_azure_openai_url(deployment_name: str = None, api_version: str = None)
 
     # Use default deployment if none provided
     if not deployment_name:
-        deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "o1hp")
+        deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "o1")
 
     base_url = endpoint.rstrip("/")
     api_url = f"{base_url}/openai/deployments/{deployment_name}/chat/completions"
@@ -376,7 +376,7 @@ def build_azure_openai_url(deployment_name: str = None, api_version: str = None)
 
     # Use default deployment if none provided
     if not deployment_name:
-        deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "o1hp")
+        deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "o1")
 
     base_url = endpoint.rstrip("/")
     api_url = f"{base_url}/openai/deployments/{deployment_name}/chat/completions"
