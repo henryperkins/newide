@@ -85,54 +85,6 @@ export async function streamChatResponse(
     
     // Calculate dynamic timeout based on model, reasoning effort, and message length
     const connectionTimeoutMs = calculateConnectionTimeout(modelName, reasoningEffort, messageContent.length);
-    console.log(`[streamChatResponse] Using connection timeout: ${connectionTimeoutMs}ms for model ${modelName}`);
-    
-    // Set up connection timeout with periodic checks
-    let connectionTimeoutId = null;
-    let connectionCheckIntervalId = null;
-    
-    const setupConnectionTimeout = () => {
-      // Clear any existing timeout
-      if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
-      
-      connectionTimeoutId = setTimeout(() => {
-        if (eventSource && (eventSource.readyState === 0 || eventSource.readyState === 1)) {
-          console.warn(`[streamChatResponse] Connection timeout after ${connectionTimeoutMs}ms`);
-          eventSource.close();
-          handleStreamingError(Object.assign(new Error('Connection timeout - the server is taking too long to respond'), {
-            name: 'TimeoutError',
-            recoverable: true,
-            modelName,
-            reasoningEffort,
-            messageLength: messageContent.length
-          }));
-        }
-        
-        // Clear the interval when timeout occurs
-        if (connectionCheckIntervalId) {
-          clearInterval(connectionCheckIntervalId);
-          connectionCheckIntervalId = null;
-        }
-      }, connectionTimeoutMs);
-    };
-    
-    // Set up periodic connection checks
-    connectionCheckIntervalId = setInterval(() => {
-      if (eventSource) {
-        if (eventSource.readyState === 0) {
-          console.log('[streamChatResponse] Connection still connecting, extending timeout');
-          // Reset the timeout to give more time
-          setupConnectionTimeout();
-        } else if (eventSource.readyState === 2) {
-          // Connection is closed, clear the interval
-          clearInterval(connectionCheckIntervalId);
-          connectionCheckIntervalId = null;
-        }
-      }
-    }, CONNECTION_CHECK_INTERVAL_MS);
-    
-    // Initial timeout setup
-    setupConnectionTimeout();
 
     if (signal) {
       signal.addEventListener('abort', () => {

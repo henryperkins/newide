@@ -1,5 +1,6 @@
 # routers/session.py
-from fastapi import APIRouter, Depends, BackgroundTasks, Request, HTTPException
+from fastapi import APIRouter, Depends, BackgroundTasks, Request, HTTPException, Response
+from fastapi.responses import JSONResponse
 from pydantic_models import SessionResponse, SessionInfoResponse, ErrorResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db_session
@@ -111,12 +112,20 @@ async def create_session(
                 azure_client
             )
         
-        return {
+        response = JSONResponse({
           "session_id": str(new_session.id),
           "created_at": new_session.created_at.isoformat(),
           "expires_in": config.SESSION_TIMEOUT_MINUTES * 60,
           "expires_at": new_session.expires_at.isoformat()
-        }
+        }, status_code=201)
+        response.set_cookie(
+          key="session_id",
+          value=str(new_session.id),
+          httponly=True,
+          secure=True,
+          samesite="None"
+        )
+        return response
     except Exception as e:
         logger.error(f"Error creating session: {str(e)}")
         if "rate limit" in str(e).lower():
@@ -141,7 +150,15 @@ async def refresh_session(
     if session:
         success = await SessionManager.extend_session(session.id, db_session)
         if success:
-            return session_to_response(session)
+            response = JSONResponse(session_to_response(session), status_code=200)
+            response.set_cookie(
+                key="session_id",
+                value=str(session.id),
+                httponly=True,
+                secure=True,
+                samesite="None"
+            )
+            return response
     
     raise HTTPException(status_code=400, detail="Failed to refresh session")
 

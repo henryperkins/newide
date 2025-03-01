@@ -1,13 +1,17 @@
-/** @type {import('tailwindcss').Config} */
+/* =========================================================================
+   Tailwind Configuration (Usually in tailwind.config.js)
+   ========================================================================= */
+
+/**
+ * @type {import('tailwindcss').Config}
+ */
 module.exports = {
   content: [
     "./static/**/*.{html,js}",
-    "./templates/**/*.{html,py}",  // If you have a templates directory
-    // More specific patterns instead of the broad "./**/*.{html,js,py}"
-    "./*.{html,py}" // For files in the root directory
+    "./templates/**/*.{html,py}",
+    "./*.{html,py}"
   ],
   safelist: [
-    // Add specific ring utilities that might be used dynamically
     'ring-primary-500/60',
     'ring-primary-400/60',
     'focus:ring-primary-500',
@@ -15,11 +19,10 @@ module.exports = {
     'focus:ring-2',
     'ring-2',
   ],
-  darkMode: 'class', // Consistent dark mode approach
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        // Define primary design system colors with proper naming
         'thinking-border': 'oklch(76% 0.12 276)',
         'thinking-bg': 'oklch(97% 0.01 276)',
         primary: {
@@ -28,28 +31,26 @@ module.exports = {
           200: 'oklch(89% 0.078 276)',
           300: 'oklch(83% 0.107 276)',
           400: 'oklch(76% 0.126 276)',
-          500: 'oklch(68% 0.140 276)', // Base primary color - Dracula Purple
+          500: 'oklch(68% 0.140 276)',
           600: 'oklch(60% 0.135 276)',
           700: 'oklch(52% 0.130 276)',
           800: 'oklch(44% 0.118 276)',
           900: 'oklch(36% 0.095 276)',
           950: 'oklch(28% 0.075 276)',
         },
-        // Secondary accent color - Dracula Pink
         secondary: {
           50: 'oklch(97% 0.029 333)',
           100: 'oklch(94% 0.048 333)',
           200: 'oklch(89% 0.078 333)',
           300: 'oklch(83% 0.107 333)',
           400: 'oklch(76% 0.126 333)',
-          500: 'oklch(68% 0.140 333)', // Base secondary color
+          500: 'oklch(68% 0.140 333)',
           600: 'oklch(60% 0.135 333)',
           700: 'oklch(52% 0.130 333)',
           800: 'oklch(44% 0.118 333)',
           900: 'oklch(36% 0.095 333)',
           950: 'oklch(28% 0.075 333)',
         },
-        // Dark colors for backgrounds - Dracula Background and Surface colors
         dark: {
           50: 'oklch(98% 0.005 276)',
           100: 'oklch(95% 0.008 276)',
@@ -59,11 +60,10 @@ module.exports = {
           500: 'oklch(54% 0.018 276)',
           600: 'oklch(42% 0.019 276)',
           700: 'oklch(32% 0.020 276)',
-          800: 'oklch(24% 0.018 276)', // Dracula Surface
-          900: 'oklch(18% 0.014 276)', // Dracula Background
+          800: 'oklch(24% 0.018 276)',
+          900: 'oklch(18% 0.014 276)',
           950: 'oklch(13% 0.010 276)',
         },
-        // Add true Dracula palette colors
         dracula: {
           background: '#282a36',
           currentLine: '#44475a',
@@ -77,25 +77,24 @@ module.exports = {
           red: '#ff5555',
           yellow: '#f1fa8c',
         },
-        // Consistent semantic colors
         success: {
           50: 'oklch(96% 0.05 145)',
           100: 'oklch(93% 0.08 145)',
-          500: 'oklch(65% 0.22 145)', // Dracula Green
+          500: 'oklch(65% 0.22 145)',
           700: 'oklch(45% 0.18 145)',
           900: 'oklch(33% 0.12 145)',
         },
         warning: {
           50: 'oklch(97% 0.05 85)',
           100: 'oklch(94% 0.08 85)',
-          500: 'oklch(75% 0.20 85)', // Dracula Yellow/Orange
+          500: 'oklch(75% 0.20 85)',
           700: 'oklch(60% 0.18 85)',
           900: 'oklch(40% 0.12 85)',
         },
         error: {
           50: 'oklch(97% 0.05 30)',
           100: 'oklch(94% 0.08 30)',
-          500: 'oklch(65% 0.25 30)', // Dracula Red
+          500: 'oklch(65% 0.25 30)',
           700: 'oklch(50% 0.22 30)',
           900: 'oklch(35% 0.15 30)',
         },
@@ -105,7 +104,6 @@ module.exports = {
         mono: ['"JetBrains Mono"', 'monospace'],
       },
       fontSize: {
-        // Ensure consistent typographic scale
         xs: ['0.75rem', { lineHeight: '1rem' }],
         sm: ['0.875rem', { lineHeight: '1.25rem' }],
         base: ['1rem', { lineHeight: '1.5rem' }],
@@ -115,7 +113,6 @@ module.exports = {
         '3xl': ['1.875rem', { lineHeight: '2.25rem' }],
       },
       spacing: {
-        // Ensure consistent spacing
         '0': '0',
         '1': '0.25rem',
         '2': '0.5rem',
@@ -162,25 +159,25 @@ module.exports = {
       },
       boxShadow: {
         sm: '0 1px 2px 0 oklch(0% 0 0 / 0.05)',
-        DEFAULT: '0 1px 3px 0 oklch(0% 0 0 / 0.1), 0 1px 2px -1px oklch(0% 0 0 / 0.1)',
+        DEFAULT:
+          '0 1px 3px 0 oklch(0% 0 0 / 0.1), 0 1px 2px -1px oklch(0% 0 0 / 0.1)',
         md: '0 4px 6px -1px oklch(0% 0 0 / 0.1), 0 2px 4px -2px oklch(0% 0 0 / 0.1)',
         lg: '0 10px 15px -3px oklch(0% 0 0 / 0.1), 0 4px 6px -4px oklch(0% 0 0 / 0.1)',
         xl: '0 20px 25px -5px oklch(0% 0 0 / 0.1), 0 8px 10px -6px oklch(0% 0 0 / 0.1)',
       },
       borderRadius: {
-        'sm': '0.125rem',
+        sm: '0.125rem',
         DEFAULT: '0.25rem',
-        'md': '0.375rem',
-        'lg': '0.5rem',
-        'xl': '0.75rem',
+        md: '0.375rem',
+        lg: '0.5rem',
+        xl: '0.75rem',
         '2xl': '1rem',
-        'full': '9999px',
+        full: '9999px',
       },
     },
   },
-  // Component extraction for consistent UI elements
   plugins: [
-    function({ addComponents }) {
+    function ({ addComponents }) {
       addComponents({
         '.btn': {
           display: 'inline-flex',
@@ -296,7 +293,8 @@ module.exports = {
         '.card': {
           backgroundColor: 'white',
           borderRadius: '0.5rem',
-          boxShadow: '0 1px 3px 0 oklch(0% 0 0 / 0.1), 0 1px 2px -1px oklch(0% 0 0 / 0.1)',
+          boxShadow:
+            '0 1px 3px 0 oklch(0% 0 0 / 0.1), 0 1px 2px -1px oklch(0% 0 0 / 0.1)',
           overflow: 'hidden',
           '.dark &': {
             backgroundColor: 'oklch(24% 0.018 276)',
@@ -305,7 +303,8 @@ module.exports = {
         '.notification': {
           backgroundColor: 'white',
           borderRadius: '0.5rem',
-          boxShadow: '0 4px 6px -1px oklch(0% 0 0 / 0.1), 0 2px 4px -2px oklch(0% 0 0 / 0.1)',
+          boxShadow:
+            '0 4px 6px -1px oklch(0% 0 0 / 0.1), 0 2px 4px -2px oklch(0% 0 0 / 0.1)',
           padding: '1rem',
           marginBottom: '0.5rem',
           display: 'flex',
@@ -402,67 +401,39 @@ module.exports = {
           border: '1px solid oklch(86% 0.01 276)',
           borderRadius: '0.375rem',
           overflow: 'hidden',
-          '.dark &': {
-            border: '1px solid oklch(42% 0.019 276)',
-          },
           position: 'relative',
-          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-          transition: 'all 0.2s ease-in-out'
+          boxShadow:
+            '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+          transition: 'all 0.2s ease-in-out',
         },
         '.thinking-header': {
           backgroundColor: 'oklch(94% 0.048 276 / 0.2)',
-          padding: '0.5rem 1rem',
-          borderTopLeftRadius: '0.375rem',
-          borderTopRightRadius: '0.375rem',
-          '.dark &': {
-            backgroundColor: 'oklch(60% 0.135 276 / 0.2)',
-          },
           padding: '0.5rem 0.75rem',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between'
+          justifyContent: 'space-between',
         },
         '.thinking-toggle': {
           fontWeight: '500',
           color: 'oklch(60% 0.135 276)',
           display: 'flex',
-          alignItems: 'center',
-          width: '100%',
-          textAlign: 'left',
-          cursor: 'pointer',
-          '.dark &': {
-            color: 'oklch(76% 0.126 276)',
-          },
-          display: 'flex',
           justifyContent: 'space-between',
           userSelect: 'none',
-          transition: 'color 0.2s ease-in-out'
+          transition: 'color 0.2s ease-in-out',
         },
         '.thinking-content': {
           backgroundColor: 'oklch(97% 0.029 276 / 0.2)',
           padding: '1rem',
           overflowX: 'auto',
-          borderBottomLeftRadius: '0.375rem',
-          borderBottomRightRadius: '0.375rem',
-          '.dark &': {
-            backgroundColor: 'oklch(52% 0.13 276 / 0.1)',
-          },
-          position: 'relative',
-          transition: 'all 0.3s ease-in-out'
         },
         '.thinking-pre': {
           margin: '0',
           whiteSpace: 'pre-wrap',
           fontFamily: '"JetBrains Mono", monospace',
           fontSize: '0.875rem',
-          color: 'oklch(42% 0.019 276)',
-          '.dark &': {
-            color: 'oklch(86% 0.01 276)',
-          },
-          fontFamily: 'monospace',
           overflowY: 'auto',
           maxHeight: '300px',
-          padding: '0.75rem 1rem'
+          padding: '0.75rem 1rem',
         },
         '.thinking-gradient': {
           position: 'absolute',
@@ -471,12 +442,11 @@ module.exports = {
           right: '0',
           height: '2.5rem',
           background: 'linear-gradient(to top, var(--tw-gradient-stops))',
-          pointerEvents: 'none'
+          pointerEvents: 'none',
         },
       });
     },
-    // Add new plugin for ring opacity support
-    function({ addUtilities, theme }) {
+    function ({ addUtilities, theme }) {
       const colors = theme('colors');
       const opacities = theme('opacity', {
         '0': '0',
@@ -495,24 +465,20 @@ module.exports = {
         '95': '0.95',
         '100': '1',
       });
-      
-      // Generate custom ring utilities with opacity modifiers for OKLCH colors
+
+      // Generate custom ring utilities with opacity variants for OKLCH colors
       const ringOpacityUtilities = {};
-      
-      // Loop through colors and create ring utilities with opacity variants
       Object.entries(colors).forEach(([colorName, colorValues]) => {
         if (typeof colorValues === 'object') {
           Object.entries(colorValues).forEach(([shade, value]) => {
-            // Only process OKLCH colors
             if (typeof value === 'string' && value.includes('oklch')) {
               Object.entries(opacities).forEach(([opKey, opValue]) => {
-                // Create the utility with opacity modifier
                 ringOpacityUtilities[`.ring-${colorName}-${shade}\\/${opKey}`] = {
                   '--tw-ring-color': `${value.replace(')', '')} / ${opValue})`,
                 };
-                
-                // Also add focus variants
-                ringOpacityUtilities[`.focus\\:ring-${colorName}-${shade}\\/${opKey}:focus`] = {
+                ringOpacityUtilities[
+                  `.focus\\:ring-${colorName}-${shade}\\/${opKey}:focus`
+                ] = {
                   '--tw-ring-color': `${value.replace(')', '')} / ${opValue})`,
                 };
               });
@@ -520,7 +486,7 @@ module.exports = {
           });
         }
       });
-      
+
       addUtilities(ringOpacityUtilities);
     },
   ],

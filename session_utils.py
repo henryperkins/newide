@@ -108,13 +108,15 @@ class SessionManager:
                 )
             return None
                 
-        if session.expires_at and session.expires_at < datetime.utcnow():
-            if require_valid:
-                raise HTTPException(
-                    status_code=401, 
-                    detail="Session expired"
-                )
-            return None
+        if session.expires_at:
+            expires_at_naive = session.expires_at.replace(tzinfo=None)
+            if expires_at_naive < datetime.utcnow():
+                if require_valid:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Session expired"
+                    )
+                return None
             
         # Check rate limits
         try:
