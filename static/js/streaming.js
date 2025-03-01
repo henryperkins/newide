@@ -73,7 +73,7 @@ export async function streamChatResponse(
   let connectionTimeoutId = null;
   let connectionCheckIntervalId = null;
   
-  try {
+  return new Promise((resolve, reject) => {
     if (!sessionId) {
       throw new Error('Invalid sessionId: Session ID is required for streaming');
     }
@@ -264,8 +264,16 @@ export async function streamChatResponse(
         console.error('[streamChatResponse] Error handling completion:', err);
       } finally {
         await cleanupStreaming(validModelName);
+        resolve(true);
       }
     });
+
+    eventSource.onerror = (e) => {
+      if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
+      if (connectionCheckIntervalId) clearInterval(connectionCheckIntervalId);
+      handleStreamingError(new Error('Connection error during streaming'));
+      reject(e);
+    };
 
     return new Promise((resolve, reject) => {
       eventSource.addEventListener('complete', async (e) => {
