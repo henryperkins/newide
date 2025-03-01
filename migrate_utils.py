@@ -112,10 +112,10 @@ For more information, see the migrations documentation.
         init_path = migrations_dir / '__init__.py'
         init_path.touch()
 
-def check_database() -> bool:
+async def check_database() -> bool:
     """
     Check if the database is consistent with the ORM models.
-    This is a synchronous wrapper around the async check_database_consistency function.
+    This is now an async function that calls the async check_database_consistency function.
     
     Returns:
         Boolean indicating if database is consistent
@@ -127,28 +127,12 @@ def check_database() -> bool:
         logger.error(f"Error ensuring migrations directory exists: {e}")
     
     try:
-        # Check if we need migrations by comparing the DB with ORM models
-        async def _check():
-            try:
-                is_consistent, inconsistencies = await check_database_consistency()
-                if not is_consistent:
-                    logger.warning("Database schema is inconsistent with ORM models:")
-                    for inconsistency in inconsistencies:
-                        logger.warning(f"  - {inconsistency}")
-                return is_consistent
-            except Exception as e:
-                logger.error(f"Error checking database consistency: {e}")
-                return False
-                
-        # Run the async function
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(_check())
-        finally:
-            loop.close()
-        
-        return result
+        is_consistent, inconsistencies = await check_database_consistency()
+        if not is_consistent:
+            logger.warning("Database schema is inconsistent with ORM models:")
+            for inconsistency in inconsistencies:
+                logger.warning(f"  - {inconsistency}")
+        return is_consistent
     except Exception as e:
         logger.error(f"Error checking database: {e}")
         return False
