@@ -1,4 +1,3 @@
-
 import { showNotification, showConfirmDialog } from './ui/notificationManager.js';
 import { fetchWithErrorHandling, createCache, eventBus } from './utils/helpers.js';
 import { getModelAPIConfig, updateConfig } from './config.js';
@@ -58,7 +57,7 @@ class ModelManager {
             if (currentModel) {
                 this.currentModel = currentModel;
                 await this.updateModelSpecificUI(currentModel);
-                eventBus.publish('modelInitialized', {currentModel, models: Object.keys(this.modelConfigs)});
+                eventBus.publish('modelInitialized', { currentModel, models: Object.keys(this.modelConfigs) });
             }
             return true;
         } catch (error) {
@@ -446,7 +445,7 @@ class ModelManager {
 
     async switchModel(modelId) {
         if (this.currentModel === modelId) return true;
-    console.log('[switchModel] Initiating switchModel for:', modelId, 'currentModel:', this.currentModel);
+        console.log('[switchModel] Initiating switchModel for:', modelId, 'currentModel:', this.currentModel);
         if (!this.modelConfigs[modelId]) {
             console.error(`Model ${modelId} not found in configurations`);
             showNotification(`Model ${modelId} not available`, 'error');
@@ -456,7 +455,7 @@ class ModelManager {
             showNotification(`Switching to ${modelId}...`, 'info');
             this.pendingModelActions[modelId] = 'switch';
             const sessionId = await this.getSessionId();
-  console.log('[switchModel] sessionId is:', sessionId);
+            console.log('[switchModel] sessionId is:', sessionId);
             
             // Get full model configuration
             const modelConfig = this.modelConfigs[modelId];
@@ -477,14 +476,10 @@ class ModelManager {
             
             const response = await fetch(`${window.location.origin}/api/config/models/switch`, {
                 method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
-console.log('[switchModel] Request body used:', requestBody);
-console.log('[switchModel] Will attempt to switch model.');
-      console.log('[switchModel] Request body used:', requestBody);
-      console.log('[switchModel] Will attempt to switch model.'),
-        });
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+            console.log('[switchModel] Request body used:', requestBody);
             
             delete this.pendingModelActions[modelId];
             
@@ -654,7 +649,7 @@ console.log('[switchModel] Will attempt to switch model.');
 
     async createModelOnServer(modelId, modelConfig) {
         if (this.pendingModelActions[modelId]) {
-        console.log('[createModelOnServer] Already pending creation for:', modelId, 'pendingAction:', this.pendingModelActions[modelId]);
+            console.log('[createModelOnServer] Already pending creation for:', modelId, 'pendingAction:', this.pendingModelActions[modelId]);
             console.warn(`Creation of ${modelId} already in progress`);
             return { status: "pending" };
         }

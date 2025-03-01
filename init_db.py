@@ -138,20 +138,37 @@ async def init_database():
         import json
         import os
         
-        # Create a model_configs entry with o1hp as a key
+        # Create model_configs entries for o1hp and DeepSeek-R1
         model_configs = {
             "o1hp": {
                 "name": "o1hp",
                 "description": "Azure OpenAI o1 high performance model",
-                "max_tokens": 40000, 
-                "supports_streaming": False, 
-                "supports_temperature": False, 
-                "base_timeout": 120.0, 
+                "max_tokens": 40000,
+                "supports_streaming": False,
+                "supports_temperature": False,
+                "base_timeout": 120.0,
                 "max_timeout": 300.0,
                 "token_factor": 0.05,
                 "api_version": os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
                 "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT", ""),
-                "api_key": ""  # Never store API keys in database
+                "api_key": "",  # Never store API keys in database
+                "model_type": "o-series",
+                "requires_reasoning_effort": True
+            },
+            "DeepSeek-R1": {
+                "name": "DeepSeek-R1",  # This is the model name passed to the API
+                "description": "DeepSeek-R1 model that supports chain-of-thought reasoning",
+                "max_tokens": 32000,
+                "supports_streaming": True,
+                "supports_temperature": True,
+                "base_timeout": 120.0,
+                "max_timeout": 300.0,
+                "token_factor": 0.05,
+                "api_version": os.getenv("AZURE_INFERENCE_API_VERSION", "2024-05-01-preview"),
+                "azure_endpoint": os.getenv("AZURE_INFERENCE_ENDPOINT", ""),  # This contains the deployment name in URL
+                "api_key": "",  # Never store API keys in database
+                "model_type": "deepseek",
+                "enable_thinking": True
             }
         }
         

@@ -18,20 +18,43 @@ export function handleApplicationError(error, context = 'application') {
 export async function handleMessageError(error) {
   console.error('[handleMessageError]', error);
   removeTypingIndicator();
-  const errorData = await extractErrorData(error);
-  if (errorData.type === 'rate_limit') {
-    handleRateLimitError(errorData);
-    return;
+  
+  let errorData;
+  try {
+    errorData = await extractErrorData(error);
+    
+    // Log more details about server errors
+    if (errorData.type === 'server' || error.message?.includes('500')) {
+      console.error('[handleMessageError] Server error details:', {
+        message: error.message,
+        status: errorData.status,
+        errorType: errorData.type,
+        errorDetails: errorData.message
+      });
+    }
+    
+    if (errorData.type === 'rate_limit') {
+      handleRateLimitError(errorData);
+      return;
+    }
+    if (errorData.type === 'timeout') {
+      handleTimeoutError(errorData);
+      return;
+    }
+    if (errorData.type === 'auth') {
+      handleAuthError(errorData);
+      return;
+    }
+    if (errorData.type === 'server') {
+      // Use dedicated server error handler
+      handleServerError(errorData);
+      return;
+    }
+    showNotification(errorData.message || 'An unexpected error occurred', 'error', 8000);
+  } catch (parseError) {
+    console.error('[handleMessageError] Error parsing error data:', parseError);
+    showNotification('An unexpected error occurred while processing the request', 'error', 8000);
   }
-  if (errorData.type === 'timeout') {
-    handleTimeoutError(errorData);
-    return;
-  }
-  if (errorData.type === 'auth') {
-    handleAuthError(errorData);
-    return;
-  }
-  showNotification(errorData.message || 'An unexpected error occurred', 'error', 8000);
 }
 
 export function showNotification(message, type = 'info', duration = 5000, actions = []) {
@@ -343,35 +366,92 @@ function classifyError(error) {
 async function extractErrorData(error) {
   let data = { type: 'unknown', message: 'An unexpected error occurred', status: null, retryAfter: null };
   try {
-    if (error.status && error.json) {
+    console.log('[extractErrorData] Processing error:', error);
+    
+    // Handle Response-like objects with status code
+    if (error.status && (error.json || error.text)) {
       data.status = error.status;
-      const retryAfter = error.headers.get('retry-after');
+      const retryAfter = error.headers?.get ? error.headers.get('retry-after') : null;
       if (retryAfter) data.retryAfter = parseInt(retryAfter, 10);
+      
       try {
-        const json = await error.json();
-        if (json.error) data.message = json.error.message || json.error;
-        else if (json.message) data.message = json.message;
-      } catch {
-        const text = await error.text();
-        data.message = text.slice(0, 200);
+        // Try to get JSON content first
+        if (typeof error.json === 'function') {
+          const json = await error.json();
+          console.log('[extractErrorData] Parsed JSON error:', json);
+          
+          if (json.error) {
+            if (typeof json.error === 'string') {
+              data.message = json.error;
+            } else if (typeof json.error === 'object') {
+              data.message = json.error.message || json.error.toString();
+              // Extract additional details if present
+              if (json.error.code) data.code = json.error.code;
+              if (json.error.details) data.details = json.error.details;
+            }
+          } else if (json.message) {
+            data.message = json.message;
+          }
+        }
+      } catch (jsonError) {
+        console.warn('[extractErrorData] Failed to parse JSON:', jsonError);
+        // If JSON parsing fails, try to get text content
+        try {
+          if (typeof error.text === 'function') {
+            const text = await error.text();
+            data.message = text.slice(0, 200);
+            console.log('[extractErrorData] Parsed text error:', data.message);
+          }
+        } catch (textError) {
+          console.warn('[extractErrorData] Failed to extract error text:', textError);
+        }
       }
+      
+      // Set appropriate error type based on status code
       if (error.status === 429) data.type = 'rate_limit';
       else if (error.status === 401 || error.status === 403) data.type = 'auth';
       else if (error.status === 404) data.type = 'not_found';
       else if (error.status >= 500) data.type = 'server';
-    } else if (error instanceof DOMException) {
+    }
+    // Handle regular Error objects including API errors in the message
+    else if (error instanceof Error) {
+      data.message = error.message;
+      
+      // Extract status code from API error messages like "API error: 500"
+      const statusMatch = error.message.match(/API error: (\d+)/);
+      if (statusMatch && statusMatch[1]) {
+        const status = parseInt(statusMatch[1], 10);
+        data.status = status;
+        
+        if (status === 429) data.type = 'rate_limit';
+        else if (status === 401 || status === 403) data.type = 'auth';
+        else if (status === 404) data.type = 'not_found';
+        else if (status >= 500) {
+          data.type = 'server';
+          console.log('[extractErrorData] Identified server error from message');
+        }
+      }
+      // Classify based on error message content if no status code found
+      else if (error.message.includes('timeout')) data.type = 'timeout';
+      else if (error.message.includes('rate limit') || error.message.includes('429')) data.type = 'rate_limit';
+      else if (error.message.includes('500') || error.message.includes('server error')) {
+        data.type = 'server';
+        console.log('[extractErrorData] Identified server error from text content');
+      }
+    }
+    // Handle DOM exceptions like AbortError
+    else if (error instanceof DOMException) {
       if (error.name === 'AbortError') {
         data.type = 'timeout';
         data.message = 'Request aborted or timed out.';
       }
-    } else if (error instanceof Error) {
-      data.message = error.message;
-      if (error.message.includes('timeout')) data.type = 'timeout';
-      else if (error.message.includes('rate limit') || error.message.includes('429')) data.type = 'rate_limit';
     }
+    
+    console.log('[extractErrorData] Final processed error data:', data);
   } catch (e) {
-    console.error('Error parsing error data:', e);
+    console.error('[extractErrorData] Error while processing error:', e);
   }
+  
   return data;
 }
 
@@ -424,6 +504,49 @@ function handleTimeoutError(errorData) {
     }
   ];
   showNotification(errorData.message || 'Request timed out.', 'warning', 0, actions);
+}
+
+function handleServerError(errorData) {
+  // Get the current model name if available
+  const modelSelect = document.getElementById('model-select');
+  const currentModel = modelSelect?.value || 'unknown';
+  
+  const actions = [
+    {
+      label: 'Try Different Model',
+      variant: 'btn-secondary',
+      onClick: e => {
+        // If we have a model select and there are other options
+        if (modelSelect && modelSelect.options.length > 1) {
+          // Select a different model
+          let currentIndex = modelSelect.selectedIndex;
+          let newIndex = (currentIndex + 1) % modelSelect.options.length;
+          modelSelect.selectedIndex = newIndex;
+          modelSelect.dispatchEvent(new Event('change'));
+          
+          // Show notification about model change
+          const newModel = modelSelect.options[newIndex].value;
+          showNotification(`Switched to ${newModel} model`, 'info', 3000);
+        }
+        e.target.closest('.notification')?.remove();
+      }
+    },
+    {
+      label: 'Try Again',
+      variant: 'btn-primary',
+      onClick: e => {
+        window.sendMessage?.();
+        e.target.closest('.notification')?.remove();
+      }
+    }
+  ];
+  
+  // Provide a more helpful message for server errors
+  const message = errorData.message && !errorData.message.includes("API error")
+    ? errorData.message
+    : `Server error occurred with model: ${currentModel}. This might be due to temporary issues with the model service. Please try again or switch to a different model.`;
+  
+  showNotification(message, 'error', 0, actions);
 }
 
 function handleAuthError(errorData) {

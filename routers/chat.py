@@ -279,6 +279,8 @@ async def create_chat_completion(
                 params["temperature"] = DEEPSEEK_R1_DEFAULT_TEMPERATURE
                 params["max_tokens"] = DEEPSEEK_R1_DEFAULT_MAX_TOKENS
                 params["enable_thinking"] = True
+                # Make sure these parameters are explicitly passed to the client
+                logger.info(f"Using DeepSeek-R1 specific parameters: enable_thinking=True, temperature={DEEPSEEK_R1_DEFAULT_TEMPERATURE}")
             else:
                 raise ValueError(
                     "Unsupported model for inference client: " + request.model
@@ -296,6 +298,7 @@ async def create_chat_completion(
                 temperature=params.get("temperature"),
                 max_tokens=params.get("max_tokens"),
                 stream=False,
+                enable_thinking=params.get("enable_thinking", True)  # Explicitly pass enable_thinking parameter
             )
 
             # Convert to standard format
@@ -337,13 +340,26 @@ async def create_chat_completion(
                 )
             else:
                 # O-series or standard Azure OpenAI model can use reasoning_effort, and uses max_completion_tokens instead of max_tokens
-                response = client.chat.completions.create(
-                    model=request.model,
-                    messages=params["messages"],
-                    reasoning_effort=params.get("reasoning_effort", "medium"),
-                    max_completion_tokens=params.get("max_tokens"),
-                    stream=False,
-                )
+                # For O-series models, we explicitly avoid using temperature and other unsupported parameters
+                if config.is_o_series_model(request.model):
+                    logger.info(f"Using O-series specific parameters for model {request.model}")
+                    response = client.chat.completions.create(
+                        model=request.model,
+                        messages=params["messages"],
+                        reasoning_effort=params.get("reasoning_effort", "medium"),
+                        max_completion_tokens=params.get("max_tokens", 5000),  # Default to 5000 if not provided
+                        stream=False,
+                    )
+                else:
+                    # Standard OpenAI model
+                    response = client.chat.completions.create(
+                        model=request.model,
+                        messages=params["messages"],
+                        reasoning_effort=params.get("reasoning_effort", "medium"),
+                        max_completion_tokens=params.get("max_tokens"),
+                        temperature=params.get("temperature"),
+                        stream=False,
+                    )
             response_data = response.model_dump()
 
         # Store the content in the database
@@ -487,6 +503,11 @@ async def generate_stream_chunks(
                         # Check if the delta attribute exists and has content
                         if hasattr(first_choice, 'delta') and hasattr(first_choice.delta, "content") and first_choice.delta.content:
                             content = first_choice.delta.content
+                            full_content += content
+                            yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
+                        elif hasattr(first_choice, 'message') and hasattr(first_choice.message, "content") and first_choice.message.content:
+                            # Handle case where response directly contains message content instead of delta
+                            content = first_choice.message.content
                             full_content += content
                             yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
                 except Exception as chunk_error:

@@ -5,19 +5,24 @@ from typing import Optional, Dict, Any, Union
 from datetime import datetime, timedelta
 from fastapi import Request, Cookie, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, text
+from sqlalchemy import select, update, text, func
 
 from database import get_db_session
 from models import Session
 import config
 from logging_config import logger
 
+# Make sure logger is properly initialized
+import logging
+if not logger:
+    logger = logging.getLogger(__name__)
+
 class SessionManager:
     """Centralized session management logic"""
     
     @staticmethod
     async def get_session_from_request(
-        request: Request, 
+        request: Request,
         db_session: AsyncSession,
         require_valid: bool = False
     ) -> Optional[Session]:
@@ -131,40 +136,62 @@ class SessionManager:
     @staticmethod
     async def create_session(db_session: AsyncSession) -> Session:
         """Create a new session"""
-        # Check for rate limiting at IP level
-        # Get count of sessions created in the last minute
-        one_minute_ago = datetime.utcnow() - timedelta(minutes=1)
-        stmt = select(func.count()).select_from(Session).where(Session.created_at >= one_minute_ago)
-        result = await db_session.execute(stmt)
-        recent_sessions_count = result.scalar_one()
-        
-        # Rate limit: max 20 sessions per minute globally
-        if recent_sessions_count >= 20:
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "error": "rate_limit_exceeded",
-                    "message": "Too many sessions created. Please try again later.",
-                },
-                headers={"Retry-After": "60"}
+        try:
+            # Log the beginning of the operation
+            logger.info("Starting session creation")
+            
+            # Check for rate limiting at IP level
+            # Get count of sessions created in the last minute
+            one_minute_ago = datetime.utcnow() - timedelta(minutes=1)
+            stmt = select(func.count()).select_from(Session).where(Session.created_at >= one_minute_ago)
+            result = await db_session.execute(stmt)
+            recent_sessions_count = result.scalar_one()
+            
+            logger.info(f"Recent session count: {recent_sessions_count}")
+            
+            # Rate limit: max 20 sessions per minute globally
+            if recent_sessions_count >= 20:
+                logger.warning("Rate limit exceeded for session creation")
+                raise HTTPException(
+                    status_code=429,
+                    detail={
+                        "error": "rate_limit_exceeded",
+                        "message": "Too many sessions created. Please try again later.",
+                    },
+                    headers={"Retry-After": "60"}
+                )
+            
+            # Log session timeout value
+            session_timeout = getattr(config, "SESSION_TIMEOUT_MINUTES", 30)  # Default to 30 if not found
+            logger.info(f"Using SESSION_TIMEOUT_MINUTES: {session_timeout}")
+            
+            session_id = uuid.uuid4()
+            logger.info(f"Created new session ID: {session_id}")
+            
+            # Create session with expiration time
+            expires_at = datetime.utcnow() + timedelta(minutes=session_timeout)
+            logger.info(f"Setting expires_at to: {expires_at}")
+            
+            new_session = Session(
+                id=session_id,
+                created_at=datetime.utcnow(),
+                last_activity=datetime.utcnow(),
+                expires_at=expires_at,
+                request_count=0
             )
             
-        session_id = uuid.uuid4()
-        
-        # Create session with expiration time
-        expires_at = datetime.utcnow() + timedelta(minutes=config.SESSION_TIMEOUT_MINUTES)
-        new_session = Session(
-            id=session_id,
-            created_at=datetime.utcnow(),
-            last_activity=datetime.utcnow(),
-            expires_at=expires_at,
-            request_count=0
-        )
-        
-        db_session.add(new_session)
-        await db_session.commit()
-        
-        return new_session
+            logger.info(f"Created new session object: {session_id}")
+            logger.info(f"Session fields: created_at={new_session.created_at}, expires_at={new_session.expires_at}")
+            
+            db_session.add(new_session)
+            await db_session.commit()
+            logger.info(f"Session {session_id} committed to database successfully")
+            
+            return new_session
+        except Exception as e:
+            logger.error(f"Error in create_session: {str(e)}")
+            logger.exception("Full exception details:")
+            raise
     
     @staticmethod
     async def extend_session(
@@ -215,4 +242,3 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Error updating session model for {session_id}: {str(e)}")
             return False
-

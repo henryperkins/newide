@@ -239,12 +239,20 @@ export async function sendMessage() {
     if (!currentSessionId) {
       showNotification('Could not retrieve a valid session ID. Please refresh.', 'error');
       return;
-  console.log('[sendMessage] Sending messageContent:', messageContent, 'sessionId:', currentSessionId);
     }
     renderUserMessage(messageContent);
     const modelSelect = document.getElementById('model-select');
-    let modelName = 'DeepSeek-R1';
+    let modelName = 'DeepSeek-R1';  // This is the model name, not the deployment name which is in the URL
     if (modelSelect) modelName = modelSelect.value;
+    
+    // Adjust developer config based on model
+    let devConfigToUse = developerConfig;
+    if (modelName.toLowerCase().startsWith('o1')) {
+      // For o1 models, add the formatting prefix
+      devConfigToUse = "Formatting re-enabled - use markdown code blocks\n" + developerConfig;
+      console.log('[sendMessage] Using o1 model with modified developer config:', devConfigToUse);
+    }
+    
     const modelConfig = await getModelConfig(modelName);
     isStreamingSupported = modelConfig?.supports_streaming || false;
     const useStreaming = streamingEnabled && isStreamingSupported;
@@ -263,7 +271,7 @@ export async function sendMessage() {
             messageContent,
             currentSessionId,
             modelName,
-            developerConfig,
+            devConfigToUse, // Use the modified version
             reasoningEffort,
             controller.signal
           );
@@ -273,7 +281,7 @@ export async function sendMessage() {
           messageContent,
           currentSessionId,
           modelName,
-          developerConfig,
+          devConfigToUse, // Use the modified version
           reasoningEffort,
           controller.signal
         );
@@ -343,21 +351,81 @@ async function fetchChatResponse(
     try {
       const apiUrl = `${window.location.origin}/api/chat`;
       const messages = [];
-      if (devConfig) messages.push({ role: 'system', content: devConfig });
+      
+      // Use the appropriate role based on model type
+      if (devConfig) {
+        if (modelName.toLowerCase().startsWith('o1')) {
+          // For o1 models, use 'developer' role instead of 'system'
+          messages.push({ role: 'developer', content: devConfig });
+        } else {
+          messages.push({ role: 'system', content: devConfig });
+        }
+      }
+      
       messages.push({ role: 'user', content: messageContent });
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          model: modelName,
-          messages,
-          reasoning_effort: effort,
-          temperature: 0.7,
-          max_completion_tokens: 5000
-        }),
-        signal
-      });
+      
+      // Adjust parameters based on model type
+      const payload = {
+        session_id: sessionId,
+        model: modelName,
+        messages,
+        reasoning_effort: effort,
+        max_completion_tokens: 5000
+      };
+      
+      // Only add temperature for non-o1 models
+      if (!modelName.toLowerCase().startsWith('o1')) {
+        payload.temperature = 0.7;
+      }
+      
+      console.log('[fetchChatResponse] Sending payload:', payload);
+      
+      // Add a retry mechanism for handling API errors
+      let retries = 0;
+      const maxApiRetries = 2;
+      let response;
+      
+      while (retries <= maxApiRetries) {
+        try {
+          response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal
+          });
+          
+          if (response.ok) break; // Success, exit retry loop
+          
+          // For 500 errors, we'll retry
+          if (response.status === 500) {
+            // For 500 errors, try to get more detailed error information
+            try {
+              const errorText = await response.text();
+              console.error(`API returned 500 error: ${errorText.substring(0, 200)}`);
+              // Show notification if all retries are used up
+              if (retries === maxApiRetries) {
+                showNotification(`Server error: ${errorText.substring(0, 100)}...`, 'error', 8000);
+              }
+            } catch (e) {
+              console.error(`API returned 500 error, couldn't get details: ${e}`);
+            }
+            retries++;
+            await new Promise(r => setTimeout(r, 2000 * retries));
+            continue;
+          }
+          
+          break; // For other status codes, don't retry
+        } catch (err) {
+          // Network errors, retry
+          if (err.name === 'TypeError' && err.message.includes('network') && retries < maxApiRetries) {
+            console.warn(`Network error, retrying (${retries+1}/${maxApiRetries})...`);
+            retries++;
+            await new Promise(r => setTimeout(r, 2000 * retries));
+            continue;
+          }
+          throw err; // Re-throw if not a network error or max retries reached
+        }
+      }
       if (!response.ok) {
         if (response.status === 429) {
           const retryAfter = response.headers.get('retry-after');
@@ -535,7 +603,7 @@ async function getModelConfig(modelName) {
     console.warn(`Could not fetch model config for ${modelName}, status: ${response.status}`);
     if (response.status === 400) console.error(`Bad request: check model name and API.`);
     else if (response.status === 404) console.error(`Model ${modelName} not found in config.`);
-    if (modelName.toLowerCase() === 'deepseek-r1')
+    if (modelName.toLowerCase() === 'deepseek-r1' || modelName.toLowerCase() === 'deepseek-r1d2')
       return { name: 'DeepSeek-R1', supports_streaming: true, supports_temperature: true, api_version: '2024-05-01-preview' };
     if (modelName.toLowerCase().startsWith('o1'))
       return { name: modelName, supports_streaming: false, supports_temperature: false, api_version: '2025-01-01-preview' };

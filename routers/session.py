@@ -112,9 +112,10 @@ async def create_session(
             )
         
         return {
-            "session_id": str(new_session.id),
-            "created_at": new_session.created_at.isoformat(),
-            "expires_in": config.SESSION_TIMEOUT_MINUTES * 60
+          "session_id": str(new_session.id),
+          "created_at": new_session.created_at.isoformat(),
+          "expires_in": config.SESSION_TIMEOUT_MINUTES * 60,
+          "expires_at": new_session.expires_at.isoformat()
         }
     except Exception as e:
         logger.error(f"Error creating session: {str(e)}")
