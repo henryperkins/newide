@@ -51,6 +51,7 @@ class Settings(BaseSettings):
         "AZURE_INFERENCE_ENDPOINT", "https://DeepSeek-R1D2.eastus2.models.ai.azure.com"
     )
     AZURE_INFERENCE_CREDENTIAL: str = os.getenv("AZURE_INFERENCE_CREDENTIAL")
+    KEY_VAULT_URI: Optional[str] = os.getenv("AZURE_KEY_VAULT_URI")
     AZURE_INFERENCE_DEPLOYMENT: str = os.getenv(
         "AZURE_INFERENCE_DEPLOYMENT", "DeepSeek-R1"
     )
@@ -126,25 +127,16 @@ class Settings(BaseSettings):
 
 def validate_azure_credentials():
     """Validate required Azure environment variables"""
-    # Ensure all required environment variables are set with defaults if missing
+    required_env_vars = {
+        "AZURE_OPENAI_ENDPOINT": "Azure OpenAI endpoint",
+        "AZURE_OPENAI_API_KEY": "Azure OpenAI API key",
+        "AZURE_INFERENCE_ENDPOINT": "Azure Inference endpoint",
+        "AZURE_INFERENCE_CREDENTIAL": "Azure Inference credential"
+    }
     
-    # Azure OpenAI variables
-    if not os.getenv("AZURE_OPENAI_ENDPOINT"):
-        os.environ["AZURE_OPENAI_ENDPOINT"] = "https://o1models.openai.azure.com"
-        logger.warning("AZURE_OPENAI_ENDPOINT not found in environment, using default value")
-    
-    if not os.getenv("AZURE_OPENAI_API_KEY"):
-        os.environ["AZURE_OPENAI_API_KEY"] = "7mJkkoQMQj90ysPR2V4Agqp7t3vy0rmOvauzpHG7KmleCbe0dipTJQQJ99BAACHYHv6XJ3w3AAAAACOGTspt"
-        logger.warning("AZURE_OPENAI_API_KEY not found in environment, using default value")
-    
-    # DeepSeek-R1 variables
-    if not os.getenv("AZURE_INFERENCE_ENDPOINT"):
-        os.environ["AZURE_INFERENCE_ENDPOINT"] = "https://DeepSeek-R1D2.eastus2.models.ai.azure.com"
-        logger.warning("AZURE_INFERENCE_ENDPOINT not found in environment, using default value")
-    
-    if not os.getenv("AZURE_INFERENCE_CREDENTIAL"):
-        os.environ["AZURE_INFERENCE_CREDENTIAL"] = "M6Dbj2dcZ1Eb2If33ecVZ5jXK3yvVlOx"
-        logger.warning("AZURE_INFERENCE_CREDENTIAL not found in environment, using default value")
+    missing = [name for name, desc in required_env_vars.items() if not os.getenv(name)]
+    if missing:
+        raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
 
 
 # Move the function definition BEFORE the calls at line 127-128
@@ -349,11 +341,13 @@ def get_azure_credential(model_name: str = None) -> Union[str, AzureKeyCredentia
     if is_deepseek_model(model_name):
         credential = os.getenv("AZURE_INFERENCE_CREDENTIAL")
         if not credential:
-            logger.warning(f"AZURE_INFERENCE_CREDENTIAL not set for {model_name}")
-            return AzureKeyCredential("")
+            raise ValueError(f"AZURE_INFERENCE_CREDENTIAL required for DeepSeek models")
         return AzureKeyCredential(credential)
     else:
-        return os.getenv("AZURE_OPENAI_API_KEY", "")
+        api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("AZURE_OPENAI_API_KEY environment variable required")
+        return api_key
 
 
 def build_azure_openai_url(deployment_name: str = None, api_version: str = None) -> str:
