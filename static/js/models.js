@@ -430,6 +430,7 @@ class ModelManager {
     async switchModel(modelId) {
         if (this.currentModel === modelId) return true;
         console.log('[switchModel] Initiating switchModel for:', modelId, 'currentModel:', this.currentModel);
+        console.warn('[switchModel] Additional debug message');
         
         if (!this.modelConfigs[modelId]) {
           console.error(`Model ${modelId} not found in configurations`);
