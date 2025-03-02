@@ -8,17 +8,20 @@ export default class StatsDisplay {
         return;
       }
   
-      this.stats = {
-        latency: 0,
-        tokensPerSecond: 0,
-        activeConnections: 0,
-        totalTokens: 0,
-        chunkCount: 0,
-        partialTokens: 0,
-        promptTokens: 0,       // Add
-        completionTokens: 0,   // Add
-        reasoningTokens: 0     // Add
+      const usage = {
+        promptTokens: computedPrompt,
+        completionTokens: computedCompletion,
+        reasoningTokens: computedReasoning
       };
+      usage.totalTokens = usage.promptTokens + usage.completionTokens + usage.reasoningTokens;
+
+      // Update stats display
+      if (window.statsDisplay) {
+        window.statsDisplay.updateStats(usage);
+      }
+
+      // Also update the mobile token usage if needed
+      syncMobileStats(usage);
       
       // Add throttling variables
       this.lastUpdateTime = 0;
