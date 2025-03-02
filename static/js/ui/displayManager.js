@@ -703,3 +703,13 @@ export {
   clearConversation,
   saveConversation
 };
+function limitChatHistory(chatHistory, maxCount) {
+  const msgs = chatHistory.querySelectorAll('.message:not(.system-message)');
+  if (msgs.length <= maxCount) return;
+
+  const removeCount = msgs.length - maxCount;
+  for (let i = 0; i < removeCount; i++) {
+    msgs[i].remove();
+  }
+  hasMoreMessages = true;
+}

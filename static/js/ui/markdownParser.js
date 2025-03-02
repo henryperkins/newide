@@ -18,27 +18,25 @@ export function renderMarkdown(content) {
  * @param {string} content - The HTML content to sanitize
  * @returns {string} Sanitized HTML
  */
+const SANITIZE_OPTIONS = {
+  ALLOWED_TAGS: [
+    'p', 'br', 'b', 'i', 'em', 'strong', 'a', 'ul', 'ol', 'li',
+    'code', 'pre', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'hr', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    'sup', 'sub', 'div', 'span', 'think', '/think'
+  ],
+  ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'target', 'rel',
+                 'aria-expanded', 'aria-controls', 'data-think-id'],
+  ALLOW_DATA_ATTR: false,
+  ADD_ATTR: [['target', '_blank'], ['rel', 'noopener noreferrer']],
+  FORBID_TAGS: ['style', 'script'],
+  FORBID_ATTR: ['onerror', 'onload', 'onclick'],
+  FORCE_ALLOWED_ATTR: ['class', 'style']
+};
+
 export function sanitizeHTML(content) {
-    if (!content) return '';
-    
-    if (DOMPurify) {
-        return DOMPurify.sanitize(content, {
-            ALLOWED_TAGS: [
-                'p', 'br', 'b', 'i', 'em', 'strong', 'a', 'ul', 'ol', 'li',
-                'code', 'pre', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                'hr', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
-                'sup', 'sub', 'div', 'span', 'think', '/think'
-            ],
-            ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'target', 'rel',
-                          'aria-expanded', 'aria-controls', 'data-think-id'],
-            ALLOW_DATA_ATTR: false,
-            ADD_ATTR: [['target', '_blank'], ['rel', 'noopener noreferrer']],
-            FORBID_TAGS: ['style', 'script'],
-            FORBID_ATTR: ['onerror', 'onload', 'onclick'],
-            FORCE_ALLOWED_ATTR: ['class', 'style']
-        });
-    }
-    return escapeHtml(content);
+  if (!content) return '';
+  return DOMPurify.sanitize(content, SANITIZE_OPTIONS);
 }
 
 /**
@@ -134,19 +132,7 @@ export function safeMarkdownParse(content) {
         }
 
         const parsed = markdownParser.render(content);
-        return DOMPurify.sanitize(parsed, {
-            ALLOWED_TAGS: [
-                'p', 'br', 'b', 'i', 'em', 'strong', 'a', 'ul', 'ol', 'li',
-                'code', 'pre', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                'hr', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
-                'sup', 'sub', 'div', 'span', 'think', '/think'
-            ],
-            ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'target', 'rel'],
-            ALLOW_DATA_ATTR: false,
-            ADD_ATTR: [['target', '_blank'], ['rel', 'noopener noreferrer']],
-            FORBID_TAGS: ['style', 'script'],
-            FORBID_ATTR: ['onerror', 'onload', 'onclick']
-        });
+        return DOMPurify.sanitize(parsed, SANITIZE_OPTIONS);
     } catch (error) {
         console.error('Markdown parsing failed:', error);
         return escapeHtml(content);
