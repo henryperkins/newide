@@ -14,7 +14,10 @@ export default class StatsDisplay {
         activeConnections: 0,
         totalTokens: 0,
         chunkCount: 0,
-        partialTokens: 0
+        partialTokens: 0,
+        promptTokens: 0,       // Add
+        completionTokens: 0,   // Add
+        reasoningTokens: 0     // Add
       };
       
       // Add throttling variables
@@ -44,6 +47,18 @@ export default class StatsDisplay {
           <div class="stat-item">
             <span class="stat-label">Total Tokens</span>
             <span class="stat-value" id="total-tokens-value">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Prompt</span>
+            <span class="stat-value" id="prompt-tokens-value">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Completion</span>
+            <span class="stat-value" id="completion-tokens-value">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Reasoning</span>
+            <span class="stat-value" id="reasoning-tokens-value">0</span>
           </div>
         </div>
       `;
@@ -111,6 +126,13 @@ export default class StatsDisplay {
   
       this.container.querySelector('#connections-value').textContent =
         this.stats.activeConnections;
+
+      this.container.querySelector('#prompt-tokens-value').textContent =
+        new Intl.NumberFormat().format(this.stats.promptTokens);
+      this.container.querySelector('#completion-tokens-value').textContent =
+        new Intl.NumberFormat().format(this.stats.completionTokens);
+      this.container.querySelector('#reasoning-tokens-value').textContent =
+        new Intl.NumberFormat().format(this.stats.reasoningTokens);
   
       this.container.querySelector('#total-tokens-value').textContent =
         new Intl.NumberFormat('en', { 
