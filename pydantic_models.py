@@ -17,6 +17,7 @@ class ChatMessage(BaseModel):
     developer_config: Optional[str] = None
     reasoning_effort: Optional[str] = "medium"
     include_files: bool = False
+    model: Optional[str] = None
     file_ids: Optional[List[str]] = None
     use_file_search: bool = False
     response_format: Optional[str] = None
