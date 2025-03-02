@@ -1,5 +1,5 @@
 # config.py
-from typing import Dict, Literal, Union
+from typing import Dict, Literal, Union, Optional
 import os
 from dotenv import load_dotenv
 from azure.core.credentials import AzureKeyCredential  # Add this import
