@@ -55,15 +55,26 @@ def get_alembic_config():
 
 def init_migrations():
     """Initialize the Alembic environment if it doesn't exist"""
-    if not os.path.exists(ALEMBIC_DIR):
-        os.makedirs(ALEMBIC_DIR)
-        
+    # Create migrations directory if needed
+    os.makedirs(ALEMBIC_DIR, exist_ok=True)
+    
     env_py = os.path.join(ALEMBIC_DIR, 'env.py')
     if not os.path.exists(env_py):
         logger.info("Initializing Alembic migration environment...")
-        config = Config()
-        config.set_main_option('script_location', ALEMBIC_DIR)
-        command.init(config, ALEMBIC_DIR, template='generic')
+        # Create basic env.py manually
+        with open(env_py, 'w') as f:
+            f.write("from alembic import context\n")
+            f.write("from models import Base\n")
+            f.write("target_metadata = Base.metadata\n")
+            f.write("def run_migrations_online():\n")
+            f.write("    connectable = context.config.attributes.get('connection', None)\n")
+            f.write("    if connectable is None:\n")
+            f.write("        from sqlalchemy import engine_from_config\n")
+            f.write("        connectable = engine_from_config(context.config.get_section(context.config.config_ini_section))\n")
+            f.write("    with connectable.connect() as connection:\n")
+            f.write("        context.configure(connection=connection, target_metadata=target_metadata)\n")
+            f.write("        with context.begin_transaction():\n")
+            f.write("            context.run_migrations()\n")
         
         # Create env.py if it doesn't exist
         if not os.path.exists(env_py):
