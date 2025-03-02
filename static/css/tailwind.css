@@ -11,6 +11,19 @@
    Base Layer (Fonts, Root Variables, Global Rules)
    ========================================================================= */
 @layer base {
+  @keyframes pulse {
+    0%, 100% { opacity: 1 }
+    50% { opacity: 0.5 }
+  }
+
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .skeleton-loader {
+    @apply bg-gray-200 dark:bg-gray-700 rounded-md;
+  }
+
   @font-face {
     font-family: 'JetBrains Mono';
     src: url('/static/fonts/jetbrains-mono/jetbrains-mono-400.woff2') format('woff2');

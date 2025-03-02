@@ -320,8 +320,22 @@ function updateLoadMoreButton(unloadedCount) {
 export function renderUserMessage(content, skipScroll = false, skipStore = false) {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return null;
-  const messageElement = createUserMessageElement(content);
-  chatHistory.appendChild(messageElement);
+  
+  // Create message object with unique ID
+  const message = {
+    id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    content: content,
+    role: 'user',
+    timestamp: Date.now()
+  };
+
+  // Create virtualized element
+  const element = document.createElement('div');
+  element.dataset.id = message.id;
+  element.className = 'message user-message';
+  element.innerHTML = sanitizeHTML(content).replace(/\n/g, '<br>');
+  
+  chatHistory.appendChild(element);
   if (!skipScroll) requestAnimationFrame(() => messageElement.scrollIntoView({ behavior: 'smooth', block: 'end' }));
   pruneOldMessages();
   if (!skipStore) storeChatMessage('user', content);

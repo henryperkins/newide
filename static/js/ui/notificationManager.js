@@ -117,6 +117,10 @@ export async function handleMessageError(error) {
 }
 
 export function showNotification(message, type = 'info', duration = 5000, actions = []) {
+  if (!window.notificationStack) {
+    window.notificationStack = new NotificationStack();
+  }
+  
   // Create a unique hash based on message content and error type for better deduplication
   const messageHash = `${type}:${message.trim().toLowerCase().replace(/\s+/g, ' ')}`;
   const now = Date.now();

@@ -6,6 +6,19 @@
     <meta name="description" content="Azure OpenAI Chat Application - Interact with Azure OpenAI models">
     <meta name="theme-color" content="#282a36">
     
+    <script id="theme-init">
+      (function() {
+        const storedTheme = localStorage.getItem('theme');
+        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const initialTheme = storedTheme || (systemDark ? 'dark' : 'light');
+        document.documentElement.classList.toggle('dark', initialTheme === 'dark');
+        document.documentElement.style.visibility = 'hidden';
+        requestAnimationFrame(() => {
+          document.documentElement.style.visibility = 'visible';
+        });
+      })();
+    </script>
+
     <title>Azure OpenAI Chat</title>
     
     <!-- Favicon and app icons -->
