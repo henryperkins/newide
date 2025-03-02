@@ -14,6 +14,9 @@ export function initThemeSwitcher() {
   const themeToggle = document.getElementById('theme-toggle');
   if (themeToggle) {
     themeToggle.addEventListener('click', toggleTheme);
+    console.log('Theme toggle listener added');
+  } else {
+    console.warn('Theme toggle button not found in DOM');
   }
 }
 
@@ -94,8 +97,11 @@ function setInitialTheme() {
  * Toggles between light and dark themes.
  */
 function toggleTheme() {
+  console.log('Toggle theme called');
+  
   // Toggle the 'dark' class on the html element and determine new state
   const isDark = document.documentElement.classList.toggle('dark');
+  console.log('Theme toggled to:', isDark ? 'dark' : 'light');
 
   // Store the preference in localStorage
   localStorage.setItem('theme', isDark ? 'dark' : 'light');

@@ -128,10 +128,11 @@ function initMobileSidebarToggle() {
   // Create toggle button if it doesn't exist
   if (!toggleButton) {
     // Try to find any element that might be the toggle button
-    const possibleToggle = document.querySelector('[aria-controls="config-content files-content"]');
+    const possibleToggle = document.querySelector('[aria-controls="config-content files-content"]') || document.getElementById('sidebar-toggle');
     if (possibleToggle) {
       possibleToggle.id = 'sidebar-toggle';
       toggleButton = possibleToggle;
+      console.log('Found existing sidebar toggle button');
     } else {
       // Create a new toggle button in the header
       const header = document.querySelector('header');
@@ -144,8 +145,11 @@ function initMobileSidebarToggle() {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
         </svg>`;
         header.appendChild(toggleButton);
+        console.log('Created new sidebar toggle button');
       }
     }
+  } else {
+    console.log('Sidebar toggle button already exists');
   }
   
   // Close button handling
@@ -159,10 +163,14 @@ function initMobileSidebarToggle() {
   if (toggleButton) {
     toggleButton.setAttribute('aria-expanded', sidebar?.classList.contains('sidebar-open') ? 'true' : 'false');
     
-    toggleButton.addEventListener('click', () => {
-      const isExpanded = toggleButton.getAttribute('aria-expanded') === 'true';
-      toggleSidebar(!isExpanded);
-    });
+    // Remove any existing click listeners to prevent duplicates
+    toggleButton.removeEventListener('click', toggleSidebarHandler);
+    
+    // Add click listener with named function for easier removal
+    toggleButton.addEventListener('click', toggleSidebarHandler);
+    console.log('Sidebar toggle listener added');
+  } else {
+    console.warn('Sidebar toggle button not found or not properly initialized');
   }
   
   // Close sidebar when overlay is clicked
@@ -258,10 +266,20 @@ function initMobileSidebarToggle() {
 }
 
 /**
+ * Handler function for sidebar toggle button
+ */
+function toggleSidebarHandler() {
+  const isExpanded = this.getAttribute('aria-expanded') === 'true';
+  console.log('Sidebar toggle clicked, current state:', isExpanded ? 'open' : 'closed');
+  toggleSidebar(!isExpanded);
+}
+
+/**
  * Toggle sidebar visibility
  * @param {boolean} show Whether to show the sidebar
  */
 function toggleSidebar(show) {
+  console.log('Toggling sidebar:', show ? 'show' : 'hide');
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
   const toggleButton = document.getElementById('sidebar-toggle');
@@ -309,3 +327,6 @@ export function activateTab(tabId) {
     handleTabChange(tabButton);
   }
 }
+
+// Export toggleSidebar for external use if needed
+export { toggleSidebar };
