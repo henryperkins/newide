@@ -1,5 +1,5 @@
 let typingState = { active: false, element: null, timeoutId: null, animationFrame: null };
-const INDICATOR_TIMEOUT = 30000;
+const INDICATOR_TIMEOUT = 60000; // Increased from 30s to 60s
 const MODAL_CONTAINER = document.getElementById('modal-container');
 const MODAL_CONTENT = document.getElementById('modal-content');
 const recentNotifications = new Map();
