@@ -207,6 +207,32 @@ async def init_database():
                 ADD COLUMN IF NOT EXISTS tracking_id VARCHAR(64)
             """))
             
+            # Remove columns from model_usage_stats that are not in the ORM
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                DROP COLUMN IF EXISTS reasoning_tokens
+            """))
+
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                DROP COLUMN IF EXISTS cached_tokens
+            """))
+
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                DROP COLUMN IF EXISTS content_analysis
+            """))
+
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                DROP COLUMN IF EXISTS usage_metadata
+            """))
+
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                DROP COLUMN IF EXISTS extra_metadata
+            """))
+            
             # Add created_at and updated_at to app_configurations if not exists
             await conn.execute(text("""
                 ALTER TABLE app_configurations
