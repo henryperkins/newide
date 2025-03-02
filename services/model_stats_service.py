@@ -52,52 +52,52 @@ class ModelStatsService:
             self._buffer.append(stats)
             
         if len(self._buffer) >= 50:
-            await self._flush_buffer()
-            
-            # Insert into database
-            await self.db.execute(
-                text("""
-                    INSERT INTO model_usage_stats (
-                        model,
-                        session_id,
-                        prompt_tokens,
-                        completion_tokens,
-                        total_tokens,
-                        reasoning_tokens,
-                        cached_tokens,
-                        metadata,
-                        timestamp
-                    ) VALUES (
-                        :model,
-                        :session_id,
-                        :prompt_tokens,
-                        :completion_tokens,
-                        :total_tokens,
-                        :reasoning_tokens,
-                        :cached_tokens,
-                        COALESCE(:metadata, '{}'::jsonb),
-                        :timestamp
-                    )
-                """),
-                {
-                    "model": stats.model,
-                    "session_id": stats.session_id,
-                    "prompt_tokens": stats.prompt_tokens,
-                    "completion_tokens": stats.completion_tokens,
-                    "total_tokens": stats.total_tokens,
-                    "reasoning_tokens": stats.reasoning_tokens,
-                    "cached_tokens": stats.cached_tokens,
-                    "metadata": metadata,
-                    "timestamp": datetime.utcnow()
-                }
-            )
-            await self.db.commit()
-
-        except Exception as e:
-            await self.db.rollback()
-            await self._persist_fallback(self._buffer)
-            self._buffer.clear()
-            raise Exception(f"Failed to record model usage stats: {str(e)}")
+            try:
+                await self._flush_buffer()
+                
+                # Insert into database
+                await self.db.execute(
+                    text("""
+                        INSERT INTO model_usage_stats (
+                            model,
+                            session_id,
+                            prompt_tokens,
+                            completion_tokens,
+                            total_tokens,
+                            reasoning_tokens,
+                            cached_tokens,
+                            metadata,
+                            timestamp
+                        ) VALUES (
+                            :model,
+                            :session_id,
+                            :prompt_tokens,
+                            :completion_tokens,
+                            :total_tokens,
+                            :reasoning_tokens,
+                            :cached_tokens,
+                            COALESCE(:metadata, '{}'::jsonb),
+                            :timestamp
+                        )
+                    """),
+                    {
+                        "model": stats.model,
+                        "session_id": stats.session_id,
+                        "prompt_tokens": stats.prompt_tokens,
+                        "completion_tokens": stats.completion_tokens,
+                        "total_tokens": stats.total_tokens,
+                        "reasoning_tokens": stats.reasoning_tokens,
+                        "cached_tokens": stats.cached_tokens,
+                        "metadata": metadata,
+                        "timestamp": datetime.utcnow()
+                    }
+                )
+                await self.db.commit()
+            except Exception as e:
+                await self.db.rollback()
+                await self._persist_fallback(self._buffer)
+                self._buffer.clear()
+                raise Exception(f"Failed to record model usage stats: {str(e)}")
 
     async def _persist_fallback(self, batch):
         async with aiofiles.open(self._fallback_dir / "pending.json", "a") as f:
