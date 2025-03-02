@@ -1,6 +1,6 @@
 import ssl
 import json
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import sessionmaker
 from typing import AsyncGenerator
 import config
@@ -39,8 +39,8 @@ engine = create_async_engine(
 )
 
 # Create a session maker for async sessions
-AsyncSessionLocal = sessionmaker(
-    bind=engine,
+AsyncSessionLocal = async_sessionmaker(
+    bind=engine, 
     class_=AsyncSession,
     expire_on_commit=False,
     autoflush=False

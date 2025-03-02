@@ -278,15 +278,8 @@ async def create_chat_completion(
             model_type = model_config.get("model_type", "standard")
 
             # If the client has an azure_deployment different from the user request, override
-            if (
-                isinstance(client, ChatCompletionsClient) and
-                hasattr(client, "azure_deployment") and
-                client.azure_deployment != request.model
-            ):
-                logger.info(
-                    f"Using fallback model {client.azure_deployment} instead of {request.model}"
-                )
-                request.model = client.azure_deployment
+            # Remove references to client.azure_deployment since ChatCompletionsClient doesn't implement this attribute
+            # The snippet from lines ~281-290 will be deleted
 
         except Exception as e:
             logger.error(f"Error getting model client: {str(e)}")

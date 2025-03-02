@@ -34,10 +34,10 @@ class Session(Base):
             one_minute_ago = now - timedelta(minutes=1)
 
             # Force timezone-aware comparison
-            if self.last_request and self.last_request.astimezone(timezone.utc) > one_minute_ago:
+            if self.last_request is not None and self.last_request.astimezone(timezone.utc) > one_minute_ago:
                 reset_time = self.last_request + timedelta(minutes=1)
                 seconds_remaining = int((reset_time - now).total_seconds())
-                
+
                 raise HTTPException(
                     status_code=429,
                     detail={

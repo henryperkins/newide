@@ -16,6 +16,7 @@ import config
 from database import AsyncSessionLocal
 from services.config_service import ConfigService
 from services.chat_service import process_chat_message
+from azure.ai.inference import ChatCompletionsClient
 
 
 # Terminal colors for prettier output
@@ -117,62 +118,93 @@ async def main():
                 if not args.no_history:
                     # Create a ChatMessage object first - process_chat_message expects this
                     from pydantic_models import ChatMessage
-                    
+
                     chat_message = ChatMessage(
                         message=user_message,
                         session_id=session_id,
                         reasoning_effort="medium",  # Default reasoning effort
-                        messages=[{"role": "user", "content": user_message}]  # Add this line to provide the messages attribute
+                        messages=[{"role": "user", "content": user_message}]
                     )
-                    
-                    # Then call with the right number of arguments
+
                     response = await process_chat_message(
                         chat_message,
                         db,
                         client,
                         model_name
                     )
-                    
-                    # Parse response
+
                     content = response["choices"][0]["message"]["content"]
                 else:
-                    # Simple direct call to model without storing history
-                    if model_name.lower() == "deepseek-r1":
-                        # Use complete() for DeepSeek models with ChatCompletionsClient
-                        response = await client.complete(
-                            model=model_name,
-                            messages=[{"role": "user", "content": user_message}],
-                            temperature=config.DEEPSEEK_R1_DEFAULT_TEMPERATURE,
-                            max_tokens=config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
-                        )
-                        content = response.choices[0].message.content
-                    else:
-                        # Use chat.completions.create() for OpenAI models
-                        response = await client.chat.completions.create(
-                            model=model_name,
-                            messages=[{"role": "user", "content": user_message}],
-                            max_completion_tokens=4000,
-                            reasoning_effort="medium",
-                        )
-                        content = response.choices[0].message.content
+                    # Handle direct API calls with proper error handling
+                    try:
+                        client = await get_model_client(model_name)
+                        # Create properly typed message objects
+                        from azure.ai.inference.models import ChatMessage
+                        messages = [ChatMessage(role="user", content=user_message)]
 
-                # Handle DeepSeek-R1 thinking tags
-                if model_name.lower() == "deepseek-r1":
+                        if config.is_deepseek_model(model_name):
+                            if isinstance(client, ChatCompletionsClient):
+                                # Azure client (sync)
+                                response = client.complete(
+                                    model=model_name,
+                                    messages=messages,
+                                    temperature=config.DEEPSEEK_R1_DEFAULT_TEMPERATURE,
+                                    max_tokens=config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+                                )
+                                content = response.choices[0].message.content
+                            else:
+                                # OpenAI client (async)
+                                response = await client.chat.completions.create(
+                                    model=model_name,
+                                    messages=messages,
+                                    temperature=config.DEEPSEEK_R1_DEFAULT_TEMPERATURE,
+                                    max_tokens=config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+                                )
+                                content = response.choices[0].message.content
+
+                        elif config.is_o_series_model(model_name):
+                            response = await client.chat.completions.create(
+                                model=model_name,
+                                messages=messages,
+                                max_completion_tokens=config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
+                                reasoning_effort="medium"
+                            )
+                            content = response.choices[0].message.content
+
+                        else:
+                            content = "(Unsupported model)"
+
+                    except AttributeError as e:
+                        print(f"{Colors.RED}Client API error: {str(e)}{Colors.ENDC}")
+                        content = "(API compatibility error)"
+                    except Exception as e:
+                        print(f"{Colors.RED}Error: {str(e)}{Colors.ENDC}")
+                        content = "(Processing error)"
+                            
+                    except AttributeError as e:
+                        print(f"{Colors.RED}Client API incompatibility: {str(e)}{Colors.ENDC}")
+                        print(f"{Colors.YELLOW}Debug info - Client type: {type(client)}{Colors.ENDC}")
+                        
+                        if isinstance(client, ChatCompletionsClient):
+                            print(f"{Colors.YELLOW}Client is Azure AI Inference ChatCompletionsClient{Colors.ENDC}")
+                        elif hasattr(client, "api_key"):
+                            print(f"{Colors.YELLOW}Client appears to be an OpenAI client{Colors.ENDC}")
+                        
+                        raise
+
+                if config.is_deepseek_model(model_name):
                     import re
-
-                    think_regex = r"<think>([\s\S]*?)<\/think>"
+                    think_regex = r"<think>([\s\S]*?)</think>"
                     matches = re.findall(think_regex, content)
 
-                    # Show thinking if enabled
                     if args.thinking and matches:
                         for match in matches:
                             print(f"\n{Colors.THINKING}[Thinking process]{Colors.ENDC}")
                             print(f"{Colors.THINKING}{match}{Colors.ENDC}\n")
 
-                    # Remove thinking tags from final output
+                    # Remove thinking tags for display
                     content = re.sub(think_regex, "", content)
 
-                # Print the response
                 print(content)
 
             except KeyboardInterrupt:
@@ -183,7 +215,6 @@ async def main():
             except Exception as e:
                 print(f"{Colors.RED}Error: {str(e)}{Colors.ENDC}")
                 continue
-
 
 if __name__ == "__main__":
     asyncio.run(main())

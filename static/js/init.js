@@ -511,3 +511,14 @@ function detectTouchCapability() {
   }
 }
 detectTouchCapability();
+
+function initSettingsButton() {
+  const settingsButton = document.getElementById('settings-button');
+  if (!settingsButton) return;
+  settingsButton.addEventListener('click', () => {
+    const settingsPanel = document.getElementById('settings-panel');
+    if (settingsPanel) {
+      settingsPanel.classList.toggle('hidden');
+    }
+  });
+}

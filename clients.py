@@ -199,19 +199,22 @@ class ClientPool:
         """Create the appropriate client based on model type"""
         # DeepSeek-R1 needs different endpoints and credentials
         if "deepseek" in model_id.lower():
+            endpoint_val = os.getenv("AZURE_INFERENCE_ENDPOINT") or "https://default-inference-endpoint.example"
+            cred_val = os.getenv("AZURE_INFERENCE_CREDENTIAL") or "dummyKey"
             return ChatCompletionsClient(
-                endpoint=os.getenv("AZURE_INFERENCE_ENDPOINT"),
-                credential=AzureKeyCredential(os.getenv("AZURE_INFERENCE_CREDENTIAL")),
+                endpoint=endpoint_val,
+                credential=AzureKeyCredential(cred_val),
                 api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION,
                 connection_timeout=120.0,
                 read_timeout=120.0
             )
         # o-series uses standard OpenAI client with reasoning effort
         elif "o1" in model_id.lower() or "o3" in model_id.lower():
+            endpoint_val = os.getenv("AZURE_OPENAI_ENDPOINT") or "https://default-o-series-endpoint.example"
             return AzureOpenAI(
                 api_key=os.getenv("AZURE_OPENAI_API_KEY"),
                 api_version=config.O_SERIES_API_VERSION,
-                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                azure_endpoint=endpoint_val,
                 default_headers={"reasoning-effort": "medium"},
                 max_retries=3,
                 timeout=120.0

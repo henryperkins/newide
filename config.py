@@ -35,33 +35,30 @@ class Settings(BaseSettings):
     Loads environment variables for DB credentials
     """
 
-    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST")
-    POSTGRES_USER: str = os.getenv("POSTGRES_USER")
-    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD")
-    POSTGRES_DB: str = os.getenv("POSTGRES_DB")
+    POSTGRES_HOST: Optional[str] = os.getenv("POSTGRES_HOST")
+    POSTGRES_USER: Optional[str] = os.getenv("POSTGRES_USER")
+    POSTGRES_PASSWORD: Optional[str] = os.getenv("POSTGRES_PASSWORD")
+    POSTGRES_DB: Optional[str] = os.getenv("POSTGRES_DB")
     POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", "5432"))
-
-    # File size limits
+    
     MAX_FILE_SIZE: int = int(os.getenv("MAX_FILE_SIZE", "536870912"))  # 512MB
     WARNING_FILE_SIZE: int = int(os.getenv("WARNING_FILE_SIZE", "268435456"))
-    MAX_FILE_SIZE_HUMAN: str = os.getenv("MAX_FILE_SIZE_HUMAN", "512MB")
-
-    # DeepSeek Inference Configuration
-    AZURE_INFERENCE_ENDPOINT: str = os.getenv(
+    MAX_FILE_SIZE_HUMAN: Optional[str] = os.getenv("MAX_FILE_SIZE_HUMAN", "512MB")
+    
+    AZURE_INFERENCE_ENDPOINT: Optional[str] = os.getenv(
         "AZURE_INFERENCE_ENDPOINT", "https://DeepSeek-R1D2.eastus2.models.ai.azure.com"
     )
-    AZURE_INFERENCE_CREDENTIAL: str = os.getenv("AZURE_INFERENCE_CREDENTIAL")
+    AZURE_INFERENCE_CREDENTIAL: Optional[str] = os.getenv("AZURE_INFERENCE_CREDENTIAL")
     KEY_VAULT_URI: Optional[str] = os.getenv("AZURE_KEY_VAULT_URI")
-    AZURE_INFERENCE_DEPLOYMENT: str = os.getenv(
+    AZURE_INFERENCE_DEPLOYMENT: Optional[str] = os.getenv(
         "AZURE_INFERENCE_DEPLOYMENT", "DeepSeek-R1"
     )
-    AZURE_INFERENCE_API_VERSION: str = os.getenv(
+    AZURE_INFERENCE_API_VERSION: Optional[str] = os.getenv(
         "AZURE_INFERENCE_API_VERSION", "2024-05-01-preview"
     )
-
-    # Azure OpenAI Configuration
-    AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT")
-    AZURE_OPENAI_API_KEY: str = os.getenv("AZURE_OPENAI_API_KEY")
+    
+    AZURE_OPENAI_ENDPOINT: Optional[str] = os.getenv("AZURE_OPENAI_ENDPOINT")
+    AZURE_OPENAI_API_KEY: Optional[str] = os.getenv("AZURE_OPENAI_API_KEY")
     AZURE_OPENAI_DEPLOYMENT_NAME: str = os.getenv(
         "AZURE_OPENAI_DEPLOYMENT_NAME", "o1"
     )
