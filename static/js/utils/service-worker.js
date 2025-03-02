@@ -1,5 +1,5 @@
 // Service Worker for Azure OpenAI o1 Chat Application
-// Provides offline support and caching for the application
+// Caching functionality disabled to prevent stale content issues
 
 const CACHE_NAME = 'azure-openai-chat-v1';
 const ASSETS_TO_CACHE = [
@@ -33,101 +33,40 @@ const ASSETS_TO_CACHE = [
   '/static/img/favicon.ico'
 ];
 
-// Install event - cache assets
+// Install event - no caching
 self.addEventListener('install', event => {
   console.log('[Service Worker] Installing...');
   
   // Skip waiting to ensure the new service worker activates immediately
   self.skipWaiting();
   
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('[Service Worker] Caching app shell and content');
-        return cache.addAll(ASSETS_TO_CACHE);
-      })
-      .catch(error => {
-        console.error('[Service Worker] Cache install error:', error);
-      })
-  );
+  // No caching operations
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up any existing caches
 self.addEventListener('activate', event => {
   console.log('[Service Worker] Activating...');
   
   // Claim clients to ensure the service worker controls all clients immediately
   event.waitUntil(self.clients.claim());
   
-  // Clean up old caches
+  // Clean up all caches
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('[Service Worker] Removing old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
+          console.log('[Service Worker] Removing cache:', cacheName);
+          return caches.delete(cacheName);
         })
       );
     })
   );
 });
 
-// Fetch event - serve from cache, fallback to network
-self.addEventListener('fetch', event => {
-  // Skip cross-origin requests
-  if (!event.request.url.startsWith(self.location.origin)) {
-    return;
-  }
-  
-  // Skip API requests
-  if (event.request.url.includes('/api/')) {
-    return;
-  }
-  
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Return cached response if found
-        if (response) {
-          return response;
-        }
-        
-        // Otherwise fetch from network
-        return fetch(event.request)
-          .then(networkResponse => {
-            // Don't cache non-successful responses
-            if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-              return networkResponse;
-            }
-            
-            // Clone the response to cache it and return it
-            const responseToCache = networkResponse.clone();
-            
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                cache.put(event.request, responseToCache);
-              });
-              
-            return networkResponse;
-          })
-          .catch(error => {
-            console.error('[Service Worker] Fetch error:', error);
-            
-            // For HTML requests, return the offline page
-            if (event.request.headers.get('accept').includes('text/html')) {
-              return caches.match('/static/index.html');
-            }
-            
-            return new Response('Network error', {
-              status: 408,
-              headers: { 'Content-Type': 'text/plain' }
-            });
-          });
-      })
-  );
-});
+// Fetch event - no interception, let browser handle normally
+// self.addEventListener('fetch', event => {
+//   // All requests go directly to the network
+// });
 
 // Handle messages from the client
 self.addEventListener('message', event => {
