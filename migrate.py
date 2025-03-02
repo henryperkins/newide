@@ -86,6 +86,7 @@ def init_migrations():
         # Update the generated alembic.ini with our settings
         with open(ALEMBIC_INI, 'a') as f:
             f.write("\n# Added by migration script\n")
+            f.write("[alembic]\n")
             f.write("# Set to 'true' to run the environment during\n")
             f.write("# the 'revision' command, regardless of autogenerate\n")
             f.write("revision_environment = true\n")
