@@ -694,7 +694,7 @@ class ModelManager {
         }
     
         /**
-         * Updates the UI based on the currently selected model’s capabilities
+         * Updates the UI based on the currently selected model's capabilities
          * @param {string} modelName
          */
         async updateModelSpecificUI(modelName) {
