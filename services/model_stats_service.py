@@ -31,9 +31,23 @@ class ModelStatsService:
             usage: Usage statistics from the model response
             metadata: Optional additional metadata to store
         """
-        # Skip recording for very small token counts to reduce DB writes
-        if usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0) < 10:
-            return
+        # Always record regardless of token count
+        stats = ModelUsageStats(
+            model=model,
+            session_id=session_id,
+            prompt_tokens=usage.get("prompt_tokens", 0),
+            completion_tokens=usage.get("completion_tokens", 0),
+            total_tokens=usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0),
+            reasoning_tokens=usage.get("completion_tokens_details", {}).get("reasoning_tokens"),
+            cached_tokens=usage.get("prompt_tokens_details", {}).get("cached_tokens", 0),
+            metadata=metadata
+        )
+
+        async with self._buffer_lock:
+            self._buffer.append(stats)
+            
+        if len(self._buffer) >= 50:
+            await self._flush_buffer()
             
         try:
             # Extract usage statistics
