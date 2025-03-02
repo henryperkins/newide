@@ -58,11 +58,19 @@ def init_migrations():
     if not os.path.exists(ALEMBIC_DIR):
         os.makedirs(ALEMBIC_DIR)
         
-    if not os.path.exists(ALEMBIC_INI):
+    env_py = os.path.join(ALEMBIC_DIR, 'env.py')
+    if not os.path.exists(env_py):
         logger.info("Initializing Alembic migration environment...")
         config = Config()
         config.set_main_option('script_location', ALEMBIC_DIR)
         command.init(config, ALEMBIC_DIR, template='generic')
+        
+        # Create env.py if it doesn't exist
+        if not os.path.exists(env_py):
+            with open(env_py, 'w') as f:
+                f.write("from alembic import context\n")
+                f.write("from models import Base\n")
+                f.write("target_metadata = Base.metadata\n")
         
         # Update the generated alembic.ini with our settings
         with open(ALEMBIC_INI, 'a') as f:
