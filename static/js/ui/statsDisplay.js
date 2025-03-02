@@ -2,16 +2,31 @@
 
 export default class StatsDisplay {
     constructor(containerId = 'performance-stats') {
+      this.stats = {
+        latency: 0,
+        tokensPerSecond: 0,
+        chunkCount: 0,
+        partialTokens: 0,
+        activeConnections: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+        reasoningTokens: 0,
+        totalTokens: 0,
+        timeToResponse: 0,
+        timeBetweenTokens: 0
+      };
+    
       this.container = document.getElementById(containerId);
       if (!this.container) {
         console.error(`StatsDisplay container not found: #${containerId}`);
         return;
       }
   
+      // Define default values for prompt/completion/reasoning tokens
       const usage = {
-        promptTokens: computedPrompt,
-        completionTokens: computedCompletion,
-        reasoningTokens: computedReasoning
+        promptTokens: 0,
+        completionTokens: 0,
+        reasoningTokens: 0
       };
       usage.totalTokens = usage.promptTokens + usage.completionTokens + usage.reasoningTokens;
 
@@ -21,8 +36,11 @@ export default class StatsDisplay {
       }
 
       // Also update the mobile token usage if needed
-      syncMobileStats(usage);
-      
+      // Provide a no-op function if not defined
+      function syncMobileStats(usage) {
+        // Placeholder, no-op or custom mobile stats logic
+        // console.debug("syncMobileStats called with usage:", usage);
+      }
       // Add throttling variables
       this.lastUpdateTime = 0;
       this.updateThrottleMs = 1000; // Update UI every second for better responsiveness

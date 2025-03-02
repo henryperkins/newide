@@ -32,17 +32,17 @@ def create_error_response(
     inner_error: Optional[Dict[str, Any]] = None
 ) -> HTTPException:
     # Convert content filter results to proper format
-    inner_error = None
+    constructed_inner_error = None
+    filter_results: Optional[Dict[str, ContentFilterResult]] = None
     if content_filter_results:
         filter_results = {
             key: ContentFilterResult(**value)
             for key, value in content_filter_results.items()
         }
-        inner_error = InnerError(
+        constructed_inner_error = InnerError(
             code="content_filter",
             content_filter_results=filter_results
         )
-
     error = Error(
         code=code,
         message=message,
@@ -50,9 +50,9 @@ def create_error_response(
         type=error_type or "invalid_request_error",
         inner_error=InnerError(
             code="content_filter" if content_filter_results else code,
-            content_filter_results=content_filter_results,
-            **(inner_error or {})
-        ) if content_filter_results or inner_error else None
+            content_filter_results=filter_results if content_filter_results else None,
+            **(constructed_inner_error.__dict__ if isinstance(constructed_inner_error, InnerError) else constructed_inner_error or {})
+        ) if content_filter_results or constructed_inner_error else None
     )
     
     headers_dict = {

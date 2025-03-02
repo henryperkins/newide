@@ -1,3 +1,29 @@
+// Add this class definition at the top of the file
+class NotificationStack {
+  constructor() {
+    this.notifications = [];
+    this.container = null;
+  }
+  
+  addNotification(notification) {
+    this.notifications.push(notification);
+    if (!this.container) {
+      this.container = document.getElementById('notification-container') || createNotificationContainer();
+    }
+    this.container.appendChild(notification);
+  }
+  
+  removeNotification(id) {
+    const notification = document.getElementById(id);
+    if (notification) {
+      notification.classList.remove('opacity-100', 'translate-y-0');
+      notification.classList.add('opacity-0', 'translate-y-4');
+      setTimeout(() => notification.remove(), 300);
+      this.notifications = this.notifications.filter(n => n.id !== id);
+    }
+  }
+}
+
 let typingState = { active: false, element: null, timeoutId: null, animationFrame: null };
 const INDICATOR_TIMEOUT = 60000; // Increased from 30s to 60s
 const MODAL_CONTAINER = document.getElementById('modal-container');

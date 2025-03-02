@@ -22,10 +22,21 @@ class ConfigService:
             result = await self.db.execute(
                 select(AppConfiguration).where(AppConfiguration.key == key)
             )
-            config = result.scalar_one_or_none()
-            return config.value if config else None
+            config_obj = result.scalar_one_or_none()
+            
+            # Early exit if no configuration found
+            if config_obj is None:
+                return None
+                
+            # Extract the actual Python value from the model instance
+            # This ensures we're getting the actual dict, not the SQLAlchemy Column object
+            if hasattr(config_obj, "value") and config_obj.value is not None:
+                # Use dict() to ensure we're returning a proper dictionary
+                return dict(config_obj.value) if isinstance(config_obj.value, dict) else {}
+            return {}
+            
         except Exception as e:
-            logger.error(f"Error fetching config for key '{key}': {str(e)}")
+            logger.error(f"Error retrieving configuration for key {key}: {str(e)}")
             return None
 
     async def set_config(

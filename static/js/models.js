@@ -106,14 +106,17 @@ class ModelManager {
             const card = document.createElement('div');
             card.className = `card p-3 mb-3 transition hover:border-primary-200 dark:hover:border-primary-700 ${this.currentModel === id ? 'border-l-4 border-l-primary-500' : ''}`;
             card.dataset.modelId = id;
+
             const cardHeader = document.createElement('div');
             cardHeader.className = 'flex flex-col sm:flex-row justify-between sm:items-center';
+
             const modelInfo = document.createElement('div');
             modelInfo.className = 'mb-2 sm:mb-0';
             modelInfo.innerHTML = `
                 <h3 class="font-medium text-base">${id}</h3>
                 <p class="text-sm text-dark-500 dark:text-dark-400">${modelConfig.description || 'No description'}</p>
             `;
+
             const actionButtons = document.createElement('div');
             actionButtons.className = 'flex space-x-2';
             actionButtons.innerHTML = `
@@ -130,9 +133,11 @@ class ModelManager {
                     </svg>
                 </button>
             `;
+
             cardHeader.appendChild(modelInfo);
             cardHeader.appendChild(actionButtons);
             card.appendChild(cardHeader);
+
             const specsGrid = document.createElement('div');
             specsGrid.className = 'grid grid-cols-2 gap-2 mt-2 text-xs sm:text-sm text-dark-600 dark:text-dark-300';
             const specs = [
@@ -147,6 +152,7 @@ class ModelManager {
                 specsGrid.appendChild(specItem);
             });
             card.appendChild(specsGrid);
+
             if (this.currentModel === id) {
                 const currentBadge = document.createElement('div');
                 currentBadge.className = 'mt-2 inline-flex items-center bg-primary-100 dark:bg-primary-900/20 px-2 py-0.5 text-xs font-medium text-primary-800 dark:text-primary-300 rounded-full';
@@ -159,6 +165,7 @@ class ModelManager {
                 useModelBtn.setAttribute('data-model-id', id);
                 card.appendChild(useModelBtn);
             }
+
             listContainer.appendChild(card);
         }
         this.attachModelActionListeners();
@@ -167,6 +174,7 @@ class ModelManager {
     attachModelActionListeners() {
         const listContainer = document.getElementById('models-list');
         if (!listContainer) return;
+
         listContainer.querySelectorAll('.edit-model-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -176,6 +184,7 @@ class ModelManager {
                 this.showModelForm('edit', modelId);
             });
         });
+
         listContainer.querySelectorAll('.delete-model-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -193,6 +202,7 @@ class ModelManager {
                 );
             });
         });
+
         listContainer.querySelectorAll('.use-model-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -212,6 +222,7 @@ class ModelManager {
                 }
             });
         });
+
         listContainer.querySelectorAll('.card').forEach(card => {
             card.addEventListener('click', (e) => {
                 if (!e.target.closest('button')) {
@@ -240,6 +251,7 @@ class ModelManager {
             const response = await fetch(`${window.location.origin}/api/config/models/${modelId}`, { method: 'DELETE' });
             delete this.pendingModelActions[modelId];
             if (modelCard) modelCard.classList.remove('opacity-50', 'pointer-events-none');
+
             if (response.ok) {
                 if (this.modelConfigs[modelId]) delete this.modelConfigs[modelId];
                 this.modelConfigCache.clear();
@@ -268,11 +280,14 @@ class ModelManager {
         const formIdField = document.getElementById('model-form-id');
         const form = document.getElementById('model-form');
         if (!formContainer || !formTitle || !formMode || !formIdField || !form) return;
+
         form.reset();
         form.querySelectorAll('.form-error').forEach(el => el.remove());
         form.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
+
         formMode.value = mode;
         formTitle.textContent = (mode === 'add') ? 'Add New Model' : 'Edit Model';
+
         if (mode === 'edit' && modelId && this.modelConfigs[modelId]) {
             const config = this.modelConfigs[modelId];
             formIdField.value = modelId;
@@ -292,6 +307,7 @@ class ModelManager {
             document.getElementById('model-api-version').value = '2025-01-01-preview';
             document.getElementById('model-max-tokens').value = '4096';
         }
+
         formContainer.classList.remove('hidden');
         requestAnimationFrame(() => {
             setTimeout(() => {
@@ -414,238 +430,85 @@ class ModelManager {
     async switchModel(modelId) {
         if (this.currentModel === modelId) return true;
         console.log('[switchModel] Initiating switchModel for:', modelId, 'currentModel:', this.currentModel);
+        
         if (!this.modelConfigs[modelId]) {
-            console.error(`Model ${modelId} not found in configurations`);
-            showNotification(`Model ${modelId} not available`, 'error');
-            return false;
+          console.error(`Model ${modelId} not found in configurations`);
+          showNotification(`Model ${modelId} not available`, 'error');
+          return false;
         }
+      
         try {
-            showNotification(`Switching to ${modelId}...`, 'info');
-            this.pendingModelActions[modelId] = 'switch';
-            const sessionId = await this.getSessionId();
-            console.log('[switchModel] sessionId is:', sessionId);
-            
-            // Get full model configuration
-            const modelConfig = this.modelConfigs[modelId];
-            const modelType = modelConfig.model_type || 'standard';
-            
-            // Prepare request body with model-specific parameters
-            const requestBody = {
-                model_id: modelId,
-                session_id: sessionId
-            };
-            
-            // Add model-specific parameters
-            if (modelType === 'o-series') {
-                requestBody.reasoning_effort = modelConfig.reasoning_effort || 'medium';
-            } else if (modelType === 'deepseek') {
-                requestBody.enable_thinking = modelConfig.enable_thinking !== false;
-            }
-            
-            const response = await fetch(`${window.location.origin}/api/config/models/switch`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
-            });
-            console.log('[switchModel] Request body used:', requestBody);
-            
-            delete this.pendingModelActions[modelId];
-            
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                const errorMessage = errorData.detail || await response.text();
-                throw new Error(`Failed to switch model: ${errorMessage}`);
-            }
-            
-            const responseData = await response.json();
-            
-            // Update UI elements
-            const modelSelect = document.getElementById('model-select');
-            if (modelSelect) modelSelect.value = modelId;
-            
-            const modelBadge = document.getElementById('model-badge');
-            if (modelBadge) modelBadge.textContent = modelId;
-            
-            // Update model-specific UI
-            this.updateModelSpecificUI(modelId);
-            
-            // Update internal state
-            this.currentModel = modelId;
-            this.updateModelsList();
-            
-            // Update global config
-            updateConfig({ 
-                selectedModel: modelId,
-                modelType: modelType,
-                apiVersion: modelConfig.api_version
-            });
-            
-            // Publish event for other components
-            eventBus.publish('modelSwitched', { 
-                modelId, 
-                config: this.modelConfigs[modelId],
-                apiVersion: responseData.api_version,
-                modelType: responseData.model_type
-            });
-            
-            showNotification(`Now using model: ${modelId}`, 'success');
-            return true;
+          showNotification(`Switching to ${modelId}...`, 'info');
+          this.pendingModelActions[modelId] = 'switch';
+          const sessionId = await this.getSessionId();
+          const modelConfig = this.modelConfigs[modelId];
+          const modelType = modelConfig.model_type || 'standard';
+          
+          const requestBody = {
+            model_id: modelId,
+            session_id: sessionId
+          };
+      
+          // Include any relevant model-specific settings
+          if (modelType === 'o-series') {
+            requestBody.reasoning_effort = modelConfig.reasoning_effort || 'medium';
+          } else if (modelType === 'deepseek') {
+            requestBody.enable_thinking = modelConfig.enable_thinking !== false;
+          }
+      
+          const response = await fetch(`${window.location.origin}/api/config/models/switch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+          });
+      
+          delete this.pendingModelActions[modelId];
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData.detail || await response.text();
+            throw new Error(`Failed to switch model: ${errorMessage}`);
+          }
+      
+          const responseData = await response.json();
+          
+          // Update UI or config as needed
+          this.currentModel = modelId;
+          updateConfig({
+            selectedModel: modelId,
+            modelType: modelType,
+            apiVersion: modelConfig.api_version
+          });
+          
+          showNotification(`Now using model: ${modelId}`, 'success');
+          return true;
         } catch (error) {
-            console.error('Error switching model:', error);
-            showNotification('Failed to switch model. Please try again.', 'error');
-            delete this.pendingModelActions[modelId];
-            return false;
+          console.error('Error switching model:', error);
+          showNotification('Failed to switch model. Please try again.', 'error');
+          delete this.pendingModelActions[modelId];
+          return false;
         }
-    }
-            
-            // Update model-specific UI
-            this.updateModelSpecificUI(modelId);
-            
-            // Update internal state
-            this.currentModel = modelId;
-            this.updateModelsList();
-            
-            // Update global config
-            updateConfig({ 
-                selectedModel: modelId,
-                modelType: modelType,
-                apiVersion: modelConfig.api_version
-            });
-            
-            // Publish event for other components
-            eventBus.publish('modelSwitched', { 
-                modelId, 
-                config: this.modelConfigs[modelId],
-                apiVersion: responseData.api_version,
-                modelType: responseData.model_type
-            });
-            
-            showNotification(`Now using model: ${modelId}`, 'success');
-            return true;
-        } catch (error) {
-            console.error('Error switching model:', error);
-            showNotification('Failed to switch model. Please try again.', 'error');
-            delete this.pendingModelActions[modelId];
-            return false;
-        }
-    }
-
-    async updateModelSpecificUI(modelId) {
-        const config = this.modelConfigs[modelId];
-        if (!config) return;
-        const reasoningControls = document.getElementById('reasoning-controls');
-        if (reasoningControls) {
-            const isOSeries = modelId.toLowerCase().startsWith('o1') || modelId.toLowerCase().startsWith('o3');
-            reasoningControls.classList.toggle('hidden', !isOSeries);
-        }
-        const streamingToggle = document.getElementById('enable-streaming');
-        if (streamingToggle) {
-            const supportsStreaming = config.supports_streaming || false;
-            streamingToggle.disabled = !supportsStreaming;
-            const streamingLabel = streamingToggle.parentElement.querySelector('label');
-            if (streamingLabel) streamingLabel.classList.toggle('text-dark-400', !supportsStreaming);
-            const streamingNote = streamingToggle.parentElement.nextElementSibling;
-            if (streamingNote) {
-                if (!supportsStreaming) {
-                    streamingNote.textContent = 'Streaming is not available for this model';
-                    streamingToggle.checked = false;
-                } else {
-                    streamingNote.textContent = 'See responses as they\'re generated';
-                }
-            }
-        }
-        const modelInfo = document.querySelector('.model-info');
-        if (modelInfo) {
-            const features = [];
-            if (modelId.toLowerCase().startsWith('o1') || modelId.toLowerCase().startsWith('o3')) features.push('advanced reasoning');
-            if (config.supports_streaming) features.push('streaming');
-            if (config.supports_vision) features.push('vision');
-            const featuresText = features.length > 0 ? `with ${features.join(' & ')}` : '';
-            modelInfo.innerHTML = `<p><strong>Model:</strong> ${modelId} ${featuresText}</p>`;
-        }
-    }
-
-    initModelManagement() {
-        const addModelBtn = document.getElementById('add-model-btn');
-        if (addModelBtn) addModelBtn.addEventListener('click', () => this.showModelForm('add'));
-        const cancelBtn = document.getElementById('model-form-cancel');
-        if (cancelBtn) cancelBtn.addEventListener('click', () => this.hideModelForm());
-        const closeBtn = document.getElementById('model-form-close');
-        if (closeBtn) closeBtn.addEventListener('click', () => this.hideModelForm());
-        const formContainer = document.getElementById('model-form-container');
-        if (formContainer) {
-            formContainer.addEventListener('click', (e) => {
-                if (e.target === formContainer) this.hideModelForm();
-            });
-        }
-        const modelForm = document.getElementById('model-form');
-        if (modelForm) modelForm.addEventListener('submit', (e) => this.handleModelFormSubmit(e));
-        const modelSelect = document.getElementById('model-select');
-        if (modelSelect) {
-            modelSelect.innerHTML = '';
-            for (const [id, config] of Object.entries(this.modelConfigs)) {
-                const option = document.createElement('option');
-                option.value = id;
-                option.textContent = `${id}${config.description ? ` (${config.description})` : ''}`;
-                modelSelect.appendChild(option);
-            }
-            if (this.currentModel) modelSelect.value = this.currentModel;
-            else {
-                this.currentModel = Object.keys(this.modelConfigs)[0];
-                if (this.currentModel) modelSelect.value = this.currentModel;
-            }
-            modelSelect.addEventListener('change', async (e) => {
-                await this.switchModel(e.target.value);
-            });
-        }
-    }
-
-    async getCurrentModelFromServer() {
-        try {
-            const response = await fetch(`${window.location.origin}/api/session`);
-            if (!response.ok) return null;
-            const session = await response.json();
-            if (session && session.last_model) return session.last_model;
-            return Object.keys(this.modelConfigs)[0] || 'DeepSeek-R1';
-        } catch (error) {
-            console.error('Error getting current model:', error);
-            return null;
-        }
-    }
-
-    async getSessionId() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const paramSessionId = urlParams.get('session_id');
-        if (paramSessionId) return paramSessionId;
-        const storageSessionId = localStorage.getItem('current_session_id');
-        if (storageSessionId) return storageSessionId;
-        try {
-            const response = await fetch(`${window.location.origin}/api/session`);
-            if (response.ok) {
-                const data = await response.json();
-                if (data && data.id) {
-                    return data.id;
-                }
-            }
-        } catch (error) {
-            console.warn('Could not fetch session ID from API:', error);
-        }
-        return null;
-    }
-
-    ensureLocalModelConfigs() {
+      }
+      
+      ensureLocalModelConfigs() {
         for (const [modelId, config] of Object.entries(DEFAULT_MODELS)) {
-            const existingModel = Object.keys(this.modelConfigs).find(k => k.toLowerCase() === modelId.toLowerCase());
-            if (!existingModel) {
-                this.modelConfigs[modelId] = config;
-                this.createModelOnServer(modelId, config).catch(err => console.warn(`Failed to create ${modelId} on server: ${err.message}`));
-            } else if (existingModel !== modelId) {
-                this.modelConfigs[modelId] = this.modelConfigs[existingModel];
-                delete this.modelConfigs[existingModel];
-            }
+          const existingModel = Object.keys(this.modelConfigs).find(
+            k => k.toLowerCase() === modelId.toLowerCase()
+          );
+          
+          if (!existingModel) {
+            this.modelConfigs[modelId] = config;
+            this.createModelOnServer(modelId, config).catch(err =>
+              console.warn(`Failed to create ${modelId} on server: ${err.message}`)
+            );
+          } else if (existingModel !== modelId) {
+            this.modelConfigs[modelId] = this.modelConfigs[existingModel];
+            delete this.modelConfigs[existingModel];
+          }
         }
         return this.modelConfigs;
-    }
+      }
+      
 
     async createModelOnServer(modelId, modelConfig) {
         if (this.pendingModelActions[modelId]) {
@@ -792,6 +655,235 @@ class ModelManager {
     getCurrentModelId() {
         return this.currentModel;
     }
+
+    initModelManagement() {
+        // Add event handlers for the model form
+        const addModelBtn = document.getElementById('add-model-btn');
+        const modelFormClose = document.getElementById('model-form-close');
+        const modelFormCancel = document.getElementById('model-form-cancel');
+        const modelForm = document.getElementById('model-form');
+
+        if (addModelBtn) {
+            addModelBtn.addEventListener('click', () => this.showModelForm('add'));
+        }
+
+        if (modelFormClose) {
+            modelFormClose.addEventListener('click', () => this.hideModelForm());
+        }
+
+        if (modelFormCancel) {
+            modelFormCancel.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.hideModelForm();
+            });
+        }
+
+        if (modelForm) {
+            modelForm.addEventListener('submit', (e) => this.handleModelFormSubmit(e));
+        }
+
+        // Initialize model selection
+        const modelSelect = document.getElementById('model-select');
+        if (modelSelect) {
+            modelSelect.addEventListener('change', async (e) => {
+                const newModelId = e.target.value;
+                if (newModelId && newModelId !== this.currentModel) {
+                    await this.switchModel(newModelId);
+                }
+            });
+        }
+    
+        /**
+         * Updates the UI based on the currently selected model’s capabilities
+         * @param {string} modelName
+         */
+        async updateModelSpecificUI(modelName) {
+            try {
+                // Fetch (or re-fetch) model configuration if needed
+                const modelConfig = this.modelConfigs[modelName] || await this.getModelConfig(modelName);
+                if (!modelConfig) return;
+                
+                // Determine model type
+                const modelType = modelConfig.model_type || 'standard';
+                const isOSeries = modelType === 'o-series' || modelName.toLowerCase().startsWith('o1');
+                const isDeepSeek = modelType === 'deepseek' || modelName.toLowerCase().includes('deepseek');
+    
+                // Check capabilities
+                const supportsStreaming = !!modelConfig.supports_streaming;
+                const supportsVision = !!modelConfig.supports_vision;
+                const apiVersion = modelConfig.api_version || '2025-01-01-preview';
+    
+                // Show/hide UI elements based on model type
+                const reasoningControls = document.getElementById('reasoning-controls');
+                if (reasoningControls) {
+                    reasoningControls.classList.toggle('hidden', !isOSeries);
+                }
+    
+                const thinkingControls = document.getElementById('thinking-controls');
+                if (thinkingControls) {
+                    thinkingControls.classList.toggle('hidden', !isDeepSeek);
+                }
+    
+                // Update streaming toggle
+                const streamingToggle = document.getElementById('enable-streaming');
+                if (streamingToggle) {
+                    streamingToggle.disabled = !supportsStreaming;
+                    const streamingLabel = streamingToggle.parentElement?.querySelector('label');
+                    if (streamingLabel) {
+                        streamingLabel.classList.toggle('text-dark-400', !supportsStreaming);
+                    }
+                }
+    
+                // Update model info display
+                const modelInfoSection = document.querySelector('.model-info');
+                if (modelInfoSection) {
+                    const features = [];
+                    if (isOSeries) features.push('advanced reasoning');
+                    if (isDeepSeek) features.push('thinking process');
+                    if (supportsStreaming) features.push('streaming');
+                    if (supportsVision) features.push('vision');
+    
+                    const featuresText = features.length > 0
+                        ? `with ${features.join(' & ')}`
+                        : '';
+                    const apiVersionText = `<span class="text-xs text-gray-500">(API: ${apiVersion})</span>`;
+    
+                    modelInfoSection.innerHTML = `
+                        <p><strong>Model:</strong> ${modelName} ${featuresText}</p>
+                        <p class="text-xs text-gray-500">Type: ${modelType} ${apiVersionText}</p>
+                    `;
+                }
+    
+                // Update model badge
+                const modelBadge = document.getElementById('model-badge');
+                if (modelBadge) {
+                    modelBadge.textContent = modelName;
+                }
+    
+                // Notify other components
+                if (typeof eventBus !== 'undefined') {
+                    eventBus.publish('modelUpdated', {
+                        modelName,
+                        modelType,
+                        apiVersion,
+                        capabilities: {
+                            isOSeries,
+                            isDeepSeek,
+                            supportsStreaming,
+                            supportsVision,
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error updating model-specific UI:', error);
+            }
+        }
+    }
+
+    async getCurrentModelFromServer() {
+        try {
+            const response = await fetch(`${window.location.origin}/api/config/current-model`);
+            if (response.ok) {
+                const data = await response.json();
+                return data.currentModel || null;
+            } else if (response.status === 404) {
+                console.info('Server returned 404 when getting current model - using first available model instead');
+                return Object.keys(this.modelConfigs)[0] || null;
+            } else {
+                console.warn(`Server returned ${response.status} when getting current model - using first available model instead`);
+                return Object.keys(this.modelConfigs)[0] || null;
+            }
+        
+    /**
+     * Updates the UI based on the currently selected model’s capabilities
+     * @param {string} modelName
+     */
+    async updateModelSpecificUI(modelName) {
+        try {
+            // Fetch (or re-fetch) model configuration if needed
+            const modelConfig = this.modelConfigs[modelName] || await this.getModelConfig(modelName);
+            if (!modelConfig) return;
+            
+            // Determine model type
+            const modelType = modelConfig.model_type || 'standard';
+            const isOSeries = modelType === 'o-series' || modelName.toLowerCase().startsWith('o1');
+            const isDeepSeek = modelType === 'deepseek' || modelName.toLowerCase().includes('deepseek');
+
+            // Check capabilities
+            const supportsStreaming = !!modelConfig.supports_streaming;
+            const supportsVision = !!modelConfig.supports_vision;
+            const apiVersion = modelConfig.api_version || '2025-01-01-preview';
+
+            // Show/hide UI elements based on model type
+            const reasoningControls = document.getElementById('reasoning-controls');
+            if (reasoningControls) {
+                reasoningControls.classList.toggle('hidden', !isOSeries);
+            }
+
+            const thinkingControls = document.getElementById('thinking-controls');
+            if (thinkingControls) {
+                thinkingControls.classList.toggle('hidden', !isDeepSeek);
+            }
+
+            // Update streaming toggle
+            const streamingToggle = document.getElementById('enable-streaming');
+            if (streamingToggle) {
+                streamingToggle.disabled = !supportsStreaming;
+                const streamingLabel = streamingToggle.parentElement?.querySelector('label');
+                if (streamingLabel) {
+                    streamingLabel.classList.toggle('text-dark-400', !supportsStreaming);
+                }
+            }
+
+            // Update model info display
+            const modelInfoSection = document.querySelector('.model-info');
+            if (modelInfoSection) {
+                const features = [];
+                if (isOSeries) features.push('advanced reasoning');
+                if (isDeepSeek) features.push('thinking process');
+                if (supportsStreaming) features.push('streaming');
+                if (supportsVision) features.push('vision');
+
+                const featuresText = features.length > 0
+                    ? `with ${features.join(' & ')}`
+                    : '';
+                const apiVersionText = `<span class="text-xs text-gray-500">(API: ${apiVersion})</span>`;
+
+                modelInfoSection.innerHTML = `
+                    <p><strong>Model:</strong> ${modelName} ${featuresText}</p>
+                    <p class="text-xs text-gray-500">Type: ${modelType} ${apiVersionText}</p>
+                `;
+            }
+
+            // Update model badge
+            const modelBadge = document.getElementById('model-badge');
+            if (modelBadge) {
+                modelBadge.textContent = modelName;
+            }
+
+            // Notify other components
+            if (typeof eventBus !== 'undefined') {
+                eventBus.publish('modelUpdated', {
+                    modelName,
+                    modelType,
+                    apiVersion,
+                    capabilities: {
+                        isOSeries,
+                        isDeepSeek,
+                        supportsStreaming,
+                        supportsVision,
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error updating model-specific UI:', error);
+        }
+    }
+    } catch (error) {
+        console.warn('Failed to get current model from server:', error);
+        return Object.keys(this.modelConfigs)[0] || null;
+    }
+}
 }
 
 export const modelManager = new ModelManager();

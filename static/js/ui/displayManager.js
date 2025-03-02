@@ -336,10 +336,10 @@ export function renderUserMessage(content, skipScroll = false, skipStore = false
   element.innerHTML = sanitizeHTML(content).replace(/\n/g, '<br>');
   
   chatHistory.appendChild(element);
-  if (!skipScroll) requestAnimationFrame(() => messageElement.scrollIntoView({ behavior: 'smooth', block: 'end' }));
+  if (!skipScroll) requestAnimationFrame(() => element.scrollIntoView({ behavior: 'smooth', block: 'end' }));
   pruneOldMessages();
   if (!skipStore) storeChatMessage('user', content);
-  return messageElement;
+  return element; // Changed from messageElement to element
 }
 
 function createUserMessageElement(content) {

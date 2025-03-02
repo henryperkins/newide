@@ -41,7 +41,7 @@ const CONNECTION_CHECK_INTERVAL_MS = 15000; // 15s
 
 /**
  * Dynamically calculates a connection timeout based on model type, reasoning effort, and message length.
- * 
+ *
  * @param {string} modelName
  * @param {string} reasoningEffort - 'low', 'medium', or 'high'
  * @param {number} messageLength
@@ -53,7 +53,7 @@ function calculateConnectionTimeout(modelName, reasoningEffort, messageLength) {
 
   // Adjust for known model types
   if (normalizedModelName.includes('o1') || normalizedModelName.includes('o3')) {
-    timeout *= 3.5; 
+    timeout *= 3.5;
   } else if (normalizedModelName.includes('claude')) {
     timeout *= 2.5;
   } else if (normalizedModelName.includes('deepseek')) {
@@ -78,11 +78,10 @@ function calculateConnectionTimeout(modelName, reasoningEffort, messageLength) {
 
 /**
  * Main function to stream chat response via SSE. Returns a Promise that resolves when streaming completes or fails.
- * 
+ *
  * @param {string} messageContent
  * @param {string} sessionId
  * @param {string} modelName
- * @param {string} developerConfig
  * @param {string} reasoningEffort
  * @param {AbortSignal} signal
  * @returns {Promise<boolean>}
@@ -91,7 +90,6 @@ export function streamChatResponse(
   messageContent,
   sessionId,
   modelName = 'DeepSeek-R1',
-  developerConfig = '',
   reasoningEffort = 'medium',
   signal
 ) {
@@ -117,7 +115,6 @@ export function streamChatResponse(
       message: messageContent || '',
       reasoning_effort: reasoningEffort || 'medium'
     });
-    if (developerConfig) params.append('developer_config', developerConfig);
 
     // If using DeepSeek, enable thinking
     if (normalizedModelName.includes('deepseek')) {
@@ -305,26 +302,26 @@ export function streamChatResponse(
 }
 
 /**
- * A simplified reconnect approach, e.g., when the connection is dropped, 
+ * A simplified reconnect approach, e.g., when the connection is dropped,
  * we wait 3s and then reconnect, or wait for `online` event.
  */
-export function attemptReconnect(messageContent, sessionId, modelName, developerConfig, reasoningEffort) {
+export function attemptReconnect(messageContent, sessionId, modelName, reasoningEffort) {
   const validModelName = modelName || 'DeepSeek-R1';
   console.warn(`[streaming.js] Attempting SSE reconnect in 3 seconds for model ${validModelName}...`);
-  
+
   showNotification(`Connection lost. Attempting to reconnect in 3 seconds...`, 'warning');
-  
+
   setTimeout(() => {
     if (navigator.onLine) {
       console.log(`[streaming.js] Reconnecting with model: ${validModelName}`);
-      streamChatResponse(messageContent, sessionId, validModelName, developerConfig, reasoningEffort);
+      streamChatResponse(messageContent, sessionId, validModelName, reasoningEffort);
     } else {
       console.warn('[streaming.js] Cannot reconnect - still offline');
       showNotification('Network is offline. Waiting for connection...', 'error');
       window.addEventListener('online', () => {
         console.log(`[streaming.js] Network restored, reconnecting with model: ${validModelName}`);
         showNotification('Connection restored. Reconnecting...', 'info');
-        streamChatResponse(messageContent, sessionId, validModelName, developerConfig, reasoningEffort);
+        streamChatResponse(messageContent, sessionId, validModelName, reasoningEffort);
       }, { once: true });
     }
   }, 3000);
@@ -349,17 +346,16 @@ async function attemptErrorRecovery(messageContent, error) {
           }
           const modelSelect = document.getElementById('model-select');
           let modelName = (modelSelect && modelSelect.value) ? modelSelect.value : 'DeepSeek-R1';
-          const developerConfig = document.getElementById('developer-config')?.value || '';
-          
+
           let reasoningEffort = getReasoningEffortSetting();
           if (error.name === 'TimeoutError' && reasoningEffort !== 'low') {
             reasoningEffort = 'low';
             showNotification('Retrying with lower reasoning effort', 'info', 3000);
           }
-          
+
           try {
             const success = await retry(
-              () => streamChatResponse(messageContent, sessionId, modelName, developerConfig, reasoningEffort),
+              () => streamChatResponse(messageContent, sessionId, modelName, reasoningEffort),
               MAX_RETRY_ATTEMPTS
             );
             resolve(success);
@@ -387,8 +383,6 @@ async function attemptErrorRecovery(messageContent, error) {
       }
 
       const modelName = document.getElementById('model-select')?.value || 'DeepSeek-R1';
-      const developerConfig = document.getElementById('developer-config')?.value || '';
-
       let reasoningEffort = getReasoningEffortSetting();
       if (error.name === 'TimeoutError' && reasoningEffort !== 'low') {
         reasoningEffort = 'low';
@@ -397,7 +391,7 @@ async function attemptErrorRecovery(messageContent, error) {
 
       try {
         return await retry(
-          () => streamChatResponse(messageContent, sessionId, modelName, developerConfig, reasoningEffort),
+          () => streamChatResponse(messageContent, sessionId, modelName, reasoningEffort),
           MAX_RETRY_ATTEMPTS,
           {
             backoff: true,
@@ -526,7 +520,7 @@ async function cleanupStreaming(modelName) {
             session_id: sessionId,
             role: 'assistant',
             content: mainTextBuffer,
-            model: modelName || 'DeepSeek-R1' 
+            model: modelName || 'DeepSeek-R1'
           })
         }).catch(err => console.warn('Failed to store message:', err));
       }

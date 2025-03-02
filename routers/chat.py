@@ -1,16 +1,3 @@
-"""
-This module provides endpoints for chat operations, including:
-- Storing chat messages in the database
-- Retrieving conversation history
-- Listing existing sessions
-- Creating chat completions (both standard and streaming via SSE)
-
-It supports both Azure OpenAI and Azure AI Inference clients, with
-custom handling for DeepSeek and O-series models. The code includes
-some basic retry logic and content transformations, such as handling
-<think> tags in DeepSeek responses.
-"""
-
 import json
 import uuid
 import time
@@ -190,7 +177,7 @@ async def get_conversation_history(
                     "role": msg.role,
                     "content": (msg.formatted_content or msg.content),
                     "raw_content": msg.content,
-                    "timestamp": msg.timestamp.isoformat() if msg.timestamp else None,
+                    "timestamp": msg.timestamp.isoformat() if msg.timestamp is not None else None,
                 }
                 for msg in messages
             ],
@@ -274,12 +261,11 @@ async def create_chat_completion(
         try:
             client_wrapper = await get_model_client_dependency(request.model)
             client = client_wrapper.get("client")
+            if not client:
+                raise ValueError("Client initialization failed (client is None).")
+
             model_config = client_wrapper.get("model_config", {})
             model_type = model_config.get("model_type", "standard")
-
-            # If the client has an azure_deployment different from the user request, override
-            # Remove references to client.azure_deployment since ChatCompletionsClient doesn't implement this attribute
-            # The snippet from lines ~281-290 will be deleted
 
         except Exception as e:
             logger.error(f"Error getting model client: {str(e)}")
@@ -415,7 +401,7 @@ async def create_chat_completion(
         else:
             # If it's a deepseek model with an AzureOpenAI client, handle specially
             if deepseek_check:
-                response = client.chat.completions.create(
+                response = client.completions.create(
                     model=request.model,
                     messages=messages,
                     temperature=DEEPSEEK_R1_DEFAULT_TEMPERATURE,
@@ -425,6 +411,9 @@ async def create_chat_completion(
             elif is_o_series_model(request.model):
                 # O-series model with reasoning effort
                 logger.info(f"O-series model: {request.model}, reasoning={request.reasoning_effort}")
+                # Ensure we have .chat property
+                if not hasattr(client, "chat"):
+                    raise ValueError("Client does not support 'chat' attribute.")
                 response = client.chat.completions.create(
                     model=request.model,
                     messages=messages,
@@ -434,6 +423,8 @@ async def create_chat_completion(
                 )
             else:
                 # Standard Azure OpenAI usage
+                if not hasattr(client, "chat"):
+                    raise ValueError("Client does not support 'chat' attribute.")
                 response = client.chat.completions.create(
                     model=request.model,
                     messages=messages,
@@ -510,7 +501,6 @@ async def generate_stream_chunks(
     message: str,
     client: Union[AzureOpenAI, ChatCompletionsClient],
     model_name: str,
-    developer_config: str,
     reasoning_effort: str,
     db: AsyncSession,
     session_id: str
@@ -519,19 +509,20 @@ async def generate_stream_chunks(
     Async generator that yields SSE data chunks from streaming responses.
 
     It handles:
-    - Developer config as a system message (if provided)
     - DeepSeek models with <think> block expansions
     - O-series with reasoning effort
     - Standard Azure OpenAI streaming
     """
+
+    if not client:
+        # Bail out if client is None
+        raise ValueError("Client is None; cannot proceed with streaming.")
 
     is_inference_client = isinstance(client, ChatCompletionsClient)
     deepseek_check = is_deepseek_model(model_name)
 
     # Build messages list
     messages_list = []
-    if developer_config:
-        messages_list.append({"role": "system", "content": developer_config})
     messages_list.append({"role": "user", "content": message})
 
     # Default parameters
@@ -590,14 +581,6 @@ async def generate_stream_chunks(
                                     content = choice.delta.content or ""
                                     full_content += content
                                     yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
-                                elif (
-                                    hasattr(choice, "message") and
-                                    hasattr(choice.message, "content") and
-                                    choice.message.content
-                                ):
-                                    content = choice.message.content
-                                    full_content += content
-                                    yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
 
                         except Exception as chunk_err:
                             logger.warning(f"Error processing DeepSeek chunk: {str(chunk_err)}")
@@ -607,7 +590,7 @@ async def generate_stream_chunks(
 
                 except Exception as e:
                     retry_count += 1
-                    
+
                     # Check for rate limit (429) errors
                     if isinstance(e, HttpResponseError) and e.status_code == 429:
                         logger.warning(f"Rate limit exceeded (429). Retry count: {retry_count}/{max_retries}")
@@ -618,8 +601,7 @@ async def generate_stream_chunks(
                             retry_delay *= 2
                             continue
                         else:
-                            return  # Exit the generator if max retries reached for rate limits
-                    
+                            return  # Exit the generator if max retries reached
                     # Check for timeout errors
                     is_timeout = False
                     if hasattr(e, "__cause__") and e.__cause__:
@@ -644,7 +626,13 @@ async def generate_stream_chunks(
         # 2) Otherwise, standard streaming with Azure OpenAI
         #
         else:
-            response = client.begin_chat_completions(deployment=model_name, **params, stream=True)
+            # NOTE: If Pylance complains about `begin_chat_completions`, you can # type: ignore or
+            # replace with the method your AzureOpenAI library provides for streaming.
+            response = client.begin_chat_completions(  # type: ignore
+                deployment=model_name, 
+                **params, 
+                stream=True
+            )
             async for chunk in response:
                 response_data = {
                     "id": f"chatcmpl-{uuid.uuid4()}",
@@ -703,23 +691,7 @@ async def generate_stream_chunks(
                         f"<think>{match}</think>", thinking_html, 1
                     )
 
-            # Save both user + assistant messages in DB
-            user_msg = Conversation(
-                session_id=session_id,
-                role="user",
-                content=message,
-                model=model_name,
-            )
-            assistant_msg = Conversation(
-                session_id=session_id,
-                role="assistant",
-                content=full_content,
-                formatted_content=formatted_content,
-                model=model_name,
-                raw_response={"streaming": True, "final_content": full_content},
-            )
-
-            # Use the existing DB session in save_conversation to stay consistent
+            # Use our helper to store in DB
             await save_conversation(
                 db_session=db,
                 session_id=session_id,
@@ -752,7 +724,6 @@ async def chat_sse(
     session_id: str,
     model: str,
     message: str,
-    developer_config: Optional[str] = Query(default=""),
     reasoning_effort: str = "medium",
     db: AsyncSession = Depends(get_db_session),
 ):
@@ -762,18 +733,19 @@ async def chat_sse(
     - session_id: conversation session UUID (as a string)
     - model: which model to use
     - message: user prompt or message
-    - developer_config: optional system message or instructions
     - reasoning_effort: relevant for O-series models
     """
     try:
         client_wrapper = await get_model_client_dependency(model)
         client = client_wrapper["client"]
+        if not client:
+            raise ValueError("Client initialization failed (client is None).")
+
         return StreamingResponse(
             generate_stream_chunks(
                 message=message,
                 client=client,
                 model_name=model,
-                developer_config=developer_config,
                 reasoning_effort=reasoning_effort,
                 db=db,
                 session_id=session_id

@@ -108,7 +108,7 @@ class SessionManager:
                 )
             return None
                 
-        if session.expires_at:
+        if session.expires_at is not None:
             expires_at_naive = session.expires_at.replace(tzinfo=None)
             if expires_at_naive < datetime.utcnow():
                 if require_valid:
