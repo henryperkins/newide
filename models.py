@@ -193,13 +193,11 @@ class ModelUsageStats(Base):
     prompt_tokens = Column(Integer, nullable=False)
     completion_tokens = Column(Integer, nullable=False)
     total_tokens = Column(Integer, nullable=False)
-    reasoning_tokens = Column(Integer, nullable=True)  # Track o-series processing tokens
-    cached_tokens = Column(Integer, nullable=True)     # Track cached tokens for efficiency
-    content_analysis = Column(JSONB, nullable=True)    # Store DeepSeek thinking process
+    thinking_process = Column(JSONB, nullable=True)    # Raw <think> blocks content
+    token_details = Column(JSONB, nullable=True)       # Full token details from response
     timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"))
-    tracking_id = Column(String(64), nullable=True)    # Match with conversation tracking_id
-    usage_metadata = Column(JSONB, nullable=True)
-    extra_metadata = Column(JSONB, nullable=True)  # Add missing metadata column
+    tracking_id = Column(String(64), nullable=True)
+    model_metadata = Column(JSONB, nullable=True)      # Consolidated metadata column
 
 # -------------------------------------------------------------------------
 # Model Transitions
