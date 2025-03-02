@@ -1,57 +1,66 @@
 /**
  * deepseekProcessor.js
- * Update the file to include comprehensive functionality
+ *
+ * A comprehensive module for parsing, processing, and rendering
+ * "DeepSeek"-style chain-of-thought content (thinking blocks).
  */
 
 /**
- * Process DeepSeek-R1 response format, handling <think> tags
- * @param {string} content - Raw content from DeepSeek-R1
- * @returns {string} - Processed content ready for rendering
+ * Process a final DeepSeek response, removing any remaining <think> tags
+ * from the user-visible content.
+ * @param {string} content - Raw content from DeepSeek
+ * @returns {string} - Processed content (user-visible only)
  */
 export function processDeepSeekResponse(content) {
   if (!content) return '';
 
-  // Remove any partial thinking tags that might have slipped through
+  // Remove any partial or dangling <think> / </think> tags
   let processedContent = content.replace(/<\/?think>$/, '');
 
-  // Replace thinking blocks with properly formatted blocks
-  // Use a recursive function to handle nested thinking tags
-  const processThinkingTags = (content) => {
-    // Look for the outermost thinking tags first
+  // Remove nested <think> blocks from user-visible text
+  const processThinkingTags = (raw) => {
+    // Regex to find the first (outermost) <think>...</think> pair
     const regex = /<think>([\s\S]*?)<\/think>/;
-    const match = content.match(regex);
-    
-    if (!match) return content;
-    
-    // Get the content before, inside, and after the thinking tag
-    const beforeThink = content.substring(0, match.index);
-    const afterThink = content.substring(match.index + match[0].length);
-    
-    // Process the content inside the thinking tag recursively
-    const thinkContent = processThinkingTags(match[1]);
-    
-    // Process the content after the thinking tag recursively
-    const processedAfterThink = processThinkingTags(afterThink);
-    
-    // Return the content with thinking tags removed
-    return beforeThink + processedAfterThink;
-  };
-  
-  processedContent = processThinkingTags(processedContent);
+    const match = raw.match(regex);
 
+    if (!match) return raw; // No more <think> tags
+
+    // Content before, inside, and after the found <think> tag
+    const beforeThink = raw.substring(0, match.index);
+    const afterThink = raw.substring(match.index + match[0].length);
+
+    // Recursively process inside/after content
+    const processedInside = processThinkingTags(match[1]);
+    const processedAfter = processThinkingTags(afterThink);
+
+    // Return the combined result, omitting the <think> contents
+    return beforeThink + processedAfter;
+  };
+
+  processedContent = processThinkingTags(processedContent);
   return processedContent;
 }
 
 /**
- * Process a chunk of streamed content, handling thinking blocks incrementally
- * @param {string} chunkBuffer - Current buffer of content being processed
- * @param {boolean} isThinking - Whether we're currently inside a thinking block
- * @param {string} mainBuffer - Current main content buffer
- * @param {string} thinkingBuffer - Current thinking content buffer
- * @returns {Object} - Updated state {mainBuffer, thinkingBuffer, isThinking, remainingChunk}
+ * Process a chunk of streamed content to track whether it's part of
+ * "thinking" blocks vs. user-visible content. Splits text between
+ * main and thinking buffers, depending on <think> tags.
+ *
+ * @param {string} chunkBuffer - Current chunk from SSE
+ * @param {boolean} isThinking - If we're currently inside a <think> block
+ * @param {string} mainBuffer - Accumulated user-visible content
+ * @param {string} thinkingBuffer - Accumulated chain-of-thought content
+ * @returns {Object} Updated state:
+ *   {
+ *     mainBuffer: string,
+ *     thinkingBuffer: string,
+ *     isThinking: boolean,
+ *     remainingChunk: string,
+ *     hasMultipleThinking: boolean
+ *   }
  */
 export function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, thinkingBuffer) {
-  // Return object with defaults
+  // Default return structure
   const result = {
     mainBuffer: mainBuffer || '',
     thinkingBuffer: thinkingBuffer || '',
@@ -62,40 +71,39 @@ export function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, think
 
   if (!chunkBuffer) return result;
 
-  // Look for thinking blocks
+  // See if there's an opening <think> tag in the chunk
   const openTagIndex = chunkBuffer.indexOf('<think>');
 
-  // No thinking tags found
+  // If there's no <think> tag at all
   if (openTagIndex === -1) {
     if (!result.isThinking) {
-      // If not in thinking mode, append to main content
+      // Not in thinking mode => append to main (user-visible) content
       result.mainBuffer = processDeepSeekResponse(result.mainBuffer + chunkBuffer);
     } else {
-      // If in thinking mode, append to thinking content
+      // Currently in a <think> block => keep appending to thinking buffer
       result.thinkingBuffer += chunkBuffer;
     }
     return result;
   }
 
-  // Handle start of thinking block
+  // There's at least one <think> tag
   if (openTagIndex >= 0) {
-    // Process content before thinking block
+    // Everything before <think> goes to mainBuffer if not thinking yet
     if (openTagIndex > 0 && !result.isThinking) {
       const beforeThink = chunkBuffer.substring(0, openTagIndex);
       result.mainBuffer = processDeepSeekResponse(result.mainBuffer + beforeThink);
     }
 
-    // Check for closing tag
+    // Check if there's a closing </think> tag
     const closeTagIndex = chunkBuffer.indexOf('</think>', openTagIndex);
-
     if (closeTagIndex >= 0) {
-      // Complete thinking block found
+      // Found a complete <think>...</think> block
       result.isThinking = false;
 
-      // Extract thinking content without the tags
+      // Extract the content inside <think>...</think>
       const thinkContent = chunkBuffer.substring(openTagIndex + 7, closeTagIndex);
-      
-      // Handle multiple thinking blocks in the same chunk
+
+      // If we already have some thinking text, separate with newlines
       if (result.thinkingBuffer) {
         result.thinkingBuffer += '\n\n' + thinkContent;
         result.hasMultipleThinking = true;
@@ -103,20 +111,19 @@ export function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, think
         result.thinkingBuffer = thinkContent;
       }
 
-      // Check if there are more thinking blocks after this one
+      // Everything after </think>
       const afterThink = chunkBuffer.substring(closeTagIndex + 8);
       const nextThinkIndex = afterThink.indexOf('<think>');
-      
       if (nextThinkIndex >= 0) {
-        // We have another thinking block
+        // Another <think> block appears further in the chunk
         result.remainingChunk = afterThink;
         result.hasMultipleThinking = true;
       } else {
-        // No more thinking blocks, process the rest as normal content
+        // No more <think> blocks => treat the remainder as normal text
         result.remainingChunk = afterThink;
       }
     } else {
-      // Partial thinking block - still collecting
+      // Found an opening <think> but no closing tag => partial
       result.isThinking = true;
       result.thinkingBuffer = chunkBuffer.substring(openTagIndex + 7);
     }
@@ -126,38 +133,45 @@ export function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, think
 }
 
 /**
- * Creates HTML for a thinking block to be inserted into the DOM
- * @param {string} thinkingContent - The content inside the thinking block
- * @returns {string} - HTML string for the thinking block
+ * Generates HTML for a chain-of-thought "thinking block" that can be
+ * inserted into the DOM. This includes a toggle button, hidden content,
+ * and an overlay gradient.
+ *
+ * @param {string} thinkingContent - The text to display as chain-of-thought
+ * @returns {string} - HTML string representing the block
  */
 export function createThinkingBlockHTML(thinkingContent) {
   const formattedContent = formatThinkingContent(thinkingContent);
+
+  // Sanitize HTML with DOMPurify
+  // Only allow minimal tags, forbid inline styles/on* attributes
   const safeContent = DOMPurify.sanitize(formattedContent, {
-    ALLOWED_TAGS: ['div', 'span', 'code', 'pre', 'button'],
+    ALLOWED_TAGS: ['div', 'span', 'code', 'pre', 'button', 'blockquote', 'ul', 'ol', 'li', 'table', 'tr', 'td'],
     ALLOWED_ATTR: ['class', 'aria-expanded', 'data-language'],
     FORBID_ATTR: ['style', 'on*']
   });
 
+  // Use DOMParser to manipulate the final string if needed
   const parser = new DOMParser();
   const doc = parser.parseFromString(safeContent, 'text/html');
   const preElement = doc.querySelector('.thinking-pre');
-  
-  // Security-conscious DOM manipulation
   if (preElement) {
-    preElement.textContent = formattedContent; // Set content as text instead of HTML
+    // Make the text content safe
+    preElement.textContent = formattedContent;
     preElement.setAttribute('data-language', 'thinking');
     preElement.setAttribute('aria-live', 'polite');
   }
 
+  // Generate a unique ID for toggling
   const uniqueId = `thinking-content-${Date.now()}`;
   return `
-    <div class="thinking-process shadow-sm my-4 new" 
-         role="region" 
-         aria-label="Model reasoning process" 
+    <div class="thinking-process shadow-sm my-4 new"
+         role="region"
+         aria-label="Model reasoning process"
          data-collapsed="false">
       <div class="thinking-header">
-        <button class="thinking-toggle" 
-                aria-expanded="true" 
+        <button class="thinking-toggle"
+                aria-expanded="true"
                 aria-controls="${uniqueId}">
           <span class="font-medium">Thinking Process</span>
           <span class="toggle-icon" aria-hidden="true">▼</span>
@@ -172,121 +186,47 @@ export function createThinkingBlockHTML(thinkingContent) {
 }
 
 /**
- * Format the thinking content for better readability
- * @param {string} content - Raw thinking content
- * @returns {string} - Formatted thinking content
- */
-function formatThinkingContent(content) {
-  if (!content) return '';
-  
-  // Remove excessive blank lines (more than 2 consecutive newlines)
-  let formatted = content.replace(/\n{3,}/g, '\n\n');
-  
-  // Trim leading/trailing whitespace
-  formatted = formatted.trim();
-  
-  // Process markdown elements in thinking content
-  // First handle blockquotes, lists, and tables
-  formatted = processMarkdownElements(formatted);
-
-  // Escape HTML characters before any processing
-  formatted = formatted.replace(/[&<>"']/g, (char) => 
-    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[char]
-  );
-
-  // Improved code block handling with syntax highlighting
-  formatted = formatted.replace(/```([\w-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    const language = lang || 'plaintext';
-    const highlighted = Prism?.highlight(code.trim(), Prism.languages[language], language);
-    return `<div class="code-block" data-language="${language}">
-      <div class="code-block-header" aria-label="${language} code">${language}</div>
-      <pre class="language-${language}"><code class="language-${language}">${
-        highlighted || code.trim()
-      }</code></pre>
-    </div>`;
-  });
-  
-  // Handle inline code blocks (single backticks)
-  formatted = formatted.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
-  
-  return formatted;
-}
-
-/**
- * Process markdown elements like blockquotes, lists, and tables
- * @param {string} content - Raw content with markdown
- * @returns {string} - Content with markdown elements processed
- */
-function processMarkdownElements(content) {
-  if (!content) return '';
-  
-  let processed = content;
-  
-  // Process blockquotes
-  processed = processed.replace(/^>[ \t](.*)$/gm, '<blockquote>$1</blockquote>');
-  
-  // Process unordered lists
-  processed = processed.replace(/^[ \t]*[-*+][ \t]+(.*)$/gm, '<li>$1</li>');
-  processed = processed.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
-  
-  // Process ordered lists
-  processed = processed.replace(/^[ \t]*(\d+)\.[ \t]+(.*)$/gm, '<li>$2</li>');
-  processed = processed.replace(/(<li>.*<\/li>\n?)+/g, '<ol>$&</ol>');
-  
-  // Simplify nested list handling
-  processed = processed.replace(/<\/ul>\s*<ul>/g, '');
-  processed = processed.replace(/<\/ol>\s*<ol>/g, '');
-  
-  // Basic table handling
-  processed = processed.replace(/^\|(.+)\|$/gm, '<tr><td>$1</td></tr>');
-  processed = processed.replace(/(<tr>.*<\/tr>\n?)+/g, '<table>$&</table>');
-  
-  return processed;
-}
-
-/**
- * Replace thinking blocks with HTML elements in final content
- * @param {string} content - Content with thinking blocks
- * @returns {string} - Content with thinking blocks replaced with HTML
+ * Replace all <think>...</think> blocks in `content` with their
+ * corresponding HTML block representation (using createThinkingBlockHTML).
+ *
+ * @param {string} content - The full response content (may contain <think> blocks)
+ * @returns {string} - Content with chain-of-thought blocks replaced by HTML
  */
 export function replaceThinkingBlocks(content) {
   if (!content) return '';
 
-  // Extract all thinking blocks using our robust extractor
+  // Extract all <think>...</think> blocks
   const thinkingBlocks = extractThinkingContent(content);
-  
-  // If no thinking blocks found, return the original content
   if (thinkingBlocks.length === 0) {
-    return content;
+    return content; // No blocks, just return original
   }
-  
-  // Process content to replace thinking blocks with HTML
+
   let result = content;
-  
-  // Handle each thinking block
+
+  // For each block, replace the original <think> block with a sanitized HTML snippet
   thinkingBlocks.forEach(thinkContent => {
-    // Find the original block in the content and replace it
-    const blockStartIndex = result.indexOf(`<think>${thinkContent}</think>`);
+    const originalBlock = `<think>${thinkContent}</think>`;
+    const blockStartIndex = result.indexOf(originalBlock);
     if (blockStartIndex !== -1) {
-      const blockEndIndex = blockStartIndex + thinkContent.length + 15; // 15 = <think></think> length
+      const blockEndIndex = blockStartIndex + originalBlock.length;
       const beforeBlock = result.substring(0, blockStartIndex);
       const afterBlock = result.substring(blockEndIndex);
-      
-      // Insert thinking block HTML
+
+      // Create sanitized HTML
       const thinkingHTML = DOMPurify.sanitize(createThinkingBlockHTML(thinkContent));
       result = beforeBlock + thinkingHTML + afterBlock;
     }
   });
-  
-  // Clean up any remaining thinking blocks that might be nested
+
+  // Remove any leftover or nested <think> blocks
   result = result.replace(/<think>[\s\S]*?<\/think>/g, '');
-  
   return result;
 }
 
 /**
- * Initialize any existing thinking blocks in the DOM
- * This is useful when content is loaded from history
+ * Initialize any pre-existing thinking blocks in the DOM
+ * (e.g., after loading conversation history).
+ * Attaches toggle logic, handles "new" highlight effect, etc.
  */
 function initializeExistingBlocks() {
   document.querySelectorAll('.thinking-process').forEach(thinkingProcess => {
@@ -294,42 +234,30 @@ function initializeExistingBlocks() {
     const content = thinkingProcess.querySelector('.thinking-content');
     const toggleIcon = thinkingProcess.querySelector('.toggle-icon');
 
-    // Add necessary data attributes for animation state management
-    if (!thinkingProcess.hasAttribute('data-collapsed')) {
-      thinkingProcess.setAttribute('data-collapsed', 'false');
-    }
-
-    // Apply smooth entrance animation to blocks that don't have the 'new' class yet
+    // Mark newly inserted blocks
     if (!thinkingProcess.classList.contains('new')) {
       thinkingProcess.classList.add('new');
-      
-      // Remove animation class after it completes
       setTimeout(() => {
         thinkingProcess.classList.remove('new');
       }, 2000);
     }
 
+    // Ensure data-collapsed is set
+    if (!thinkingProcess.hasAttribute('data-collapsed')) {
+      thinkingProcess.setAttribute('data-collapsed', 'false');
+    }
+
     if (toggleBtn && content) {
       toggleBtn.addEventListener('click', () => {
         const expanded = toggleBtn.getAttribute('aria-expanded') === 'true';
-        
-        // Update accessibility attributes
         toggleBtn.setAttribute('aria-expanded', !expanded);
         thinkingProcess.setAttribute('data-collapsed', expanded ? 'false' : 'true');
-        
-        // Apply animations
         content.classList.toggle('hidden', expanded);
-        
-        // Ensure height transitions work properly by forcing a reflow
-        if (!expanded) {
-          window.getComputedStyle(content).getPropertyValue('opacity');
-        }
-        
-        // Animate icon with spring physics for a more natural feel
+
+        // Subtle icon rotation
         if (toggleIcon) {
           toggleIcon.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
           toggleIcon.style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
-          toggleIcon.textContent = '▼'; // Always use same icon but rotate it
         }
       });
     }
@@ -337,76 +265,73 @@ function initializeExistingBlocks() {
 }
 
 /**
- * Extract thinking content from a DeepSeek response
- * @param {string} content - Full response content
- * @returns {Array<string>} - Array of extracted thinking content blocks
+ * Extract thinking content from all <think>...</think> blocks
+ * including nested blocks, if any.
+ *
+ * @param {string} content - The response text that may contain multiple or nested <think> blocks
+ * @returns {Array<string>} - Array of extracted thinking block strings
  */
 function extractThinkingContent(content) {
   if (!content) return [];
-  
   const thinkingBlocks = [];
-  let remainingContent = content;
-  let nestedLevel = 0;
-  
-  // Find all thinking blocks, including nested ones
-  const extractRecursive = (text, level = 0) => {
+
+  // Recursive function to find and store nested <think> blocks
+  const extractRecursive = (text) => {
     const openTagIndex = text.indexOf('<think>');
-    if (openTagIndex === -1) return;
-    
-    // Find the matching closing tag
+    if (openTagIndex === -1) return; // No <think> found
+
+    // We'll try to find the matching </think>
     let searchStartIndex = openTagIndex + 7; // length of <think>
-    let openTagCount = 1;
+    let openCount = 1;
     let closeTagIndex = -1;
-    
-    while (openTagCount > 0 && searchStartIndex < text.length) {
-      const nextOpenTag = text.indexOf('<think>', searchStartIndex);
-      const nextCloseTag = text.indexOf('</think>', searchStartIndex);
-      
-      // No more tags found
-      if (nextCloseTag === -1) break;
-      
-      // Found another opening tag before a closing tag
-      if (nextOpenTag !== -1 && nextOpenTag < nextCloseTag) {
-        openTagCount++;
-        searchStartIndex = nextOpenTag + 7;
+
+    while (openCount > 0 && searchStartIndex < text.length) {
+      const nextOpen = text.indexOf('<think>', searchStartIndex);
+      const nextClose = text.indexOf('</think>', searchStartIndex);
+
+      if (nextClose === -1) break; // No matching closing tag
+      if (nextOpen !== -1 && nextOpen < nextClose) {
+        openCount++;
+        searchStartIndex = nextOpen + 7;
       } else {
-        // Found a closing tag
-        openTagCount--;
-        if (openTagCount === 0) {
-          closeTagIndex = nextCloseTag;
+        openCount--;
+        if (openCount === 0) {
+          closeTagIndex = nextClose;
         }
-        searchStartIndex = nextCloseTag + 8; // length of </think>
+        searchStartIndex = nextClose + 8; // length of </think>
       }
     }
-    
+
     if (closeTagIndex !== -1) {
-      // Extract this thinking block
-      const thinkContent = text.substring(openTagIndex + 7, closeTagIndex);
-      thinkingBlocks.push(thinkContent);
-      
-      // Continue searching in the remaining text
-      const remainingText = text.substring(closeTagIndex + 8);
-      extractRecursive(remainingText, level + 1);
-      
-      // Also check for nested thinking blocks within this block
-      extractRecursive(thinkContent, level + 1);
+      // Extract the block content
+      const blockContent = text.substring(openTagIndex + 7, closeTagIndex);
+      thinkingBlocks.push(blockContent);
+
+      // Recurse after this block
+      const afterBlock = text.substring(closeTagIndex + 8);
+      extractRecursive(afterBlock);
+
+      // Also check for nested blocks inside the found block
+      extractRecursive(blockContent);
     }
   };
-  
-  extractRecursive(remainingContent);
+
+  extractRecursive(content);
   return thinkingBlocks;
 }
 
 /**
- * Create a standalone thinking block for insertion into the DOM
- * @param {string} thinkingContent - Raw thinking content
- * @returns {HTMLElement} - DOM element for the thinking block
+ * Create a DOM element for a thinking block, including toggle interactions.
+ * If you prefer returning an HTML string, use createThinkingBlockHTML instead.
+ *
+ * @param {string} thinkingContent - The chain-of-thought text
+ * @returns {HTMLElement} A DOM element representing the thinking block
  */
 function createThinkingBlock(thinkingContent) {
   const container = document.createElement('div');
   container.className = 'thinking-process shadow-sm my-4';
 
-  // Format the thinking content
+  // Format content
   const formattedContent = formatThinkingContent(thinkingContent);
 
   container.innerHTML = `
@@ -422,31 +347,23 @@ function createThinkingBlock(thinkingContent) {
     </div>
   `;
 
-  // Add enhanced toggle functionality with animations
-  const toggleButton = container.querySelector('.thinking-toggle');
-  const contentDiv = container.querySelector('.thinking-content');
-  const toggleIcon = container.querySelector('.toggle-icon');
-  
-  // Add 'new' class for the initial animation
+  // Mark it as new for CSS transitions
   container.classList.add('new');
-  
-  // Remove 'new' class after animation completes
   setTimeout(() => {
     container.classList.remove('new');
   }, 2000);
 
+  const toggleButton = container.querySelector('.thinking-toggle');
+  const contentDiv = container.querySelector('.thinking-content');
+  const toggleIcon = container.querySelector('.toggle-icon');
+
   if (toggleButton && contentDiv) {
     toggleButton.addEventListener('click', function() {
       const expanded = this.getAttribute('aria-expanded') === 'true';
-      
-      // Update attributes for accessibility
       this.setAttribute('aria-expanded', !expanded);
       container.setAttribute('data-collapsed', expanded ? 'false' : 'true');
-      
-      // Apply animations using classes instead of inline styles
       contentDiv.classList.toggle('hidden', expanded);
-      
-      // Smoother icon rotation with spring physics
+
       if (toggleIcon) {
         toggleIcon.style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
       }
@@ -456,7 +373,89 @@ function createThinkingBlock(thinkingContent) {
   return container;
 }
 
-// Export the DeepSeek processor object
+/**
+ * Internal helper to format chain-of-thought text. This:
+ *   - Removes extra blank lines
+ *   - Escapes HTML
+ *   - Processes code fences (```lang ... ```), inline backticks, blockquotes, etc.
+ * @param {string} content - Raw chain-of-thought text
+ * @returns {string} - HTML-escaped text with code blocks highlighted
+ */
+function formatThinkingContent(content) {
+  if (!content) return '';
+
+  // Remove excessive blank lines
+  let formatted = content.replace(/\n{3,}/g, '\n\n');
+
+  // Trim leading/trailing whitespace
+  formatted = formatted.trim();
+
+  // Process basic markdown (quotes, lists, tables) before escaping
+  formatted = processMarkdownElements(formatted);
+
+  // Escape HTML characters so we don't inadvertently allow raw HTML
+  formatted = formatted.replace(/[&<>"']/g, (char) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]
+  );
+
+  // Handle fenced code blocks: ```lang\n code ... ```
+  formatted = formatted.replace(/```([\w-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const language = lang || 'plaintext';
+    // If Prism is available, highlight it; else just use the raw text
+    const highlighted = (typeof Prism !== 'undefined' && Prism.languages[language])
+      ? Prism.highlight(code.trim(), Prism.languages[language], language)
+      : code.trim();
+    return `<div class="code-block" data-language="${language}">
+      <div class="code-block-header" aria-label="${language} code">${language}</div>
+      <pre class="language-${language}"><code class="language-${language}">
+${highlighted}
+      </code></pre>
+    </div>`;
+  });
+
+  // Inline code blocks (single backticks)
+  formatted = formatted.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+
+  return formatted;
+}
+
+/**
+ * Convert markdown-like elements (blockquotes, lists, tables)
+ * into HTML. This is a lightweight, partial markdown converter.
+ *
+ * @param {string} content - Possibly containing markdown syntax
+ * @returns {string} - A best-effort at structured HTML
+ */
+function processMarkdownElements(content) {
+  if (!content) return '';
+
+  let processed = content;
+
+  // Blockquotes (lines starting with `> `)
+  processed = processed.replace(/^>[ \t](.*)$/gm, '<blockquote>$1</blockquote>');
+
+  // Unordered lists
+  processed = processed.replace(/^[ \t]*[-*+][ \t]+(.*)$/gm, '<li>$1</li>');
+  processed = processed.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+  // Ordered lists
+  processed = processed.replace(/^[ \t]*(\d+)\.[ \t]+(.*)$/gm, '<li>$2</li>');
+  processed = processed.replace(/(<li>.*<\/li>\n?)+/g, '<ol>$&</ol>');
+
+  // Collapse multiple consecutive <ul> or <ol> tags
+  processed = processed.replace(/<\/ul>\s*<ul>/g, '');
+  processed = processed.replace(/<\/ol>\s*<ol>/g, '');
+
+  // Simple tables
+  processed = processed.replace(/^\|(.+)\|$/gm, '<tr><td>$1</td></tr>');
+  processed = processed.replace(/(<tr>.*<\/tr>\n?)+/g, '<table>$&</table>');
+
+  return processed;
+}
+
+/**
+ * Export a single object that centralizes all DeepSeek text/DOM processing.
+ */
 export const deepSeekProcessor = {
   processDeepSeekResponse,
   processStreamingChunk,
