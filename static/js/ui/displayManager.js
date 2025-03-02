@@ -456,7 +456,14 @@ const pruneOldMessages = debounce(() => {
   }
 }, 500);
 
+let clientVersion = Date.now();
+
 function storeChatMessage(role, content) {
+    const versionedContent = {
+        content,
+        clientVersion: clientVersion++,
+        timestamp: new Date().toISOString()
+    };
   const sessionId = getSessionId();
   // Ensure required fields are present
   if (!sessionId) {

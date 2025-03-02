@@ -10,6 +10,10 @@ from models import ModelUsageStats
 class ModelStatsService:
     def __init__(self, db_session: AsyncSession):
         self.db = db_session
+        self._buffer = []
+        self._buffer_lock = asyncio.Lock()
+        self._fallback_dir = Path("./stats_fallback")
+        self._fallback_dir.mkdir(exist_ok=True)
 
     async def record_usage(
         self,
@@ -85,7 +89,35 @@ class ModelStatsService:
 
         except Exception as e:
             await self.db.rollback()
+            await self._persist_fallback(self._buffer)
+            self._buffer.clear()
             raise Exception(f"Failed to record model usage stats: {str(e)}")
+
+    async def _persist_fallback(self, batch):
+        async with aiofiles.open(self._fallback_dir / "pending.json", "a") as f:
+            await f.write(json.dumps([ob.__dict__ for ob in batch]) + "\n")
+            
+    async def startup(self):
+        """Recover any fallback data on service start"""
+        try:
+            async with aiofiles.open(self._fallback_dir / "pending.json", "r") as f:
+                async for line in f:
+                    records = json.loads(line)
+                    for rec in records:
+                        await self.db.execute(
+                            text("""
+                                INSERT INTO model_usage_stats 
+                                (model, session_id, prompt_tokens, completion_tokens, total_tokens, 
+                                 reasoning_tokens, cached_tokens, metadata, timestamp)
+                                VALUES 
+                                (:model, :session_id, :prompt_tokens, :completion_tokens, :total_tokens,
+                                 :reasoning_tokens, :cached_tokens, :metadata, :timestamp)
+                            """),
+                            rec
+                        )
+            (self._fallback_dir / "pending.json").unlink()
+        except FileNotFoundError:
+            pass
 
     async def get_session_stats(
         self,

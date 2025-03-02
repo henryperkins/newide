@@ -96,13 +96,21 @@ async def get_model_stats(
         "stats": stats
     }
 
+INTERVAL_MAP = {
+    "1h": "hour",
+    "24h": "day", 
+    "7d": "week",
+    "30d": "month"
+}
+
 @router.get("/model/{model_name}/trend")
 async def get_model_usage_trend(
     model_name: str,
-    interval: str = Query("1h", description="Time interval for grouping (e.g., '1h', '1d')"),
-    points: int = Query(24, description="Number of data points to return"),
+    interval: str = Query("1h", regex=r"^(1h|24h|7d|30d)$"),
+    points: int = Query(24, ge=1, le=1000),
     db: AsyncSession = Depends(get_db_session)
 ):
+    safe_interval = INTERVAL_MAP[interval]
     """
     Get token usage trend over time for a specific model.
     """

@@ -32,7 +32,10 @@ engine = create_async_engine(
     connect_args={
         "ssl": ssl_context
     },
-    json_serializer=lambda obj: json.dumps(obj, default=str)
+    json_serializer=lambda obj: json.dumps(obj, default=str),
+    pool_size=20,
+    max_overflow=10,
+    pool_recycle=300
 )
 
 # Create a session maker for async sessions
