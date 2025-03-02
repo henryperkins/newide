@@ -330,18 +330,28 @@ function extractThinkingContent(content) {
 function createThinkingBlock(thinkingContent) {
   const container = document.createElement('div');
   container.className = 'thinking-process shadow-sm my-4';
+  const id = `thinking-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  container.id = id;
 
   // Format content
   const formattedContent = formatThinkingContent(thinkingContent);
+  stateManager.updateState(id, {content: formattedContent});
 
   container.innerHTML = `
     <div class="thinking-header">
-      <button class="thinking-toggle" aria-expanded="true">
+      <button class="thinking-toggle" 
+              aria-expanded="false"
+              aria-controls="${id}-content"
+              id="${id}-toggle">
         <span class="font-medium">Thinking Process</span>
         <span class="toggle-icon transition-transform duration-200">▼</span>
       </button>
     </div>
-    <div class="thinking-content">
+    <div class="thinking-content" 
+         id="${id}-content"
+         role="region"
+         aria-live="polite"
+         aria-labelledby="${id}-toggle">
       <pre class="thinking-pre">${formattedContent}</pre>
       <div class="thinking-gradient from-thinking-bg/90 dark:from-dark-800/90 to-transparent"></div>
     </div>
@@ -454,6 +464,61 @@ function processMarkdownElements(content) {
 }
 
 /**
+ * State manager for thinking blocks
+ */
+class ThinkingBlockState {
+  constructor() {
+    this.blocks = new Map(); // id -> {expanded: bool, version: number, content: string}
+    this.animationQueue = new Map();
+    this.contentVersions = new Map();
+  }
+
+  getState(id) {
+    return this.blocks.get(id) || {expanded: false, version: 0, content: ''};
+  }
+
+  updateState(id, newState) {
+    this.blocks.set(id, {...this.getState(id), ...newState});
+  }
+
+  queueAnimation(id, callback) {
+    if (!this.animationQueue.has(id)) {
+      this.animationQueue.set(id, []);
+    }
+    this.animationQueue.get(id).push(callback);
+    this.processAnimations();
+  }
+
+  async processAnimations() {
+    for (const [id, queue] of this.animationQueue) {
+      while (queue.length > 0) {
+        const callback = queue.shift();
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        await callback();
+      }
+    }
+  }
+
+  handleContentVersion(id, chunk, version) {
+    if (!this.contentVersions.has(id)) {
+      this.contentVersions.set(id, {current: version, chunks: new Map()});
+    }
+    
+    const state = this.contentVersions.get(id);
+    state.chunks.set(version, chunk);
+    
+    while (state.chunks.has(state.current + 1)) {
+      const nextChunk = state.chunks.get(state.current + 1);
+      this.updateState(id, {content: nextChunk});
+      state.current++;
+      state.chunks.delete(state.current);
+    }
+  }
+}
+
+const stateManager = new ThinkingBlockState();
+
+/**
  * Export a single object that centralizes all DeepSeek text/DOM processing.
  */
 export const deepSeekProcessor = {
@@ -463,5 +528,6 @@ export const deepSeekProcessor = {
   replaceThinkingBlocks,
   initializeExistingBlocks,
   extractThinkingContent,
-  createThinkingBlock
+  createThinkingBlock,
+  stateManager // Expose state manager for testing
 };
