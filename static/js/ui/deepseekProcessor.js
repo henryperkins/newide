@@ -368,14 +368,49 @@ function createThinkingBlock(thinkingContent) {
   const toggleIcon = container.querySelector('.toggle-icon');
 
   if (toggleButton && contentDiv) {
-    toggleButton.addEventListener('click', function() {
-      const expanded = this.getAttribute('aria-expanded') === 'true';
-      this.setAttribute('aria-expanded', !expanded);
-      container.setAttribute('data-collapsed', expanded ? 'false' : 'true');
-      contentDiv.classList.toggle('hidden', expanded);
+    const id = container.id;
+      
+    const handleToggle = () => {
+      const currentState = stateManager.getState(id);
+      const newExpanded = !currentState.expanded;
+        
+      stateManager.queueAnimation(id, async () => {
+        // Animate with Web Animations API
+        const animation = contentDiv.animate(
+          [
+            { opacity: 1, maxHeight: `${contentDiv.scrollHeight}px` },
+            { opacity: 0, maxHeight: '0px' }
+          ],
+          { duration: 300, easing: 'ease-in-out' }
+        );
 
-      if (toggleIcon) {
-        toggleIcon.style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+        if (newExpanded) {
+          animation.reverse();
+        }
+
+        await animation.finished;
+          
+        // Update DOM and state after animation
+        contentDiv.classList.toggle('hidden', !newExpanded);
+        toggleButton.setAttribute('aria-expanded', newExpanded);
+        container.setAttribute('data-collapsed', !newExpanded);
+        stateManager.updateState(id, {expanded: newExpanded});
+          
+        if (toggleIcon) {
+          toggleIcon.style.transform = newExpanded ? 
+            'rotate(0deg)' : 'rotate(-90deg)';
+        }
+      });
+    };
+
+    // Click handler
+    toggleButton.addEventListener('click', handleToggle);
+      
+    // Keyboard accessibility
+    toggleButton.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleToggle();
       }
     });
   }
