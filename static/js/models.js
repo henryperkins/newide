@@ -488,28 +488,27 @@ class ModelManager {
           delete this.pendingModelActions[modelId];
           return false;
         }
-      }
+    }
       
-      ensureLocalModelConfigs() {
+    ensureLocalModelConfigs() {
         for (const [modelId, config] of Object.entries(DEFAULT_MODELS)) {
-          const existingModel = Object.keys(this.modelConfigs).find(
-            k => k.toLowerCase() === modelId.toLowerCase()
-          );
-          
-          if (!existingModel) {
-            this.modelConfigs[modelId] = config;
-            this.createModelOnServer(modelId, config).catch(err =>
-              console.warn(`Failed to create ${modelId} on server: ${err.message}`)
+            const existingModel = Object.keys(this.modelConfigs).find(
+                k => k.toLowerCase() === modelId.toLowerCase()
             );
-          } else if (existingModel !== modelId) {
-            this.modelConfigs[modelId] = this.modelConfigs[existingModel];
-            delete this.modelConfigs[existingModel];
-          }
+            
+            if (!existingModel) {
+                this.modelConfigs[modelId] = config;
+                this.createModelOnServer(modelId, config).catch(err =>
+                    console.warn(`Failed to create ${modelId} on server: ${err.message}`)
+                );
+            } else if (existingModel !== modelId) {
+                this.modelConfigs[modelId] = this.modelConfigs[existingModel];
+                delete this.modelConfigs[existingModel];
+            }
         }
         return this.modelConfigs;
-      }
+    }
       
-
     async createModelOnServer(modelId, modelConfig) {
         if (this.pendingModelActions[modelId]) {
             console.log('[createModelOnServer] Already pending creation for:', modelId, 'pendingAction:', this.pendingModelActions[modelId]);
@@ -793,97 +792,11 @@ class ModelManager {
                 console.warn(`Server returned ${response.status} when getting current model - using first available model instead`);
                 return Object.keys(this.modelConfigs)[0] || null;
             }
-        
-    /**
-     * Updates the UI based on the currently selected model’s capabilities
-     * @param {string} modelName
-     */
-    async updateModelSpecificUI(modelName) {
-        try {
-            // Fetch (or re-fetch) model configuration if needed
-            const modelConfig = this.modelConfigs[modelName] || await this.getModelConfig(modelName);
-            if (!modelConfig) return;
-            
-            // Determine model type
-            const modelType = modelConfig.model_type || 'standard';
-            const isOSeries = modelType === 'o-series' || modelName.toLowerCase().startsWith('o1');
-            const isDeepSeek = modelType === 'deepseek' || modelName.toLowerCase().includes('deepseek');
-
-            // Check capabilities
-            const supportsStreaming = !!modelConfig.supports_streaming;
-            const supportsVision = !!modelConfig.supports_vision;
-            const apiVersion = modelConfig.api_version || '2025-01-01-preview';
-
-            // Show/hide UI elements based on model type
-            const reasoningControls = document.getElementById('reasoning-controls');
-            if (reasoningControls) {
-                reasoningControls.classList.toggle('hidden', !isOSeries);
-            }
-
-            const thinkingControls = document.getElementById('thinking-controls');
-            if (thinkingControls) {
-                thinkingControls.classList.toggle('hidden', !isDeepSeek);
-            }
-
-            // Update streaming toggle
-            const streamingToggle = document.getElementById('enable-streaming');
-            if (streamingToggle) {
-                streamingToggle.disabled = !supportsStreaming;
-                const streamingLabel = streamingToggle.parentElement?.querySelector('label');
-                if (streamingLabel) {
-                    streamingLabel.classList.toggle('text-dark-400', !supportsStreaming);
-                }
-            }
-
-            // Update model info display
-            const modelInfoSection = document.querySelector('.model-info');
-            if (modelInfoSection) {
-                const features = [];
-                if (isOSeries) features.push('advanced reasoning');
-                if (isDeepSeek) features.push('thinking process');
-                if (supportsStreaming) features.push('streaming');
-                if (supportsVision) features.push('vision');
-
-                const featuresText = features.length > 0
-                    ? `with ${features.join(' & ')}`
-                    : '';
-                const apiVersionText = `<span class="text-xs text-gray-500">(API: ${apiVersion})</span>`;
-
-                modelInfoSection.innerHTML = `
-                    <p><strong>Model:</strong> ${modelName} ${featuresText}</p>
-                    <p class="text-xs text-gray-500">Type: ${modelType} ${apiVersionText}</p>
-                `;
-            }
-
-            // Update model badge
-            const modelBadge = document.getElementById('model-badge');
-            if (modelBadge) {
-                modelBadge.textContent = modelName;
-            }
-
-            // Notify other components
-            if (typeof eventBus !== 'undefined') {
-                eventBus.publish('modelUpdated', {
-                    modelName,
-                    modelType,
-                    apiVersion,
-                    capabilities: {
-                        isOSeries,
-                        isDeepSeek,
-                        supportsStreaming,
-                        supportsVision,
-                    }
-                });
-            }
         } catch (error) {
-            console.error('Error updating model-specific UI:', error);
+            console.warn('Failed to get current model from server:', error);
+            return Object.keys(this.modelConfigs)[0] || null;
         }
     }
-    } catch (error) {
-        console.warn('Failed to get current model from server:', error);
-        return Object.keys(this.modelConfigs)[0] || null;
-    }
-}
 }
 
 export const modelManager = new ModelManager();
