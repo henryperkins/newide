@@ -326,8 +326,8 @@ async def create_chat_completion(
 
         if is_deepseek_model(request.model):
             if not request.max_completion_tokens:
-                request.max_completion_tokens = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
-            elif request.max_completion_tokens > config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS:
+                request.max_completion_tokens = DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+            elif request.max_completion_tokens > DEEPSEEK_R1_DEFAULT_MAX_TOKENS:
                 raise HTTPException(
                     status_code=400,
                     detail=f"max_completion_tokens cannot exceed {DEEPSEEK_R1_DEFAULT_MAX_TOKENS} for DeepSeek models"
