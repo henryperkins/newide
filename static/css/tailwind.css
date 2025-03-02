@@ -67,12 +67,7 @@
   }
 
   .dark {
-    --bg-primary: var(--dracula-background);
-    --bg-secondary: var(--dracula-current-line);
-    --text-primary: var(--dracula-foreground);
-    --text-secondary: var(--dracula-comment);
-    --accent-primary: var(--dracula-purple);
-    --accent-secondary: var(--dracula-pink);
+    /* Using Tailwind's built-in dark mode instead of dracula vars */
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -557,7 +552,7 @@
 
   /* Enhance thinking process blocks with animations */
   .thinking-process {
-    border: 1px solid var(--thinking-border, oklch(86% 0.01 276));
+    border: 1px solid oklch(86% 0.01 276);
     border-radius: 0.5rem;
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
