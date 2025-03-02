@@ -2,39 +2,7 @@ import { showNotification, showConfirmDialog } from './ui/notificationManager.js
 import { fetchWithErrorHandling, createCache, eventBus } from './utils/helpers.js';
 import { getModelAPIConfig, updateConfig } from './config.js';
 
-const DEFAULT_MODELS = {
-    "o1": {
-        name: "o1",
-        description: "Advanced reasoning model for complex tasks",
-        azure_endpoint: "https://o1models.openai.azure.com",
-        api_version: "2025-01-01-preview",
-        max_tokens: 200000,
-        max_completion_tokens: 5000,
-        supports_temperature: false,
-        supports_streaming: false,
-        supports_vision: true,
-        requires_reasoning_effort: true,
-        reasoning_effort: "medium",
-        base_timeout: 120.0,
-        max_timeout: 300.0,
-        token_factor: 0.05
-    },
-    "DeepSeek-R1": {
-        name: "DeepSeek-R1",
-        description: "Model that supports chain-of-thought reasoning with <think> tags",
-        azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
-        api_version: "2024-05-01-preview",
-        max_tokens: 32000,
-        max_completion_tokens: 4096,
-        supports_temperature: true,
-        supports_streaming: true,
-        supports_vision: false,
-        requires_reasoning_effort: false,
-        base_timeout: 120.0,
-        max_timeout: 300.0,
-        token_factor: 0.05
-    }
-};
+const DEFAULT_MODELS = {};
 
 class ModelManager {
     constructor() {
@@ -529,6 +497,38 @@ class ModelManager {
             return false;
         }
     }
+            
+            // Update model-specific UI
+            this.updateModelSpecificUI(modelId);
+            
+            // Update internal state
+            this.currentModel = modelId;
+            this.updateModelsList();
+            
+            // Update global config
+            updateConfig({ 
+                selectedModel: modelId,
+                modelType: modelType,
+                apiVersion: modelConfig.api_version
+            });
+            
+            // Publish event for other components
+            eventBus.publish('modelSwitched', { 
+                modelId, 
+                config: this.modelConfigs[modelId],
+                apiVersion: responseData.api_version,
+                modelType: responseData.model_type
+            });
+            
+            showNotification(`Now using model: ${modelId}`, 'success');
+            return true;
+        } catch (error) {
+            console.error('Error switching model:', error);
+            showNotification('Failed to switch model. Please try again.', 'error');
+            delete this.pendingModelActions[modelId];
+            return false;
+        }
+    }
 
     async updateModelSpecificUI(modelId) {
         const config = this.modelConfigs[modelId];
@@ -723,18 +723,18 @@ class ModelManager {
             return {
                 name: modelId,
                 description: modelId.startsWith('o1') ? "Advanced reasoning model" : "High-performance reasoning model",
-                azure_endpoint: "https://o1models.openai.azure.com",
-                api_version: "2025-01-01-preview",
-                max_tokens: 200000,
-                max_completion_tokens: 5000,
-                supports_temperature: false,
-                supports_streaming: modelId.startsWith('o3'),
-                supports_vision: true,
-                requires_reasoning_effort: true,
-                reasoning_effort: "medium",
-                base_timeout: 120.0,
-                max_timeout: 300.0,
-                token_factor: 0.05,
+                azure_endpoint: getModelAPIConfig(modelId).endpoint,
+                api_version: getModelAPIConfig(modelId).apiVersion,
+                max_tokens: getModelAPIConfig(modelId).maxTokens,
+                max_completion_tokens: getModelAPIConfig(modelId).maxCompletionTokens,
+                supports_temperature: getModelAPIConfig(modelId).supportsTemperature,
+                supports_streaming: getModelAPIConfig(modelId).supportsStreaming,
+                supports_vision: getModelAPIConfig(modelId).supportsVision,
+                requires_reasoning_effort: getModelAPIConfig(modelId).requiresReasoningEffort,
+                reasoning_effort: getModelAPIConfig(modelId).reasoningEffort,
+                base_timeout: getModelAPIConfig(modelId).baseTimeout,
+                max_timeout: getModelAPIConfig(modelId).maxTimeout,
+                token_factor: getModelAPIConfig(modelId).tokenFactor,
                 model_type: "o-series"
             };
         }
@@ -742,35 +742,35 @@ class ModelManager {
             return {
                 name: modelId,
                 description: "Model with chain-of-thought reasoning capabilities",
-                azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
-                api_version: "2024-05-01-preview",
-                max_tokens: 32000,
-                max_completion_tokens: 4096,
-                supports_temperature: true,
-                supports_streaming: true,
-                supports_vision: false,
-                requires_reasoning_effort: false,
+                azure_endpoint: getModelAPIConfig(modelId).endpoint,
+                api_version: getModelAPIConfig(modelId).apiVersion,
+                max_tokens: getModelAPIConfig(modelId).maxTokens,
+                max_completion_tokens: getModelAPIConfig(modelId).maxCompletionTokens,
+                supports_temperature: getModelAPIConfig(modelId).supportsTemperature,
+                supports_streaming: getModelAPIConfig(modelId).supportsStreaming,
+                supports_vision: getModelAPIConfig(modelId).supportsVision,
+                requires_reasoning_effort: getModelAPIConfig(modelId).requiresReasoningEffort,
                 enable_thinking: true,
-                base_timeout: 120.0,
-                max_timeout: 300.0,
-                token_factor: 0.05,
+                base_timeout: getModelAPIConfig(modelId).baseTimeout,
+                max_timeout: getModelAPIConfig(modelId).maxTimeout,
+                token_factor: getModelAPIConfig(modelId).tokenFactor,
                 model_type: "deepseek"
             };
         }
         return {
             name: modelId,
             description: "Generic AI model",
-            azure_endpoint: "https://o1models.openai.azure.com",
-            api_version: "2024-02-01-preview",
-            max_tokens: 16000,
-            max_completion_tokens: 4096,
-            supports_temperature: true,
-            supports_streaming: true,
-            supports_vision: false,
-            requires_reasoning_effort: false,
-            base_timeout: 120.0,
-            max_timeout: 300.0,
-            token_factor: 0.05,
+            azure_endpoint: getModelAPIConfig(modelId).endpoint,
+            api_version: getModelAPIConfig(modelId).apiVersion,
+            max_tokens: getModelAPIConfig(modelId).maxTokens,
+            max_completion_tokens: getModelAPIConfig(modelId).maxCompletionTokens,
+            supports_temperature: getModelAPIConfig(modelId).supportsTemperature,
+            supports_streaming: getModelAPIConfig(modelId).supportsStreaming,
+            supports_vision: getModelAPIConfig(modelId).supportsVision,
+            requires_reasoning_effort: getModelAPIConfig(modelId).requiresReasoningEffort,
+            base_timeout: getModelAPIConfig(modelId).baseTimeout,
+            max_timeout: getModelAPIConfig(modelId).maxTimeout,
+            token_factor: getModelAPIConfig(modelId).tokenFactor,
             model_type: "standard"
         };
     }

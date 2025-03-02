@@ -1,4 +1,3 @@
-import { modelManager } from './models.js';
 import { showNotification } from './ui/notificationManager.js';
 import { eventBus } from './utils/helpers.js';
 
@@ -412,7 +411,16 @@ export function getDeveloperConfig() {
 
 export async function getModelAPIConfig(modelName) {
   const config = await getCurrentConfig();
-  const modelConfig = modelManager.modelConfigs[modelName];
+  let modelConfig = null;
+  
+  try {
+    const resp = await fetch(`${window.location.origin}/api/config/models/${encodeURIComponent(modelName)}`);
+    if (resp.ok) {
+      modelConfig = await resp.json();
+    }
+  } catch (error) {
+    console.error('Error fetching model config:', error);
+  }
   if (modelConfig) {
     return {
       endpoint: modelConfig.azure_endpoint || config.azureOpenAI?.endpoint,

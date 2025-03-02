@@ -10,7 +10,11 @@ import { initializeConfig } from './config.js';
 import './update_deepseek.js'; // Import DeepSeek-R1 configuration updater
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize all header controls first
   initThemeSwitcher();
+  initializeFontSizeControls();
+  initSettingsButton();
+  // Initialize model selector after header controls
   const modelSelect = document.getElementById('model-select');
   if (modelSelect) {
     const observer = new MutationObserver(() => {});
