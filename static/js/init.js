@@ -9,6 +9,16 @@ import fileManager from './fileManager.js';
 import { initializeConfig } from './config.js';
 import './update_deepseek.js'; // Import DeepSeek-R1 configuration updater
 
+// Disable service worker registration
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    for (let registration of registrations) {
+      registration.unregister();
+      console.log('Service worker unregistered');
+    }
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Initialize all header controls first
   initThemeSwitcher();
