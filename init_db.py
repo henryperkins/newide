@@ -182,6 +182,24 @@ async def init_database():
                 ALTER TABLE model_usage_stats
                 ADD COLUMN IF NOT EXISTS content_analysis JSONB
             """))
+
+            # Add thinking_process to model_usage_stats if not exists
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                ADD COLUMN IF NOT EXISTS thinking_process JSONB
+            """))
+
+            # Add token_details to model_usage_stats if not exists
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                ADD COLUMN IF NOT EXISTS token_details JSONB
+            """))
+
+            # Add model_metadata to model_usage_stats if not exists
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                ADD COLUMN IF NOT EXISTS model_metadata JSONB
+            """))
             
             # Add tracking_id to model_usage_stats if not exists
             await conn.execute(text("""
