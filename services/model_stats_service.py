@@ -44,6 +44,7 @@ class ModelStatsService:
             total_tokens=usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0),
             reasoning_tokens=usage.get("completion_tokens_details", {}).get("reasoning_tokens"),
             cached_tokens=usage.get("prompt_tokens_details", {}).get("cached_tokens", 0),
+            active_tokens=usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0) - usage.get("prompt_tokens_details", {}).get("cached_tokens", 0),
             metadata=metadata
         )
 

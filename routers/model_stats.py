@@ -63,6 +63,7 @@ async def get_session_stats(
 async def get_model_stats(
     model_name: str,
     period: str = Query("24h", description="Time period (e.g., '1h', '24h', '7d', '30d')"),
+    interval: Optional[str] = Query(None, description="Aggregation interval (e.g., '1h', '5m')"),
     db: AsyncSession = Depends(get_db_session)
 ):
     """
@@ -155,11 +156,19 @@ async def compare_models(
     # Get stats for each model
     comparison = {}
     for model_name in config.MODEL_CONFIGS.keys():
-        stats = await stats_service.get_model_stats(
-            model=model_name,
-            start_time=start_time,
-            end_time=now
-        )
+        if interval:
+            stats = await stats_service.get_aggregated_model_stats(
+                model=model_name,
+                start_time=start_time,
+                end_time=now,
+                interval=interval
+            )
+        else:
+            stats = await stats_service.get_model_stats(
+                model=model_name,
+                start_time=start_time,
+                end_time=now
+            )
         comparison[model_name] = stats
 
     return {

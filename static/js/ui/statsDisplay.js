@@ -52,16 +52,24 @@ export default class StatsDisplay {
             <span class="stat-value" id="total-tokens-value">0</span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">Prompt</span>
+            <span class="stat-label">Processed Prompt Tokens</span>
             <span class="stat-value" id="prompt-tokens-value">0</span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">Completion</span>
+            <span class="stat-label">Generated Completion Tokens</span>
             <span class="stat-value" id="completion-tokens-value">0</span>
           </div>
           <div class="stat-item">
             <span class="stat-label">Reasoning</span>
             <span class="stat-value" id="reasoning-tokens-value">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Time to Response</span>
+            <span class="stat-value" id="time-to-response">0ms</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Token Interval</span>
+            <span class="stat-value" id="time-between-tokens">0ms</span>
           </div>
         </div>
       `;
@@ -124,11 +132,26 @@ export default class StatsDisplay {
       if (partialTokensEl) partialTokensEl.textContent = this.stats.partialTokens;
   
       // Show tokensPerSecond as one decimal place, e.g. "12.3 t/s"
-      this.container.querySelector('#tokens-value').textContent =
-        `${this.stats.tokensPerSecond.toFixed(1)} t/s`;
+      const tpsEl = this.container.querySelector('#tokens-value');
+      const tps = this.stats.tokensPerSecond;
+      tpsEl.textContent = `${tps.toFixed(1)} t/s`;
+
+      if (tps > 100) {
+        tpsEl.classList.add('text-red-500');
+      } else if (tps > 50) {
+        tpsEl.classList.add('text-yellow-500');
+        tpsEl.classList.remove('text-red-500');
+      } else {
+        tpsEl.classList.remove('text-red-500', 'text-yellow-500');
+      }
   
       this.container.querySelector('#connections-value').textContent =
         this.stats.activeConnections;
+
+      this.container.querySelector('#time-to-response').textContent =
+        `${(this.stats.timeToResponse || 0).toFixed(0)}ms`;
+      this.container.querySelector('#time-between-tokens').textContent =
+        `${(this.stats.timeBetweenTokens || 0).toFixed(0)}ms`;
 
       this.container.querySelector('#prompt-tokens-value').textContent =
         new Intl.NumberFormat().format(this.stats.promptTokens);
