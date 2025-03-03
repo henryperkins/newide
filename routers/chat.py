@@ -638,15 +638,6 @@ async def generate_stream_chunks(
                         retry_delay *= 2
                     else:
                         raise
-        elif isinstance(client, AzureOpenAI):
-            # 2) Standard streaming with Azure OpenAI
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=params["messages"],
-                temperature=params.get("temperature", 0.7),
-                max_tokens=params.get("max_tokens", 800),
-                stream=True
-            )
         else:
             # 3) Azure AI Inference client streaming
             response = client.complete(
