@@ -344,22 +344,6 @@ async def create_chat_completion(
                             raise
                 if retry_count > max_retries and last_error:
                     raise last_error
-            else:
-                # Inference client with a non-DeepSeek model is not supported here
-                raise ValueError(
-                    f"Unsupported model '{request.model}' for ChatCompletionsClient"
-                )
-        else:
-            # 2) Otherwise, Azure OpenAI-based client
-            if deepseek_check:
-                # If it's a deepseek model with an AzureOpenAI client
-                response = client.completions.create(
-                    model=request.model,
-                    messages=messages,
-                    temperature=DEEPSEEK_R1_DEFAULT_TEMPERATURE,
-                    max_tokens=DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
-                    stream=False
-                )
             elif is_o_series_model(request.model):
                 # O-series model with reasoning effort
                 logger.info(f"O-series model: {request.model}, reasoning={request.reasoning_effort}")
