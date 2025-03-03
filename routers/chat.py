@@ -579,9 +579,8 @@ async def generate_stream_chunks(
 
             while retry_count <= max_retries:
                 try:
-                    stream = client.complete(
+                    stream = client.stream(
                         messages=params["messages"],
-                        temperature=params["temperature"],
                         max_tokens=params["max_tokens"],
                         stream=True
                     )
@@ -624,9 +623,8 @@ async def generate_stream_chunks(
                         raise
         else:
             # 3) Azure AI Inference client streaming
-            response = client.complete(
+            response = client.stream(
                 messages=params["messages"],
-                temperature=params.get("temperature", 0.7),
                 max_tokens=params.get("max_tokens", 800),
                 stream=True
             )

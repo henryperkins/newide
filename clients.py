@@ -207,7 +207,7 @@ class ClientPool:
             return ChatCompletionsClient(
                 endpoint=model_config["azure_endpoint"],
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                model=model_config["name"] or model_id,  # Use actual model ID
+                model=model_id,  # Use actual model ID from parameter
                 api_version=model_config["api_version"],
                 connection_timeout=120.0,
                 read_timeout=120.0
@@ -389,6 +389,15 @@ async def get_model_client_dependency(model_name: Optional[str] = None) -> Dict[
         Dict with "client" key containing the client object
     """
     try:
+        if config.is_deepseek_model(model_name):
+            client = ChatCompletionsClient(
+                endpoint=config.AZURE_INFERENCE_ENDPOINT,
+                credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
+                model=model_name,
+                api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION
+            )
+            return {"client": client, "model_name": model_name}
+        
         client = await get_model_client(model_name)
         return {"client": client, "model_name": model_name or config.AZURE_OPENAI_DEPLOYMENT_NAME}
     except Exception as e:
