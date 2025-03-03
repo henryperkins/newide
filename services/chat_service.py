@@ -104,7 +104,7 @@ async def process_chat_message(
     start_time = perf_counter()
     session_id = chat_message.session_id
 
-    model_name = model_name or config.AZURE_OPENAI_DEPLOYMENT_NAME
+    model_name = model_name or config.AZURE_INFERENCE_DEPLOYMENT  # Use the correct deployment name
 
     # Grab model_configs if available
     try:

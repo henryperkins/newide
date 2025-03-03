@@ -50,7 +50,7 @@ async def get_current_model(
             # If no models available, use default from config
             if not fallback_model:
                 import config
-                fallback_model = config.AZURE_OPENAI_DEPLOYMENT_NAME
+                fallback_model = config.AZURE_INFERENCE_DEPLOYMENT  # Use the correct deployment name
                 
             return {"currentModel": fallback_model}
             

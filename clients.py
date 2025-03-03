@@ -204,12 +204,13 @@ class ClientPool:
         # DeepSeek-R1 needs different endpoints and credentials
         if "deepseek" in model_id.lower():
             endpoint_val = model_config.get("azure_endpoint") or config.AZURE_INFERENCE_ENDPOINT
+            model_name = config.AZURE_INFERENCE_DEPLOYMENT  # Use the configured deployment name
             api_version = model_config.get("api_version") or config.DEEPSEEK_R1_DEFAULT_API_VERSION
             # Make sure it's the correct DeepSeek endpoint, not an openai.azure endpoint:
             return ChatCompletionsClient(
                 endpoint=endpoint_val,
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                model="DeepSeek-R1",  # or model_id, if that's exactly "DeepSeek-R1"
+                model=config.AZURE_INFERENCE_DEPLOYMENT,  # Use the configured deployment name
                 api_version=api_version,
                 connection_timeout=120.0,
                 read_timeout=120.0
