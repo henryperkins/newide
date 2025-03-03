@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     AZURE_INFERENCE_CREDENTIAL: Optional[str] = os.getenv("AZURE_INFERENCE_CREDENTIAL", "M6Dbj2dcZ1Eb2If33ecVZ5jXK3yvVlOx")
     KEY_VAULT_URI: Optional[str] = os.getenv("AZURE_KEY_VAULT_URI")
     AZURE_INFERENCE_DEPLOYMENT: Optional[str] = os.getenv(
-        "AZURE_INFERENCE_DEPLOYMENT", "DeepSeek-R1"
+        "AZURE_INFERENCE_DEPLOYMENT", "your-actual-deployment-name"
     )
     AZURE_INFERENCE_API_VERSION: Optional[str] = os.getenv(
         "AZURE_INFERENCE_API_VERSION", "2024-05-01-preview"
