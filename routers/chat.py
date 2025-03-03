@@ -539,7 +539,14 @@ async def generate_stream_chunks(
     deepseek_check = is_deepseek_model(model_name)
 
     # Build base messages
-    messages_list = [{"role": "user", "content": message}]
+    if is_o_series_model(model_name):
+        # Prepend developer message with formatting instruction for o-series
+        messages_list = [
+            {"role": "developer", "content": "Formatting re-enabled - please use markdown formatting for code blocks and structured content."},
+            {"role": "user", "content": message}
+        ]
+    else:
+        messages_list = [{"role": "user", "content": message}]
 
     # Build default params
     params = {
@@ -623,6 +630,13 @@ async def generate_stream_chunks(
         else:
             # Handle Azure OpenAI client streaming
             is_o_series = is_o_series_model(model_name)
+            # For o-series, ensure developer message is first
+            if is_o_series:
+                params["messages"].insert(0, {
+                    "role": "developer",
+                    "content": "Formatting re-enabled - please use markdown formatting for code blocks and structured content."
+                })
+            
             stream = client.chat.completions.create(
                 model=model_name,
                 messages=params["messages"],
@@ -632,7 +646,7 @@ async def generate_stream_chunks(
                 headers={
                     "reasoning-effort": reasoning_effort,
                     "Formatting": "re-enabled"
-                } if is_o_series else None
+                } if is_o_series else None,
             )
             
             async for chunk in stream:
