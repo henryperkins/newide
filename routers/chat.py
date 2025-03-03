@@ -622,13 +622,18 @@ async def generate_stream_chunks(
                     else:
                         raise
         else:
-            # 3) Azure AI Inference client streaming
-            response = client.stream(
+            # Handle Azure OpenAI client streaming
+            is_o_series = is_o_series_model(model_name)
+            stream = client.chat.completions.create(
+                model=model_name,
                 messages=params["messages"],
-                max_tokens=params.get("max_tokens", 800),
-                stream=True
+                max_completion_tokens=params.get("max_tokens", 5000) if is_o_series else None,
+                max_tokens=params.get("max_tokens", 800) if not is_o_series else None,
+                stream=True,
+                headers={"reasoning-effort": reasoning_effort} if is_o_series else None
             )
-            async for chunk in response:
+            
+            async for chunk in stream:
                 response_data = {
                     "id": f"chatcmpl-{uuid.uuid4()}",
                     "object": "chat.completion.chunk",
