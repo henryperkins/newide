@@ -145,7 +145,7 @@ async def process_chat_message(
         if temperature is not None:
             raise ValueError("Temperature not supported for O-series models")
         params["max_completion_tokens"] = max_tokens if max_tokens is not None else config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
-        params["reasoning_effort"] = chat_message.reasoning_effort or "medium"
+        # No need to add reasoning_effort to params - handled by client headers
     else:
         # Standard models
         params["temperature"] = temperature if temperature is not None else 0.7

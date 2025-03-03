@@ -189,11 +189,13 @@ class ModelUsageStats(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     model = Column(String(50), nullable=False)
+    model_type = Column(String(20), nullable=False)  # 'deepseek' or 'o_series'
     session_id = Column(PGUUID, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=True)
     prompt_tokens = Column(Integer, nullable=False)
     completion_tokens = Column(Integer, nullable=False)
     total_tokens = Column(Integer, nullable=False)
-    reasoning_tokens = Column(Integer, nullable=True)  # Both DeepSeek and O-series
+    deepseek_specific_tokens = Column(Integer, nullable=True)
+    o_series_specific_tokens = Column(Integer, nullable=True)
     o_series_effort = Column(String(20), nullable=True)  # Only O-series
     deepseek_thoughts = Column(Integer, nullable=True)  # Count of thinking blocks
     cached_tokens = Column(Integer, nullable=True)     # For token caching stats

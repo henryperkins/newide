@@ -35,7 +35,7 @@ class ModelRegistry:
             "max_tokens": 200000,
             "max_completion_tokens": config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
             "supports_temperature": False,
-            "supports_streaming": False,
+            "supports_streaming": True,  # Changed from False
             "supports_vision": True,
             "requires_reasoning_effort": True,
             "reasoning_effort": config.O_SERIES_DEFAULT_REASONING_EFFORT,
@@ -216,7 +216,7 @@ class ClientPool:
                 azure_endpoint=model_config.get("azure_endpoint") or config.AZURE_OPENAI_ENDPOINT,
                 api_version=model_config["api_version"],
                 default_headers={
-                    "reasoning-effort": "medium",
+                    "reasoning-effort": model_config.get("reasoning_effort", "medium"),
                     "Formatting": "re-enabled"
                 },
                 max_retries=config.O_SERIES_MAX_RETRIES,
