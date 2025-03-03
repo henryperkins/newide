@@ -201,13 +201,13 @@ class ClientPool:
             
     def _create_client(self, model_id: str, model_config: Dict[str, Any]):
         """Create the appropriate client based on model type"""
-        # DeepSeek-R1 needs different endpoints and credentials
-        if "deepseek" in model_id.lower():
-            # Always return ChatCompletionsClient for DeepSeek-R1
+        # Handle DeepSeek models (case-insensitive match)
+        model_lower = model_id.lower()
+        if any(kw in model_lower for kw in ["deepseek", "ds"]):
             return ChatCompletionsClient(
                 endpoint=model_config["azure_endpoint"],
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                model=model_config["name"] or "DeepSeek-R1",
+                model=model_config["name"] or model_id,  # Use actual model ID
                 api_version=model_config["api_version"],
                 connection_timeout=120.0,
                 read_timeout=120.0
