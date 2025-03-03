@@ -217,9 +217,12 @@ class ClientPool:
             endpoint_val = model_config.get("azure_endpoint") or config.AZURE_OPENAI_ENDPOINT or "https://o1models.openai.azure.com"
             return AzureOpenAI(
                 api_key=config.AZURE_OPENAI_API_KEY,
-                api_version=config.O_SERIES_API_VERSION,
+                api_version="2024-12-01-preview",
                 azure_endpoint=endpoint_val,
-                default_headers={"reasoning-effort": "medium"},
+                default_headers={
+                    "reasoning-effort": "medium",
+                    "Formatting": "re-enabled"
+                },
                 max_retries=config.O_SERIES_MAX_RETRIES,
                 timeout=model_config.get("base_timeout", 120.0)
             )

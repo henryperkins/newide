@@ -296,8 +296,7 @@ async def create_chat_completion(
                         # Non-streaming completion for DeepSeek
                         response = client.complete(
                             messages=messages,
-                            temperature=DEEPSEEK_R1_DEFAULT_TEMPERATURE,
-                            max_tokens=DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
+                            max_tokens=DEEPSEEK_R1_DEFAULT_MAX_TOKENS, 
                             stream=False
                         )
                         usage_data = {
@@ -630,7 +629,10 @@ async def generate_stream_chunks(
                 max_completion_tokens=params.get("max_tokens", 5000) if is_o_series else None,
                 max_tokens=params.get("max_tokens", 800) if not is_o_series else None,
                 stream=True,
-                headers={"reasoning-effort": reasoning_effort} if is_o_series else None
+                headers={
+                    "reasoning-effort": reasoning_effort,
+                    "Formatting": "re-enabled"
+                } if is_o_series else None
             )
             
             async for chunk in stream:
