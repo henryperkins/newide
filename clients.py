@@ -203,32 +203,13 @@ class ClientPool:
         """Create the appropriate client based on model type"""
         # DeepSeek-R1 needs different endpoints and credentials
         if "deepseek" in model_id.lower():
-            # Use the model-specific endpoint from config if available, fall back to config default
-            endpoint_val = model_config.get("azure_endpoint") or config.AZURE_INFERENCE_ENDPOINT or "https://DeepSeek-R1D2.eastus2.models.ai.azure.com"
-            
-            # For DeepSeek-R1D2 endpoint, the endpoint structure is different
-            if "DeepSeek-R1D2" in endpoint_val:
-                # The API endpoint already has the correct structure
-                if not endpoint_val.endswith("/chat/completions"):
-                    endpoint_val = endpoint_val.rstrip("/")
-            else:
-                # DeepSeek endpoints should end with /models
-                if not endpoint_val.endswith("/models"):
-                    endpoint_val = endpoint_val.rstrip("/") + "/models"
-                
-            cred_val = config.AZURE_INFERENCE_CREDENTIAL or "M6Dbj2dcZ1Eb2If33ecVZ5jXK3yvVlOx"
+            endpoint_val = model_config.get("azure_endpoint") or config.AZURE_INFERENCE_ENDPOINT
             api_version = model_config.get("api_version") or config.DEEPSEEK_R1_DEFAULT_API_VERSION
-            
-            # Important: For DeepSeek, use the properly-cased model name "DeepSeek-R1" instead of lowercase
-            model_name = "DeepSeek-R1" if model_id.lower() == "DeepSeek-R1" else model_id
-            
-            logger.info(f"Creating DeepSeek client for {model_id} with endpoint: {endpoint_val} and API version: {api_version}")
-            logger.info(f"Using model name for Azure AI Inference: {model_name}")
-            
+            # Make sure it's the correct DeepSeek endpoint, not an openai.azure endpoint:
             return ChatCompletionsClient(
                 endpoint=endpoint_val,
-                credential=AzureKeyCredential(cred_val),
-                model=model_name,  # Use properly-cased model name for DeepSeek
+                credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
+                model="DeepSeek-R1",  # or model_id, if that's exactly "DeepSeek-R1"
                 api_version=api_version,
                 connection_timeout=120.0,
                 read_timeout=120.0
