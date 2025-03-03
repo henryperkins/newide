@@ -115,6 +115,7 @@ export function streamChatResponse(
     const params = new URLSearchParams();
     params.append('model', validModelName);
     params.append('message', messageContent || '');
+    // Headers are handled automatically by the client
 
     // For DeepSeek-R1, enable thinking mode.
     if (validModelName.includes('deepseek')) {
