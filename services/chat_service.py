@@ -130,31 +130,26 @@ async def process_chat_message(
     else:
         messages = [{"role": "user", "content": chat_message.message}]
 
-    # We'll define a typed dictionary for AzureOpenAI calls.
-    # Using Dict[str, Any] so Pylance won't lock us into a single type for each key.
-    params: Dict[str, Any] = {}
-
-    # In either case, we'll store messages in a param so we can handle them below
-    # (Though ChatCompletionsClient typically uses .complete(prompt=...) or similar)
-    # For AzureOpenAI, it's definitely `messages=<list>`.
-    params["messages"] = messages
-
+    # Model-specific parameter handling
+    params: Dict[str, Any] = {"messages": messages}
     temperature = chat_message.temperature
     max_tokens = chat_message.max_completion_tokens
 
-    # We might want to default the temperature / max_tokens for deepseek
-    # We'll refine once we see which client we call.
     if is_deepseek:
-        params["temperature"] = temperature if temperature is not None else config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
+        # DeepSeek-specific parameters
+        if temperature is not None:
+            raise ValueError("Temperature not supported for DeepSeek models")
         params["max_tokens"] = max_tokens if max_tokens is not None else config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
-    else:
-        # For o-series or general models:
-        params["temperature"] = temperature if temperature is not None else 0.7
-        # Usually for AzureOpenAI we set max_completion_tokens rather than max_tokens:
+    elif is_o_series_model(model_name):
+        # O-series parameters
+        if temperature is not None:
+            raise ValueError("Temperature not supported for O-series models")
         params["max_completion_tokens"] = max_tokens if max_tokens is not None else config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
-        if chat_message.reasoning_effort:
-            # We'll store it so we can pass it to O-series
-            params["reasoning_effort"] = chat_message.reasoning_effort
+        params["reasoning_effort"] = chat_message.reasoning_effort or "medium"
+    else:
+        # Standard models
+        params["temperature"] = temperature if temperature is not None else 0.7
+        params["max_completion_tokens"] = max_tokens if max_tokens is not None else 1000
 
     try:
         # Distinguish between ChatCompletionsClient and AzureOpenAI:

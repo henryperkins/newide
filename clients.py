@@ -201,24 +201,20 @@ class ClientPool:
             
     def _create_client(self, model_id: str, model_config: Dict[str, Any]):
         """Create the appropriate client based on model type"""
-        # Handle DeepSeek models (case-insensitive match)
-        model_lower = model_id.lower()
-        if any(kw in model_lower for kw in ["deepseek", "ds"]):
+        if is_deepseek_model(model_id):
             return ChatCompletionsClient(
                 endpoint=model_config["azure_endpoint"],
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                model=model_id,  # Use actual model ID from parameter
+                model="DeepSeek-R1",  # Fixed model name
                 api_version=model_config["api_version"],
                 connection_timeout=120.0,
                 read_timeout=120.0
             )
-        # o-series uses standard OpenAI client with reasoning effort
-        elif "o1" in model_id.lower() or "o3" in model_id.lower():
-            endpoint_val = model_config.get("azure_endpoint") or config.AZURE_OPENAI_ENDPOINT or "https://o1models.openai.azure.com"
+        elif is_o_series_model(model_id):
             return AzureOpenAI(
                 api_key=config.AZURE_OPENAI_API_KEY,
-                api_version="2024-12-01-preview",
-                azure_endpoint=endpoint_val,
+                azure_endpoint=model_config.get("azure_endpoint") or config.AZURE_OPENAI_ENDPOINT,
+                api_version=model_config["api_version"],
                 default_headers={
                     "reasoning-effort": "medium",
                     "Formatting": "re-enabled"
