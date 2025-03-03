@@ -254,8 +254,8 @@ MODEL_API_VERSIONS: Dict[str, str] = {
     "o3-mini": "2025-01-01-preview",
     "o1-preview": "2025-01-01-preview",
     "o1-mini": "2025-01-01-preview",
-    "DeepSeek-R1": "2024-05-01-preview",
-    "default": "2025-01-01-preview",
+    "deepseek-r1": "2024-05-01-preview",  # Serverless API version
+    "default": "2024-05-01-preview",
 }
 
 # -----------------------------------------------
