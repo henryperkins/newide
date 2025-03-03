@@ -201,7 +201,7 @@ class ClientPool:
             
     def _create_client(self, model_id: str, model_config: Dict[str, Any]):
         """Create the appropriate client based on model type"""
-        if is_deepseek_model(model_id):
+        if config.is_deepseek_model(model_id):
             return ChatCompletionsClient(
                 endpoint=model_config["azure_endpoint"],
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
@@ -210,7 +210,7 @@ class ClientPool:
                 connection_timeout=120.0,
                 read_timeout=120.0
             )
-        elif is_o_series_model(model_id):
+        elif config.is_o_series_model(model_id):
             return AzureOpenAI(
                 api_key=config.AZURE_OPENAI_API_KEY,
                 azure_endpoint=model_config.get("azure_endpoint") or config.AZURE_OPENAI_ENDPOINT,

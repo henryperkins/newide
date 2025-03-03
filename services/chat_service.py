@@ -14,7 +14,7 @@ from openai import AzureOpenAI, OpenAIError
 
 from logging_config import logger
 import config
-from config import is_deepseek_model
+from config import is_deepseek_model, is_o_series_model
 from models import Conversation
 from pydantic_models import ChatMessage
 from azure.core.credentials import AzureKeyCredential
