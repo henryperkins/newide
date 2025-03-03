@@ -130,10 +130,14 @@ async def init_database():
                 total_tokens INTEGER NOT NULL,
                 reasoning_tokens INTEGER,
                 cached_tokens INTEGER,
-                content_analysis JSONB,
+                active_tokens INTEGER,
+                thinking_process JSONB,
+                token_details JSONB,
                 timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 tracking_id VARCHAR(64),
-                usage_metadata JSONB
+                model_metadata JSONB,
+                usage_metadata JSONB,
+                extra_metadata JSONB
             )
         """))
         
@@ -207,17 +211,23 @@ async def init_database():
                 ADD COLUMN IF NOT EXISTS tracking_id VARCHAR(64)
             """))
             
-            # Remove columns from model_usage_stats that are not in the ORM
+            # Add columns to model_usage_stats that are in the ORM but not in database
             await conn.execute(text("""
                 ALTER TABLE model_usage_stats
-                DROP COLUMN IF EXISTS reasoning_tokens
+                ADD COLUMN IF NOT EXISTS reasoning_tokens INTEGER
             """))
 
             await conn.execute(text("""
                 ALTER TABLE model_usage_stats
-                DROP COLUMN IF EXISTS cached_tokens
+                ADD COLUMN IF NOT EXISTS cached_tokens INTEGER
+            """))
+            
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                ADD COLUMN IF NOT EXISTS active_tokens INTEGER
             """))
 
+            # Only drop content_analysis which is not in our ORM
             await conn.execute(text("""
                 ALTER TABLE model_usage_stats
                 DROP COLUMN IF EXISTS content_analysis

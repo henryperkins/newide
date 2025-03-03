@@ -46,10 +46,14 @@ from services.chat_service import (
     process_chat_message,
     save_conversation
 )
-from utils import handle_client_error
+from services.model_stats_service import ModelStatsService
+from utils import handle_client_error, count_tokens
 from azure.ai.inference import ChatCompletionsClient
 from openai import AzureOpenAI
 
+# By using prefix="/chat", all routes below will become "/chat/..."
+# and with the main app including this router under "/api",
+# the SSE endpoint becomes "/api/chat/sse"
 router = APIRouter(prefix="/chat")
 
 
@@ -61,20 +65,13 @@ async def store_message(
 ):
     """
     Store a single chat message in the database.
-
-    This endpoint supports JSON bodies. The required fields are:
-    - session_id (string UUID)
-    - role (string: 'user' | 'assistant' | etc.)
-    - content (string: the message content)
+    Expects JSON with the following fields:
+      - session_id (string UUID)
+      - role (e.g. 'user', 'assistant')
+      - content (the message content)
     """
-    from json import JSONDecodeError
     try:
-        # Parse the request body
-        try:
-            body = await request.json()
-        except JSONDecodeError:
-            body = None
-
+        body = await request.json()
         if not body:
             raise HTTPException(status_code=400, detail="Invalid or missing JSON body")
 
@@ -82,7 +79,6 @@ async def store_message(
         role = body.get("role")
         content = body.get("content")
 
-        # Validate required parameters
         if not session_id:
             raise HTTPException(status_code=400, detail="Missing session_id parameter")
         if not role:
@@ -99,18 +95,14 @@ async def store_message(
                 detail=f"Invalid session_id format: {session_id}"
             )
 
-        # Prepare insertion values
         values = {
             "session_id": session_uuid,
             "role": role,
             "content": content
         }
-
-        # Add user_id if we have a logged-in user
         if current_user:
             values["user_id"] = current_user.id
 
-        # Insert into database
         stmt = insert(Conversation).values(**values)
         await db.execute(stmt)
         await db.commit()
@@ -118,30 +110,14 @@ async def store_message(
         return {"status": "success"}
 
     except HTTPException:
-        # Re-raise our handled HTTPExceptions
         raise
     except Exception as e:
-        # Roll back and log unexpected exceptions
         await db.rollback()
         logger.exception(f"Error storing message: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("", include_in_schema=False)
-async def create_chat_no_slash(
-    request: CreateChatCompletionRequest,
-    db: AsyncSession = Depends(get_db_session),
-    current_user: Optional[User] = Depends(get_current_user),
-    config_service: ConfigService = Depends(get_config_service)
-):
-    """
-    For POST /chat with no trailing slash, we defer to create_chat_completion
-    to ensure consistent behavior.
-    """
-    return await create_chat_completion(request, db, current_user, config_service)
-
-
-@router.get("/api/conversations/history")
+@router.get("/conversations/history")
 async def get_conversation_history(
     session_id: UUID = Query(...),
     offset: int = Query(0, ge=0),
@@ -177,7 +153,7 @@ async def get_conversation_history(
                     "role": msg.role,
                     "content": (msg.formatted_content or msg.content),
                     "raw_content": msg.content,
-                    "timestamp": msg.timestamp.isoformat() if msg.timestamp is not None else None,
+                    "timestamp": msg.timestamp.isoformat() if msg.timestamp else None,
                 }
                 for msg in messages
             ],
@@ -192,7 +168,7 @@ async def get_conversation_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/api/conversations/sessions")
+@router.get("/conversations/sessions")
 async def list_sessions(
     db: AsyncSession = Depends(get_db_session)
 ):
@@ -220,7 +196,7 @@ async def list_sessions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/", response_model=None)
+@router.post("", response_model=None)
 async def create_chat_completion(
     request: CreateChatCompletionRequest,
     db: AsyncSession = Depends(get_db_session),
@@ -237,27 +213,22 @@ async def create_chat_completion(
     - Standard Azure OpenAI with standard parameters
     """
     model_name = request.model or AZURE_OPENAI_DEPLOYMENT_NAME
-
-    # Get the expected API version for this model from config
     expected_version = MODEL_API_VERSIONS.get(model_name, MODEL_API_VERSIONS.get("default"))
     logger.debug(f"Expected API version for model '{model_name}': {expected_version}")
 
     try:
-        # Validate that we have messages
         if not request.messages:
             raise HTTPException(
                 status_code=400,
                 detail="Missing required arguments; 'messages' is required"
             )
 
-        # If no model specified, fall back to default from config
         if not request.model:
             request.model = AZURE_OPENAI_DEPLOYMENT_NAME
             logger.info(f"No model specified. Using default: {request.model}")
 
         logger.info(f"API request for model: {request.model}")
 
-        # Acquire the client from our dependency
         try:
             client_wrapper = await get_model_client_dependency(request.model)
             client = client_wrapper.get("client")
@@ -283,8 +254,6 @@ async def create_chat_completion(
         messages = request.messages
         temperature = request.temperature
         max_tokens = request.max_completion_tokens
-
-        # Determine client type
         is_inference_client = isinstance(client, ChatCompletionsClient)
         deepseek_check = is_deepseek_model(request.model)
 
@@ -303,7 +272,7 @@ async def create_chat_completion(
                     detail="Invalid reasoning_effort. Must be 'low', 'medium', or 'high'"
                 )
 
-        if is_deepseek_model(request.model):
+        if deepseek_check:
             if not request.max_completion_tokens:
                 request.max_completion_tokens = DEEPSEEK_R1_DEFAULT_MAX_TOKENS
             elif request.max_completion_tokens > DEEPSEEK_R1_DEFAULT_MAX_TOKENS:
@@ -312,15 +281,11 @@ async def create_chat_completion(
                     detail=f"max_completion_tokens cannot exceed {DEEPSEEK_R1_DEFAULT_MAX_TOKENS} for DeepSeek models"
                 )
 
-        # Prepare the final response structure
         response_data: Dict[str, Any] = {}
 
-        #
-        # 1) If the client is an Inference Client:
-        #
+        # 1) If the client is an Inference Client and it's a DeepSeek model
         if is_inference_client:
             if deepseek_check or model_type == "deepseek":
-                # Perform custom handling for DeepSeek
                 max_retries = 3
                 retry_count = 0
                 retry_delay = 2
@@ -328,22 +293,18 @@ async def create_chat_completion(
 
                 while retry_count <= max_retries:
                     try:
-                        # Non-streaming completion
+                        # Non-streaming completion for DeepSeek
                         response = client.complete(
-                            model=request.model,
                             messages=messages,
                             temperature=DEEPSEEK_R1_DEFAULT_TEMPERATURE,
                             max_tokens=DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
                             stream=False
                         )
-
-                        # Convert to a standard ChatCompletion-style dict
                         usage_data = {
                             "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
                             "completion_tokens": response.usage.completion_tokens if response.usage else 0,
                             "total_tokens": response.usage.total_tokens if response.usage else 0,
                         }
-
                         response_data = {
                             "id": f"chatcmpl-{uuid.uuid4()}",
                             "object": "chat.completion",
@@ -366,41 +327,32 @@ async def create_chat_completion(
                     except Exception as e:
                         retry_count += 1
                         last_error = e
-
-                        # Check if it's a timeout error
                         is_timeout = False
                         if hasattr(e, "__cause__") and e.__cause__:
                             if "timeout" in str(e.__cause__).lower():
                                 is_timeout = True
                         elif "timeout" in str(e).lower():
                             is_timeout = True
-
                         if is_timeout and retry_count <= max_retries:
                             logger.warning(
-                                f"Timeout in DeepSeek request, retrying "
-                                f"({retry_count}/{max_retries})"
+                                f"Timeout in DeepSeek request, retrying ({retry_count}/{max_retries})"
                             )
                             import asyncio
                             await asyncio.sleep(retry_delay)
                             retry_delay *= 2
                         else:
                             raise
-
                 if retry_count > max_retries and last_error:
                     raise last_error
-
             else:
-                # If it's an inference client but not recognized as DeepSeek
+                # Inference client with a non-DeepSeek model is not supported here
                 raise ValueError(
                     f"Unsupported model '{request.model}' for ChatCompletionsClient"
                 )
-
-        #
-        # 2) Otherwise, Azure OpenAI-based client
-        #
         else:
-            # If it's a deepseek model with an AzureOpenAI client, handle specially
+            # 2) Otherwise, Azure OpenAI-based client
             if deepseek_check:
+                # If it's a deepseek model with an AzureOpenAI client
                 response = client.completions.create(
                     model=request.model,
                     messages=messages,
@@ -411,7 +363,6 @@ async def create_chat_completion(
             elif is_o_series_model(request.model):
                 # O-series model with reasoning effort
                 logger.info(f"O-series model: {request.model}, reasoning={request.reasoning_effort}")
-                # Ensure we have .chat property
                 if not hasattr(client, "chat"):
                     raise ValueError("Client does not support 'chat' attribute.")
                 response = client.chat.completions.create(
@@ -432,7 +383,6 @@ async def create_chat_completion(
                     temperature=temperature,
                     stream=False
                 )
-
             response_data = response.model_dump()
 
         # Extract the assistant content for DB storage
@@ -460,26 +410,71 @@ async def create_chat_completion(
                     f"<think>{match}</think>", thinking_html, 1
                 )
 
-        # Create user message (the last message in request.messages is from the user)
+        # Count tokens
         user_msg_content = request.messages[-1]["content"] if request.messages else ""
+        prompt_tokens = count_tokens(user_msg_content, model_name)
+        completion_tokens = count_tokens(full_content, model_name)
+        total_tokens = prompt_tokens + completion_tokens
+
+        # Count any chain-of-thought tokens if deepseek
+        reasoning_tokens = 0
+        if deepseek_check and "<think>" in full_content and "</think>" in full_content:
+            think_matches = re.findall(r"<think>([\s\S]*?)<\/think>", full_content)
+            for think_text in think_matches:
+                reasoning_tokens += count_tokens(think_text, model_name)
+
+        # Add usage to model stats
+        stats_service = ModelStatsService(db)
+        await stats_service.record_usage(
+            model=model_name,
+            session_id=request.session_id,
+            usage={
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+                "completion_tokens_details": {
+                    "reasoning_tokens": reasoning_tokens
+                } if reasoning_tokens > 0 else {}
+            }
+        )
+
+        # Update usage in the final response
+        if "usage" not in response_data:
+            response_data["usage"] = {}
+        response_data["usage"]["prompt_tokens"] = prompt_tokens
+        response_data["usage"]["completion_tokens"] = completion_tokens
+        response_data["usage"]["total_tokens"] = total_tokens
+
+        if reasoning_tokens > 0:
+            if "completion_tokens_details" not in response_data["usage"]:
+                response_data["usage"]["completion_tokens_details"] = {}
+            response_data["usage"]["completion_tokens_details"]["reasoning_tokens"] = reasoning_tokens
+
+        # Store user and assistant messages in DB
         user_msg = Conversation(
             session_id=request.session_id,
             role="user",
             content=user_msg_content,
             model=request.model,
         )
-
-        # Create assistant message
         assistant_msg = Conversation(
             session_id=request.session_id,
             role="assistant",
             content=full_content,
             formatted_content=formatted_content,
             model=request.model,
-            raw_response={"streaming": False, "final_content": full_content},
+            raw_response={
+                "streaming": False,
+                "final_content": full_content,
+                "token_usage": {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                    "reasoning_tokens": reasoning_tokens if reasoning_tokens > 0 else None
+                }
+            },
         )
 
-        # Store both in DB
         db.add(user_msg)
         db.add(assistant_msg)
         await db.commit()
@@ -497,6 +492,50 @@ async def create_chat_completion(
         )
 
 
+@router.get("/sse")
+async def chat_sse(
+    request: Request,
+    session_id: str,
+    model: str,
+    message: str,
+    reasoning_effort: str = "medium",
+    db: AsyncSession = Depends(get_db_session),
+):
+    """
+    Provides a Server-Sent Events (SSE) endpoint for streaming chat responses.
+
+    - session_id: conversation session UUID (string)
+    - model: which model to use
+    - message: user prompt or message
+    - reasoning_effort: relevant for O-series models
+    """
+    try:
+        # If the model is DeepSeek, ignore any reasoning_effort
+        if is_deepseek_model(model):
+            reasoning_effort = ""
+
+        client_wrapper = await get_model_client_dependency(model)
+        client = client_wrapper["client"]
+        if not client:
+            raise ValueError("Client initialization failed (client is None).")
+
+        return StreamingResponse(
+            generate_stream_chunks(
+                message=message,
+                client=client,
+                model_name=model,
+                reasoning_effort=reasoning_effort,
+                db=db,
+                session_id=session_id
+            ),
+            media_type="text/event-stream"
+        )
+
+    except Exception as e:
+        logger.exception(f"/chat/sse streaming error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 async def generate_stream_chunks(
     message: str,
     client: Union[AzureOpenAI, ChatCompletionsClient],
@@ -508,45 +547,37 @@ async def generate_stream_chunks(
     """
     Async generator that yields SSE data chunks from streaming responses.
 
-    It handles:
-    - DeepSeek models with <think> block expansions
-    - O-series with reasoning effort
-    - Standard Azure OpenAI streaming
+    It conditionally adds the reasoning_effort parameter only for non-DeepSeek models.
     """
-
     if not client:
-        # Bail out if client is None
         raise ValueError("Client is None; cannot proceed with streaming.")
 
     is_inference_client = isinstance(client, ChatCompletionsClient)
     deepseek_check = is_deepseek_model(model_name)
 
-    # Build messages list
-    messages_list = []
-    messages_list.append({"role": "user", "content": message})
+    # Build base messages
+    messages_list = [{"role": "user", "content": message}]
 
-    # Default parameters
+    # Build default params
     params = {
         "messages": messages_list,
         "temperature": DEEPSEEK_R1_DEFAULT_TEMPERATURE if deepseek_check else 0.7,
         "max_tokens": (
-            DEEPSEEK_R1_DEFAULT_MAX_TOKENS
-            if deepseek_check
+            DEEPSEEK_R1_DEFAULT_MAX_TOKENS if deepseek_check
             else O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
         ),
+        "stream": True
     }
 
+    # Only add reasoning_effort if not DeepSeek
     if not deepseek_check and reasoning_effort:
         params["reasoning_effort"] = reasoning_effort
 
-    # For streaming:
-    params["stream"] = True
     full_content = ""
     heartbeat_interval = 30
     last_heartbeat = time.time()
 
     async def send_heartbeat():
-        """Helper function to emit a heartbeat event."""
         nonlocal last_heartbeat
         current_time = time.time()
         if current_time - last_heartbeat >= heartbeat_interval:
@@ -565,72 +596,63 @@ async def generate_stream_chunks(
             while retry_count <= max_retries:
                 try:
                     stream = client.complete(
-                        model=model_name,
                         messages=params["messages"],
                         temperature=params["temperature"],
                         max_tokens=params["max_tokens"],
                         stream=True
                     )
-
                     for chunk in stream:
                         try:
-                            # Each chunk should have chunk.choices
                             if hasattr(chunk, "choices") and chunk.choices:
                                 choice = chunk.choices[0]
-                                if hasattr(choice, "delta") and hasattr(choice.delta, "content"):
+                                if hasattr(choice.delta, "content"):
                                     content = choice.delta.content or ""
                                     full_content += content
                                     yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
-
                         except Exception as chunk_err:
                             logger.warning(f"Error processing DeepSeek chunk: {str(chunk_err)}")
                             yield f"data: {json.dumps({'choices': [{'delta': {'content': ''}}]})}\n\n"
-
                     break
-
                 except Exception as e:
                     retry_count += 1
-
-                    # Check for rate limit (429) errors
                     if isinstance(e, HttpResponseError) and e.status_code == 429:
-                        logger.warning(f"Rate limit exceeded (429). Retry count: {retry_count}/{max_retries}")
+                        logger.warning(f"Rate limit exceeded (429). Retry {retry_count}/{max_retries}")
                         yield f"data: {json.dumps({'error': {'code': 429, 'message': 'Rate limit exceeded. Please try again later.'}})}\n\n"
                         if retry_count <= max_retries:
                             import asyncio
-                            await asyncio.sleep(retry_delay * 2)  # Longer delay for rate limits
+                            await asyncio.sleep(retry_delay * 2)
                             retry_delay *= 2
                             continue
                         else:
-                            return  # Exit the generator if max retries reached
-                    # Check for timeout errors
+                            return
                     is_timeout = False
-                    if hasattr(e, "__cause__") and e.__cause__:
-                        if "timeout" in str(e.__cause__).lower():
-                            is_timeout = True
+                    if hasattr(e, "__cause__") and e.__cause__ and "timeout" in str(e.__cause__).lower():
+                        is_timeout = True
                     elif "timeout" in str(e).lower():
                         is_timeout = True
-
                     if is_timeout and retry_count <= max_retries:
-                        logger.warning(
-                            f"Timeout error in DeepSeek streaming, "
-                            f"retrying ({retry_count}/{max_retries})"
-                        )
-                        yield f"data: {json.dumps({'choices': [{'delta': {'content': f'\n\n[Timeout, retry {retry_count}/{max_retries}]'}}]})}\n\n"
+                        logger.warning(f"Timeout error in DeepSeek streaming, retrying ({retry_count}/{max_retries})")
+                        yield f"data: {json.dumps({'choices': [{'delta': {'content': f'[Timeout, retry {retry_count}/{max_retries}]'}}]})}\n\n"
                         import asyncio
                         await asyncio.sleep(retry_delay)
                         retry_delay *= 2
                     else:
                         raise
-
-        #
-        # 2) Otherwise, standard streaming with Azure OpenAI
-        #
+        elif isinstance(client, AzureOpenAI):
+            # 2) Standard streaming with Azure OpenAI
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=params["messages"],
+                temperature=params.get("temperature", 0.7),
+                max_tokens=params.get("max_tokens", 800),
+                stream=True
+            )
         else:
-            # NOTE: If Pylance complains about `begin_chat_completions`, you can # type: ignore or
-            # replace with the method your AzureOpenAI library provides for streaming.
-            response = client.begin_chat_completions(  # type: ignore
-                deployment=model_name, 
-                **params, 
+            # 3) Azure AI Inference client streaming
+            response = client.complete(
+                messages=params["messages"],
+                temperature=params.get("temperature", 0.7),
+                max_tokens=params.get("max_tokens", 800),
                 stream=True
             )
             async for chunk in response:
@@ -641,13 +663,12 @@ async def generate_stream_chunks(
                     "model": model_name,
                     "choices": []
                 }
-
                 chunk_choices = []
                 for idx, choice in enumerate(chunk.choices):
                     partial = {
                         "index": idx,
                         "delta": {},
-                        "finish_reason": choice.finish_reason,
+                        "finish_reason": choice.finish_reason
                     }
                     if hasattr(choice.delta, "content"):
                         content_part = choice.delta.content or ""
@@ -659,22 +680,18 @@ async def generate_stream_chunks(
                         partial["delta"]["tool_calls"] = choice.delta.tool_calls
                     if hasattr(chunk, "content_filter_results"):
                         partial["delta"]["content_filter_results"] = chunk.content_filter_results
-
                     chunk_choices.append(partial)
-
                 response_data["choices"] = chunk_choices
                 yield f"data: {json.dumps(response_data)}\n\n"
 
-        #
         # After streaming completes, store the entire assistant message in DB
-        #
         if full_content:
             formatted_content = full_content
             if deepseek_check:
-                # Format <think> blocks
                 think_regex = r"<think>([\s\S]*?)<\/think>"
                 matches = re.findall(think_regex, full_content)
-                for i, match in enumerate(matches):
+                for match in matches:
+                    inner_text = match
                     thinking_html = (
                         f"""<div class="thinking-process">
                         <div class="thinking-header">
@@ -683,18 +700,58 @@ async def generate_stream_chunks(
                             </button>
                         </div>
                         <div class="thinking-content">
-                            <pre class="thinking-pre">{match}</pre>
+                            <pre class="thinking-pre">{inner_text}</pre>
                         </div>
                         </div>"""
                     )
-                    formatted_content = formatted_content.replace(
-                        f"<think>{match}</think>", thinking_html, 1
-                    )
+                    formatted_content = formatted_content.replace(f"<think>{match}</think>", thinking_html, 1)
 
-            # Use our helper to store in DB
+            # Token counting
+            prompt_tokens = count_tokens(message, model_name)
+            completion_tokens = count_tokens(full_content, model_name)
+            total_tokens = prompt_tokens + completion_tokens
+            reasoning_tokens = 0
+            if deepseek_check and "<think>" in full_content and "</think>" in full_content:
+                all_thinks = re.findall(r"<think>([\s\S]*?)<\/think>", full_content)
+                for t in all_thinks:
+                    reasoning_tokens += count_tokens(t, model_name)
+
+            stats_service = ModelStatsService(db)
+            # Validate session_id format before converting to UUID
+            try:
+                session_uuid = uuid.UUID(session_id)
+            except ValueError:
+                logger.error(f"Invalid session_id format: {session_id}")
+                raise ValueError("session_id must be a valid UUID")
+
+            await stats_service.record_usage(
+                model=model_name,
+                session_id=session_uuid,
+                usage={
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                    "completion_tokens_details": {"reasoning_tokens": reasoning_tokens} if reasoning_tokens > 0 else {}
+                }
+            )
+
+            usage_data = {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens
+            }
+            if reasoning_tokens > 0:
+                usage_data["completion_tokens_details"] = {"reasoning_tokens": reasoning_tokens}
+
+            # Emit partial finish info
+            yield f"data: {json.dumps({'choices': [{'finish_reason': 'stop', 'index': 0}], 'usage': usage_data})}\n\n"
+            # Emit final "complete" event
+            yield f"event: complete\ndata: {json.dumps({'usage': usage_data})}\n\n"
+
+            # Store the conversation in DB
             await save_conversation(
                 db_session=db,
-                session_id=session_id,
+                session_id=session_uuid,
                 model_name=model_name,
                 user_text=message,
                 assistant_text=full_content,
@@ -716,43 +773,3 @@ async def generate_stream_chunks(
             }
         }
         yield f"data: {json.dumps(error_payload)}\n\n"
-
-
-@router.get("/sse")
-async def chat_sse(
-    request: Request,
-    session_id: str,
-    model: str,
-    message: str,
-    reasoning_effort: str = "medium",
-    db: AsyncSession = Depends(get_db_session),
-):
-    """
-    Provides a Server-Sent Events (SSE) endpoint for streaming chat responses.
-
-    - session_id: conversation session UUID (as a string)
-    - model: which model to use
-    - message: user prompt or message
-    - reasoning_effort: relevant for O-series models
-    """
-    try:
-        client_wrapper = await get_model_client_dependency(model)
-        client = client_wrapper["client"]
-        if not client:
-            raise ValueError("Client initialization failed (client is None).")
-
-        return StreamingResponse(
-            generate_stream_chunks(
-                message=message,
-                client=client,
-                model_name=model,
-                reasoning_effort=reasoning_effort,
-                db=db,
-                session_id=session_id
-            ),
-            media_type="text/event-stream"
-        )
-
-    except Exception as e:
-        logger.exception(f"/chat/sse streaming error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))

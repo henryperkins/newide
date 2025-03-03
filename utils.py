@@ -73,7 +73,7 @@ def resolve_api_version(deployment_name: str) -> str:
     version_matrix = {
         "o1-prod": "2025-01-01-preview",
         "o3-mini": "2025-01-01-preview",
-        "deepseek-r1": "2024-05-01-preview",
+        "DeepSeek-R1": "2024-05-01-preview",
         "gpt-4": "2023-12-01",
     }
     return version_matrix.get(
@@ -90,7 +90,7 @@ def validate_streaming(model_id: str) -> bool:
         "o3-mini": {"supports_streaming": True, "max_streams": 5},
         "o1-2025": {"supports_streaming": True, "max_streams": 5},
         "o1-prod": {"supports_streaming": False},
-        "deepseek-r1": {"supports_streaming": True, "max_streams": 5},
+        "DeepSeek-R1": {"supports_streaming": True, "max_streams": 5},
         "gpt-4": {"supports_streaming": True},
         "gpt-35-turbo": {"supports_streaming": True},
     }

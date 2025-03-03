@@ -14,30 +14,11 @@
 export function processDeepSeekResponse(content) {
   if (!content) return '';
 
-  // Remove any partial or dangling <think> / </think> tags
-  let processedContent = content.replace(/<\/?think>$/, '');
+  // Remove all <think> tags and their content
+  let processedContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
 
-  // Remove nested <think> blocks from user-visible text
-  const processThinkingTags = (raw) => {
-    // Regex to find the first (outermost) <think>...</think> pair
-    const regex = /<think>([\s\S]*?)<\/think>/;
-    const match = raw.match(regex);
-
-    if (!match) return raw; // No more <think> tags
-
-    // Content before, inside, and after the found <think> tag
-    const beforeThink = raw.substring(0, match.index);
-    const afterThink = raw.substring(match.index + match[0].length);
-
-    // Recursively process inside/after content
-    const processedInside = processThinkingTags(match[1]);
-    const processedAfter = processThinkingTags(afterThink);
-
-    // Return the combined result, omitting the <think> contents
-    return beforeThink + processedAfter;
-  };
-
-  processedContent = processThinkingTags(processedContent);
+  // Remove any remaining partial tags
+  processedContent = processedContent.replace(/<\/?think>/g, '');
   return processedContent;
 }
 

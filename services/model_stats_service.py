@@ -45,7 +45,7 @@ class ModelStatsService:
             reasoning_tokens=usage.get("completion_tokens_details", {}).get("reasoning_tokens"),
             cached_tokens=usage.get("prompt_tokens_details", {}).get("cached_tokens", 0),
             active_tokens=usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0) - usage.get("prompt_tokens_details", {}).get("cached_tokens", 0),
-            metadata=metadata
+            model_metadata=metadata
         )
 
         async with self._buffer_lock:
@@ -66,7 +66,7 @@ class ModelStatsService:
                             total_tokens,
                             reasoning_tokens,
                             cached_tokens,
-                            metadata,
+                            model_metadata,
                             timestamp
                         ) VALUES (
                             :model,
@@ -76,7 +76,7 @@ class ModelStatsService:
                             :total_tokens,
                             :reasoning_tokens,
                             :cached_tokens,
-                            COALESCE(:metadata, '{}'::jsonb),
+                            COALESCE(:metadata, '{}'::jsonb)::jsonb,
                             :timestamp
                         )
                     """),
@@ -114,10 +114,10 @@ class ModelStatsService:
                             text("""
                                 INSERT INTO model_usage_stats 
                                 (model, session_id, prompt_tokens, completion_tokens, total_tokens, 
-                                 reasoning_tokens, cached_tokens, metadata, timestamp)
+                                 reasoning_tokens, cached_tokens, model_metadata, timestamp)
                                 VALUES 
                                 (:model, :session_id, :prompt_tokens, :completion_tokens, :total_tokens,
-                                 :reasoning_tokens, :cached_tokens, :metadata, :timestamp)
+                                 :reasoning_tokens, :cached_tokens, :metadata::jsonb, :timestamp)
                             """),
                             rec
                         )

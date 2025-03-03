@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     AZURE_INFERENCE_ENDPOINT: Optional[str] = os.getenv(
         "AZURE_INFERENCE_ENDPOINT", "https://DeepSeek-R1D2.eastus2.models.ai.azure.com"
     )
-    AZURE_INFERENCE_CREDENTIAL: Optional[str] = os.getenv("AZURE_INFERENCE_CREDENTIAL")
+    AZURE_INFERENCE_CREDENTIAL: Optional[str] = os.getenv("AZURE_INFERENCE_CREDENTIAL", "M6Dbj2dcZ1Eb2If33ecVZ5jXK3yvVlOx")
     KEY_VAULT_URI: Optional[str] = os.getenv("AZURE_KEY_VAULT_URI")
     AZURE_INFERENCE_DEPLOYMENT: Optional[str] = os.getenv(
         "AZURE_INFERENCE_DEPLOYMENT", "DeepSeek-R1"
@@ -210,7 +210,7 @@ def is_deepseek_model(model_name: str) -> bool:
     if not model_name:
         return False
     model_lower = model_name.lower()
-    return "deepseek" in model_lower or model_lower == "deepseek-r1"
+    return "deepseek" in model_lower or model_lower == "DeepSeek-R1"
 
 
 def is_o_series_model(model_name: str) -> bool:

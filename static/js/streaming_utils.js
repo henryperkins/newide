@@ -2,23 +2,23 @@
  * streaming_utils.js
  * 
  * A helper module that provides reusable functions for:
- *  - chunk processing
- *  - managing thinking blocks
- *  - rendering content
- *  - basic error handling
+ *  - Chunk processing of incoming SSE data
+ *  - Managing “thinking” UI blocks
+ *  - Rendering content with throttling
+ *  - Basic error handling and displaying UI error indicators
  */
 
 /**
- * Processes an incoming data chunk from the server, updating main/thinking buffers,
- * chunkBuffer, and isThinking state.
+ * Processes an incoming data chunk from the server, updating the main text buffer,
+ * thinking text buffer, and the leftover chunk buffer while managing the "thinking" mode.
  * 
- * @param {Object} data - Parsed JSON chunk from SSE (e.g., data.choices).
- * @param {string} chunkBuffer - Accumulated leftover text not yet assigned to main or thinking buffer.
- * @param {string} mainTextBuffer - The main text buffer for displayed output.
- * @param {string} thinkingTextBuffer - Hidden or "thinking" text buffer.
- * @param {boolean} isThinking - Whether to append to the "thinking" text instead of the main text.
- * @param {Object} deepSeekProcessor - Object with methods for parsing deep-seek logic and “chain-of-thought”.
- * @returns {Object} { mainTextBuffer, thinkingTextBuffer, chunkBuffer, isThinking }
+ * @param {Object} data - Parsed JSON chunk from SSE (e.g., { choices: [...] }).
+ * @param {string} chunkBuffer - Accumulated leftover text not yet assigned.
+ * @param {string} mainTextBuffer - Main text buffer for displayed output.
+ * @param {string} thinkingTextBuffer - Text buffer for "thinking" content.
+ * @param {boolean} isThinking - Flag indicating if we are in "thinking" mode.
+ * @param {Object} deepSeekProcessor - Object with methods for parsing deep-seek logic.
+ * @returns {Object} An object with updated { mainTextBuffer, thinkingTextBuffer, chunkBuffer, isThinking }.
  */
 export function processDataChunk(
   data,
@@ -33,7 +33,7 @@ export function processDataChunk(
   }
 
   data.choices.forEach(choice => {
-    // If there’s token content
+    // Process token content if available
     if (choice.delta && choice.delta.content) {
       const text = choice.delta.content;
       chunkBuffer += text;
@@ -49,7 +49,7 @@ export function processDataChunk(
       isThinking = result.isThinking;
       chunkBuffer = result.remainingChunk;
 
-      // Re-check if leftover chunk data remains
+      // Re-check for leftover data: if any remains, process it recursively with an empty content chunk.
       if (result.remainingChunk) {
         chunkBuffer = result.remainingChunk;
         processDataChunk(
@@ -63,14 +63,13 @@ export function processDataChunk(
       }
     }
 
-    // If the server signals finishing
+    // If the server signals finishing (via finish_reason), finalize the content.
     if (choice.finish_reason) {
       if (chunkBuffer) {
-        // Possibly finalize or sanitize leftover content
         mainTextBuffer = deepSeekProcessor.processDeepSeekResponse(mainTextBuffer + chunkBuffer);
         chunkBuffer = '';
       }
-      // End “thinking” mode
+      // Turn off "thinking" mode
       isThinking = false;
     }
   });
@@ -79,8 +78,10 @@ export function processDataChunk(
 }
 
 /**
- * If no message container exists, create it. 
- * @returns {HTMLElement|null} The main message container element or null if #chat-history not found.
+ * Ensures that a main message container exists in the DOM.
+ * If not found, creates one inside the element with the ID "chat-history".
+ * 
+ * @returns {HTMLElement|null} The message container element or null if not found.
  */
 export function ensureMessageContainer() {
   let messageContainer = document.querySelector('.assistant-message');
@@ -98,12 +99,13 @@ export function ensureMessageContainer() {
 }
 
 /**
- * Creates or updates the “thinking” container if needed.
+ * Creates or updates a "thinking" container within the parent container.
+ * The container is used to display chain-of-thought details.
  *
- * @param {HTMLElement} parentContainer - The parent element (message container).
- * @param {string} thinkingText - The text for the thinking container.
- * @param {Object} deepSeekProcessor - The object that handles “thinking” HTML markup or toggles.
- * @returns {HTMLElement|null} The thinking container element or null if parentContainer not found.
+ * @param {HTMLElement} parentContainer - The parent message container.
+ * @param {string} thinkingText - The text to display in the thinking block.
+ * @param {Object} deepSeekProcessor - Provides a method to generate HTML for the thinking block.
+ * @returns {HTMLElement|null} The thinking container element or null if not found.
  */
 export function ensureThinkingContainer(parentContainer, thinkingText, deepSeekProcessor) {
   if (!parentContainer) return null;
@@ -116,10 +118,10 @@ export function ensureThinkingContainer(parentContainer, thinkingText, deepSeekP
 
     thinkingContainer = parentContainer.querySelector('.thinking-pre');
 
-    // Attach toggle logic if a toggle button exists
+    // Attach toggle logic to the thinking toggle button
     const toggleButton = parentContainer.querySelector('.thinking-toggle');
     if (toggleButton) {
-      toggleButton.addEventListener('click', function() {
+      toggleButton.addEventListener('click', function () {
         const expanded = this.getAttribute('aria-expanded') === 'true';
         this.setAttribute('aria-expanded', !expanded);
         const content = this.closest('.thinking-process').querySelector('.thinking-content');
@@ -137,10 +139,11 @@ export function ensureThinkingContainer(parentContainer, thinkingText, deepSeekP
 }
 
 /**
- * Finalize the “thinking” container once we’re done receiving chain-of-thought text.
- * 
- * @param {HTMLElement} parentContainer - The parent .assistant-message container.
- * @param {string} thinkingTextBuffer - Final “thinking” text to render before removing references.
+ * Finalizes the "thinking" container by updating its text content.
+ * Also removes any gradient overlay if the text fits the container.
+ *
+ * @param {HTMLElement} parentContainer - The parent assistant-message container.
+ * @param {string} thinkingTextBuffer - Final "thinking" text to be rendered.
  */
 export function finalizeThinkingContainer(parentContainer, thinkingTextBuffer) {
   if (!parentContainer) return;
@@ -149,7 +152,7 @@ export function finalizeThinkingContainer(parentContainer, thinkingTextBuffer) {
 
   thinkingContainer.textContent = thinkingTextBuffer;
 
-  // If the text is short, remove the gradient overlay
+  // Remove gradient overlay if content is short
   const gradientOverlay = parentContainer.querySelector('.thinking-content > div:last-child');
   if (thinkingContainer.scrollHeight <= thinkingContainer.clientHeight && gradientOverlay) {
     gradientOverlay.remove();
@@ -157,11 +160,12 @@ export function finalizeThinkingContainer(parentContainer, thinkingTextBuffer) {
 }
 
 /**
- * Determines whether enough time has passed since last render to perform a new one.
- * 
- * @param {number} lastRenderTimestamp - The last time (ms since epoch) content was rendered.
- * @param {number} intervalMs - Minimum interval between renders.
- * @returns {boolean} True if we should render now, false otherwise.
+ * Determines if enough time has passed since the last render.
+ * Helps throttle DOM updates.
+ *
+ * @param {number} lastRenderTimestamp - Last render time (ms since epoch).
+ * @param {number} intervalMs - Minimum interval between renders (default 50ms).
+ * @returns {boolean} True if it's time to render again.
  */
 export function shouldRenderNow(lastRenderTimestamp, intervalMs = 50) {
   const now = Date.now();
@@ -169,9 +173,9 @@ export function shouldRenderNow(lastRenderTimestamp, intervalMs = 50) {
 }
 
 /**
- * Shows or updates a “streaming in progress” indicator in the parent container.
- * 
- * @param {HTMLElement} parentContainer - The element to which the progress indicator will be appended.
+ * Adds a "streaming in progress" indicator to the parent container.
+ *
+ * @param {HTMLElement} parentContainer - The container to append the indicator.
  */
 export function showStreamingProgressIndicator(parentContainer) {
   if (!parentContainer) return;
@@ -189,7 +193,7 @@ export function showStreamingProgressIndicator(parentContainer) {
 }
 
 /**
- * Removes the “streaming progress” element if it exists in the DOM.
+ * Removes the streaming progress indicator from the DOM if it exists.
  */
 export function removeStreamingProgressIndicator() {
   const progressIndicator = document.getElementById('streaming-progress');
@@ -197,11 +201,12 @@ export function removeStreamingProgressIndicator() {
 }
 
 /**
- * Displays a UI error indicator in the message container, e.g. if the stream was interrupted.
- * 
- * @param {Error} error - The error object caught from streaming or SSE.
- * @param {Function} showNotification - Callback for user-facing notifications.
- * @param {HTMLElement} parentContainer - The container in which to display an error notice.
+ * Displays an error indicator in the message container if streaming is interrupted.
+ * Also calls a notification callback for user feedback.
+ *
+ * @param {Error} error - The error object encountered.
+ * @param {Function} showNotification - Callback to display a user-friendly message.
+ * @param {HTMLElement} parentContainer - The container where the error indicator will be appended.
  */
 export function handleStreamingError(error, showNotification, parentContainer) {
   console.error('[streaming_utils] handleStreamingError:', error);
@@ -213,7 +218,6 @@ export function handleStreamingError(error, showNotification, parentContainer) {
     parentContainer.appendChild(errorNotice);
   }
 
-  // Possibly show a user-friendly notification
   if (typeof showNotification === 'function') {
     const userFriendlyMessage = !navigator.onLine
       ? 'Network connection lost.'

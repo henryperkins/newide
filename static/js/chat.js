@@ -246,17 +246,18 @@ export async function sendMessage() {
     if (modelSelect) modelName = modelSelect.value;
     
     // Handle o1hp as an alias for o1
-    const actualModelName = modelName.toLowerCase() === 'o1hp' ? 'o1' : modelName;
+    let actualModelName = modelName.toLowerCase() === 'o1hp' ? 'o1' : modelName;
     if (modelName.toLowerCase() === 'o1hp') {
-      console.log('[sendMessage] Using o1 as fallback for o1hp');
+        console.log('[sendMessage] Using o1 as fallback for o1hp');
+    } else if (modelName.toLowerCase() === 'DeepSeek-R1') {
+        console.log('[sendMessage] Setting actualModelName to "DeepSeek-R1" for DeepSeek-R1');
+        actualModelName = 'DeepSeek-R1';
     }
-    
+
     // Adjust developer config based on model
     let devConfigToUse = developerConfig;
     if (actualModelName.toLowerCase().startsWith('o1')) {
-      // For o1 models, add the formatting prefix
-      devConfigToUse = "Formatting re-enabled - use markdown code blocks\n" + developerConfig;
-      console.log(`[sendMessage] Using ${actualModelName} model with modified developer config:`, devConfigToUse);
+        devConfigToUse = "Formatting re-enabled - use markdown code blocks\n" + developerConfig;
     }
     
     const modelConfig = await getModelConfig(actualModelName);
@@ -608,7 +609,7 @@ async function getModelConfig(modelName) {
     console.warn(`Could not fetch model config for ${modelName}, status: ${response.status}`);
     if (response.status === 400) console.error(`Bad request: check model name and API.`);
     else if (response.status === 404) console.error(`Model ${modelName} not found in config.`);
-    if (modelName.toLowerCase() === 'deepseek-r1' || modelName.toLowerCase() === 'deepseek-r1d2')
+    if (modelName.toLowerCase() === 'DeepSeek-R1' || modelName.toLowerCase() === 'DeepSeek-R1d2')
       return { name: 'DeepSeek-R1', supports_streaming: true, supports_temperature: true, api_version: '2024-05-01-preview' };
     if (modelName.toLowerCase().startsWith('o1'))
       return { name: modelName, supports_streaming: false, supports_temperature: false, api_version: '2025-01-01-preview' };

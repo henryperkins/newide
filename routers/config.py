@@ -11,6 +11,7 @@ from database import get_db_session, AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 from clients import get_client_pool, ClientPool, ModelRegistry
 from services.config_service import get_config_service, ConfigService
+import uuid
 
 router = APIRouter(prefix="/config", tags=["Configuration"])
 
@@ -30,12 +31,56 @@ class ConfigUpdate(BaseModel):
         return v
 
 
+@router.get("/current-model", response_model=None)
+async def get_current_model(
+    request: Request,
+    db_session: AsyncSession = Depends(get_db_session)
+):
+    """Get the current model for this session"""
+    try:
+        # Get session ID from cookies
+        session_id = request.cookies.get("session_id")
+        
+        if not session_id:
+            # No session found, return a default model instead of 404
+            client_pool = await get_client_pool(db_session)
+            models = client_pool.get_all_models()
+            fallback_model = next(iter(models.keys())) if models else None
+            
+            # If no models available, use default from config
+            if not fallback_model:
+                import config
+                fallback_model = config.AZURE_OPENAI_DEPLOYMENT_NAME
+                
+            return {"currentModel": fallback_model}
+            
+        # Get session model from database
+        from session_utils import SessionManager
+        session = await SessionManager.get_session(session_id, db_session)
+        
+        if not session or not session.last_model:
+            # No model set in session yet
+            client_pool = await get_client_pool(db_session)
+            models = client_pool.get_all_models()
+            fallback_model = next(iter(models.keys())) if models else None
+            return {"currentModel": fallback_model}
+            
+        return {"currentModel": session.last_model}
+    except Exception as e:
+        logger.exception(f"Error getting current model: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving current model: {str(e)}")
+
+
 @router.get("/{key}", response_model=None)
 async def get_config(key: str, config_service=Depends(get_config_service)) -> dict:
     """
     Retrieve a configuration by key, returning as a raw dict.
     response_model=None ensures no Pydantic parse of the DB session or the result.
     """
+    # Check if this is a specific endpoint we want to handle differently
+    if key == "current-model":
+        raise HTTPException(status_code=404, detail="Use /api/config/current-model endpoint instead")
+        
     val = await config_service.get_config(key)
     if not val:
         raise HTTPException(status_code=404, detail="Config not found")
@@ -183,7 +228,7 @@ async def get_model(
             return model_config
             
         # Check if this is a known model type that we can create
-        if actual_model_id.lower() == "deepseek-r1" or actual_model_id.lower() == "o1":
+        if actual_model_id.lower() == "DeepSeek-R1" or actual_model_id.lower() == "o1":
             # Get template from registry
             model_config = ModelRegistry.get_model_template(actual_model_id)
             
@@ -382,7 +427,7 @@ async def switch_model(
         model_config = client_pool.get_model_config(model_id)
         if not model_config:
             # Try to create it if it's a known model type
-            if model_id.lower() == "deepseek-r1" or model_id.lower() == "o1":
+            if model_id.lower() == "DeepSeek-R1" or model_id.lower() == "o1":
                 model_template = ModelRegistry.get_model_template(model_id)
                 await client_pool.add_or_update_model(model_id, model_template, db_session)
                 model_config = client_pool.get_model_config(model_id)
@@ -436,8 +481,6 @@ async def switch_model(
             detail=f"Error switching model: {str(e)}"
         )
 
-# Add this import if not already there
-import uuid
 
 @router.post("/models/switch_model/{model_id}")
 async def switch_model_path(
@@ -464,7 +507,7 @@ async def switch_model_path(
         model_config = client_pool.get_model_config(model_id)
         if not model_config:
             # Try to create it if it's a known model type
-            if model_id.lower() == "deepseek-r1" or model_id.lower() == "o1":
+            if model_id.lower() == "DeepSeek-R1" or model_id.lower() == "o1":
                 model_template = ModelRegistry.get_model_template(model_id)
                 await client_pool.add_or_update_model(model_id, model_template, db_session)
             else:

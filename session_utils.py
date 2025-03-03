@@ -136,6 +136,24 @@ class SessionManager:
         return session
     
     @staticmethod
+    async def get_session(
+        session_id: Union[str, uuid.UUID],
+        db_session: AsyncSession
+    ) -> Optional[Session]:
+        """Get a session by ID"""
+        try:
+            # Convert string to UUID if needed
+            if isinstance(session_id, str):
+                session_id = uuid.UUID(session_id)
+                
+            stmt = select(Session).where(Session.id == session_id)
+            result = await db_session.execute(stmt)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Error retrieving session {session_id}: {str(e)}")
+            return None
+            
+    @staticmethod
     async def create_session(db_session: AsyncSession) -> Session:
         """Create a new session"""
         try:

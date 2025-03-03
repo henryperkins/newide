@@ -1,8 +1,39 @@
 import { showNotification, showConfirmDialog } from './ui/notificationManager.js';
 import { fetchWithErrorHandling, createCache, eventBus } from './utils/helpers.js';
 import { getModelAPIConfig, updateConfig } from './config.js';
+import { getSessionId } from './session.js';
 
-const DEFAULT_MODELS = {};
+const DEFAULT_MODELS = {
+    "o1": {
+        name: "o1",
+        description: "Advanced reasoning model with high-quality outputs",
+        azure_endpoint: "https://o1models.openai.azure.com",
+        api_version: "2025-01-01-preview",
+        max_tokens: 32000,
+        supports_temperature: false,
+        supports_streaming: false,
+        requires_reasoning_effort: true,
+        base_timeout: 180.0,
+        max_timeout: 600.0,
+        token_factor: 0.1,
+        model_type: "o-series"
+    },
+        "DeepSeek-R1": {
+            name: "DeepSeek-R1",
+            description: "Model with chain-of-thought reasoning capabilities",
+            azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
+            api_version: "2024-05-01-preview",
+            max_tokens: 32000,
+            supports_temperature: true,
+            supports_streaming: true,
+            enable_thinking: true,
+            base_timeout: 180.0,
+            max_timeout: 600.0,
+            token_factor: 0.1,
+            model_type: "deepseek",
+            display_reasoning_tokens: true
+        }
+};
 
 class ModelManager {
     constructor() {
@@ -431,72 +462,72 @@ class ModelManager {
         if (this.currentModel === modelId) return true;
         console.log('[switchModel] Initiating switchModel for:', modelId, 'currentModel:', this.currentModel);
         console.warn('[switchModel] Additional debug message');
-        
+
         if (!this.modelConfigs[modelId]) {
-          console.error(`Model ${modelId} not found in configurations`);
-          showNotification(`Model ${modelId} not available`, 'error');
-          return false;
+            console.error(`Model ${modelId} not found in configurations`);
+            showNotification(`Model ${modelId} not available`, 'error');
+            return false;
         }
-      
+
         try {
-          showNotification(`Switching to ${modelId}...`, 'info');
-          this.pendingModelActions[modelId] = 'switch';
-          const sessionId = await this.getSessionId();
-          const modelConfig = this.modelConfigs[modelId];
-          const modelType = modelConfig.model_type || 'standard';
-          
-          const requestBody = {
-            model_id: modelId,
-            session_id: sessionId
-          };
-      
-          // Include any relevant model-specific settings
-          if (modelType === 'o-series') {
-            requestBody.reasoning_effort = modelConfig.reasoning_effort || 'medium';
-          } else if (modelType === 'deepseek') {
-            requestBody.enable_thinking = modelConfig.enable_thinking !== false;
-          }
-      
-          const response = await fetch(`${window.location.origin}/api/config/models/switch`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-          });
-      
-          delete this.pendingModelActions[modelId];
-          
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            const errorMessage = errorData.detail || await response.text();
-            throw new Error(`Failed to switch model: ${errorMessage}`);
-          }
-      
-          const responseData = await response.json();
-          
-          // Update UI or config as needed
-          this.currentModel = modelId;
-          updateConfig({
-            selectedModel: modelId,
-            modelType: modelType,
-            apiVersion: modelConfig.api_version
-          });
-          
-          showNotification(`Now using model: ${modelId}`, 'success');
-          return true;
+            showNotification(`Switching to ${modelId}...`, 'info');
+            this.pendingModelActions[modelId] = 'switch';
+            const sessionId = await getSessionId();
+            const modelConfig = this.modelConfigs[modelId];
+            const modelType = modelConfig.model_type || 'standard';
+
+            const requestBody = {
+                model_id: modelId,
+                session_id: sessionId
+            };
+
+            // Include any relevant model-specific settings
+            if (modelType === 'o-series') {
+                requestBody.reasoning_effort = modelConfig.reasoning_effort || 'medium';
+            } else if (modelType === 'deepseek') {
+                requestBody.enable_thinking = modelConfig.enable_thinking !== false;
+            }
+
+            const response = await fetch(`${window.location.origin}/api/config/models/switch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+
+            delete this.pendingModelActions[modelId];
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.detail || await response.text();
+                throw new Error(`Failed to switch model: ${errorMessage}`);
+            }
+
+            await response.json();
+
+            // Update UI or config as needed
+            this.currentModel = modelId;
+            updateConfig({
+                selectedModel: modelId,
+                modelType: modelType,
+                apiVersion: modelConfig.api_version
+            });
+
+            showNotification(`Now using model: ${modelId}`, 'success');
+            return true;
         } catch (error) {
-          console.error('Error switching model:', error);
-          showNotification('Failed to switch model. Please try again.', 'error');
-          delete this.pendingModelActions[modelId];
-          return false;
+            console.error('Error switching model:', error);
+            showNotification('Failed to switch model. Please try again.', 'error');
+            delete this.pendingModelActions[modelId];
+            return false;
         }
     }
-      
+
     ensureLocalModelConfigs() {
         for (const [modelId, config] of Object.entries(DEFAULT_MODELS)) {
             const existingModel = Object.keys(this.modelConfigs).find(
                 k => k.toLowerCase() === modelId.toLowerCase()
             );
-            
+
             if (!existingModel) {
                 this.modelConfigs[modelId] = config;
                 this.createModelOnServer(modelId, config).catch(err =>
@@ -509,7 +540,7 @@ class ModelManager {
         }
         return this.modelConfigs;
     }
-      
+
     async createModelOnServer(modelId, modelConfig) {
         if (this.pendingModelActions[modelId]) {
             console.log('[createModelOnServer] Already pending creation for:', modelId, 'pendingAction:', this.pendingModelActions[modelId]);
@@ -572,7 +603,7 @@ class ModelManager {
         } catch (error) {
             console.warn(`Failed to fetch model config for ${modelId}:`, error);
         }
-        const defaultConfig = this.createDefaultModelConfig(modelId);
+        const defaultConfig = await this.createDefaultModelConfig(modelId);
         if (defaultConfig) {
             this.modelConfigs[modelId] = defaultConfig;
             this.modelConfigCache.set(modelId, defaultConfig);
@@ -580,24 +611,25 @@ class ModelManager {
         return defaultConfig;
     }
 
-    createDefaultModelConfig(modelId) {
+    async createDefaultModelConfig(modelId) {
         modelId = modelId.trim().toLowerCase();
+        const modelApiConfig = await getModelAPIConfig(modelId);
         if (modelId.startsWith('o1') || modelId.startsWith('o3')) {
             return {
                 name: modelId,
                 description: modelId.startsWith('o1') ? "Advanced reasoning model" : "High-performance reasoning model",
-                azure_endpoint: getModelAPIConfig(modelId).endpoint,
-                api_version: getModelAPIConfig(modelId).apiVersion,
-                max_tokens: getModelAPIConfig(modelId).maxTokens,
-                max_completion_tokens: getModelAPIConfig(modelId).maxCompletionTokens,
-                supports_temperature: getModelAPIConfig(modelId).supportsTemperature,
-                supports_streaming: getModelAPIConfig(modelId).supportsStreaming,
-                supports_vision: getModelAPIConfig(modelId).supportsVision,
-                requires_reasoning_effort: getModelAPIConfig(modelId).requiresReasoningEffort,
-                reasoning_effort: getModelAPIConfig(modelId).reasoningEffort,
-                base_timeout: getModelAPIConfig(modelId).baseTimeout,
-                max_timeout: getModelAPIConfig(modelId).maxTimeout,
-                token_factor: getModelAPIConfig(modelId).tokenFactor,
+                azure_endpoint: modelApiConfig.endpoint,
+                api_version: modelApiConfig.apiVersion,
+                max_tokens: modelApiConfig.maxTokens,
+                max_completion_tokens: modelApiConfig.maxCompletionTokens,
+                supports_temperature: modelApiConfig.supportsTemperature,
+                supports_streaming: modelApiConfig.supportsStreaming,
+                supports_vision: modelApiConfig.supportsVision,
+                requires_reasoning_effort: modelApiConfig.requiresReasoningEffort,
+                reasoning_effort: modelApiConfig.reasoningEffort,
+                base_timeout: modelApiConfig.baseTimeout,
+                max_timeout: modelApiConfig.maxTimeout,
+                token_factor: modelApiConfig.tokenFactor,
                 model_type: "o-series"
             };
         }
@@ -605,35 +637,35 @@ class ModelManager {
             return {
                 name: modelId,
                 description: "Model with chain-of-thought reasoning capabilities",
-                azure_endpoint: getModelAPIConfig(modelId).endpoint,
-                api_version: getModelAPIConfig(modelId).apiVersion,
-                max_tokens: getModelAPIConfig(modelId).maxTokens,
-                max_completion_tokens: getModelAPIConfig(modelId).maxCompletionTokens,
-                supports_temperature: getModelAPIConfig(modelId).supportsTemperature,
-                supports_streaming: getModelAPIConfig(modelId).supportsStreaming,
-                supports_vision: getModelAPIConfig(modelId).supportsVision,
-                requires_reasoning_effort: getModelAPIConfig(modelId).requiresReasoningEffort,
+                azure_endpoint: modelApiConfig.endpoint,
+                api_version: modelApiConfig.apiVersion,
+                max_tokens: modelApiConfig.maxTokens,
+                max_completion_tokens: modelApiConfig.maxCompletionTokens,
+                supports_temperature: modelApiConfig.supportsTemperature,
+                supports_streaming: modelApiConfig.supportsStreaming,
+                supports_vision: modelApiConfig.supportsVision,
+                requires_reasoning_effort: modelApiConfig.requiresReasoningEffort,
                 enable_thinking: true,
-                base_timeout: getModelAPIConfig(modelId).baseTimeout,
-                max_timeout: getModelAPIConfig(modelId).maxTimeout,
-                token_factor: getModelAPIConfig(modelId).tokenFactor,
+                base_timeout: modelApiConfig.baseTimeout,
+                max_timeout: modelApiConfig.maxTimeout,
+                token_factor: modelApiConfig.tokenFactor,
                 model_type: "deepseek"
             };
         }
         return {
             name: modelId,
             description: "Generic AI model",
-            azure_endpoint: getModelAPIConfig(modelId).endpoint,
-            api_version: getModelAPIConfig(modelId).apiVersion,
-            max_tokens: getModelAPIConfig(modelId).maxTokens,
-            max_completion_tokens: getModelAPIConfig(modelId).maxCompletionTokens,
-            supports_temperature: getModelAPIConfig(modelId).supportsTemperature,
-            supports_streaming: getModelAPIConfig(modelId).supportsStreaming,
-            supports_vision: getModelAPIConfig(modelId).supportsVision,
-            requires_reasoning_effort: getModelAPIConfig(modelId).requiresReasoningEffort,
-            base_timeout: getModelAPIConfig(modelId).baseTimeout,
-            max_timeout: getModelAPIConfig(modelId).maxTimeout,
-            token_factor: getModelAPIConfig(modelId).tokenFactor,
+            azure_endpoint: modelApiConfig.endpoint,
+            api_version: modelApiConfig.apiVersion,
+            max_tokens: modelApiConfig.maxTokens,
+            max_completion_tokens: modelApiConfig.maxCompletionTokens,
+            supports_temperature: modelApiConfig.supportsTemperature,
+            supports_streaming: modelApiConfig.supportsStreaming,
+            supports_vision: modelApiConfig.supportsVision,
+            requires_reasoning_effort: modelApiConfig.requiresReasoningEffort,
+            base_timeout: modelApiConfig.baseTimeout,
+            max_timeout: modelApiConfig.maxTimeout,
+            token_factor: modelApiConfig.tokenFactor,
             model_type: "standard"
         };
     }
@@ -657,7 +689,6 @@ class ModelManager {
     }
 
     initModelManagement() {
-        // Add event handlers for the model form
         const addModelBtn = document.getElementById('add-model-btn');
         const modelFormClose = document.getElementById('model-form-close');
         const modelFormCancel = document.getElementById('model-form-cancel');
@@ -682,7 +713,6 @@ class ModelManager {
             modelForm.addEventListener('submit', (e) => this.handleModelFormSubmit(e));
         }
 
-        // Initialize model selection
         const modelSelect = document.getElementById('model-select');
         if (modelSelect) {
             modelSelect.addEventListener('change', async (e) => {
@@ -692,91 +722,14 @@ class ModelManager {
                 }
             });
         }
-    
-        /**
-         * Updates the UI based on the currently selected model's capabilities
-         * @param {string} modelName
-         */
-        async updateModelSpecificUI(modelName) {
-            try {
-                // Fetch (or re-fetch) model configuration if needed
-                const modelConfig = this.modelConfigs[modelName] || await this.getModelConfig(modelName);
-                if (!modelConfig) return;
-                
-                // Determine model type
-                const modelType = modelConfig.model_type || 'standard';
-                const isOSeries = modelType === 'o-series' || modelName.toLowerCase().startsWith('o1');
-                const isDeepSeek = modelType === 'deepseek' || modelName.toLowerCase().includes('deepseek');
-    
-                // Check capabilities
-                const supportsStreaming = !!modelConfig.supports_streaming;
-                const supportsVision = !!modelConfig.supports_vision;
-                const apiVersion = modelConfig.api_version || '2025-01-01-preview';
-    
-                // Show/hide UI elements based on model type
-                const reasoningControls = document.getElementById('reasoning-controls');
-                if (reasoningControls) {
-                    reasoningControls.classList.toggle('hidden', !isOSeries);
-                }
-    
-                const thinkingControls = document.getElementById('thinking-controls');
-                if (thinkingControls) {
-                    thinkingControls.classList.toggle('hidden', !isDeepSeek);
-                }
-    
-                // Update streaming toggle
-                const streamingToggle = document.getElementById('enable-streaming');
-                if (streamingToggle) {
-                    streamingToggle.disabled = !supportsStreaming;
-                    const streamingLabel = streamingToggle.parentElement?.querySelector('label');
-                    if (streamingLabel) {
-                        streamingLabel.classList.toggle('text-dark-400', !supportsStreaming);
-                    }
-                }
-    
-                // Update model info display
-                const modelInfoSection = document.querySelector('.model-info');
-                if (modelInfoSection) {
-                    const features = [];
-                    if (isOSeries) features.push('advanced reasoning');
-                    if (isDeepSeek) features.push('thinking process');
-                    if (supportsStreaming) features.push('streaming');
-                    if (supportsVision) features.push('vision');
-    
-                    const featuresText = features.length > 0
-                        ? `with ${features.join(' & ')}`
-                        : '';
-                    const apiVersionText = `<span class="text-xs text-gray-500">(API: ${apiVersion})</span>`;
-    
-                    modelInfoSection.innerHTML = `
-                        <p><strong>Model:</strong> ${modelName} ${featuresText}</p>
-                        <p class="text-xs text-gray-500">Type: ${modelType} ${apiVersionText}</p>
-                    `;
-                }
-    
-                // Update model badge
-                const modelBadge = document.getElementById('model-badge');
-                if (modelBadge) {
-                    modelBadge.textContent = modelName;
-                }
-    
-                // Notify other components
-                if (typeof eventBus !== 'undefined') {
-                    eventBus.publish('modelUpdated', {
-                        modelName,
-                        modelType,
-                        apiVersion,
-                        capabilities: {
-                            isOSeries,
-                            isDeepSeek,
-                            supportsStreaming,
-                            supportsVision,
-                        }
-                    });
-                }
-            } catch (error) {
-                console.error('Error updating model-specific UI:', error);
-            }
+    }
+
+    async updateModelSpecificUI(modelName) {
+        try {
+            const configModule = await import('./config.js');
+            configModule.updateModelSpecificUI(modelName);
+        } catch (error) {
+            console.error('Error importing updateModelSpecificUI from config.js:', error);
         }
     }
 

@@ -1,0 +1,134 @@
+/**
+ * DeepSeek thinking blocks formatting fix
+ * 
+ * These styles ensure proper rendering of thinking blocks
+ * when they contain HTML-like content
+ */
+
+/* Fix for thinking blocks showing raw HTML */
+.thinking-pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: inherit;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 300px;
+  transition: color 0.3s ease;
+  padding: 0.5rem;
+  margin: 0;
+}
+
+/* Thinking process container */
+.thinking-process {
+  margin: 1rem 0;
+  border: 1px solid oklch(86% 0.01 276);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: fadeIn 0.5s ease forwards;
+  transform-origin: top;
+}
+
+.dark .thinking-process {
+  border-color: #6272a4;
+}
+
+.thinking-process:hover {
+  box-shadow: 0 4px 8px -1px rgba(0, 0, 0, 0.12),
+    0 2px 4px -1px rgba(0, 0, 0, 0.07);
+  transform: translateY(-1px);
+}
+
+/* Thinking header */
+.thinking-header {
+  background-color: oklch(97% 0.029 276 / 0.2);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid oklch(86% 0.01 276);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.dark .thinking-header {
+  background-color: #44475a;
+  border-bottom: 1px solid #6272a4;
+}
+
+/* Thinking content animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-8px) }
+  to { opacity: 1; transform: translateY(0) }
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4) }
+  50% { box-shadow: 0 0 0 4px rgba(99, 102, 241, 0) }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4) }
+}
+
+.thinking-process.new {
+  animation: fadeIn 0.5s ease forwards, pulse 1.5s ease-in-out 1;
+}
+
+/* Remove any raw HTML fragment styling that might be occurring */
+.thinking-pre div[data-collapsed],
+.thinking-pre div[aria-label],
+.thinking-pre div.thinking-header,
+.thinking-pre div.thinking-content,
+.thinking-pre button.thinking-toggle,
+.thinking-pre span.toggle-icon,
+.thinking-pre span.font-medium,
+.thinking-pre div.thinking-gradient {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+
+/* Override font for code blocks within thinking content */
+.thinking-pre code,
+.thinking-pre .inline-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85em;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.dark .thinking-pre code,
+.dark .thinking-pre .inline-code {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Ensure thinking blocks don't bleed outside container */
+.thinking-process {
+  overflow: auto;
+  max-width: 100%;
+}
+
+/* Add a wrapper class to control DOM creation behavior */
+.thinking-safe-wrapper pre,
+.thinking-safe-wrapper code {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Fix for nested thinking blocks */
+.thinking-process .thinking-process {
+  margin: 0.5rem 0;
+  padding-left: 1rem;
+  border-left: 2px solid oklch(68% 0.14 276 / 0.4);
+}
+
+.dark .thinking-process .thinking-process {
+  border-left: 2px solid #bd93f9; /* dracula-purple */
+}

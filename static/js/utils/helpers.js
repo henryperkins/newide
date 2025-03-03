@@ -61,6 +61,18 @@ export async function copyToClipboard(text) {
  */
 export function updateTokenUsage(usage) {
     if (!usage) return;
+    
+    console.log("Updating token usage display with:", usage);
+    
+    // Also update any statsDisplay instance if available
+    if (window.statsDisplay) {
+        window.statsDisplay.updateStats({
+            promptTokens: usage.prompt_tokens || 0,
+            completionTokens: usage.completion_tokens || 0,
+            reasoningTokens: usage.completion_tokens_details?.reasoning_tokens || 0,
+            totalTokens: usage.total_tokens || 0
+        });
+    }
 
     const tokenUsage = document.querySelector('.token-usage-compact');
     if (!tokenUsage) return;
@@ -93,9 +105,12 @@ export function updateTokenUsage(usage) {
         if (el) {
             el.textContent = value.toLocaleString();
             el.parentElement.style.display = value > 0 ? 'block' : 'none';
+        } else {
+            console.warn(`Element with id ${id} not found for token display`);
         }
     };
 
+    // Make sure all token display UI elements exist
     setText('prompt-tokens', usage.prompt_tokens || 0);
     setText('completion-tokens', usage.completion_tokens || 0);
     setText('total-tokens', usage.total_tokens || 0);
@@ -110,8 +125,14 @@ export function updateTokenUsage(usage) {
         
         // Calculate and display percentage
         const reasoningPercent = ((reasoningTokens / usage.completion_tokens) * 100).toFixed(1);
-        const reasoningContainer = document.getElementById('reasoning-tokens').parentElement;
+        const reasoningContainer = document.getElementById('reasoning-tokens')?.parentElement;
         if (reasoningContainer) {
+            // Remove existing breakdown if any
+            const existingBreakdown = reasoningContainer.querySelector('.token-breakdown');
+            if (existingBreakdown) {
+                existingBreakdown.remove();
+            }
+            
             const breakdown = document.createElement('div');
             breakdown.className = 'token-breakdown';
             breakdown.innerHTML = `
@@ -127,6 +148,10 @@ export function updateTokenUsage(usage) {
         createAdvancedMetricsContainer();
 
     metricsContainer.innerHTML = generateMetricsHTML(usage);
+    
+    // Make sure this usage data is stored for the session
+    if (!window.tokenUsageHistory) window.tokenUsageHistory = {};
+    window.tokenUsageHistory.latest = usage;
 }
 
 /**

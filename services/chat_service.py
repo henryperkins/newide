@@ -164,12 +164,14 @@ async def process_chat_message(
             #     Usually used for DeepSeek if your environment requires it.
             #
             if is_deepseek:
-                # For DeepSeek, it might use .complete(...). We'll # type: ignore it to silence Pylance
-                response = azure_client.complete(  # type: ignore
-                    model=model_name,
-                    messages=params["messages"],       # type: ignore
-                    temperature=params["temperature"], # type: ignore
-                    max_tokens=params["max_tokens"],   # type: ignore
+                # For DeepSeek, we need to use the appropriate API pattern
+                # The ChatCompletionsClient has already been initialized with the model name
+                # We just need to pass messages and other parameters
+                logger.info(f"Calling DeepSeek-R1 model with messages and temperature: {params['temperature']}")
+                response = azure_client.complete(
+                    messages=params["messages"],
+                    temperature=params["temperature"],
+                    max_tokens=params["max_tokens"]
                 )
                 # Extract content
                 if not response.choices:
@@ -183,6 +185,15 @@ async def process_chat_message(
                     "completion_tokens": getattr(response.usage, "completion_tokens", 0),
                     "total_tokens": getattr(response.usage, "total_tokens", 0),
                 }
+                
+                # Extract reasoning tokens from DeepSeek's thinking process
+                if "<think>" in content and "</think>" in content:
+                    # Store the thinking process as reasoning tokens
+                    thinking_text = content.split("<think>")[1].split("</think>")[0]
+                    usage_data["thinking_process"] = thinking_text
+                    # Estimate thinking tokens (rough approximation)
+                    thinking_tokens = len(thinking_text.split())
+                    usage_data["reasoning_tokens"] = thinking_tokens
 
             else:
                 # If we got a ChatCompletionsClient but not for DeepSeek,
@@ -220,10 +231,15 @@ async def process_chat_message(
             if usage_raw and hasattr(usage_raw, "completion_tokens_details") and usage_raw.completion_tokens_details:
                 usage_data["reasoning_tokens"] = getattr(usage_raw.completion_tokens_details, "reasoning_tokens", 0)
 
-            # If it’s a deepseek model in AzureOpenAI, you might parse <think> blocks similarly
+            # Handle DeepSeek formatting for AzureOpenAI client too
             if is_deepseek and "<think>" in content and "</think>" in content:
-                # Example
-                usage_data["thinking_process"] = content.split("<think>")[1].split("</think>")[0]
+                # Store the thinking process
+                thinking_text = content.split("<think>")[1].split("</think>")[0]
+                usage_data["thinking_process"] = thinking_text
+                # If reasoning_tokens not already set, estimate from thinking text
+                if "reasoning_tokens" not in usage_data:
+                    thinking_tokens = len(thinking_text.split())
+                    usage_data["reasoning_tokens"] = thinking_tokens
 
     except HttpResponseError as e:
         # Enhanced error handling for Azure AI Inference
@@ -405,8 +421,8 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
     combined_text = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in messages)
     try:
         # Provide a fallback if endpoint is None
-        endpoint = os.getenv("AZURE_OPENAI_ENDPOINT") or "https://example-endpoint"
-        api_version = os.getenv("AZURE_OPENAI_API_VERSION") or "2023-09-01-preview"
+        endpoint = os.getenv("AZURE_OPENAI_ENDPOINT") or "https://o1models.openai.azure.com"
+        api_version = os.getenv("AZURE_OPENAI_API_VERSION") or "2025-02-01-preview"
 
         client = AzureOpenAI(
             api_key=os.getenv("AZURE_OPENAI_API_KEY", ""),

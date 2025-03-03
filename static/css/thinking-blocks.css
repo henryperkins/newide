@@ -9,12 +9,14 @@
   margin: 1rem 0;
   border: 1px solid oklch(86% 0.01 276);
   border-radius: 0.5rem;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   position: relative;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   animation: fadeIn 0.5s ease forwards;
   transform-origin: top;
+  max-width: 100%;
 }
 
 .dark .thinking-process {
@@ -156,8 +158,6 @@
 .thinking-pre .code-block-header {
   padding: 0.5rem 0.75rem;
   font-size: 0.75rem;
-  font-weight: 500;
-  color: oklch(60% 0.135 276);
   background-color: oklch(94% 0.048 276 / 0.2);
   border-bottom: 1px solid oklch(86% 0.01 276);
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
