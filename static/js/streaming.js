@@ -1,9 +1,4 @@
-/**
- * streaming.js
- *
- * Manages the SSE connection to your chat endpoint, receiving tokens in real time,
- * assembling them into main or thinking text, handling errors and retries.
- */
+import { logInfo } from './debugging.js';
 
 import { getSessionId } from './session.js';
 import { updateTokenUsage, fetchWithRetry, retry, eventBus } from './utils/helpers.js';
@@ -129,8 +124,7 @@ export function streamChatResponse(
       params.append('developer_config', developerConfig.trim());
     }
     const fullUrl = `${apiUrl}&${params.toString()}`;
-    import { logInfo } from './debugging.js';
-    logInfo(`Connecting to streaming endpoint with model: ${validModelName}`);
+    // Elimina esta importación y llamada, o muévela al tope del archivo.
 
     // Create EventSource for SSE
     const eventSource = new EventSource(fullUrl);
