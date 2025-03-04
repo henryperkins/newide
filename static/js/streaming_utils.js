@@ -50,17 +50,7 @@ export function processDataChunk(
       chunkBuffer = result.remainingChunk;
 
       // Re-check for leftover data: if any remains, process it recursively with an empty content chunk.
-      if (result.remainingChunk) {
-        chunkBuffer = result.remainingChunk;
-        processDataChunk(
-          { choices: [{ delta: { content: '' } }] },
-          chunkBuffer,
-          mainTextBuffer,
-          thinkingTextBuffer,
-          isThinking,
-          deepSeekProcessor
-        );
-      }
+      // Removed recursive call to processDataChunk for remainingChunk
     }
 
     // If the server signals finishing (via finish_reason), finalize the content.

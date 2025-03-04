@@ -4,6 +4,6 @@ def process_stream_chunk(chunk, full_content, is_deepseek):
     """
     if hasattr(chunk, "choices") and chunk.choices:
         for choice in chunk.choices:
-            if hasattr(choice.delta, "content") and choice.delta.content is not None:
-                full_content += choice.delta.content
+            content = getattr(choice.delta, "content", "") or ""
+            full_content += content
     return full_content
