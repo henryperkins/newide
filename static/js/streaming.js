@@ -1,4 +1,3 @@
-import { logInfo } from './debugging.js';
 
 import { getSessionId } from './session.js';
 import { updateTokenUsage, fetchWithRetry, retry, eventBus } from './utils/helpers.js';
