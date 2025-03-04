@@ -68,7 +68,6 @@ function initApplication() {
   }
 
   // 6. Additional UI init
-  initSidebarToggle();
   initPerformanceStats();
   configureMarkdown();
   initChatInterface();
