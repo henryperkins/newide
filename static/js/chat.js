@@ -197,21 +197,6 @@ function initChatInterface() {
         console.log('[sendMessage] Using fetchChatResponse, modelName:', modelName, 'developerConfig:', developerConfig, 'reasoningEffort:', reasoningEffort);
       }
     }
-    if (
-      e.target.classList.contains('thinking-toggle') ||
-      e.target.closest('.thinking-toggle')
-    ) {
-      const toggle = e.target.classList.contains('thinking-toggle')
-        ? e.target
-        : e.target.closest('.thinking-toggle');
-      const content = toggle.parentElement.nextElementSibling;
-      const icon = toggle.querySelector('.toggle-icon');
-      if (content && icon) {
-        const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
-        toggle.setAttribute('aria-expanded', !isExpanded);
-        icon.textContent = isExpanded ? '▶' : '▼';
-      }
-    }
   });
 }
 
@@ -514,6 +499,7 @@ export function renderAssistantMessage(content, isThinking = false) {
   
   chatHistory.appendChild(el);
   highlightCode(el);
+  deepSeekProcessor.initializeExistingBlocks();
   setTimeout(() => {
     el.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, 100);

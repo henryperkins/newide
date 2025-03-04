@@ -253,24 +253,10 @@ async def process_chat_message(
     full_content = content
     formatted_content = full_content
 
-    # If it's a DeepSeek model, handle <think> tag replacements for formatted output
+    # No server-side transform for DeepSeek; rely on client
     if is_deepseek and full_content:
-        think_regex = r"<think>([\s\S]*?)<\/think>"
-
-        def replace_thinking(match_obj: re.Match) -> str:
-            thinking_text = match_obj.group(1)
-            return (
-                '<div class="thinking-process">'
-                '<div class="thinking-header">'
-                '<button class="thinking-toggle" aria-expanded="true">'
-                '<span class="toggle-icon">▼</span> Thinking Process'
-                '</button></div>'
-                '<div class="thinking-content">'
-                f'<pre class="thinking-pre">{thinking_text}</pre>'
-                '</div></div>'
-            )
-
-        formatted_content = re.sub(think_regex, replace_thinking, formatted_content)
+        pass
+    formatted_content = full_content
 
     # Store the conversation in the database
     await save_conversation(
