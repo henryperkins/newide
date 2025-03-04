@@ -8,6 +8,11 @@ import StatsDisplay from './ui/statsDisplay.js';
 import fileManager from './fileManager.js';
 import './update_deepseek.js'; // Import DeepSeek-R1 configuration updater
 
+DOMPurify.setConfig({
+  ADD_TAGS: ["div", "pre"],
+  ADD_ATTR: ["class", "aria-expanded"]
+});
+
 // Disable service worker registration
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then(registrations => {
