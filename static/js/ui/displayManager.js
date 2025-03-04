@@ -26,13 +26,13 @@ function initDisplayManager() {
 function setupEventListeners() {
   const loadOlderBtn = document.getElementById('load-older-btn');
   if (loadOlderBtn) loadOlderBtn.addEventListener('click', loadOlderMessages);
-  
+
   const saveOlderBtn = document.getElementById('save-older-btn');
   if (saveOlderBtn) {
     saveOlderBtn.addEventListener('click', saveConversation);
     saveOlderBtn.hasEventListener = true;
   }
-  
+
   const tokenUsageToggle = document.getElementById('toggle-token-details');
   const tokenDetails = document.getElementById('token-details');
   const tokenChevron = document.getElementById('token-chevron');
@@ -102,140 +102,186 @@ function setupIntersectionObserver() {
   }, { rootMargin: '100px 0px', threshold: 0.1 });
 }
 
-export function loadConversationFromLocalStorage() {
-  const sessionId = getSessionId();
+export async function loadConversationFromDb() {
+  let maybeSession = getSessionId();
+  const sessionId = maybeSession instanceof Promise ? await maybeSession : maybeSession;
   if (!sessionId) return;
-  const storageKey = `conversation_${sessionId}`;
-  const storedConversation = localStorage.getItem(storageKey);
-  if (!storedConversation) {
-    updateLoadMoreButton();
-    return;
-  }
+
   try {
-    let messages = JSON.parse(storedConversation);
-    hasMoreMessages = messages.length > messageRenderLimit;
-    const unloadedCount = Math.max(0, messages.length - messageRenderLimit);
-    const recentMessages = messages.slice(-messageRenderLimit);
-    const chatHistory = document.getElementById('chat-history');
-    const systemMessages = [];
-    if (chatHistory) {
-      chatHistory.querySelectorAll('.system-message').forEach(el => systemMessages.push(el.cloneNode(true)));
-      chatHistory.innerHTML = '';
-      systemMessages.forEach(el => chatHistory.appendChild(el));
-      recentMessages.forEach(m => {
-        if (m.role === 'user') renderUserMessage(m.content, true, true);
-        else if (m.role === 'assistant') renderAssistantMessage(m.content, true, true);
-      });
+    const res = await fetch(`/api/chat/conversations/history?session_id=${sessionId}&offset=0&limit=100`);
+    if (!res.ok) {
+      console.error('Failed to fetch conversation from DB:', res.statusText);
+      showNotification('Failed to load conversation from DB', 'error');
+      return;
     }
-    updateLoadMoreButton(unloadedCount);
+    const data = await res.json();
+
+    const chatHistory = document.getElementById('chat-history');
+    if (!chatHistory) return;
+
+    // Preserve any existing system messages + conversation controls
+    const systemMessages = chatHistory.querySelectorAll('.system-message');
+    const conversationControls = chatHistory.querySelector('.conversation-controls');
+    chatHistory.innerHTML = '';
+    systemMessages.forEach(el => chatHistory.appendChild(el));
+    if (conversationControls) {
+      chatHistory.appendChild(conversationControls);
+    }
+
+    // Append DB messages in chronological order
+    data.messages.forEach(m => {
+      if (m.role === 'user') {
+        renderUserMessage(m.content, true, true);
+      } else if (m.role === 'assistant') {
+        renderAssistantMessage(m.content, true, true);
+      }
+    });
   } catch (e) {
-    console.error('Error loading conversation:', e);
-    showNotification('Failed to load previous conversation', 'error');
+    console.error('Error loading conversation from DB:', e);
+    showNotification('Failed to load conversation from DB', 'error');
   }
 }
 
 export async function loadOlderMessages() {
-  if (isLoadingPrevious || !hasMoreMessages) return;
-  const sessionId = getSessionId();
-  if (!sessionId) return;
-  const storageKey = `conversation_${sessionId}`;
-  const storedConversation = localStorage.getItem(storageKey);
-  if (!storedConversation) return;
-  try {
-    isLoadingPrevious = true;
-    const loadBtn = document.getElementById('load-older-btn');
-    if (loadBtn) {
-      loadBtn.disabled = true;
-      loadBtn.innerHTML = '<span class="animate-spin inline-block mr-2">&#8635;</span> Loading...';
-    }
-    
-    const allMessages = JSON.parse(storedConversation);
-    const unloadedCount = Math.max(0, allMessages.length - messageRenderLimit);
-    const chatHistory = document.getElementById('chat-history');
-    
-    if (chatHistory && unloadedCount > 0) {
-      const batchSize = Math.min(messageRenderLimit, unloadedCount);
-      const messagesToAdd = allMessages.slice(-messageRenderLimit - batchSize, -messageRenderLimit);
-      
-      // Save scroll position
-      const scrollHeightBefore = chatHistory.scrollHeight;
-      const scrollPositionBefore = chatHistory.scrollTop;
-      
-      // Insert older messages at the top
-      messagesToAdd.forEach(m => {
-        const messageElement = m.role === 'user' 
-          ? createUserMessageElement(m.content) 
-          : createAssistantMessageElement(m.content);
-          
-        chatHistory.insertBefore(messageElement, chatHistory.firstChild);
-        if (m.role === 'assistant' && messageObserver) {
-          messageElement.classList.add('observed');
-          messageObserver.observe(messageElement);
+    if (isLoadingPrevious || !hasMoreMessages) return;
+    const sessionIdMaybe = getSessionId();
+    const sessionId = sessionIdMaybe instanceof Promise ? await sessionIdMaybe : sessionIdMaybe;
+    if (!sessionId) return;
+
+    try {
+        isLoadingPrevious = true;
+        const loadBtn = document.getElementById('load-older-btn');
+        if (loadBtn) {
+            loadBtn.disabled = true;
+            loadBtn.innerHTML = '<span class="animate-spin inline-block mr-2">&#8635;</span> Loading...';
         }
-      });
-      
-      // Adjust scroll position to maintain view
-      requestAnimationFrame(() => {
-        const heightDiff = chatHistory.scrollHeight - scrollHeightBefore;
-        chatHistory.scrollTop = scrollPositionBefore + heightDiff;
-      });
-      
-      // Update hasMoreMessages status
-      hasMoreMessages = allMessages.length > (messageRenderLimit + batchSize);
-      updateLoadMoreButton(allMessages.length - (messageRenderLimit + batchSize));
-      
-      // Show save button after successfully loading older messages
-      const saveBtn = document.getElementById('save-older-btn');
-      if (saveBtn) {
-        saveBtn.classList.remove('hidden');
-        if (!saveBtn.hasEventListener) {
-          saveBtn.addEventListener('click', saveConversation);
-          saveBtn.hasEventListener = true;
+
+        const chatHistory = document.getElementById('chat-history');
+        if (!chatHistory) {
+            console.error("Chat history container not found.");
+            return;
         }
-      }
+
+        // Determine how many messages are currently rendered (excluding system messages).
+        const rendered = chatHistory.querySelectorAll('.message:not(.system-message)').length;
+        // We'll fetch the next 50 older messages from DB.
+        const fetchLimit = 50;
+        const api = `/api/chat/conversations/history?session_id=${sessionId}&offset=${rendered}&limit=${fetchLimit}`;
+        const res = await fetch(api);
+        if (!res.ok) {
+            console.error('Failed to fetch older messages from DB:', res.statusText);
+            showNotification('Failed to load older messages from DB', 'error');
+            return;
+        }
+        const data = await res.json();
+
+        if (!data || !data.messages?.length) {
+            // No more messages
+            hasMoreMessages = false;
+            updateLoadMoreButton(0);
+        } else {
+            // Save scroll position
+            const scrollHeightBefore = chatHistory.scrollHeight;
+            const scrollPositionBefore = chatHistory.scrollTop;
+
+            for (const m of data.messages) {
+                const messageElement = m.role === 'user'
+                    ? createUserMessageElement(m.content)
+                    : createAssistantMessageElement(m.content);
+                // Insert older messages at top
+                if (chatHistory.firstChild) {
+                    chatHistory.insertBefore(messageElement, chatHistory.firstChild);
+                } else {
+                    chatHistory.appendChild(messageElement);
+                }
+                if (m.role === 'assistant' && messageObserver) {
+                    messageElement.classList.add('observed');
+                    messageObserver.observe(messageElement);
+                }
+            }
+
+            // Adjust scroll position to maintain view
+            requestAnimationFrame(() => {
+                const heightDiff = chatHistory.scrollHeight - scrollHeightBefore;
+                chatHistory.scrollTop = scrollPositionBefore + heightDiff;
+            });
+
+            // If we got fewer than fetchLimit messages, we might have reached the end.
+            hasMoreMessages = data.has_more;
+            if (!hasMoreMessages) updateLoadMoreButton(0);
+            else updateLoadMoreButton(); // We'll let the existing logic figure out how many remain
+        }
+    } catch (error) {
+        console.error('Error loading older messages from DB:', error);
+        showNotification('Error loading older messages', 'error');
+    } finally {
+        isLoadingPrevious = false;
+        const loadButton = document.getElementById('load-older-btn');
+        if (loadButton) {
+            loadButton.disabled = false;
+        }
     }
-    
-    isLoadingPrevious = false;
-    const loadButton = document.getElementById('load-older-btn');
-    if (loadButton) {
-      loadButton.disabled = false;
-    }
-  } catch (e) {
-    console.error(e);
-    isLoadingPrevious = false;
-    const loadButton = document.getElementById('load-older-btn');
-    if (loadButton) {
-      loadButton.disabled = false;
-      updateLoadMoreButton();
-    }
-  }
 }
 
-function saveConversation() {
-  const sessionId = getSessionId();
-  if (!sessionId) {
-    showNotification('No valid session found', 'error');
-    return;
-  }
-  
-  const storageKey = `conversation_${sessionId}`;
-  const storedConversation = localStorage.getItem(storageKey);
-  
-  if (!storedConversation) {
-    showNotification('No conversation to save', 'error');
-    return;
-  }
-  
-  try {
-    // Create a new key with timestamp for saved conversation
-    const savedKey = `saved_conversation_${Date.now()}`;
-    localStorage.setItem(savedKey, storedConversation);
-    
-    showNotification('Conversation saved successfully', 'success');
-  } catch (e) {
-    console.error('Error saving conversation:', e);
-    showNotification('Failed to save conversation', 'error');
-  }
+async function saveConversation() {
+    const sessionIdMaybe = getSessionId();
+    const sessionId = sessionIdMaybe instanceof Promise ? await sessionIdMaybe : sessionIdMaybe;
+    if (!sessionId) {
+        showNotification('No valid session found', 'error');
+        return;
+    }
+
+    try {
+        // Fetch all conversation messages from DB
+        const api = `/api/chat/conversations/history?session_id=${sessionId}&offset=0&limit=9999`;
+        const res = await fetch(api);
+        if (!res.ok) {
+            console.error('Failed to fetch conversation for saving:', res.statusText);
+            showNotification('Failed to fetch conversation for saving', 'error');
+            return;
+        }
+        const data = await res.json();
+        if (!data || !data.messages) {
+            showNotification('No conversation to save', 'error');
+            return;
+        }
+
+        // Also notify server of the chosen title so it appears in dropdown
+        try {
+            await fetch('/api/chat/conversations/set_title', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: data.session_id, title: chatTitle })
+            });
+        } catch (error) {
+            console.warn('Failed to set conversation title on server:', error);
+        }
+
+        // Prepare JSON data, now including the chosen title
+        const exportData = {
+            session_id: data.session_id,
+            messages: data.messages,
+            title: chatTitle,
+            timestamp: new Date().toISOString()
+        };
+        const jsonString = JSON.stringify(exportData, null, 2);
+
+        // Create downloadable blob
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `conversation_${sessionId}_${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        showNotification('Conversation downloaded successfully', 'success');
+    } catch (error) {
+        console.error('Error saving conversation:', error);
+        showNotification('Failed to save conversation', 'error');
+    }
 }
 
 function updateLoadMoreButton(unloadedCount) {
@@ -286,8 +332,7 @@ function updateLoadMoreButton(unloadedCount) {
 export function renderUserMessage(content, skipScroll = false, skipStore = false) {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return null;
-  
-  // Create message object with unique ID
+
   const message = {
     id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     content: content,
@@ -295,17 +340,16 @@ export function renderUserMessage(content, skipScroll = false, skipStore = false
     timestamp: Date.now()
   };
 
-  // Create virtualized element
   const element = document.createElement('div');
   element.dataset.id = message.id;
   element.className = 'message user-message';
   element.innerHTML = sanitizeHTML(content).replace(/\n/g, '<br>');
-  
+
   chatHistory.appendChild(element);
   if (!skipScroll) requestAnimationFrame(() => element.scrollIntoView({ behavior: 'smooth', block: 'end' }));
   pruneOldMessages();
   if (!skipStore) storeChatMessage('user', content);
-  return element; // Changed from messageElement to element
+  return element;
 }
 
 function createUserMessageElement(content) {
@@ -338,9 +382,9 @@ export function renderAssistantMessage(content, skipScroll = false, skipStore = 
 function createAssistantMessageElement(content) {
   const cacheKey = `assistant-${content}`;
   if (messageCache.has(cacheKey)) return messageCache.get(cacheKey).cloneNode(true);
-  
+
   const currentModel = window.modelManager?.getCurrentModelId() || document.getElementById('model-select')?.value || 'Unknown';
-  
+
   const el = document.createElement('div');
   el.className = 'message assistant-message';
   el.setAttribute('role', 'log');
@@ -349,15 +393,14 @@ function createAssistantMessageElement(content) {
   const md = renderMarkdown(processed);
   const enhanced = processCodeBlocks(md);
   const lazy = processImagesForLazyLoading(enhanced);
-  
-  // Add model name display with Tailwind classes
+
   el.innerHTML = `
     ${lazy}
     <div class="font-mono text-xs text-gray-400/80 dark:text-gray-500 mt-2 transition-opacity opacity-70 hover:opacity-100">
       Model: ${currentModel}
     </div>
   `;
-  
+
   messageCache.set(cacheKey, el.cloneNode(true));
   return el;
 }
@@ -394,7 +437,6 @@ const pruneOldMessages = debounce(() => {
     for (let i = 0; i < removeCount; i++) chatHistory.removeChild(msgs[i]);
     hasMoreMessages = true;
     
-    // Calculate the unloaded count after pruning
     const sessionId = getSessionId();
     if (sessionId) {
       const storageKey = `conversation_${sessionId}`;
@@ -414,7 +456,7 @@ const pruneOldMessages = debounce(() => {
     } else {
       updateLoadMoreButton();
     }
-    
+
     requestAnimationFrame(() => {
       const heightDiff = scrollHeightBefore - chatHistory.scrollHeight;
       chatHistory.scrollTop = Math.max(0, scrollPositionBefore - heightDiff);
@@ -425,13 +467,12 @@ const pruneOldMessages = debounce(() => {
 let clientVersion = Date.now();
 
 function storeChatMessage(role, content) {
-    const versionedContent = {
-        content,
-        clientVersion: clientVersion++,
-        timestamp: new Date().toISOString()
-    };
+  const versionedContent = {
+    content,
+    clientVersion: clientVersion++,
+    timestamp: new Date().toISOString()
+  };
   const sessionId = getSessionId();
-  // Ensure required fields are present
   if (!sessionId) {
     console.error('No valid session ID found — cannot store message.');
     return;
@@ -483,139 +524,11 @@ function showWelcomeMessageIfNeeded() {
 }
 
 function initMobileUI() {
-  // Use ResizeObserver to handle orientation changes and viewport adjustments
-  const resizeObserver = new ResizeObserver(entries => {
-    const isMobile = window.innerWidth < 768;
-    const isLandscape = window.innerWidth > window.innerHeight;
-    
-    // Adjust UI based on orientation
-    document.body.classList.toggle('landscape', isLandscape && isMobile);
-    
-    // Fix iOS Safari viewport height issues
-    document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+  document.querySelectorAll('button:not([aria-label])').forEach(button => {
+    if (!button.textContent.trim()) {
+      button.setAttribute('aria-label', 'Button');
+    }
   });
-  
-  resizeObserver.observe(document.documentElement);
-  
-  // Handle orientation change explicitly for older browsers
-  window.addEventListener('orientationchange', () => {
-    setTimeout(() => {
-      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
-    }, 100);
-  });
-  
-  const statsToggle = document.getElementById('mobile-stats-toggle');
-  const statsPanel = document.getElementById('mobile-stats-panel');
-  if (statsToggle && statsPanel) {
-    statsToggle.addEventListener('click', () => {
-      const wasHidden = statsPanel.classList.contains('hidden');
-      statsPanel.classList.toggle('hidden', !wasHidden);
-      statsPanel.setAttribute('aria-hidden', String(!wasHidden));
-      statsToggle.setAttribute('aria-expanded', String(wasHidden));
-      statsToggle.classList.toggle('bg-gray-100', wasHidden);
-      statsToggle.classList.toggle('dark:bg-gray-700', wasHidden);
-      if ('vibrate' in navigator) navigator.vibrate(10);
-    });
-    statsPanel.setAttribute('aria-hidden', 'true');
-    statsToggle.setAttribute('aria-expanded', 'false');
-  }
-  const mobileFontUp = document.getElementById('mobile-font-up');
-  const mobileFontDown = document.getElementById('mobile-font-down');
-  if (mobileFontUp && mobileFontDown) {
-    mobileFontUp.addEventListener('click', () => adjustFontSize(1));
-    mobileFontDown.addEventListener('click', () => adjustFontSize(-1));
-  }
-  initDoubleTapToCopy();
-  initPullToRefresh();
-}
-
-function initDoubleTapToCopy() {
-  const chatHistory = document.getElementById('chat-history');
-  if (!chatHistory) return;
-  let lastTap = 0, lastElement = null;
-  chatHistory.addEventListener('touchend', (e) => {
-    const msgDiv = e.target.closest('.assistant-message');
-    if (!msgDiv) return;
-    const now = Date.now();
-    if (now - lastTap < 500 && lastElement === msgDiv) {
-      const content = msgDiv.textContent;
-      navigator.clipboard.writeText(content)
-        .then(() => {
-          const feedback = document.createElement('div');
-          feedback.className = 'fixed top-4 right-4 bg-black/70 text-white py-2 px-4 rounded-md z-50';
-          feedback.textContent = 'Copied to clipboard';
-          document.body.appendChild(feedback);
-          setTimeout(() => feedback.remove(), 1500);
-        })
-        .catch(err => console.error('Could not copy text:', err));
-      e.preventDefault();
-    }
-    lastTap = now;
-    lastElement = msgDiv;
-  }, { passive: false });
-}
-
-function initPullToRefresh() {
-  const chatHistory = document.getElementById('chat-history');
-  if (!chatHistory) return;
-  let startY = 0, isPulling = false, threshold = 80, indicator = null;
-  chatHistory.addEventListener('touchstart', (e) => {
-    if (chatHistory.scrollTop > 0) return;
-    startY = e.touches[0].clientY;
-    isPulling = true;
-  }, { passive: true });
-  chatHistory.addEventListener('touchmove', (e) => {
-    if (!isPulling) return;
-    const currentY = e.touches[0].clientY;
-    const pullDistance = currentY - startY;
-    if (pullDistance > 0 && chatHistory.scrollTop <= 0) {
-      e.preventDefault();
-      chatHistory.style.transform = `translateY(${Math.min(pullDistance / 2, threshold)}px)`;
-      if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.className = 'text-center text-gray-500 absolute top-0 left-0 right-0 z-10 py-2 bg-gray-100/80 dark:bg-gray-800/80 backdrop-blur-sm';
-        indicator.textContent = 'Pull to load older messages';
-        chatHistory.parentNode.prepend(indicator);
-      }
-      indicator.textContent = pullDistance > threshold ? 'Release to load older messages' : 'Pull to load older messages';
-    }
-  }, { passive: false });
-  chatHistory.addEventListener('touchend', (e) => {
-    if (!isPulling) return;
-    const currentY = e.changedTouches[0].clientY;
-    const pullDistance = currentY - startY;
-    chatHistory.style.transform = '';
-    if (pullDistance > threshold && chatHistory.scrollTop <= 0) {
-      if (indicator) indicator.textContent = 'Loading...';
-      loadOlderMessages();
-    }
-    setTimeout(() => {
-      if (indicator) {
-        indicator.remove();
-        indicator = null;
-      }
-    }, 300);
-    isPulling = false;
-  }, { passive: true });
-}
-
-function adjustFontSize(direction) {
-  const sizes = ['text-sm','text-base','text-lg','text-xl'];
-  let currentIndex = sizes.findIndex(sz => document.documentElement.classList.contains(sz));
-  if (currentIndex === -1) currentIndex = 1;
-  const newIndex = Math.min(Math.max(currentIndex + direction, 0), sizes.length - 1);
-  if (newIndex === currentIndex) return;
-  document.documentElement.classList.remove(...sizes);
-  document.documentElement.classList.add(sizes[newIndex]);
-  localStorage.setItem('fontSize', sizes[newIndex]);
-  eventBus.publish('fontSizeChanged', { fontSize: sizes[newIndex], sizeIndex: newIndex });
-}
-
-function applyFontSize(sizeClass) {
-  const sizes = ['text-sm','text-base','text-lg','text-xl'];
-  document.documentElement.classList.remove(...sizes);
-  if (sizes.includes(sizeClass)) document.documentElement.classList.add(sizeClass);
-  else document.documentElement.classList.add('text-base');
 }
 
 function openFileInSidebar(filename) {
@@ -639,36 +552,82 @@ function openFileInSidebar(filename) {
   }, 500);
 }
 
-function clearConversation() {
-  showConfirmDialog('Clear Conversation','Are you sure you want to clear the current conversation? This action cannot be undone.',() => {
-    const sessionId = getSessionId();
-    if (sessionId) localStorage.removeItem(`conversation_${sessionId}`);
+async function deleteConversation() {
+  showConfirmDialog(
+    'Delete Conversation',
+    'Are you sure you want to delete the current conversation? This action cannot be undone.',
+    async () => {
+      try {
+        const sessionId = await getSessionId();
+        if (sessionId) {
+          // Remove from localStorage
+          localStorage.removeItem(`conversation_${sessionId}`);
+
+          // Also delete from DB
+          await fetch('/api/chat/conversations/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId })
+          });
+        }
+
+        // Now remove from DOM
+        const chatHistory = document.getElementById('chat-history');
+        if (chatHistory) {
+          const systemMessages = [];
+          chatHistory.querySelectorAll('.system-message').forEach(el => systemMessages.push(el.cloneNode(true)));
+          chatHistory.innerHTML = '';
+          systemMessages.forEach(el => chatHistory.appendChild(el));
+        }
+        messageCache.clear();
+        hasMoreMessages = false;
+        updateLoadMoreButton(0);
+
+        // Hide save button when conversation is deleted
+        const saveBtn = document.getElementById('save-older-btn');
+        if (saveBtn) {
+          saveBtn.classList.add('hidden');
+        }
+
+        showNotification('Conversation deleted', 'success');
+      } catch (err) {
+        console.error('Error deleting conversation:', err);
+        showNotification('Failed to delete conversation', 'error');
+      }
+    }
+  );
+}
+
+/**
+ * Creates a new conversation session, clearing the chat
+ */
+export function createNewConversation() {
+    // Generate a new random session ID
+    const newSessionId = crypto.randomUUID?.() || (Date.now().toString(36) + Math.random().toString(36).slice(2));
+    localStorage.setItem('current_session_id', newSessionId);
+
+    // Clear chat UI but keep system messages + conversation controls
     const chatHistory = document.getElementById('chat-history');
     if (chatHistory) {
-      const systemMessages = [];
-      chatHistory.querySelectorAll('.system-message').forEach(el => systemMessages.push(el.cloneNode(true)));
-      chatHistory.innerHTML = '';
-      systemMessages.forEach(el => chatHistory.appendChild(el));
+        const systemMessages = [...chatHistory.querySelectorAll('.system-message')].map(el => el.cloneNode(true));
+        const controls = chatHistory.querySelector('.conversation-controls');
+        chatHistory.innerHTML = '';
+        systemMessages.forEach(msg => chatHistory.appendChild(msg));
+        if (controls) chatHistory.appendChild(controls);
     }
-    messageCache.clear();
-    hasMoreMessages = false;
-    updateLoadMoreButton(0);
-    
-    // Hide save button when conversation is cleared
-    const saveBtn = document.getElementById('save-older-btn');
-    if (saveBtn) {
-      saveBtn.classList.add('hidden');
-    }
-    
-    showNotification('Conversation cleared', 'success');
-  });
+    // Force re-welcome
+    showWelcomeMessageIfNeeded();
+
+    showNotification('New conversation created', 'success');
 }
 
 export {
   initDisplayManager,
-  clearConversation,
-  saveConversation
+  deleteConversation,
+  saveConversation,
+  createNewConversation
 };
+
 function limitChatHistory(chatHistory, maxCount) {
   const msgs = chatHistory.querySelectorAll('.message:not(.system-message)');
   if (msgs.length <= maxCount) return;

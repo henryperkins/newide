@@ -92,105 +92,59 @@ function initMobileSidebarToggle() {
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
   const toggleButton = document.getElementById('sidebar-toggle');
+  const closeButton = document.getElementById('close-sidebar');
+  const chatContainer = document.getElementById('chat-container');
   
-  if (!sidebar || !overlay) {
-    console.error('Mobile sidebar elements missing:', {sidebar, overlay});
+  if (!sidebar || !toggleButton) {
+    console.error('Sidebar elements missing:', {sidebar, toggleButton});
     return;
   }
 
-  // Create close button if it doesn't exist
-  let closeButton = document.getElementById('close-sidebar');
-  if (!closeButton && sidebar) {
-    closeButton = document.createElement('button');
-    closeButton.id = 'close-sidebar';
-    closeButton.className = 'sidebar-close';
-    closeButton.setAttribute('aria-label', 'Close sidebar');
-    closeButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-      <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-    </svg>`;
-    sidebar.prepend(closeButton);
-  }
-
-  // Desktop fallback
-  if (window.innerWidth >= 768) { // Match your md breakpoint
-    if (sidebar) {
-      sidebar.classList.remove('translate-x-full', 'translate-x-0');
-      if (sidebar.classList.contains('sidebar-open')) {
-        sidebar.classList.add('translate-x-0');
-        document.getElementById('chat-container')?.classList.add('sidebar-open');
-      } else {
-        sidebar.classList.add('translate-x-full');
-        document.getElementById('chat-container')?.classList.remove('sidebar-open');
-      }
-    }
+  // Add proper ARIA attributes for accessibility
+  toggleButton.setAttribute('aria-controls', 'sidebar');
+  toggleButton.setAttribute('aria-expanded', 'false');
+  
+  /**
+   * Toggle sidebar visibility with proper state management
+   * @param {boolean} isOpen Whether to show the sidebar
+   */
+  function setSidebarState(isOpen) {
+    // Use the improved toggleSidebar function
+    toggleSidebar(isOpen);
   }
   
-  // Create toggle button if it doesn't exist
-  if (!toggleButton) {
-    // Try to find any element that might be the toggle button
-    const possibleToggle = document.querySelector('[aria-controls="config-content files-content"]') || document.getElementById('sidebar-toggle');
-    if (possibleToggle) {
-      possibleToggle.id = 'sidebar-toggle';
-      toggleButton = possibleToggle;
-      console.log('Found existing sidebar toggle button');
-    } else {
-      // Create a new toggle button in the header
-      const header = document.querySelector('header');
-      if (header) {
-        toggleButton = document.createElement('button');
-        toggleButton.id = 'sidebar-toggle';
-        toggleButton.className = 'ml-auto p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700';
-        toggleButton.setAttribute('aria-label', 'Toggle sidebar');
-        toggleButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-        </svg>`;
-        header.appendChild(toggleButton);
-        console.log('Created new sidebar toggle button');
-      }
-    }
-  } else {
-    console.log('Sidebar toggle button already exists');
-  }
+  // Toggle button handler
+  toggleButton.addEventListener('click', () => {
+    const newState = toggleButton.getAttribute('aria-expanded') !== 'true';
+    setSidebarState(newState);
+  });
   
-  // Close button handling
+  // Close button handler
   if (closeButton) {
-    closeButton.addEventListener('click', () => {
-      toggleSidebar(false);
-    });
+    closeButton.addEventListener('click', () => setSidebarState(false));
   }
   
-  // Enhanced toggle button functionality
-  if (toggleButton) {
-    toggleButton.setAttribute('aria-expanded', sidebar?.classList.contains('sidebar-open') ? 'true' : 'false');
-    
-    // Remove any existing click listeners to prevent duplicates
-    toggleButton.removeEventListener('click', toggleSidebarHandler);
-    
-    // Add click listener with named function for easier removal
-    toggleButton.addEventListener('click', toggleSidebarHandler);
-    console.log('Sidebar toggle listener added');
-  } else {
-    console.warn('Sidebar toggle button not found or not properly initialized');
-  }
-  
-  // Close sidebar when overlay is clicked
+  // Overlay click handler
   if (overlay) {
-    overlay.addEventListener('click', () => {
-      toggleSidebar(false);
-    });
+    overlay.addEventListener('click', () => setSidebarState(false));
   }
   
-  // Handle swipe to close
+  // Escape key handler
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && toggleButton.getAttribute('aria-expanded') === 'true') {
+      setSidebarState(false);
+    }
+  });
+  
+  // Handle swipe to dismiss on mobile
   if (sidebar) {
     let startX, startY;
+    
     sidebar.addEventListener('touchstart', (e) => {
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
-      
-      // Add transition for smooth animation
-      sidebar.classList.add('transition-transform', 'duration-300');
     }, { passive: true });
-
+    
     sidebar.addEventListener('touchmove', (e) => {
       if (!startX) return;
       
@@ -199,83 +153,79 @@ function initMobileSidebarToggle() {
       const diffX = currentX - startX;
       const diffY = currentY - startY;
       
-      // Abort swipe if vertical movement exceeds threshold (prevents accidental closing during scrolling)
-      const VERTICAL_THRESHOLD = 10;
-      if (Math.abs(diffY) > VERTICAL_THRESHOLD) return;
+      // Ignore vertical swipes (for scrolling)
+      if (Math.abs(diffY) > 10) return;
       
-      // Only handle horizontal swipes
-      if (Math.abs(diffX) > 30) {
-        // Move sidebar visually but keep it bounded
-        const translateX = Math.min(diffX, sidebar.offsetWidth);
-        sidebar.style.transform = `translateX(${translateX}px)`;
+      // Only handle rightward swipes (to close)
+      if (diffX > 0) {
+        sidebar.style.transform = `translateX(${diffX}px)`;
       }
     }, { passive: true });
-
+    
     sidebar.addEventListener('touchend', (e) => {
       if (!startX) return;
       
       const currentX = e.changedTouches[0].clientX;
       const diffX = currentX - startX;
       
-      // Clear inline transform
+      // Reset inline transforms
       sidebar.style.transform = '';
-      sidebar.classList.remove('transition-transform', 'duration-300');
       
+      // Close if swiped far enough
       if (diffX > 100) {
-        // Close the sidebar
-        toggleSidebar(false);
+        setSidebarState(false);
       }
       
       startX = null;
+      startY = null;
     }, { passive: true });
   }
   
-  // Handle resize events to ensure proper sidebar state
+  // Handle window resize
   window.addEventListener('resize', () => {
-    const isMobile = window.innerWidth < 768;
-    const isOpen = sidebar?.classList.contains('sidebar-open');
-
-    if (isMobile) {
-      // Ensure proper mobile state
-      if (isOpen) {
-        if (overlay) overlay.classList.remove('hidden');
-      } else if (sidebar) {
-        sidebar.classList.add('translate-x-full');
-        sidebar.classList.remove('translate-x-0');
-        if (overlay) overlay.classList.add('hidden');
-      }
-    } else if (sidebar) {
-      // On desktop, adjust the chat container padding
-      const chatContainer = document.getElementById('chat-container');
-      if (chatContainer) {
-        chatContainer.classList.toggle('sidebar-open', isOpen);
-      }
-      
-      if (overlay) overlay.classList.add('hidden');
-    }
-  });
-  
-  // Add keyboard shortcut (Escape) to close sidebar
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      if (sidebar?.classList.contains('sidebar-open')) {
-        toggleSidebar(false);
-      }
-    }
+    const isOpen = toggleButton.getAttribute('aria-expanded') === 'true';
+    setSidebarState(isOpen);
   });
 }
 
-/**
- * Handler function for sidebar toggle button
- */
+// Update the existing toggleSidebarHandler function
 function toggleSidebarHandler() {
   const isExpanded = this.getAttribute('aria-expanded') === 'true';
-  console.log('Sidebar toggle clicked, current state:', isExpanded ? 'open' : 'closed');
-  toggleSidebar(!isExpanded);
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const chatContainer = document.getElementById('chat-container');
+  
+  if (!sidebar) return;
+  
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  
+  // Toggle sidebar state
+  if (!isExpanded) {
+    sidebar.classList.remove('translate-x-full');
+    sidebar.classList.add('translate-x-0', 'sidebar-open');
+    this.setAttribute('aria-expanded', 'true');
+    
+    if (isMobile && overlay) {
+      overlay.classList.remove('hidden');
+    } else if (chatContainer) {
+      chatContainer.classList.add('sidebar-open');
+    }
+  } else {
+    sidebar.classList.add('translate-x-full');
+    sidebar.classList.remove('translate-x-0', 'sidebar-open');
+    this.setAttribute('aria-expanded', 'false');
+    
+    if (overlay) {
+      overlay.classList.add('hidden');
+    }
+    if (chatContainer) {
+      chatContainer.classList.remove('sidebar-open');
+    }
+  }
 }
 
 /**
- * Toggle sidebar visibility
+ * Toggle sidebar visibility with proper state management
  * @param {boolean} show Whether to show the sidebar
  */
 function toggleSidebar(show) {
@@ -287,25 +237,28 @@ function toggleSidebar(show) {
   
   if (!sidebar) return;
   
-  const isMobile = window.innerWidth < 768;
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
   
   if (show) {
-    if (isMobile) {
-      sidebar.classList.add('fixed');
-      sidebar.classList.remove('md:static');
-    }
     sidebar.classList.remove('translate-x-full');
-    sidebar.classList.add('sidebar-open', 'translate-x-0');
-    if (overlay && isMobile) overlay.classList.remove('hidden');
+    sidebar.classList.add('translate-x-0', 'sidebar-open');
+    
+    if (isMobile) {
+      if (overlay) overlay.classList.remove('hidden');
+      // On mobile, don't adjust the chat container width
+      if (chatContainer) chatContainer.classList.remove('sidebar-open');
+    } else {
+      // On desktop, add the padding
+      if (chatContainer) chatContainer.classList.add('sidebar-open');
+      // Hide overlay on desktop always
+      if (overlay) overlay.classList.add('hidden');
+    }
+    
     if (toggleButton) toggleButton.setAttribute('aria-expanded', 'true');
-    if (chatContainer && !isMobile) chatContainer.classList.add('sidebar-open');
   } else {
     sidebar.classList.add('translate-x-full');
     sidebar.classList.remove('translate-x-0', 'sidebar-open');
-    if (isMobile) {
-      sidebar.classList.remove('fixed');
-      sidebar.classList.add('md:static');
-    }
+    
     if (overlay) overlay.classList.add('hidden');
     if (toggleButton) toggleButton.setAttribute('aria-expanded', 'false');
     if (chatContainer) chatContainer.classList.remove('sidebar-open');

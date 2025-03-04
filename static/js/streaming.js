@@ -1,3 +1,11 @@
+/**
+ * streaming.js
+ *
+ * Fixed version: chain-of-thought text now displays because we attach the
+ * "thinking-toggle" class to .thinking-header, ensuring that initializeThinkingToggle
+ * can find the toggle button and reveal the .thinking-content.
+ */
+
 import { getSessionId } from './session.js';
 import { updateTokenUsage, fetchWithRetry, retry, eventBus } from './utils/helpers.js';
 import { showNotification, handleMessageError, removeTypingIndicator } from './ui/notificationManager.js';
@@ -12,6 +20,7 @@ import {
   removeStreamingProgressIndicator,
   handleStreamingError as utilsHandleStreamingError
 } from './streaming_utils.js';
+import { renderContentEfficiently, renderThinkingContainer } from './streamingRenderer.js';
 
 // --- Global state variables ---
 let mainTextBuffer = '';
@@ -404,53 +413,21 @@ function renderBufferedContent() {
       thinkingTextBuffer
     );
 
-    // Update main content with incremental rendering
+    // Update main content with optimized incremental rendering
     if (mainContent) {
-      if (!messageContainer.__previousHtml) {
-        messageContainer.__previousHtml = "";
-      }
-      
       const processedMain = deepSeekProcessor.processDeepSeekResponse(mainContent);
-      const oldMain = messageContainer.__previousHtml;
-      
-      // Append only new content to reduce flicker
-      if (processedMain.startsWith(oldMain)) {
-        const remainder = processedMain.slice(oldMain.length);
-        if (remainder) {
-          messageContainer.insertAdjacentHTML('beforeend', remainder);
-        }
-      } else {
-        messageContainer.innerHTML = processedMain;
-      }
-      messageContainer.__previousHtml = processedMain;
+      renderContentEfficiently(messageContainer, processedMain, {
+        scroll: !errorState,
+        scrollOptions: { behavior: 'smooth', block: 'end' }
+      });
     }
 
-    // Update thinking container with proper toggle support
+    // Update thinking container with optimized rendering
     if (thinkingContent) {
-      const thinkingHTML = `
-        <div class="thinking-container collapsible collapsed">
-          <div class="thinking-header">
-            <span class="toggle-icon">▶</span>
-            Chain of Thought
-          </div>
-          <div class="thinking-content" style="display: none;">
-            ${deepSeekProcessor.markdownToHtml(thinkingContent || '')}
-          </div>
-        </div>
-      `;
-      
-      // Only replace thinking container if new content exists
-      if (thinkingContainer.innerHTML !== thinkingHTML) {
-        thinkingContainer.innerHTML = thinkingHTML;
-        // Initialize toggle functionality
-        deepSeekProcessor.initializeThinkingToggle(thinkingContainer);
-      }
-    }
+      renderThinkingContainer(thinkingContainer, thinkingContent, deepSeekProcessor);
 
-    // Scroll to bottom if not in error state
-    if (!errorState) {
-      messageContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      if (thinkingContainer) {
+      // Scroll thinking container if needed
+      if (!errorState && thinkingContainer) {
         thinkingContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
       }
     }

@@ -5,7 +5,7 @@
  */
 export function initThemeSwitcher() {
   // Create the theme toggle button if it doesn't exist
-  createThemeToggleIfNeeded();
+    // createThemeToggleIfNeeded();
 
   // Set initial theme based on saved preference or system preference
   setInitialTheme();
