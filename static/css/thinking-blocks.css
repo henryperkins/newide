@@ -20,7 +20,7 @@
 }
 
 .dark .thinking-process {
-  border-color: #6272a4; /* dracula-comment */
+  border-color: theme('colors.dracula.comment');
 }
 
 .thinking-process:hover {
@@ -41,8 +41,8 @@
 }
 
 .dark .thinking-header {
-  background-color: #44475a; /* dracula-current-line */
-  border-bottom: 1px solid #6272a4; /* dracula-comment */
+  background-color: theme('colors.dracula.currentLine');
+  border-bottom: 1px solid theme('colors.dracula.comment');
 }
 
 /* Thinking toggle button with improved accessibility and animations */
@@ -85,15 +85,15 @@
 }
 
 .dark .thinking-toggle {
-  color: #bd93f9; /* dracula-purple */
+  color: theme('colors.dracula.purple');
 }
 
 .dark .thinking-toggle:hover {
-  color: #ff79c6; /* dracula-pink */
+  color: theme('colors.dracula.pink');
 }
 
 .dark .thinking-toggle::after {
-  background-color: #bd93f9; /* dracula-purple */
+  background-color: theme('colors.dracula.purple');
 }
 
 .toggle-icon {
@@ -131,7 +131,7 @@
 }
 
 .dark .thinking-content {
-  background-color: #282a36; /* dracula-background */
+  background-color: theme('colors.dracula.background');
 }
 
 /* Thinking pre with improved readability */
@@ -148,7 +148,7 @@
 }
 
 .dark .thinking-pre {
-  color: #f8f8f2; /* dracula-foreground */
+  color: theme('colors.dracula.foreground');
 }
 
 /* Code blocks within thinking content */
@@ -162,8 +162,8 @@
 }
 
 .dark .thinking-pre .code-block {
-  background-color: #44475a; /* dracula-current-line */
-  border: 1px solid #6272a4; /* dracula-comment */
+  background-color: theme('colors.dracula.currentLine');
+  border: 1px solid theme('colors.dracula.comment');
 }
 
 .thinking-pre .code-block-header {
@@ -175,9 +175,9 @@
 }
 
 .dark .thinking-pre .code-block-header {
-  color: #bd93f9; /* dracula-purple */
-  background-color: #282a36; /* dracula-background */
-  border-bottom: 1px solid #6272a4; /* dracula-comment */
+  color: theme('colors.dracula.purple');
+  background-color: theme('colors.dracula.background');
+  border-bottom: 1px solid theme('colors.dracula.comment');
 }
 
 .thinking-pre .code-block code {
@@ -192,7 +192,7 @@
 }
 
 .dark .thinking-pre .code-block code {
-  color: #f8f8f2; /* dracula-foreground */
+  color: theme('colors.dracula.foreground');
 }
 
 /* Gradient overlay for long content */
@@ -215,7 +215,7 @@
 .dark .thinking-gradient {
   background: linear-gradient(
     to top,
-    rgba(40, 42, 54, 0.9) 0%,
+    theme('colors.dracula.background') 0%,
     rgba(40, 42, 54, 0) 100%
   );
 }

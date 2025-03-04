@@ -42,7 +42,7 @@
 
 .dark .thinking-pre code,
 .dark .thinking-pre .inline-code {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: theme('colors.dracula.foreground');
 }
 
 /* Ensure thinking blocks don't bleed outside container */
