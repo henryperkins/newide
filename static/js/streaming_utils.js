@@ -108,17 +108,7 @@ export function ensureThinkingContainer(parentContainer, thinkingText, deepSeekP
 
     thinkingContainer = parentContainer.querySelector('.thinking-pre');
 
-    // Attach toggle logic to the thinking toggle button
-    const toggleButton = parentContainer.querySelector('.thinking-toggle');
-    if (toggleButton) {
-      toggleButton.addEventListener('click', function () {
-        const expanded = this.getAttribute('aria-expanded') === 'true';
-        this.setAttribute('aria-expanded', !expanded);
-        const content = this.closest('.thinking-process').querySelector('.thinking-content');
-        content.classList.toggle('hidden', expanded);
-        this.querySelector('.toggle-icon').style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
-      });
-    }
+    // Let deepseekProcessor.initializeExistingBlocks handle toggles.
   }
 
   if (thinkingContainer && thinkingText) {
