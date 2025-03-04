@@ -487,6 +487,7 @@ export function renderAssistantMessage(content, isThinking = false) {
   content = deepSeekProcessor.replaceThinkingBlocks(content);
   
   const markdown = renderMarkdown(content);
+  deepSeekProcessor.initializeExistingBlocks();
   const processedContent = processCodeBlocks(markdown);
   
   // Add model name display with Tailwind classes
