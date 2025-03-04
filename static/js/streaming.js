@@ -125,7 +125,8 @@ export function streamChatResponse(
 
     const apiUrl = `${window.location.origin}/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
     const fullUrl = `${apiUrl}&${params.toString()}`;
-    console.log(`Connecting to streaming endpoint with model: ${validModelName}`);
+    import { logInfo } from './debugging.js';
+    logInfo(`Connecting to streaming endpoint with model: ${validModelName}`);
 
     // Create EventSource for SSE
     const eventSource = new EventSource(fullUrl);

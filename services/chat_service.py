@@ -91,12 +91,22 @@ class TokenManager:
         return total
 
 
-async def process_chat_message(
-    chat_message: ChatMessage,
-    db_session: AsyncSession,
-    azure_client: Union[AzureOpenAI, ChatCompletionsClient],
-    model_name: Optional[str] = None,
-) -> dict:
+def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series):
+    """
+    Prepare parameters for model calls based on model type.
+    """
+    messages = chat_message.messages or [{"role": "user", "content": chat_message.message}]
+    params = {"messages": messages}
+
+    if is_deepseek:
+        params["max_tokens"] = chat_message.max_completion_tokens or config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+    elif is_o_series:
+        params["max_completion_tokens"] = chat_message.max_completion_tokens or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
+    else:
+        params["temperature"] = chat_message.temperature or 0.7
+        params["max_completion_tokens"] = chat_message.max_completion_tokens or 1000
+
+    return params
     """
     Processes a single chat message, calling the appropriate client to get a response,
     and stores conversation data in the DB.
@@ -162,7 +172,7 @@ async def process_chat_message(
                 # For DeepSeek, we need to use the appropriate API pattern
                 # The ChatCompletionsClient has already been initialized with the model name
                 # We just need to pass messages and other parameters
-                logger.info(f"Calling DeepSeek-R1 model with messages and temperature: {params['temperature']}")
+                logger.debug(f"Calling DeepSeek-R1 model with messages and temperature: {params['temperature']}")
                 response = azure_client.complete(
                     messages=params["messages"],
                     temperature=params["temperature"],

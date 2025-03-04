@@ -535,6 +535,8 @@ async def chat_sse(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+from services.streaming_helpers import process_stream_chunk
+
 async def generate_stream_chunks(
     message: str,
     client: Union[AzureOpenAI, ChatCompletionsClient],
