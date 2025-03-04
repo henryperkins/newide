@@ -96,6 +96,7 @@ function initApplication() {
  * Sets up the sidebar toggle and close button logic.
  */
 function initSidebarToggle() {
+  console.log("initSidebarToggle is being called"); // Debug log
   const sidebarToggle = document.getElementById('sidebar-toggle');
   const closeBtn = document.getElementById('close-sidebar');
   const sidebar = document.getElementById('sidebar');

@@ -4,6 +4,7 @@
  * Initializes the tab functionality with improved mobile support
  */
 export function initTabSystem() {
+  console.log("initTabSystem() is being called"); // Debug log
   const tabButtons = document.querySelectorAll('[data-target-tab]');
   const isMobile = window.matchMedia('(max-width: 768px)').matches;
 
@@ -89,6 +90,7 @@ function handleTabChange(clickedTab) {
  * Initialize enhanced mobile sidebar handling
  */
 function initMobileSidebarToggle() {
+  console.log("initMobileSidebarToggle is running!"); // Debug log
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
   const toggleButton = document.getElementById('sidebar-toggle');
@@ -229,7 +231,8 @@ function toggleSidebarHandler() {
  * @param {boolean} show Whether to show the sidebar
  */
 function toggleSidebar(show) {
-  console.log('Toggling sidebar:', show ? 'show' : 'hide');
+  console.log("toggleSidebar: toggling to", show ? "open" : "close"); // Debug log
+  console.log("Sidebar element:", document.getElementById('sidebar')); // Debug log
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
   const toggleButton = document.getElementById('sidebar-toggle');
