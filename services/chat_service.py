@@ -121,10 +121,13 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
         from services.config_service import ConfigService
         from database import AsyncSessionLocal
 
-        async with AsyncSessionLocal() as config_db:
-            config_service = ConfigService(config_db)
-            model_configs = await config_service.get_model_configs()
-        model_configs = model_configs or {}
+        async def fetch_model_configs():
+            async with AsyncSessionLocal() as config_db:
+                config_service = ConfigService(config_db)
+                model_configs = await config_service.get_model_configs()
+            return model_configs or {}
+
+        model_configs = await fetch_model_configs()
         if model_name not in model_configs:
             logger.warning(f"No configuration found for model {model_name}")
     except Exception as e:
@@ -141,7 +144,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
 
     try:
         # Distinguish between ChatCompletionsClient and AzureOpenAI:
-        if isinstance(azure_client, ChatCompletionsClient):
+        if azure_client and isinstance(azure_client, ChatCompletionsClient):
             #
             #  1) The azure.ai.inference ChatCompletionsClient
             #     Usually used for DeepSeek if your environment requires it.
@@ -151,7 +154,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
                 # The ChatCompletionsClient has already been initialized with the model name
                 # We just need to pass messages and other parameters
                 logger.debug(f"Calling DeepSeek-R1 model with messages and temperature: {params['temperature']}")
-                response = azure_client.complete(
+                response = azure_client.complete(  # Ensure azure_client is passed correctly
                     messages=params["messages"],
                     temperature=params["temperature"],
                     max_tokens=params["max_tokens"]
@@ -189,7 +192,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
             # We'll call .chat.completions.create(...) with the recognized arguments.
             # We'll map `params` keys to explicit arguments so that Pylance doesn't complain.
             # We'll # type: ignore if Pylance is still too strict about extra parameters.
-            response = azure_client.chat.completions.create(  # type: ignore
+            response = azure_client.chat.completions.create(  # Ensure azure_client is passed correctly
                 model=model_name,
                 messages=params["messages"],  # type: ignore
                 temperature=params["temperature"],  # type: ignore
@@ -308,7 +311,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
 
     # Store conversation in DB
     await save_conversation(
-        db_session,
+        db_session=db_session,  # Ensure db_session is passed correctly
         session_id,
         model_name,
         chat_message.message,
