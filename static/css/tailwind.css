@@ -210,8 +210,8 @@
   }
   
   .dark .conversation-controls {
-    background-color: rgba(40, 42, 54, 0.5);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background-color: theme('colors.dracula.background');
+    border-bottom: 1px solid theme('colors.dracula.comment');
   }
 
   /* Improved styling for conversation control buttons */
@@ -291,9 +291,9 @@
   }
   
   .dark .input-area {
-    background-color: var(--dracula-background);
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+    background-color: theme('colors.dracula.background');
+    border-top: 1px solid theme('colors.dracula.comment');
+    box-shadow: 0 -2px 10px theme('colors.dracula.currentLine');
   }
 
   /* Improved sidebar styling with close button */
@@ -313,8 +313,8 @@
   }
   
   .dark .sidebar {
-    background-color: #1f2937;
-    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: theme('colors.dracula.currentLine');
+    border-left: 1px solid theme('colors.dracula.comment');
   }
   
   .sidebar.sidebar-open {
@@ -344,8 +344,8 @@
   }
   
   .dark .sidebar-close {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: #e5e7eb;
+    background-color: theme('colors.dracula.comment');
+    color: theme('colors.dracula.foreground');
   }
   
   .dark .sidebar-close:hover {

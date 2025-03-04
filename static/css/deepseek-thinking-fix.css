@@ -63,7 +63,7 @@
 .thinking-process .thinking-process {
   margin: 0.5rem 0;
   padding-left: 1rem;
-  border-left: 2px solid oklch(68% 0.14 276 / 0.4);
+  border-left: 2px solid theme('colors.dracula.purple');
 }
 
 .dark .thinking-process .thinking-process {
