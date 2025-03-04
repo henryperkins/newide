@@ -148,7 +148,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
 
         async def fetch_model_configs_wrapper():
             return await fetch_and_validate_model_configs()
-        model_configs = await fetch_model_configs_wrapper()
+        model_configs = fetch_model_configs_wrapper()
     except Exception as e:
         logger.error(f"Error fetching model_configs: {str(e)}")
         model_configs = {}
