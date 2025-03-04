@@ -90,6 +90,12 @@ function handleTabChange(clickedTab) {
  * Initialize enhanced mobile sidebar handling
  */
 function initMobileSidebarToggle() {
+  console.log("initMobileSidebarToggle running!");
+  console.log("[initMobileSidebarToggle] sidebar, overlay, toggleButton:",
+    document.getElementById('sidebar'),
+    document.getElementById('sidebar-overlay'),
+    document.getElementById('sidebar-toggle')
+  );
   console.log("initMobileSidebarToggle is running!"); // Debug log
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
