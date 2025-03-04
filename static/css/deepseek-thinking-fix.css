@@ -67,5 +67,5 @@
 }
 
 .dark .thinking-process .thinking-process {
-  border-left: 2px solid #bd93f9; /* dracula-purple */
+  border-left: 2px solid theme('colors.dracula.purple');
 }
