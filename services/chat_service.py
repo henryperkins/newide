@@ -2,8 +2,9 @@ import json
 import uuid
 import time
 from time import perf_counter
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 import os
+import re
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -26,8 +27,10 @@ def create_error_response(
     message: str,
     error_type: str = "service_error",
     inner_error: str = "",
-):
-    """Parse and handle errors from different client types consistently."""
+) -> Dict[str, Any]:
+    """
+    Parse and handle errors from different client types consistently.
+    """
     return {
         "status_code": status_code,
         "detail": {
@@ -49,7 +52,7 @@ class TokenManager:
 
     @staticmethod
     async def get_model_limits(model_name: str) -> Dict[str, int]:
-        """Get token limits for a specific model from database or use default."""
+        """Get token limits for a specific model from the database or use defaults."""
         from services.config_service import ConfigService
         from database import AsyncSessionLocal
 
@@ -62,7 +65,6 @@ class TokenManager:
             model_configs = {}
 
         model_configs = model_configs or {}
-
         max_tokens = model_configs.get(model_name, {}).get("max_tokens", 4096)
         return {
             "max_tokens": max_tokens,
@@ -91,7 +93,9 @@ class TokenManager:
         return total
 
 
-def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series):
+def prepare_model_parameters(
+    chat_message: ChatMessage, model_name: str, is_deepseek: bool, is_o_series: bool
+) -> Dict[str, Any]:
     """
     Prepare parameters for model calls based on model type.
     """
@@ -107,181 +111,113 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
         params["max_completion_tokens"] = chat_message.max_completion_tokens or 1000
 
     return params
+
+
+async def process_chat_message(
+    chat_message: ChatMessage,
+    db_session: AsyncSession,
+    model_name: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Processes a single chat message, calling the appropriate client to get a response,
-    and stores conversation data in the DB.
+    and stores conversation data in the database.
     """
     start_time = perf_counter()
     session_id = chat_message.session_id
+    # Use provided model_name or fallback to chat_message.model_name or default deployment
+    model_name = model_name or getattr(chat_message, "model_name", None) or config.AZURE_INFERENCE_DEPLOYMENT
 
-    model_name = model_name or config.AZURE_INFERENCE_DEPLOYMENT  # Use the correct deployment name
-
-    # Grab model_configs if available
+    # Fetch model configurations if available
+    model_configs = {}
     try:
         from services.config_service import ConfigService
         from clients import get_model_client_dependency
         from database import AsyncSessionLocal
 
-        async def fetch_model_configs():
+        async def fetch_model_configs() -> Dict[str, Any]:
             async with AsyncSessionLocal() as config_db:
                 config_service = ConfigService(config_db)
-                model_configs = await config_service.get_model_configs()
-            return model_configs or {}
+                return await config_service.get_model_configs() or {}
 
-        async def fetch_and_validate_model_configs():
-            model_configs = await fetch_model_configs()
-            if model_name not in model_configs:
-                logger.warning(f"No configuration found for model {model_name}")
-            return model_configs
-
-        async def fetch_and_validate_model_configs():
-            model_configs = await fetch_model_configs()
-            if model_name not in model_configs:
-                logger.warning(f"No configuration found for model {model_name}")
-            return model_configs
-
-        async def fetch_and_validate_model_configs():
-            model_configs = await fetch_model_configs()
-            if model_name not in model_configs:
-                logger.warning(f"No configuration found for model {model_name}")
-            return model_configs
-
-        async def fetch_model_configs_wrapper():
-            return await fetch_and_validate_model_configs()
-        model_configs = fetch_model_configs_wrapper()
+        model_configs = await fetch_model_configs()
+        if model_name not in model_configs:
+            logger.warning(f"No configuration found for model {model_name}")
     except Exception as e:
         logger.error(f"Error fetching model_configs: {str(e)}")
         model_configs = {}
 
-    # Identify if this is a DeepSeek model
+    # Identify model type flags
     is_deepseek = is_deepseek_model(model_name)
-
-    # Construct "messages" from ChatMessage if none provided
     is_o_series = is_o_series_model(model_name)
-    is_deepseek = is_deepseek_model(model_name)
+
+    # Prepare API parameters based on model type
     params = prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
 
     try:
+        from clients import get_model_client_dependency
+
         # Distinguish between ChatCompletionsClient and AzureOpenAI:
         client_wrapper = get_model_client_dependency(model_name)
         azure_client = client_wrapper.get("client")
         if isinstance(azure_client, ChatCompletionsClient):
-            #
-            #  1) The azure.ai.inference ChatCompletionsClient
-            #     Usually used for DeepSeek if your environment requires it.
-            #
             if is_deepseek:
-                # For DeepSeek, we need to use the appropriate API pattern
-                # The ChatCompletionsClient has already been initialized with the model name
-                # We just need to pass messages and other parameters
-                logger.debug(f"Calling DeepSeek-R1 model with messages and temperature: {params['temperature']}")
+                logger.debug(f"Calling DeepSeek-R1 model with messages and temperature: {params.get('temperature')}")
                 response = azure_client.complete(
                     messages=params["messages"],
-                    temperature=params["temperature"],
-                    max_tokens=params["max_tokens"]
+                    temperature=params.get("temperature"),
+                    max_tokens=params.get("max_tokens"),
                 )
-                # Extract content
-                if not response.choices:
-                    content = ""
-                else:
-                    content = response.choices[0].message.content or ""
-
-                # Usage
+                content = response.choices[0].message.content if response.choices else ""
                 usage_data = {
                     "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
                     "completion_tokens": getattr(response.usage, "completion_tokens", 0),
                     "total_tokens": getattr(response.usage, "total_tokens", 0),
                 }
-                
-                # Extract reasoning tokens from DeepSeek's thinking process
                 if "<think>" in content and "</think>" in content:
-                    # Store the thinking process as reasoning tokens
                     thinking_text = content.split("<think>")[1].split("</think>")[0]
                     usage_data["thinking_process"] = thinking_text
-                    # Estimate thinking tokens (rough approximation)
-                    thinking_tokens = len(thinking_text.split())
-                    usage_data["reasoning_tokens"] = thinking_tokens
-
+                    usage_data["reasoning_tokens"] = len(thinking_text.split())
             else:
-                # Handle other models with ChatCompletionsClient
                 response = azure_client.complete(
                     messages=params["messages"],
                     temperature=params.get("temperature", 0.7),
-                    max_tokens=params.get("max_tokens", 1000)
+                    max_tokens=params.get("max_tokens", 1000),
                 )
-                # Extract content
-                if not response.choices:
-                    content = ""
-                else:
-                    content = response.choices[0].message.content or ""
-
-                # Usage
+                content = response.choices[0].message.content if response.choices else ""
                 usage_data = {
                     "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
                     "completion_tokens": getattr(response.usage, "completion_tokens", 0),
                     "total_tokens": getattr(response.usage, "total_tokens", 0),
                 }
         else:
-            #
-            #  2) The openai.AzureOpenAI client
-            #
-            # We'll call .chat.completions.create(...) with the recognized arguments.
-            # We'll map `params` keys to explicit arguments so that Pylance doesn't complain.
-            # We'll # type: ignore if Pylance is still too strict about extra parameters.
+            # Using the openai.AzureOpenAI client
             response = azure_client.chat.completions.create(
                 model=model_name,
                 messages=params["messages"],  # type: ignore
-                temperature=params["temperature"],  # type: ignore
+                temperature=params.get("temperature", 0.7),  # type: ignore
                 max_completion_tokens=params.get("max_completion_tokens", 1000),  # type: ignore
                 reasoning_effort=params.get("reasoning_effort", "medium"),  # type: ignore
             )
-
-            # Extract content
-            if not response.choices:
-                content = ""
-            else:
-                content = (response.choices[0].message.content or "")
-
-            # Extract usage
+            content = response.choices[0].message.content if response.choices else ""
             usage_raw = getattr(response, "usage", None)
             usage_data = {
                 "prompt_tokens": getattr(usage_raw, "prompt_tokens", 0),
                 "completion_tokens": getattr(usage_raw, "completion_tokens", 0),
                 "total_tokens": getattr(usage_raw, "total_tokens", 0),
             }
-            # For O-series reasoning tokens (optional)
             if usage_raw and hasattr(usage_raw, "completion_tokens_details") and usage_raw.completion_tokens_details:
                 usage_data["reasoning_tokens"] = getattr(usage_raw.completion_tokens_details, "reasoning_tokens", 0)
-
-            # Handle DeepSeek formatting for AzureOpenAI client too
             if is_deepseek and "<think>" in content and "</think>" in content:
-                # Store the thinking process
                 thinking_text = content.split("<think>")[1].split("</think>")[0]
                 usage_data["thinking_process"] = thinking_text
-                # If reasoning_tokens not already set, estimate from thinking text
                 if "reasoning_tokens" not in usage_data:
-                    thinking_tokens = len(thinking_text.split())
-                    usage_data["reasoning_tokens"] = thinking_tokens
-
+                    usage_data["reasoning_tokens"] = len(thinking_text.split())
     except HttpResponseError as e:
-        # Enhanced error handling for Azure AI Inference
         status_code = e.status_code if hasattr(e, "status_code") else 500
-        err_code = "Unknown"
-        if getattr(e, "error", None) and hasattr(e.error, "code"):
-            err_code = e.error.code
-
+        err_code = getattr(e.error, "code", "Unknown") if getattr(e, "error", None) else "Unknown"
         err_message = getattr(e, "message", str(e))
         err_reason = getattr(e, "reason", "Unknown")
-
-        logger.error(f"""
-        [Azure AI Error] Session: {session_id}
-        Model: {model_name}
-        Status: {status_code}
-        Code: {err_code}
-        Message: {err_message}
-        Reason: {err_reason}
-        """)
-
+        logger.error(f"[Azure AI Error] Session: {session_id} | Model: {model_name} | Status: {status_code} | Code: {err_code} | Message: {err_message} | Reason: {err_reason}")
         return create_error_response(
             status_code=status_code,
             code=str(err_code),
@@ -289,13 +225,10 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
             error_type="azure_error",
             inner_error=err_message,
         )
-
     except OpenAIError as e:
-        logger.exception(f"[session {session_id}] AzureOpenAI call failed: {str(e)}")
-
+        logger.exception(f"[Session {session_id}] AzureOpenAI call failed: {str(e)}")
         error_code = getattr(e, "code", "api_error")
         error_message = str(e)
-
         err = create_error_response(
             status_code=503,
             code=error_code,
@@ -305,10 +238,8 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
         )
         logger.critical(f"Handled AzureOpenAI error gracefully. {err['detail']}")
         return err
-
     except Exception as e:
-        logger.exception(f"[session {session_id}] Unexpected error occurred: {str(e)}")
-
+        logger.exception(f"[Session {session_id}] Unexpected error occurred: {str(e)}")
         err = create_error_response(
             status_code=500,
             code="internal_server_error",
@@ -320,33 +251,29 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
         return err
 
     full_content = content
-
-    # Process and format content for display
     formatted_content = full_content
 
-    # If it's DeepSeek, handle <think> replacements
+    # If it's a DeepSeek model, handle <think> tag replacements for formatted output
     if is_deepseek and full_content:
-        import re
-
         think_regex = r"<think>([\s\S]*?)<\/think>"
 
-        def replace_thinking(match_obj):
+        def replace_thinking(match_obj: re.Match) -> str:
             thinking_text = match_obj.group(1)
-            return f"""<div class="thinking-process">
-                  <div class="thinking-header">
-                    <button class="thinking-toggle" aria-expanded="true">
-                      <span class="toggle-icon">▼</span> Thinking Process
-                    </button>
-                  </div>
-                  <div class="thinking-content">
-                    <pre class="thinking-pre">{thinking_text}</pre>
-                  </div>
-                </div>"""
+            return (
+                '<div class="thinking-process">'
+                '<div class="thinking-header">'
+                '<button class="thinking-toggle" aria-expanded="true">'
+                '<span class="toggle-icon">▼</span> Thinking Process'
+                '</button></div>'
+                '<div class="thinking-content">'
+                f'<pre class="thinking-pre">{thinking_text}</pre>'
+                '</div></div>'
+            )
 
         formatted_content = re.sub(think_regex, replace_thinking, formatted_content)
 
-    # Store conversation in DB
-    save_conversation(
+    # Store the conversation in the database
+    await save_conversation(
         db_session=db_session,
         session_id=session_id,
         model_name=model_name,
@@ -356,7 +283,6 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
         raw_response=response,
     )
 
-    # Build final return
     return {
         "id": f"chatcmpl-{uuid.uuid4()}",
         "object": "chat.completion",
@@ -377,8 +303,8 @@ async def fetch_conversation_history(
     db_session: AsyncSession, session_id: str
 ) -> List[Dict[str, Any]]:
     """
-    Retrieve prior conversation messages from the DB,
-    returning in a format suitable for the LLM.
+    Retrieve prior conversation messages from the database,
+    returning them in a format suitable for the LLM.
     """
     result = await db_session.execute(
         text(
@@ -387,7 +313,7 @@ async def fetch_conversation_history(
             FROM conversations
             WHERE session_id = :session_id
             ORDER BY id ASC
-        """
+            """
         ),
         {"session_id": session_id},
     )
@@ -403,7 +329,7 @@ async def save_conversation(
     assistant_text: str,
     formatted_assistant_text: str,
     raw_response: Any,
-):
+) -> None:
     """
     Save user and assistant messages to the database.
     """
@@ -414,7 +340,6 @@ async def save_conversation(
             content=user_text,
             model=model_name,
         )
-
         assistant_msg = Conversation(
             session_id=session_id,
             role="assistant",
@@ -423,7 +348,6 @@ async def save_conversation(
             model=model_name,
             raw_response={"streaming": False, "final_content": assistant_text},
         )
-
         db_session.add(user_msg)
         db_session.add(assistant_msg)
         await db_session.commit()
@@ -442,25 +366,23 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
 
     combined_text = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in messages)
     try:
-        # Provide a fallback if endpoint is None
         endpoint = os.getenv("AZURE_OPENAI_ENDPOINT") or "https://o1models.openai.azure.com"
         api_version = os.getenv("AZURE_OPENAI_API_VERSION") or "2025-02-01-preview"
 
         client = AzureOpenAI(
             api_key=os.getenv("AZURE_OPENAI_API_KEY", ""),
-            azure_endpoint=endpoint,  # now guaranteed str
+            azure_endpoint=endpoint,
             api_version=api_version,
         )
-        
+
         response = client.chat.completions.create(  # type: ignore
             model=config.AZURE_OPENAI_DEPLOYMENT_NAME,
             messages=[
                 {"role": "system", "content": "You are a helpful assistant that summarizes conversations."},
                 {"role": "user", "content": f"Summarize the following chat:\n\n{combined_text}\n\nBrief Summary:"},
             ],
-            max_completion_tokens=150
+            max_completion_tokens=150,
         )
-        # Safely handle None
         summary_text = ""
         if response.choices and response.choices[0].message and response.choices[0].message.content:
             summary_text = response.choices[0].message.content.strip()
