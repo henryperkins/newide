@@ -172,7 +172,7 @@ export function streamChatResponse(
       clearTimeout(connectionTimeoutId);
       connectionTimeoutId = setTimeout(() => {
         if (eventSource.readyState !== EventSource.CLOSED) {
-          console.warn(`Stream stalled after ${connectionTimeoutMs * 1.5}ms`);
+          console.warn("Stream stalled after " + (connectionTimeoutMs * 1.5) + "ms");
           eventSource.close();
           handleStreamingError(new Error('Stream stalled'));
         }
@@ -181,8 +181,19 @@ export function streamChatResponse(
     };
 
     eventSource.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
+          try {
+            console.log("Received SSE chunk from server");
+            // Reset stall timer on receiving a new chunk
+            clearTimeout(connectionTimeoutId);
+            connectionTimeoutId = setTimeout(() => {
+              if (eventSource.readyState !== EventSource.CLOSED) {
+                console.warn(\`Stream stalled after \${connectionTimeoutMs * 1.5}ms\`);
+                eventSource.close();
+                handleStreamingError(new Error('Stream stalled'));
+              }
+            }, connectionTimeoutMs * 1.5);
+    
+            const data = JSON.parse(e.data);
         if (data.choices && data.choices[0]?.delta?.content?.includes('<think>')) {
           console.log('Thinking block detected in streaming chunk:', data.choices[0].delta.content);
         }
