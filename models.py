@@ -205,6 +205,7 @@ class ModelUsageStats(Base):
     tracking_id = Column(String(64), nullable=True)
     model_metadata = Column(JSONB, nullable=True)      # Consolidated metadata column
     usage_metadata = Column(JSONB, nullable=True)      # Added from schema warnings
+    reasoning_tokens = Column(Integer, nullable=True)
     extra_metadata = Column(JSONB, nullable=True)      # Added from schema warnings
 
 # -------------------------------------------------------------------------

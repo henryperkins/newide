@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from passlib.hash import bcrypt
-import jwt
+import jwt as pyjwt
 from datetime import datetime, timedelta
 
 from pydantic_models import UserCreate, UserLogin
@@ -73,5 +73,5 @@ async def login_user(
         "exp": datetime.utcnow() + timedelta(minutes=60),
         "iat": datetime.utcnow(),
     }
-    token = jwt.encode(payload, config.settings.JWT_SECRET, algorithm="HS256")
+    token = pyjwt.encode(payload, config.settings.JWT_SECRET, algorithm="HS256")
     return {"access_token": token, "token_type": "bearer"}

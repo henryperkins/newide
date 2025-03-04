@@ -584,55 +584,52 @@ async def generate_stream_chunks(
         #
         # 1) Inference Client + DeepSeek
         #
-        if is_inference_client and deepseek_check:
-            max_retries = 3
-            retry_count = 0
-            retry_delay = 2
-
-            while retry_count <= max_retries:
-                try:
-                    stream = client.stream(
-                        messages=params["messages"],
-                        max_tokens=params["max_tokens"],
-                        stream=True
-                    )
-                    for chunk in stream:
-                        try:
-                            if hasattr(chunk, "choices") and chunk.choices:
-                                choice = chunk.choices[0]
-                                if hasattr(choice.delta, "content"):
-                                    content = choice.delta.content or ""
-                                    full_content += content
-                                    yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
-                        except Exception as chunk_err:
-                            logger.warning(f"Error processing DeepSeek chunk: {str(chunk_err)}")
-                            yield f"data: {json.dumps({'choices': [{'delta': {'content': ''}}]})}\n\n"
-                    break
-                except Exception as e:
-                    retry_count += 1
-                    if isinstance(e, HttpResponseError) and e.status_code == 429:
-                        logger.warning(f"Rate limit exceeded (429). Retry {retry_count}/{max_retries}")
-                        yield f"data: {json.dumps({'error': {'code': 429, 'message': 'Rate limit exceeded. Please try again later.'}})}\n\n"
-                        if retry_count <= max_retries:
-                            import asyncio
-                            await asyncio.sleep(retry_delay * 2)
-                            retry_delay *= 2
-                            continue
-                        else:
-                            return
-                    is_timeout = False
-                    if hasattr(e, "__cause__") and e.__cause__ and "timeout" in str(e.__cause__).lower():
-                        is_timeout = True
-                    elif "timeout" in str(e).lower():
-                        is_timeout = True
-                    if is_timeout and retry_count <= max_retries:
-                        logger.warning(f"Timeout error in DeepSeek streaming, retrying ({retry_count}/{max_retries})")
-                        yield f"data: {json.dumps({'choices': [{'delta': {'content': f'[Timeout, retry {retry_count}/{max_retries}]'}}]})}\n\n"
+        # Use the "complete(...stream=True)" method for DeepSeek streaming from azure-ai-inference.
+        max_retries = 3
+        retry_count = 0
+        retry_delay = 2
+        while retry_count <= max_retries:
+            try:
+                # Streamed completions for DeepSeek
+                stream_response = client.complete(
+                    messages=params["messages"],
+                    max_tokens=params["max_tokens"],
+                    stream=True
+                )
+                # Each item in stream_response is a partial update
+                for partial in stream_response:
+                    if hasattr(partial, "choices") and partial.choices:
+                        choice = partial.choices[0]
+                        if hasattr(choice.delta, "content"):
+                            content = choice.delta.content or ""
+                            full_content += content
+                            yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
+                break
+            except Exception as e:
+                retry_count += 1
+                if isinstance(e, HttpResponseError) and e.status_code == 429:
+                    logger.warning(f"Rate limit exceeded (429). Retry {retry_count}/{max_retries}")
+                    yield f"data: {json.dumps({'error': {'code': 429, 'message': 'Rate limit exceeded. Please try again later.'}})}\n\n"
+                    if retry_count <= max_retries:
                         import asyncio
-                        await asyncio.sleep(retry_delay)
+                        await asyncio.sleep(retry_delay * 2)
                         retry_delay *= 2
+                        continue
                     else:
-                        raise
+                        return
+                is_timeout = False
+                if hasattr(e, "__cause__") and e.__cause__ and "timeout" in str(e.__cause__).lower():
+                    is_timeout = True
+                elif "timeout" in str(e).lower():
+                    is_timeout = True
+                if is_timeout and retry_count <= max_retries:
+                    logger.warning(f"Timeout error in DeepSeek streaming call, retrying ({retry_count}/{max_retries})")
+                    yield f"data: {json.dumps({'choices': [{'delta': {'content': f'[Timeout, retry {retry_count}/{max_retries}]'}}]})}\n\n"
+                    import asyncio
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    raise
         else:
             # Handle Azure OpenAI client streaming
             is_o_series = is_o_series_model(model_name)

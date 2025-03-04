@@ -370,17 +370,26 @@ async function fetchChatResponse(
       
       messages.push({ role: 'user', content: messageContent });
       
+      // Determine if this is an O-series model
+      const isOSeriesModel = modelName.toLowerCase().startsWith('o1') || modelName.toLowerCase().startsWith('o3');
+      
       // Adjust parameters based on model type
       const payload = {
         session_id: sessionId,
         model: modelName,
         messages,
-        reasoning_effort: effort,
-        max_completion_tokens: 5000
+        reasoning_effort: effort
       };
       
+      // Use the appropriate parameter name based on model type
+      if (isOSeriesModel) {
+        payload.max_completion_tokens = 5000;
+      } else {
+        payload.max_tokens = 5000;
+      }
+      
       // Only add temperature for non-o1 models
-      if (!modelName.toLowerCase().startsWith('o1')) {
+      if (!isOSeriesModel) {
         payload.temperature = 0.7;
       }
       

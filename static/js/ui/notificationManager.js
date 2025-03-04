@@ -1,4 +1,3 @@
-// Add this class definition at the top of the file
 class NotificationStack {
   constructor() {
     this.notifications = [];
@@ -24,8 +23,15 @@ class NotificationStack {
   }
 }
 
-let typingState = { active: false, element: null, timeoutId: null, animationFrame: null };
-const INDICATOR_TIMEOUT = 60000; // Increased from 30s to 60s
+let typingState = {
+  active: false,
+  element: null,
+  timeoutId: null,
+  animationFrame: null
+};
+
+// Increase timeout to 2 minutes (120s) to accommodate longer model responses
+const INDICATOR_TIMEOUT = 120000; // Changed from 30000 (30s) to 120000 (120s)
 const MODAL_CONTAINER = document.getElementById('modal-container');
 const MODAL_CONTENT = document.getElementById('modal-content');
 const recentNotifications = new Map();
@@ -254,32 +260,44 @@ export function showConfirmDialog(title, message, onConfirm, onCancel) {
 
 export function showTypingIndicator() {
   if (typingState.active) return;
+
+  // Create element
   const indicator = document.createElement('div');
+  // Tailwind classes for fade-in/out transitions
   indicator.className = 'flex items-center space-x-1 opacity-0 transition-opacity duration-300 my-2';
   indicator.setAttribute('role', 'status');
   indicator.setAttribute('aria-live', 'polite');
   indicator.innerHTML = `
-    <div class="flex items-center space-x-1 bg-dark-100 dark:bg-dark-800 py-2 px-3 rounded-md">
-      <span class="h-2 w-2 rounded-full bg-primary-500 dark:bg-primary-400 animate-pulse"></span>
-      <span class="h-2 w-2 rounded-full bg-primary-500 dark:bg-primary-400 animate-pulse delay-75"></span>
-      <span class="h-2 w-2 rounded-full bg-primary-500 dark:bg-primary-400 animate-pulse delay-150"></span>
-      <span class="ml-2 text-xs text-dark-500 dark:text-dark-400">Generating response...</span>
-      <span class="sr-only">AI is generating response</span>
+    <div class="flex items-center space-x-1">
+      <span class="h-2 w-2 rounded-full bg-gray-500 dark:bg-gray-400 animate-pulse"></span>
+      <span class="h-2 w-2 rounded-full bg-gray-500 dark:bg-gray-400 animate-pulse delay-75"></span>
+      <span class="h-2 w-2 rounded-full bg-gray-500 dark:bg-gray-400 animate-pulse delay-150"></span>
+      <span class="sr-only">AI is generating response...</span>
     </div>
   `;
+
+  // State management
   typingState = {
     active: true,
     element: indicator,
     timeoutId: setTimeout(() => {
-      console.warn('Typing indicator timeout');
-      removeTypingIndicator();
-      showNotification('The response is taking longer than expected. The model may be busy.', 'warning');
+      console.warn('Typing indicator timeout - response is taking longer than expected');
+      // Instead of removing the indicator, update its appearance to show it's still working
+      if (indicator && document.body.contains(indicator)) {
+        const message = document.createElement('small');
+        message.className = 'text-xs text-gray-500 ml-2';
+        message.textContent = 'Still generating...';
+        indicator.querySelector('.flex').appendChild(message);
+      }
+      // Don't call removeTypingIndicator() here - let the response finish naturally
     }, INDICATOR_TIMEOUT),
     animationFrame: requestAnimationFrame(() => {
       const chatHistory = document.getElementById('chat-history');
       if (chatHistory) {
         chatHistory.appendChild(indicator);
-        setTimeout(() => indicator.classList.replace('opacity-0','opacity-100'), 10);
+        setTimeout(() => {
+          indicator.classList.replace('opacity-0', 'opacity-100');
+        }, 10);
         indicator.scrollIntoView({ behavior: 'smooth', block: 'end' });
       }
     })
@@ -557,7 +575,7 @@ async function extractErrorData(error) {
         data.status = status;
         
         if (status === 429) data.type = 'rate_limit';
-        else if (status === 401 || status === 403) data.type = 'auth';
+        else if (status === 401 || 403) data.type = 'auth';
         else if (status === 404) data.type = 'not_found';
         else if (status >= 500) {
           data.type = 'server';

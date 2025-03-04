@@ -6,7 +6,6 @@ import { configureMarkdown } from './ui/markdownParser.js';
 import { loadConversationFromLocalStorage, loadOlderMessages } from './ui/displayManager.js';
 import StatsDisplay from './ui/statsDisplay.js';
 import fileManager from './fileManager.js';
-import { initializeConfig } from './config.js';
 import './update_deepseek.js'; // Import DeepSeek-R1 configuration updater
 
 // Disable service worker registration
@@ -89,7 +88,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initializeFontSizeControls();
   initMobileUI();
   initConversationControls();
-  initializeConfig().catch(err => console.error('Error during config initialization:', err));
 });
 
 // Initialize conversation controls

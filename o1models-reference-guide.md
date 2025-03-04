@@ -1,3 +1,5 @@
+# Azure OpenAI reasoning models
+
 Azure OpenAI `o-series` models are designed to tackle reasoning and problem-solving tasks with increased focus and capability. These models spend more time processing and understanding the user's request, making them exceptionally strong in areas like science, coding, and math compared to previous iterations.
 
 **Key capabilities of the o-series models:**
@@ -312,3 +314,106 @@ To improve the performance of `Formatting re-enabled` you can further augment th
 - `Formatting re-enabled - code output should be wrapped in markdown.`
 
 Depending on your expected output you may need to customize your initial developer message further to target your specific use case.
+
+---
+
+
+Okay, let's focus specifically on chat completions using the "o1 reasoning models" within the Azure OpenAI API (2025-02-01-preview). This will highlight the features and parameters that are either unique to or have special considerations for these models.
+
+**Key Distinctions of o1 Reasoning Models:**
+
+The "o1" series models are specifically designed for tasks that require more advanced reasoning capabilities.  This means they are better at:
+
+*   **Complex Problem Solving:** Handling multi-step problems, logical deductions, and scenarios requiring deeper understanding.
+*   **Structured Output:**  Generating output that adheres to specific formats or constraints (especially with `response_format: "json_schema"`).
+*   **Tool Use:**  More effectively utilizing tools (like function calling) to interact with external systems and data.
+* **Developer Messages:** The `developer` role replaces the `system` role.
+
+**Chat Completion Parameters for o1 Models:**
+
+Most of the general chat completion parameters apply to o1 models, but here's how they relate specifically, including unique parameters:
+
+1.  **`messages` (Required):**
+
+    *   **`role`:** The `developer` role is *specifically* highlighted for o1 models.  It replaces the `system` role and provides stronger instructions that the model should follow regardless of user input.  You should use `developer` instead of `system` with o1 models.  The other roles (`user`, `assistant`, `tool`) function the same way.
+    *   **`content`:** The content can be text, or an array of content parts. For `developer` messages, only `text` type is supported.
+
+2.  **`reasoning_effort` (o1 Models *Only*):**
+
+    *   **Purpose:** This parameter *exclusively* applies to o1 reasoning models. It allows you to control the amount of computational effort the model spends on reasoning.
+    *   **Values:**
+        *   `"low"`:  Faster responses, fewer reasoning tokens used, but potentially less thorough reasoning.
+        *   `"medium"` (Default): A balance between speed and reasoning depth.
+        *   `"high"`:  Slower responses, more reasoning tokens used, potentially more thorough and accurate reasoning.
+    *   **Use Case:**  If you need very fast responses and are willing to sacrifice some reasoning depth, use `"low"`. If you need the most accurate and well-reasoned response, and speed is less critical, use `"high"`.
+
+3.  **`max_completion_tokens` (o1 Models *Only*):**
+
+    *   **Purpose:** This parameter is *only supported* in o1 series models in the provided API version. It sets an *upper bound* on the total number of tokens generated for a completion, *including* both visible output tokens and the internal "reasoning" tokens the model uses.
+    *   **Contrast with `max_tokens`:** The standard `max_tokens` parameter only limits the number of tokens in the *visible* output (the `content` of the `assistant` message).  `max_completion_tokens` gives you finer-grained control over the *total* token usage, which is important for cost management and preventing excessively long runtimes.
+    *   **Use Case:** Use this to strictly limit the total computational resources used by the model, even for internal reasoning steps.
+
+4.  **`response_format` (Strongly Recommended):**
+
+    *   While `response_format` is available for other models, it's *particularly* beneficial with o1 models due to their enhanced reasoning and structured output capabilities.
+    *   **`{ "type": "json_schema", "json_schema": { ... } }`:**  This is where o1 models shine.  You can provide a detailed JSON Schema, and the model will make a best effort to generate output that *strictly* conforms to that schema.  This is much more reliable than simply requesting JSON output with `"type": "json_object"`.
+    *   **`{ "type": "json_object" }`**: Still supported, but remember to *always* instruct the model to generate JSON in a `developer` or `user` message.
+
+5.  **`tools` and `tool_choice` (Enhanced Capabilities):**
+
+    *   o1 models are generally better at using tools (especially function calling) effectively. Their improved reasoning helps them decide when and how to call functions, and to interpret the results.
+    *   The `tool_choice` parameter is fully supported, allowing you to control whether the model uses tools (`auto`), must use tools (`required`), or is forced to use a specific tool.
+
+6.  **`stream`:** Streaming works the same way as with other models, providing partial message deltas.
+
+7.  **`temperature`, `top_p`, `presence_penalty`, `frequency_penalty`, `logit_bias`:** These parameters all function as expected, allowing you to control the randomness and diversity of the generated text.
+
+8.  **`metadata`:**  Allows you to attach arbitrary key-value pairs to the completion request for tracking or filtering.
+
+9. **`store`**: Allows you to specify whether or not to store the output of the chat completion.
+
+10. **`user`**: Allows you to specify a unique identifier representing your end-user.
+
+**Example (o1 Model with `reasoning_effort` and `json_schema`):**
+
+```json
+{
+  "deployment-id": "your-o1-deployment",
+  "api-version": "2025-02-01-preview",
+  "messages": [
+    {
+      "role": "developer",
+      "content": "You are a helpful assistant that always responds in JSON, following the provided schema."
+    },
+    {
+      "role": "user",
+      "content": "What is the capital of France?"
+    }
+  ],
+  "reasoning_effort": "high",
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "capital": {
+          "type": "string",
+          "description": "The capital city."
+        }
+      },
+      "required": ["capital"]
+    }
+  }
+}
+```
+
+**Key Takeaways for o1 Reasoning Models:**
+
+*   Use the `developer` role instead of `system`.
+*   Leverage `reasoning_effort` to control the trade-off between speed and reasoning depth.
+*   Use `max_completion_tokens` to limit total token usage (including reasoning tokens).
+*   Strongly consider using `response_format: "json_schema"` for structured output.
+*   o1 models are well-suited for complex tasks involving tools and structured data.
+*   All other standard chat completion parameters are also applicable.
+
+By understanding these distinctions, you can effectively utilize the enhanced capabilities of o1 reasoning models for your most demanding AI applications.

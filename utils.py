@@ -85,37 +85,37 @@ def validate_streaming(model_id: str) -> bool:
     """
     Determine if the current model supports streaming.
     We parse out a 'base model' from model_id by prefix.
+    Updated to disallow streaming for all o1 variants.
     """
-    STREAMING_MODEL_REGISTRY = {
-        "o3-mini": {"supports_streaming": True, "max_streams": 5},
-        "o1-2025": {"supports_streaming": True, "max_streams": 5},
-        "o1-prod": {"supports_streaming": False},
-        "DeepSeek-R1": {"supports_streaming": True, "max_streams": 5},
-        "gpt-4": {"supports_streaming": True},
-        "gpt-35-turbo": {"supports_streaming": True},
-    }
-
     if not model_id:
         return False
 
     model_id = model_id.lower()
     base_model = None
 
+    # Only o3-mini supports streaming among the o-series.
     if model_id.startswith("o3-mini"):
         base_model = "o3-mini"
-    elif model_id.startswith("o1-2025"):
-        base_model = "o1-2025"
-    elif (
-        model_id.startswith("o1-prod") or model_id.startswith("o1-")
-    ) and "preview" not in model_id:
-        base_model = "o1-prod"
+    # Disallow streaming for any o1 variants.
+    elif model_id.startswith("o1"):
+        return False
     elif model_id.startswith("gpt-4"):
         base_model = "gpt-4"
     elif model_id.startswith("gpt-35") or model_id.startswith("gpt-3.5"):
         base_model = "gpt-35-turbo"
 
-    model_config = STREAMING_MODEL_REGISTRY.get(base_model, {})
-    return model_config.get("supports_streaming", False)
+    # Registry for models that support streaming.
+    STREAMING_MODEL_REGISTRY = {
+        "o3-mini": {"supports_streaming": True, "max_streams": 5},
+        "gpt-4": {"supports_streaming": True},
+        "gpt-35-turbo": {"supports_streaming": True},
+    }
+
+    if base_model and base_model in STREAMING_MODEL_REGISTRY:
+        return STREAMING_MODEL_REGISTRY[base_model].get("supports_streaming", False)
+
+    return False
+
 
 
 def count_tokens(content, model: Optional[str] = None) -> int:

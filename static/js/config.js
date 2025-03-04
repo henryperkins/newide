@@ -48,21 +48,6 @@ const REASONING_EFFORT = Object.freeze({
   }
 });
 
-export async function initializeConfig() {
-  try {
-    const config = await getCurrentConfig();
-    cachedConfig = config;
-    initConfigUI(config);
-    setupConfigEventHandlers();
-    eventBus.publish('configLoaded', { config });
-    return config;
-  } catch (error) {
-    console.error('Failed to initialize configuration:', error);
-    cachedConfig = loadConfigFromLocalStorage() || { ...DEFAULT_CONFIG };
-    return cachedConfig;
-  }
-}
-
 export async function getCurrentConfig() {
   const now = Date.now();
   if (cachedConfig && now - lastFetchTime < CONFIG_CACHE_TIME) {
@@ -82,6 +67,7 @@ export async function getCurrentConfig() {
     return { ...DEFAULT_CONFIG };
   }
 }
+
 
 function loadConfigFromLocalStorage() {
   try {
@@ -176,7 +162,6 @@ function updateReasoningDescription(effortLevel, descriptionElement) {
   }
   descriptionElement.textContent = text;
 }
-
 function handleDeveloperConfigChange(e) {
   updateConfig({ developerConfig: e.target.value });
 }

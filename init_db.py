@@ -187,11 +187,6 @@ async def init_database():
                 ADD COLUMN IF NOT EXISTS content_analysis JSONB
             """))
 
-            # Add thinking_process to model_usage_stats if not exists
-            await conn.execute(text("""
-                ALTER TABLE model_usage_stats
-                ADD COLUMN IF NOT EXISTS thinking_process JSONB
-            """))
 
             # Add token_details to model_usage_stats if not exists
             await conn.execute(text("""
@@ -212,19 +207,41 @@ async def init_database():
             """))
             
             # Add columns to model_usage_stats that are in the ORM but not in database
-            await conn.execute(text("""
-                ALTER TABLE model_usage_stats
-                ADD COLUMN IF NOT EXISTS reasoning_tokens INTEGER
-            """))
 
             await conn.execute(text("""
                 ALTER TABLE model_usage_stats
                 ADD COLUMN IF NOT EXISTS cached_tokens INTEGER
             """))
-            
+
             await conn.execute(text("""
                 ALTER TABLE model_usage_stats
                 ADD COLUMN IF NOT EXISTS active_tokens INTEGER
+            """))
+
+            # Add missing columns
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                ADD COLUMN IF NOT EXISTS model_type VARCHAR(20) NOT NULL DEFAULT 'standard'
+            """))
+
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                ADD COLUMN IF NOT EXISTS deepseek_specific_tokens INTEGER
+            """))
+
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                ADD COLUMN IF NOT EXISTS o_series_specific_tokens INTEGER
+            """))
+
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                ADD COLUMN IF NOT EXISTS o_series_effort VARCHAR(20)
+            """))
+
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                ADD COLUMN IF NOT EXISTS deepseek_thoughts INTEGER
             """))
 
             # Only drop content_analysis which is not in our ORM
@@ -274,14 +291,10 @@ async def init_database():
             await conn.execute(text("ALTER TABLE vector_stores ALTER COLUMN session_id SET NOT NULL"))
 
             # Remove old "metadata" columns
-            await conn.execute(text("""
-                ALTER TABLE model_usage_stats
-                    DROP COLUMN IF EXISTS metadata;
-            """))
-            await conn.execute(text("""
-                ALTER TABLE model_transitions
-                    DROP COLUMN IF EXISTS metadata;
-            """))
+            await conn.execute(text("ALTER TABLE model_usage_stats DROP COLUMN IF EXISTS metadata"))
+            await conn.execute(text("ALTER TABLE model_usage_stats DROP COLUMN IF EXISTS thinking_process"))
+            await conn.execute(text("ALTER TABLE model_usage_stats DROP COLUMN IF EXISTS reasoning_tokens"))
+            await conn.execute(text("ALTER TABLE model_transitions DROP COLUMN IF EXISTS metadata"))
         except Exception as e:
             print(f"Error adding columns or dropping old metadata columns: {e}")
 
