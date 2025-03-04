@@ -298,7 +298,6 @@ async def init_database():
             # Remove old "metadata" columns
             await conn.execute(text("ALTER TABLE model_usage_stats DROP COLUMN IF EXISTS metadata"))
             await conn.execute(text("ALTER TABLE model_usage_stats DROP COLUMN IF EXISTS thinking_process"))
-            await conn.execute(text("ALTER TABLE model_usage_stats DROP COLUMN IF EXISTS reasoning_tokens"))
             await conn.execute(text("ALTER TABLE model_transitions DROP COLUMN IF EXISTS metadata"))
         except Exception as e:
             print(f"Error adding columns or dropping old metadata columns: {e}")
