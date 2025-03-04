@@ -460,6 +460,13 @@ class ModelManager {
 
     async switchModel(modelId) {
         if (this.currentModel === modelId) return true;
+
+        // Abort current streaming/inference if it's in progress
+        if (window.currentController) {
+            console.log("[switchModel] Aborting current streaming inference...");
+            window.currentController.abort();
+            window.currentController = null;
+        }
         console.log('[switchModel] Initiating switchModel for:', modelId, 'currentModel:', this.currentModel);
         console.warn('[switchModel] Additional debug message');
 
