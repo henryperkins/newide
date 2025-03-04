@@ -56,7 +56,7 @@ export function processDataChunk(
     // If the server signals finishing (via finish_reason), finalize the content.
     if (choice.finish_reason) {
       if (chunkBuffer) {
-        mainTextBuffer = deepSeekProcessor.processDeepSeekResponse(mainTextBuffer + chunkBuffer);
+        mainTextBuffer += chunkBuffer;
         chunkBuffer = '';
       }
       // Turn off "thinking" mode
