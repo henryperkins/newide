@@ -1,153 +1,234 @@
 /**
  * deepseekProcessor.js
  *
- * A comprehensive module for parsing, processing, and rendering
- * "DeepSeek"-style chain-of-thought content (thinking blocks).
+ * A refined and more robust module for parsing, processing, and rendering
+ * "DeepSeek"-style chain-of-thought content. This updated version addresses
+ * potential edge cases, toggling inconsistencies, and overlapping or multiple
+ * <think> blocks within the same chunk.
+ *
+ * NOTE: This module requires a browser-like environment or polyfills for:
+ *   - document, DOMParser (for HTML parsing)
+ *   - DOMPurify (for sanitization)
+ *   - requestAnimationFrame (for queued animations)
+ *   - Optional: Prism (for code highlighting, if available)
+ *
+ * IMPORTANT: Overlapping or malformed <think> tags (like one <think> block
+ * not fully closed before another <think>) can still produce unexpected
+ * results. This code attempts to be more defensive but cannot fully handle
+ * arbitrary invalid HTML structures.
  */
 
+/* -------------------------------------------------------------------------
+ * 1. Process a final DeepSeek response, removing all <think> tags & content
+ * ------------------------------------------------------------------------- */
+
 /**
- * Process a final DeepSeek response, removing any remaining <think> tags
- * from the user-visible content.
- * @param {string} content - Raw content from DeepSeek
- * @returns {string} - Processed content (user-visible only)
+ * Removes chain-of-thought text enclosed in <think>...</think> tags.
+ * Useful when returning a user-facing version without hidden reasoning.
+ *
+ * @param {string} content - The raw response, potentially with <think> blocks.
+ * @returns {string} - The content with all <think> blocks removed.
  */
 export function processDeepSeekResponse(content) {
   if (!content) return '';
 
-  // Remove all <think> tags and their content
-  let processedContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+  // Remove entire <think>... </think> blocks
+  let cleaned = content.replace(/<think>[\s\S]*?<\/think>/g, '');
 
-  // Remove any remaining partial tags
-  processedContent = processedContent.replace(/<\/?think>/g, '');
-  return processedContent;
+  // Clean up any stray or partial <think> tags
+  cleaned = cleaned.replace(/<\/?think>/g, '');
+
+  return cleaned;
 }
 
+/* -------------------------------------------------------------------------
+ * 2. Process a streamed chunk, separating user-visible vs. "thinking" text
+ * ------------------------------------------------------------------------- */
+
 /**
- * Process a chunk of streamed content to track whether it's part of
- * "thinking" blocks vs. user-visible content. Splits text between
- * main and thinking buffers, depending on <think> tags.
+ * Processes a chunk of streamed text, splitting user-visible content and
+ * chain-of-thought text based on <think> tags. Handles multiple <think> blocks
+ * in a single chunk. Overlapping or malformed tags may cause partial merges,
+ * so assume valid tags whenever possible.
  *
- * @param {string} chunkBuffer - Current chunk from SSE
- * @param {boolean} isThinking - If we're currently inside a <think> block
- * @param {string} mainBuffer - Accumulated user-visible content
- * @param {string} thinkingBuffer - Accumulated chain-of-thought content
- * @returns {Object} Updated state:
- *   {
- *     mainBuffer: string,
- *     thinkingBuffer: string,
- *     isThinking: boolean,
- *     remainingChunk: string,
- *     hasMultipleThinking: boolean
- *   }
+ * @param {string} chunkBuffer - The chunk of text from streaming.
+ * @param {boolean} isThinking - Whether we were previously "inside" a <think> block.
+ * @param {string} mainBuffer - Accumulated user-visible text so far.
+ * @param {string} thinkingBuffer - Accumulated chain-of-thought text so far.
+ * @returns {{
+ *   mainBuffer: string,
+ *   thinkingBuffer: string,
+ *   isThinking: boolean,
+ *   remainingChunk: string,
+ *   hasMultipleThinking: boolean
+ * }}
  */
 export function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, thinkingBuffer) {
-  // Default return structure
+  // Default result object
   const result = {
     mainBuffer: mainBuffer || '',
     thinkingBuffer: thinkingBuffer || '',
     isThinking: isThinking || false,
     remainingChunk: '',
-    hasMultipleThinking: false
+    hasMultipleThinking: false,
   };
 
   if (!chunkBuffer) return result;
 
-  // See if there's an opening <think> tag in the chunk
-  const openTagIndex = chunkBuffer.indexOf('<think>');
+  let buffer = chunkBuffer;
 
-  // If there's no <think> tag at all
-  if (openTagIndex === -1) {
-    if (!result.isThinking) {
-      // Not in thinking mode => append to main (user-visible) content
-      result.mainBuffer += chunkBuffer; // Avoid redundant processing here
-    } else {
-      // Currently in a <think> block => keep appending to thinking buffer
-      result.thinkingBuffer += chunkBuffer;
-    }
-    return result;
-  }
-
-  // There's at least one <think> tag
-  if (openTagIndex >= 0) {
-    // Everything before <think> goes to mainBuffer if not thinking yet
-    if (openTagIndex > 0 && !result.isThinking) {
-      const beforeThink = chunkBuffer.substring(0, openTagIndex);
-      // Remove or comment out the call so you don’t strip <think> prematurely:
-      result.mainBuffer += beforeThink;
-    }
-
-    // Check if there's a closing </think> tag
-    const closeTagIndex = chunkBuffer.indexOf('</think>', openTagIndex);
-    if (closeTagIndex >= 0) {
-      // Found a complete <think>...</think> block
-      result.isThinking = false;
-
-      // Extract the content inside <think>...</think>
-      const thinkContent = chunkBuffer.substring(openTagIndex + 7, closeTagIndex);
-
-      // If we already have some thinking text, separate with newlines
-      if (result.thinkingBuffer) {
-        result.thinkingBuffer += '\n\n' + thinkContent;
-        result.hasMultipleThinking = true;
+  // Repeatedly look for <think> or </think> in the buffer
+  while (buffer.length > 0) {
+    // If we are currently inside a <think> block, scan for </think>
+    if (result.isThinking) {
+      const closeIdx = buffer.indexOf('</think>');
+      if (closeIdx === -1) {
+        // No closing tag found; assume all this chunk belongs in thinking
+        result.thinkingBuffer += buffer;
+        buffer = '';
+        break;
       } else {
-        result.thinkingBuffer = thinkContent;
-      }
-
-      // Everything after </think>
-      const afterThink = chunkBuffer.substring(closeTagIndex + 8);
-      const nextThinkIndex = afterThink.indexOf('<think>');
-      if (nextThinkIndex >= 0) {
-        // Another <think> block appears further in the chunk
-        result.remainingChunk = afterThink;
-        result.hasMultipleThinking = true;
-      } else {
-        // No more <think> blocks => treat the remainder as normal text
-        result.remainingChunk = afterThink;
+        // Found a closing tag
+        result.thinkingBuffer += buffer.substring(0, closeIdx);
+        result.isThinking = false;
+        // Slice off the consumed portion plus the </think> tag
+        buffer = buffer.substring(closeIdx + 8);
+        // Continue searching in the new buffer content
       }
     } else {
-      // Found an opening <think> but no closing tag => partial
-      result.isThinking = true;
-      result.thinkingBuffer = chunkBuffer.substring(openTagIndex + 7);
+      // We are in user-visible context, look for <think>
+      const openIdx = buffer.indexOf('<think>');
+      if (openIdx === -1) {
+        // No <think> tag found in the remainder => all is user-visible
+        result.mainBuffer += buffer;
+        buffer = '';
+        break;
+      } else {
+        // <think> tag found
+        // Everything before <think> is user-visible
+        if (openIdx > 0) {
+          result.mainBuffer += buffer.substring(0, openIdx);
+        }
+        // We enter thinking mode after <think>
+        result.isThinking = true;
+        buffer = buffer.substring(openIdx + 7);
+        // Keep searching in the new buffer chunk
+        // (will loop around and look for closing </think>)
+        result.hasMultipleThinking = true;
+      }
     }
   }
+
+  // Whatever remains unprocessed is leftover for next iteration
+  // In this approach, we explicitly return an empty remainingChunk because
+  // we consumed the entire chunk or stashed it all in the buffers.
+  // If you want to handle leftover partial text outside, you can store it here.
+  // For now, we do not hold partial text outside; we keep it in the relevant buffer.
+  result.remainingChunk = '';
 
   return result;
 }
 
+/* -------------------------------------------------------------------------
+ * 3. Create and render chain-of-thought blocks as HTML
+ * ------------------------------------------------------------------------- */
+
 /**
- * Generates HTML for a chain-of-thought "thinking block" that can be
- * inserted into the DOM. This includes a toggle button, hidden content,
- * and an overlay gradient.
+ * Internal helper: format chain-of-thought text with minimal markdown processing,
+ * code-fence highlighting, etc. Return HTML for insertion into a <pre>.
  *
- * @param {string} thinkingContent - The text to display as chain-of-thought
- * @returns {string} - HTML string representing the block
+ * @param {string} content
+ * @returns {string}
+ */
+function formatThinkingContent(content) {
+  if (!content) return '';
+
+  // Remove excessive blank lines
+  let formatted = content.replace(/\n{3,}/g, '\n\n');
+  // Trim
+  formatted = formatted.trim();
+  // Basic markdown expansions
+  formatted = processMarkdownElements(formatted);
+
+  // Attempt a naive code-fence parse:
+  formatted = formatted.replace(/```([\w-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const language = lang || 'plaintext';
+    const highlighted = (typeof Prism !== 'undefined' && Prism.languages[language])
+      ? Prism.highlight(code.trim(), Prism.languages[language], language)
+      : code.trim();
+    return `<div class="code-block" data-language="${language}">
+      <div class="code-block-header" aria-label="${language} code">${language}</div>
+      <pre class="language-${language}"><code class="language-${language}">
+${highlighted}
+      </code></pre>
+    </div>`;
+  });
+
+  // Inline code (single backticks)
+  formatted = formatted.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+
+  return formatted;
+}
+
+/**
+ * Minimal partial markdown conversion for blockquotes, lists, and tables.
+ * For a more complete solution, consider a dedicated markdown library.
+ *
+ * @param {string} content
+ * @returns {string}
+ */
+function processMarkdownElements(content) {
+  if (!content) return '';
+
+  let processed = content;
+
+  // Blockquotes
+  processed = processed.replace(/^>[ \t](.*)$/gm, '<blockquote>$1</blockquote>');
+
+  // Unordered lists
+  processed = processed.replace(/^[ \t]*[-*+][ \t]+(.*)$/gm, '<li>$1</li>');
+  processed = processed.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+  processed = processed.replace(/<\/ul>\s*<ul>/g, ''); // merges consecutive <ul>
+
+  // Ordered lists
+  processed = processed.replace(/^[ \t]*(\d+)\.[ \t]+(.*)$/gm, '<li>$2</li>');
+  processed = processed.replace(/(<li>.*<\/li>\n?)+/g, '<ol>$&</ol>');
+  processed = processed.replace(/<\/ol>\s*<ol>/g, ''); // merges consecutive <ol>
+
+  // Simple tables
+  processed = processed.replace(/^\|(.+)\|$/gm, '<tr><td>$1</td></tr>');
+  processed = processed.replace(/(<tr>.*<\/tr>\n?)+/g, '<table>$&</table>');
+
+  return processed;
+}
+
+/**
+ * Creates HTML for a chain-of-thought block with a toggle. Sanitizes the final content.
+ *
+ * @param {string} thinkingContent
+ * @returns {string} - An HTML snippet to be inserted into the DOM
  */
 export function createThinkingBlockHTML(thinkingContent) {
-  const formattedContent = formatThinkingContent(thinkingContent);
+  if (!thinkingContent) thinkingContent = '';
+  const formatted = formatThinkingContent(thinkingContent);
 
-  // Sanitize HTML with DOMPurify
-  // Only allow minimal tags, forbid inline styles/on* attributes
-  const safeContent = DOMPurify.sanitize(formattedContent, {
-    ALLOWED_TAGS: ['div', 'span', 'code', 'pre', 'button', 'blockquote', 'ul', 'ol', 'li', 'table', 'tr', 'td', 'think'],
-    ALLOWED_ATTR: ['class', 'aria-expanded', 'data-language'],
+  // Sanitize final HTML
+  const sanitized = DOMPurify.sanitize(formatted, {
+    ALLOWED_TAGS: [
+      'div', 'span', 'code', 'pre', 'button', 'blockquote', 'ul', 'ol', 'li',
+      'table', 'tr', 'td', 'think', 'strong', 'em'
+    ],
+    ALLOWED_ATTR: ['class', 'aria-expanded', 'data-language', 'aria-label'],
     FORBID_ATTR: ['style', 'on*']
   });
 
-  // Use DOMParser to manipulate the final string if needed
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(safeContent, 'text/html');
-  const preElement = doc.querySelector('.thinking-pre');
-  if (preElement) {
-    // Make the text content safe
-    preElement.textContent = formattedContent;
-    preElement.setAttribute('data-language', 'thinking');
-    preElement.setAttribute('aria-live', 'polite');
-  }
+  // Make a unique ID for toggling
+  const uniqueId = `thinking-content-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-  // Generate a unique ID for toggling
-  const uniqueId = `thinking-content-${Date.now()}`;
+  // Because the sanitized HTML might remove some wrapping tags, place it into <pre class="thinking-pre>" safely:
+  // We'll store the sanitized content in the <pre>. We then further sanitize that container if needed.
   return `
-    <div class="thinking-process shadow-sm my-4 new"
+    <div class="thinking-process shadow-sm my-4"
          role="region"
          aria-label="Model reasoning process"
          data-collapsed="false">
@@ -160,7 +241,7 @@ export function createThinkingBlockHTML(thinkingContent) {
         </button>
       </div>
       <div class="thinking-content" id="${uniqueId}">
-        <pre class="thinking-pre">${formattedContent}</pre>
+        <pre class="thinking-pre">${sanitized}</pre>
         <div class="thinking-gradient"></div>
       </div>
     </div>
@@ -168,47 +249,48 @@ export function createThinkingBlockHTML(thinkingContent) {
 }
 
 /**
- * Replace all <think>...</think> blocks in `content` with their
- * corresponding HTML block representation (using createThinkingBlockHTML).
+ * Replaces all <think>...</think> blocks in content with a togglable chain-of-thought UI.
+ * Automatically sanitizes the chain-of-thought text inside each block.
  *
- * @param {string} content - The full response content (may contain <think> blocks)
- * @returns {string} - Content with chain-of-thought blocks replaced by HTML
+ * @param {string} content
+ * @returns {string}
  */
 export function replaceThinkingBlocks(content) {
   if (!content) return '';
 
-  // Extract all <think>...</think> blocks
-  const thinkingBlocks = extractThinkingContent(content);
-  if (thinkingBlocks.length === 0) {
-    return content; // No blocks, just return original
+  // We do a safe extraction of <think> blocks. Overlapping tags are not truly valid,
+  // but we try to be defensive in case of partial or spurious tags.
+  const blocks = extractThinkingContent(content);
+  if (!blocks.length) return content;
+
+  let output = content;
+  for (const blockText of blocks) {
+    const rawBlock = `<think>${blockText}</think>`;
+    const idx = output.indexOf(rawBlock);
+    if (idx !== -1) {
+      const before = output.substring(0, idx);
+      const after = output.substring(idx + rawBlock.length);
+
+      // Convert this block to togglable HTML
+      const replacedHTML = createThinkingBlockHTML(blockText);
+
+      output = before + replacedHTML + after;
+    }
   }
 
-  let result = content;
-
-  // For each block, replace the original <think> block with a sanitized HTML snippet
-  thinkingBlocks.forEach(thinkContent => {
-    const originalBlock = `<think>${thinkContent}</think>`;
-    const blockStartIndex = result.indexOf(originalBlock);
-    if (blockStartIndex !== -1) {
-      const blockEndIndex = blockStartIndex + originalBlock.length;
-      const beforeBlock = result.substring(0, blockStartIndex);
-      const afterBlock = result.substring(blockEndIndex);
-
-      // Create sanitized HTML
-      const thinkingHTML = DOMPurify.sanitize(createThinkingBlockHTML(thinkContent));
-      result = beforeBlock + thinkingHTML + afterBlock;
-    }
-  });
-
-  // Remove any leftover or nested <think> blocks
-  result = result.replace(/<think>[\s\S]*?<\/think>/g, '');
-  return result;
+  // Remove leftover <think> tags if any remain (e.g. malformed or nested)
+  output = output.replace(/<think>[\s\S]*?<\/think>/g, '');
+  return output;
 }
 
+/* -------------------------------------------------------------------------
+ * 4. Initialize and control chain-of-thought blocks in the DOM
+ * ------------------------------------------------------------------------- */
+
 /**
- * Initialize any pre-existing thinking blocks in the DOM
- * (e.g., after loading conversation history).
- * Attaches toggle logic, handles "new" highlight effect, etc.
+ * Scan the DOM for existing .thinking-process containers that might
+ * have been inserted (e.g. from historical content), attach toggling behavior,
+ * and handle a brief "new" highlight effect.
  */
 function initializeExistingBlocks() {
   document.querySelectorAll('.thinking-block').forEach(container => {
@@ -282,10 +364,15 @@ function initializeExistingBlocks() {
     const toggleIcon = thinkingProcess.querySelector('.toggle-icon');
 
     // Ensure data-collapsed is set
-    if (!thinkingProcess.hasAttribute('data-collapsed')) {
-      thinkingProcess.setAttribute('data-collapsed', 'false');
+    if (!block.hasAttribute('data-collapsed')) {
+      block.setAttribute('data-collapsed', 'false');
     }
 
+    const toggleBtn = block.querySelector('.thinking-toggle');
+    const content = block.querySelector('.thinking-content');
+    const toggleIcon = block.querySelector('.toggle-icon');
+
+    // Attach toggle logic
     if (toggleBtn && content) {
       toggleBtn.addEventListener('click', () => {
         const expanded = toggleBtn.getAttribute('aria-expanded') === 'true';
@@ -293,7 +380,7 @@ function initializeExistingBlocks() {
         thinkingProcess.setAttribute('data-collapsed', expanded ? 'true' : 'false');
         content.classList.toggle('hidden', expanded);
 
-        // Subtle icon rotation
+        // Rotate the icon
         if (toggleIcon) {
           toggleIcon.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
           toggleIcon.style.transform = expanded ? 'rotate(-90deg)' : 'rotate(0deg)';
@@ -303,65 +390,78 @@ function initializeExistingBlocks() {
   });
 }
 
+/* -------------------------------------------------------------------------
+ * 5. Extract <think> blocks from a string, including nested occurrences
+ * ------------------------------------------------------------------------- */
+
 /**
- * Extract thinking content from all <think>...</think> blocks
- * including nested blocks, if any.
+ * Recursively extracts text from all <think>...</think> blocks.
+ * Handles nested blocks by counting open/close tags. Overlapping or malformed
+ * tags can yield partial or unexpected results.
  *
- * @param {string} content - The response text that may contain multiple or nested <think> blocks
- * @returns {Array<string>} - Array of extracted thinking block strings
+ * @param {string} content
+ * @returns {string[]} - Array of the raw text inside each <think> block.
  */
-function extractThinkingContent(content) {
+export function extractThinkingContent(content) {
   if (!content) return [];
-  const thinkingBlocks = [];
+  const results = [];
 
-  // Recursive function to find and store nested <think> blocks
-  const extractRecursive = (text) => {
-    const openTagIndex = text.indexOf('<think>');
-    if (openTagIndex === -1) return; // No <think> found
+  function recursiveExtract(source) {
+    const openIndex = source.indexOf('<think>');
+    if (openIndex === -1) return;
 
-    // We'll try to find the matching </think>
-    let searchStartIndex = openTagIndex + 7; // length of <think>
     let openCount = 1;
-    let closeTagIndex = -1;
+    let searchIdx = openIndex + 7; // after the <think> tag
+    let closeIndex = -1;
 
-    while (openCount > 0 && searchStartIndex < text.length) {
-      const nextOpen = text.indexOf('<think>', searchStartIndex);
-      const nextClose = text.indexOf('</think>', searchStartIndex);
+    while (openCount > 0 && searchIdx < source.length) {
+      const nextOpen = source.indexOf('<think>', searchIdx);
+      const nextClose = source.indexOf('</think>', searchIdx);
 
-      if (nextClose === -1) break; // No matching closing tag
+      if (nextClose === -1) {
+        // No more closing tags => malformed or partial
+        break;
+      }
+
       if (nextOpen !== -1 && nextOpen < nextClose) {
         openCount++;
-        searchStartIndex = nextOpen + 7;
+        searchIdx = nextOpen + 7;
       } else {
         openCount--;
         if (openCount === 0) {
-          closeTagIndex = nextClose;
+          closeIndex = nextClose;
         }
-        searchStartIndex = nextClose + 8; // length of </think>
+        searchIdx = nextClose + 8; // after </think>
       }
     }
 
-    if (closeTagIndex !== -1) {
-      // Extract the block content
-      const blockContent = text.substring(openTagIndex + 7, closeTagIndex);
-      thinkingBlocks.push(blockContent);
+    if (closeIndex !== -1) {
+      // Extract text for this block
+      const blockText = source.substring(openIndex + 7, closeIndex);
+      results.push(blockText);
 
-      // Recurse after this block
-      const afterBlock = text.substring(closeTagIndex + 8);
-      extractRecursive(afterBlock);
+      // Recurse on post-block text, in case more blocks exist
+      const remainder = source.substring(closeIndex + 8);
+      recursiveExtract(remainder);
 
-      // Also check for nested blocks inside the found block
-      extractRecursive(blockContent);
+      // Also check if the block text itself contained nested blocks
+      // (though they are already counted, we might extract them here
+      // if you want each nested block as well. But we already do
+      // because openCount increments. So let's avoid double extracting.
     }
-  };
+  }
 
-  extractRecursive(content);
-  return thinkingBlocks;
+  recursiveExtract(content);
+  return results;
 }
 
+/* -------------------------------------------------------------------------
+ * 6. Optional function to create DOM elements for a chain-of-thought block
+ * ------------------------------------------------------------------------- */
+
 /**
- * Create a DOM element for a thinking block, including toggle interactions.
- * If you prefer returning an HTML string, use createThinkingBlockHTML instead.
+ * Creates an actual DOM element for a chain-of-thought block
+ * rather than returning an HTML string. Uses the same formatting logic.
  *
  * @param {string} thinkingContent - The chain-of-thought text
  * @returns {HTMLElement} A DOM element representing the thinking block
@@ -444,104 +544,68 @@ function createThinkingBlock(thinkingContent) {
       }
     });
   }
-
   return container;
 }
 
-/**
- * Internal helper to format chain-of-thought text. This:
- *   - Removes extra blank lines
- *   - Escapes HTML
- *   - Processes code fences (```lang ... ```), inline backticks, blockquotes, etc.
- * @param {string} content - Raw chain-of-thought text
- * @returns {string} - HTML-escaped text with code blocks highlighted
- */
-function formatThinkingContent(content) {
-  if (!content) return '';
-
-  // Remove excessive blank lines
-  let formatted = content.replace(/\n{3,}/g, '\n\n');
-
-  // Trim leading/trailing whitespace
-  formatted = formatted.trim();
-
-  // Process basic markdown (quotes, lists, tables) before escaping
-  formatted = processMarkdownElements(formatted);
-
-  // Disable HTML escaping for chain-of-thought so code blocks and markdown are properly rendered.
-  // (User wants to see raw markdown code blocks inside thinking content.)
-
-  // Handle fenced code blocks: ```lang\n code ... ```
-  formatted = formatted.replace(/```([\w-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    const language = lang || 'plaintext';
-    // If Prism is available, highlight it; else just use the raw text
-    const highlighted = (typeof Prism !== 'undefined' && Prism.languages[language])
-      ? Prism.highlight(code.trim(), Prism.languages[language], language)
-      : code.trim();
-    return `<div class="code-block" data-language="${language}">
-      <div class="code-block-header" aria-label="${language} code">${language}</div>
-      <pre class="language-${language}"><code class="language-${language}">
-${highlighted}
-      </code></pre>
-    </div>`;
-  });
-
-  // Inline code blocks (single backticks)
-  formatted = formatted.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
-
-  return formatted;
-}
+/* -------------------------------------------------------------------------
+ * 7. Other convenience methods and a minimal state manager (if needed)
+ * ------------------------------------------------------------------------- */
 
 /**
- * Convert markdown-like elements (blockquotes, lists, tables)
- * into HTML. This is a lightweight, partial markdown converter.
+ * Splits buffers at the end of streaming to produce a final user-facing string
+ * (mainContent) and a chain-of-thought string (thinkingContent).
  *
- * @param {string} content - Possibly containing markdown syntax
- * @returns {string} - A best-effort at structured HTML
+ * @param {string} mainBuffer
+ * @param {string} thinkingBuffer
+ * @returns {{mainContent: string, thinkingContent: string}}
  */
-function processMarkdownElements(content) {
-  if (!content) return '';
-
-  let processed = content;
-
-  // Blockquotes (lines starting with `> `)
-  processed = processed.replace(/^>[ \t](.*)$/gm, '<blockquote>$1</blockquote>');
-
-  // Unordered lists
-  processed = processed.replace(/^[ \t]*[-*+][ \t]+(.*)$/gm, '<li>$1</li>');
-  processed = processed.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
-
-  // Ordered lists
-  processed = processed.replace(/^[ \t]*(\d+)\.[ \t]+(.*)$/gm, '<li>$2</li>');
-  processed = processed.replace(/(<li>.*<\/li>\n?)+/g, '<ol>$&</ol>');
-
-  // Collapse multiple consecutive <ul> or <ol> tags
-  processed = processed.replace(/<\/ul>\s*<ul>/g, '');
-  processed = processed.replace(/<\/ol>\s*<ol>/g, '');
-
-  // Simple tables
-  processed = processed.replace(/^\|(.+)\|$/gm, '<tr><td>$1</td></tr>');
-  processed = processed.replace(/(<tr>.*<\/tr>\n?)+/g, '<table>$&</table>');
-
-  return processed;
+export function separateContentBuffers(mainBuffer, thinkingBuffer) {
+  // Remove any accidental <think> tags from main content:
+  const cleanedMain = mainBuffer.replace(/<\/?think>/g, '');
+  // Keep the raw thinking buffer as is, or you could also strip leftover <think> tags if desired.
+  return {
+    mainContent: cleanedMain.trim(),
+    thinkingContent: thinkingBuffer.trim(),
+  };
 }
 
 /**
- * State manager for thinking blocks
+ * Minimal markdown-to-HTML converter for the user if desired.
+ * This is intentionally simpler than the "processMarkdownElements" approach
+ * used inside chain-of-thought formatting. Use a robust library if needed.
+ *
+ * @param {string} content
+ * @returns {string}
+ */
+export function markdownToHtml(content) {
+  if (!content) return '';
+  return content
+    .replace(/### (.*)/g, '<h3>$1</h3>')
+    .replace(/## (.*)/g, '<h2>$1</h2>')
+    .replace(/# (.*)/g, '<h1>$1</h1>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`(.*?)`/g, '<code>$1</code>')
+    .replace(/\n/g, '<br>');
+}
+
+/**
+ * A simple state manager class for toggling expansions/animations if needed.
+ * This is not strictly required but can be used to coordinate multiple toggles.
  */
 class ThinkingBlockState {
   constructor() {
-    this.blocks = new Map(); // id -> {expanded: bool, version: number, content: string}
+    this.blocks = new Map();
     this.animationQueue = new Map();
-    this.contentVersions = new Map();
   }
 
   getState(id) {
-    return this.blocks.get(id) || {expanded: false, version: 0, content: ''};
+    return this.blocks.get(id) || { expanded: false, content: '' };
   }
 
   updateState(id, newState) {
-    this.blocks.set(id, {...this.getState(id), ...newState});
+    const oldState = this.getState(id);
+    this.blocks.set(id, { ...oldState, ...newState });
   }
 
   queueAnimation(id, callback) {
@@ -555,34 +619,20 @@ class ThinkingBlockState {
   async processAnimations() {
     for (const [id, queue] of this.animationQueue) {
       while (queue.length > 0) {
-        const callback = queue.shift();
-        await new Promise(resolve => requestAnimationFrame(resolve));
-        await callback();
+        const fn = queue.shift();
+        await new Promise((r) => requestAnimationFrame(r));
+        await fn();
       }
-    }
-  }
-
-  handleContentVersion(id, chunk, version) {
-    if (!this.contentVersions.has(id)) {
-      this.contentVersions.set(id, {current: version, chunks: new Map()});
-    }
-    
-    const state = this.contentVersions.get(id);
-    state.chunks.set(version, chunk);
-    
-    while (state.chunks.has(state.current + 1)) {
-      const nextChunk = state.chunks.get(state.current + 1);
-      this.updateState(id, {content: nextChunk});
-      state.current++;
-      state.chunks.delete(state.current);
     }
   }
 }
 
-const stateManager = new ThinkingBlockState();
+// Optionally export the shared state manager if needed
+export const stateManager = new ThinkingBlockState();
 
 /**
- * Export a single object that centralizes all DeepSeek text/DOM processing.
+ * Consolidated export for the entire DeepSeek processing toolkit.
+ * You can import specific functions as needed, or import this object.
  */
 export const deepSeekProcessor = {
   processDeepSeekResponse,
@@ -592,48 +642,7 @@ export const deepSeekProcessor = {
   initializeExistingBlocks,
   extractThinkingContent,
   createThinkingBlock,
-  markdownToHtml: (content) => {
-    // Simple markdown parser for thinking content
-    return content
-      .replace(/### (.*)/g, '<h3>$1</h3>')
-      .replace(/## (.*)/g, '<h2>$1</h2>')
-      .replace(/# (.*)/g, '<h1>$1</h1>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`(.*?)`/g, '<code>$1</code>')
-      .replace(/\n/g, '<br>');
-  },
-
-  // New methods for streaming separation
-  separateContentBuffers(mainBuffer, thinkingBuffer) {
-    // Clean main content by removing ALL thinking tags
-    const mainContent = mainBuffer.replace(/<\/?think>/g, '');
-    
-    // Extract thinking content while preserving original structure
-    const thinkingContent = thinkingBuffer.trim();
-    
-    return {
-      mainContent: mainContent.trim(),
-      thinkingContent: thinkingContent
-    };
-  },
-
-  initializeThinkingToggle(container) {
-    const toggleBtn = container.querySelector('.thinking-toggle');
-    const contentDiv = container.querySelector('.thinking-content');
-    const toggleIcon = container.querySelector('.toggle-icon');
-    
-    if (toggleBtn && contentDiv) {
-      toggleBtn.addEventListener('click', () => {
-        const isCollapsed = toggleBtn.getAttribute('aria-expanded') === 'true';
-        toggleBtn.setAttribute('aria-expanded', !isCollapsed);
-        contentDiv.style.display = isCollapsed ? 'none' : 'block';
-        if (toggleIcon) {
-          toggleIcon.style.transform = isCollapsed ? 'rotate(90deg)' : 'rotate(0deg)';
-        }
-      });
-    }
-  },
-
-  stateManager // Expose state manager for testing
+  separateContentBuffers,
+  markdownToHtml,
+  stateManager,
 };

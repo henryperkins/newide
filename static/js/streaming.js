@@ -1,3 +1,11 @@
+/**
+ * streaming.js
+ *
+ * Fixed version: chain-of-thought text now displays because we attach the
+ * "thinking-toggle" class to .thinking-header, ensuring that initializeThinkingToggle
+ * can find the toggle button and reveal the .thinking-content.
+ */
+
 import { getSessionId } from './session.js';
 import { updateTokenUsage, fetchWithRetry, retry, eventBus } from './utils/helpers.js';
 import { showNotification, handleMessageError, removeTypingIndicator } from './ui/notificationManager.js';
