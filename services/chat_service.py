@@ -163,7 +163,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
 
     try:
         # Distinguish between ChatCompletionsClient and AzureOpenAI:
-        client_wrapper = await get_model_client_dependency(model_name)
+        client_wrapper = get_model_client_dependency(model_name)
         azure_client = client_wrapper.get("client")
         if isinstance(azure_client, ChatCompletionsClient):
             #
@@ -347,7 +347,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
 
     # Store conversation in DB
     await save_conversation(
-        db_session=db,
+        db_session=db_session,
         session_id=session_id,
         model_name=model_name,
         user_text=chat_message.message,
