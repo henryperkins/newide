@@ -114,8 +114,8 @@ async def store_message(
 
         return {"status": "success"}
 
-    except HTTPException:
-        raise
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
         await db.rollback()
         logger.exception(f"Error storing message: {str(e)}")

@@ -145,7 +145,9 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
                 logger.warning(f"No configuration found for model {model_name}")
             return model_configs
 
-        model_configs = await fetch_and_validate_model_configs()
+        async def fetch_model_configs_wrapper():
+            return await fetch_and_validate_model_configs()
+        model_configs = await fetch_model_configs_wrapper()
     except Exception as e:
         logger.error(f"Error fetching model_configs: {str(e)}")
         model_configs = {}
@@ -160,6 +162,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
 
     try:
         # Distinguish between ChatCompletionsClient and AzureOpenAI:
+        azure_client = client_wrapper.get("client")
         if isinstance(azure_client, ChatCompletionsClient):
             #
             #  1) The azure.ai.inference ChatCompletionsClient
@@ -170,7 +173,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
                 # The ChatCompletionsClient has already been initialized with the model name
                 # We just need to pass messages and other parameters
                 logger.debug(f"Calling DeepSeek-R1 model with messages and temperature: {params['temperature']}")
-                response = azure_client.complete(
+                response = client.complete(
                     messages=params["messages"],
                     temperature=params["temperature"],
                     max_tokens=params["max_tokens"]
@@ -223,7 +226,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
             # We'll call .chat.completions.create(...) with the recognized arguments.
             # We'll map `params` keys to explicit arguments so that Pylance doesn't complain.
             # We'll # type: ignore if Pylance is still too strict about extra parameters.
-            response = azure_client.chat.completions.create(
+            response = client.chat.completions.create(
                 model=model_name,
                 messages=params["messages"],  # type: ignore
                 temperature=params["temperature"],  # type: ignore
@@ -342,7 +345,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
 
     # Store conversation in DB
     await save_conversation(
-        db_session=db_session,
+        db_session=db,
         session_id=session_id,
         model_name=model_name,
         user_text=chat_message.message,
