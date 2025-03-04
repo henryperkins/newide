@@ -70,7 +70,12 @@ async def store_message(
       - role (e.g. 'user', 'assistant')
       - content (the message content)
     """
-    try:
+    # Limit concurrent SSE connections per session
+    active_connections = await db.execute(
+        text("SELECT COUNT(*) FROM pg_stat_activity WHERE query LIKE '%/api/chat/sse%' AND state = 'active'")
+    )
+    if active_connections.scalar() >= 10:  # Limit to 10 concurrent connections
+        raise HTTPException(status_code=429, detail="Too many concurrent streaming connections. Please try again later.")
         body = await request.json()
         if not body:
             raise HTTPException(status_code=400, detail="Invalid or missing JSON body")
@@ -535,7 +540,6 @@ async def chat_sse(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-from services.streaming_helpers import process_stream_chunk
 
 async def generate_stream_chunks(
     message: str,
@@ -629,9 +633,9 @@ async def generate_stream_chunks(
                 break
             except Exception as e:
                 retry_count += 1
-                if isinstance(e, HttpResponseError) and e.status_code == 429:
-                    logger.warning(f"Rate limit exceeded (429). Retry {retry_count}/{max_retries}")
-                    yield f"data: {json.dumps({'error': {'code': 429, 'message': 'Rate limit exceeded. Please try again later.'}})}\n\n"
+                if isinstance(e, HttpResponseError) and e.status_code in [429, 500, 503]:
+                    logger.warning(f"Server error ({e.status_code}). Retry {retry_count}/{max_retries}")
+                    yield f"data: {json.dumps({'error': {'code': e.status_code, 'message': 'Temporary server error. Retrying...'}})}\n\n"
                     if retry_count <= max_retries:
                         import asyncio
                         await asyncio.sleep(retry_delay * 2)

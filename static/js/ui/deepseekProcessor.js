@@ -59,7 +59,7 @@ export function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, think
   if (openTagIndex === -1) {
     if (!result.isThinking) {
       // Not in thinking mode => append to main (user-visible) content
-      result.mainBuffer = processDeepSeekResponse(result.mainBuffer + chunkBuffer);
+      result.mainBuffer += chunkBuffer; // Avoid redundant processing here
     } else {
       // Currently in a <think> block => keep appending to thinking buffer
       result.thinkingBuffer += chunkBuffer;

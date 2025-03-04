@@ -198,9 +198,24 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
                     usage_data["reasoning_tokens"] = thinking_tokens
 
             else:
-                # If we got a ChatCompletionsClient but not for DeepSeek,
-                # you may need a different approach or raise an error
-                raise ValueError("ChatCompletionsClient is currently only set up for DeepSeek usage.")
+                # Handle other models with ChatCompletionsClient
+                response = client.complete(
+                    messages=params["messages"],
+                    temperature=params.get("temperature", 0.7),
+                    max_tokens=params.get("max_tokens", 1000)
+                )
+                # Extract content
+                if not response.choices:
+                    content = ""
+                else:
+                    content = response.choices[0].message.content or ""
+
+                # Usage
+                usage_data = {
+                    "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
+                    "completion_tokens": getattr(response.usage, "completion_tokens", 0),
+                    "total_tokens": getattr(response.usage, "total_tokens", 0),
+                }
         else:
             #
             #  2) The openai.AzureOpenAI client

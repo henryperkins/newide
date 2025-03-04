@@ -124,6 +124,10 @@ export function streamChatResponse(
     }
 
     const apiUrl = `${window.location.origin}/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
+    // Include developerConfig if available
+    if (typeof developerConfig === 'string' && developerConfig.trim()) {
+      params.append('developer_config', developerConfig.trim());
+    }
     const fullUrl = `${apiUrl}&${params.toString()}`;
     import { logInfo } from './debugging.js';
     logInfo(`Connecting to streaming endpoint with model: ${validModelName}`);
