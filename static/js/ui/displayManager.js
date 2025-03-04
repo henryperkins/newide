@@ -501,9 +501,9 @@ function storeChatMessage(role, content) {
 function showWelcomeMessageIfNeeded() {
   const sessionId = getSessionId();
   if (!sessionId) return;
-  // const storageKey = `conversation_${sessionId}`;
-  // const storedConversation = localStorage.getItem(storageKey);
-  // const hasConversation = storedConversation && JSON.parse(storedConversation).length > 0;
+  const storageKey = `conversation_${sessionId}`;
+  const storedConversation = localStorage.getItem(storageKey);
+  const hasConversation = storedConversation && JSON.parse(storedConversation).length > 0;
   const welcomeShown = sessionStorage.getItem('welcome_message_shown') === 'true';
   if (!hasConversation && !welcomeShown) {
     const chatHistory = document.getElementById('chat-history');

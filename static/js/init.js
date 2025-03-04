@@ -61,11 +61,9 @@ function initApplication() {
   }
 
   // 5. Initialize mobile or desktop features
-  if (window.matchMedia('(max-width: 768px)').matches) {
-    initMobileUI();
-  } else {
-    hideMobileSidebar();
-  }
+  // Always run initMobileUI even on desktop so that all interactive elements have listeners
+  initMobileUI();
+  // Optionally keep or remove hideMobileSidebar if you want the sidebar hidden by default on desktop
 
   // 6. Additional UI init
   initPerformanceStats();
@@ -773,7 +771,19 @@ function setupMobileFontControls() {
  * Stub if you need special sidebar behavior for mobile
  */
 function initMobileSidebar() {
-  // Add extra logic if needed
+  const toggleButton = document.getElementById('sidebar-toggle');
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (!toggleButton || !sidebar) return;
+
+  toggleButton.addEventListener('click', () => {
+    const isOpen = !sidebar.classList.contains('translate-x-full');
+    // If open, close. If closed, open.
+    sidebar.classList.toggle('translate-x-full', !isOpen);
+    sidebar.classList.toggle('translate-x-0', isOpen);
+    if (overlay) overlay.classList.toggle('hidden', !isOpen);
+    toggleButton.setAttribute('aria-expanded', String(isOpen));
+  });
 }
 
 /* ------------------------------------------------------------------

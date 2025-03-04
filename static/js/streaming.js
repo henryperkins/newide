@@ -1,20 +1,13 @@
-/**
- * streaming.js
- *
- * Fixed version: chain-of-thought text now displays because we attach the
- * "thinking-toggle" class to .thinking-header, ensuring that initializeThinkingToggle
- * can find the toggle button and reveal the .thinking-content.
- */
+// streaming.js
+// Remove references to ensureThinkingContainer/finalizeThinkingContainer from streaming_utils
+// and use deepSeekProcessor.renderThinkingContainer instead.
 
 import { getSessionId } from './session.js';
 import { updateTokenUsage, fetchWithRetry, retry, eventBus } from './utils/helpers.js';
 import { showNotification, handleMessageError, removeTypingIndicator } from './ui/notificationManager.js';
 import { deepSeekProcessor } from './ui/deepseekProcessor.js';
 import {
-  processDataChunk,
   ensureMessageContainer,
-  ensureThinkingContainer,
-  finalizeThinkingContainer,
   shouldRenderNow,
   showStreamingProgressIndicator,
   removeStreamingProgressIndicator,
@@ -48,11 +41,11 @@ const CONNECTION_CHECK_INTERVAL_MS = 15000; // 15 seconds
 function calculateConnectionTimeout(modelName, messageLength) {
   let timeout = BASE_CONNECTION_TIMEOUT_MS;
   const normalizedModelName = modelName ? modelName.toLowerCase() : '';
-  if (normalizedModelName.includes('o1') || normalizedModelName.includes('o3')) {
+  if (normalizedModelName.indexOf('o1') !== -1 || normalizedModelName.indexOf('o3') !== -1) {
     timeout *= 3.5;
-  } else if (normalizedModelName.includes('claude')) {
+  } else if (normalizedModelName.indexOf('claude') !== -1) {
     timeout *= 2.5;
-  } else if (normalizedModelName.includes('deepseek')) {
+  } else if (normalizedModelName.indexOf('deepseek') !== -1) {
     timeout *= 2.0;
   }
   if (messageLength > 1000) {
@@ -113,35 +106,34 @@ export function streamChatResponse(
       return;
     }
 
-    // Build query parameters without the reasoning_effort parameter
+    // Build query parameters
     const params = new URLSearchParams();
     params.append('model', validModelName);
     params.append('message', messageContent || '');
 
     // For DeepSeek-R1, enable thinking mode.
-    if (validModelName.includes('deepseek')) {
+    if (validModelName.indexOf('deepseek') !== -1) {
       params.append('enable_thinking', 'true');
       console.log('DeepSeek model detected, enabling thinking mode');
     } else {
       console.warn('DeepSeek thinking mode not enabled for model:', validModelName);
     }
 
-    const apiUrl = `${window.location.origin}/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
-    // Include developerConfig if available
+    const apiUrl = window.location.origin + '/api/chat/sse?session_id=' + encodeURIComponent(sessionId);
     if (typeof developerConfig === 'string' && developerConfig.trim()) {
       params.append('developer_config', developerConfig.trim());
     }
-    const fullUrl = `${apiUrl}&${params.toString()}`;
+    const fullUrl = apiUrl + '&' + params.toString();
 
-    // Create EventSource for SSE
+    // Create EventSource
     const eventSource = new EventSource(fullUrl);
     const connectionTimeoutMs = calculateConnectionTimeout(validModelName, messageContent.length);
-    console.log(`Setting connection timeout to ${connectionTimeoutMs}ms for ${validModelName}`);
+    console.log('Setting connection timeout to ' + connectionTimeoutMs + 'ms for ' + validModelName);
 
     // Set initial connection timeout
     connectionTimeoutId = setTimeout(() => {
       if (eventSource.readyState !== EventSource.CLOSED) {
-        console.warn(`Connection timed out after ${connectionTimeoutMs}ms`);
+        console.warn('Connection timed out after ' + connectionTimeoutMs + 'ms');
         eventSource.close();
         handleStreamingError(new Error('Connection timeout'));
       }
@@ -154,7 +146,7 @@ export function streamChatResponse(
       }
     }, CONNECTION_CHECK_INTERVAL_MS);
 
-    // Handle abort signal
+    // Abort signal
     if (signal && typeof signal.addEventListener === 'function') {
       signal.addEventListener('abort', () => {
         clearTimeout(connectionTimeoutId);
@@ -163,7 +155,6 @@ export function streamChatResponse(
       }, { once: true });
     }
 
-    // Register a single ping event listener
     eventSource.addEventListener('ping', () => {
       console.debug('[SSE Ping] keep-alive event received');
     });
@@ -172,7 +163,7 @@ export function streamChatResponse(
       clearTimeout(connectionTimeoutId);
       connectionTimeoutId = setTimeout(() => {
         if (eventSource.readyState !== EventSource.CLOSED) {
-          console.warn("Stream stalled after " + (connectionTimeoutMs * 1.5) + "ms");
+          console.warn('Stream stalled after ' + (connectionTimeoutMs * 1.5) + 'ms');
           eventSource.close();
           handleStreamingError(new Error('Stream stalled'));
         }
@@ -181,21 +172,23 @@ export function streamChatResponse(
     };
 
     eventSource.onmessage = (e) => {
-          try {
-            console.log("Received SSE chunk from server");
-            // Reset stall timer on receiving a new chunk
-            clearTimeout(connectionTimeoutId);
-            connectionTimeoutId = setTimeout(() => {
-              if (eventSource.readyState !== EventSource.CLOSED) {
-                console.warn(\`Stream stalled after \${connectionTimeoutMs * 1.5}ms\`);
-                eventSource.close();
-                handleStreamingError(new Error('Stream stalled'));
-              }
-            }, connectionTimeoutMs * 1.5);
-    
-            const data = JSON.parse(e.data);
-        if (data.choices && data.choices[0]?.delta?.content?.includes('<think>')) {
-          console.log('Thinking block detected in streaming chunk:', data.choices[0].delta.content);
+      try {
+        console.log('Received SSE chunk from server');
+        clearTimeout(connectionTimeoutId);
+        connectionTimeoutId = setTimeout(() => {
+          if (eventSource.readyState !== EventSource.CLOSED) {
+            console.warn('Stream stalled after ' + (connectionTimeoutMs * 1.5) + 'ms');
+            eventSource.close();
+            handleStreamingError(new Error('Stream stalled'));
+          }
+        }, connectionTimeoutMs * 1.5);
+
+        const data = JSON.parse(e.data);
+        // Avoid optional chaining
+        if (data.choices && data.choices[0] && data.choices[0].delta && data.choices[0].delta.content) {
+          if (data.choices[0].delta.content.indexOf('<think>') !== -1) {
+            console.log('Thinking block detected in streaming chunk:', data.choices[0].delta.content);
+          }
         }
         processDataChunkWrapper(data);
         scheduleRender();
@@ -208,29 +201,40 @@ export function streamChatResponse(
     };
 
     eventSource.onerror = (e) => {
-      if (signal?.aborted) return;
+      if (signal && signal.aborted) return;
       clearTimeout(connectionTimeoutId);
       clearInterval(connectionCheckIntervalId);
       eventSource.close();
       let errorMsg = 'Connection failed (EventSource closed)';
       if (e && e.status) {
-        errorMsg = `Connection failed with status: ${e.status}`;
+        errorMsg = 'Connection failed with status: ' + e.status;
       }
       handleStreamingError(new Error(errorMsg));
       if (navigator.onLine) {
-        showNotification('Connection failed. Would you like to retry?', 'error', 0, [{
-          label: 'Retry',
-          onClick: () => attemptErrorRecovery(messageContent, new Error(errorMsg))
-        }]);
+        showNotification(
+          'Connection failed. Would you like to retry?',
+          'error',
+          0,
+          [
+            {
+              label: 'Retry',
+              onClick: () => attemptErrorRecovery(messageContent, new Error(errorMsg))
+            }
+          ]
+        );
       } else {
-        window.addEventListener('online', () => {
-          showNotification('Connection restored. Retrying...', 'info');
-          attemptErrorRecovery(messageContent, new Error(errorMsg));
-        }, { once: true });
+        window.addEventListener(
+          'online',
+          () => {
+            showNotification('Connection restored. Retrying...', 'info');
+            attemptErrorRecovery(messageContent, new Error(errorMsg));
+          },
+          { once: true }
+        );
       }
     };
 
-    // Listen for the server's "complete" event
+    // "complete" event
     eventSource.addEventListener('complete', async (e) => {
       try {
         clearTimeout(connectionTimeoutId);
@@ -238,9 +242,11 @@ export function streamChatResponse(
         if (e.data) {
           const completionData = JSON.parse(e.data);
           if (completionData.usage) {
-            console.log("Received token usage data:", completionData.usage);
+            console.log('Received token usage data:', completionData.usage);
             updateTokenUsage(completionData.usage);
-            if (!window.tokenUsageHistory) window.tokenUsageHistory = {};
+            if (!window.tokenUsageHistory) {
+              window.tokenUsageHistory = {};
+            }
             window.tokenUsageHistory[validModelName] = completionData.usage;
           }
           eventBus.publish('streamingCompleted', {
@@ -274,7 +280,7 @@ function handleStreamingError(error) {
     removeTypingIndicator();
     removeStreamingProgressIndicator();
     eventBus.publish('streamingError', {
-      error,
+      error: error,
       recoverable: error.recoverable || false
     });
   }
@@ -319,8 +325,10 @@ async function attemptErrorRecovery(messageContent, error) {
 
   // Only do exponential backoff if it's a known connection-type error
   if (
-    error.recoverable ||
-    ['ConnectionError', 'NetworkError', 'TimeoutError'].includes(error.name)
+    error.recoverable === true ||
+    error.name === 'ConnectionError' ||
+    error.name === 'NetworkError' ||
+    error.name === 'TimeoutError'
   ) {
     showNotification('Retrying connection...', 'info', 3000);
     await new Promise(r => setTimeout(r, 2000));
@@ -360,25 +368,21 @@ async function attemptErrorRecovery(messageContent, error) {
  * Wrapper around processDataChunk to update local streaming state.
  */
 function processDataChunkWrapper(data) {
-  const result = processDataChunk(
+  const result = deepSeekProcessor.processChunkAndUpdateBuffers(
     data,
     chunkBuffer,
     mainTextBuffer,
     thinkingTextBuffer,
-    isThinking,
-    deepSeekProcessor
+    isThinking
   );
   mainTextBuffer = result.mainTextBuffer;
   thinkingTextBuffer = result.thinkingTextBuffer;
   chunkBuffer = result.chunkBuffer;
   isThinking = result.isThinking;
+
   if (isThinking && thinkingTextBuffer) {
     const container = ensureMessageContainer();
-    thinkingContainer = ensureThinkingContainer(
-      container,
-      thinkingTextBuffer,
-      deepSeekProcessor
-    );
+    thinkingContainer = deepSeekProcessor.renderThinkingContainer(container, thinkingTextBuffer);
   }
 }
 
@@ -387,7 +391,9 @@ function processDataChunkWrapper(data) {
  */
 function scheduleRender() {
   if (shouldRenderNow(lastRenderTimestamp, RENDER_INTERVAL_MS)) {
-    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+    }
     animationFrameId = requestAnimationFrame(() => {
       renderBufferedContent();
       showStreamingProgressIndicator(messageContainer);
@@ -414,17 +420,19 @@ function forceRender() {
  */
 function renderBufferedContent() {
   try {
-    // Ensure containers exist
     messageContainer = ensureMessageContainer();
-    thinkingContainer = ensureThinkingContainer(messageContainer, thinkingTextBuffer, deepSeekProcessor);
 
-    // Process and separate buffers
-    const { mainContent, thinkingContent } = deepSeekProcessor.separateContentBuffers(
-      mainTextBuffer,
+    // Instead of ensureThinkingContainer, we rely on deepSeekProcessor.renderThinkingContainer
+    thinkingContainer = deepSeekProcessor.renderThinkingContainer(
+      messageContainer,
       thinkingTextBuffer
     );
 
-    // Update main content with optimized incremental rendering
+    const separated = deepSeekProcessor.separateContentBuffers(mainTextBuffer, thinkingTextBuffer);
+    const mainContent = separated.mainContent;
+    const thinkingContent = separated.thinkingContent;
+
+    // Update main content
     if (mainContent) {
       const processedMain = deepSeekProcessor.processDeepSeekResponse(mainContent);
       renderContentEfficiently(messageContainer, processedMain, {
@@ -433,11 +441,9 @@ function renderBufferedContent() {
       });
     }
 
-    // Update thinking container with optimized rendering
+    // Update chain-of-thought
     if (thinkingContent) {
       renderThinkingContainer(thinkingContainer, thinkingContent, deepSeekProcessor);
-
-      // Scroll thinking container if needed
       if (!errorState && thinkingContainer) {
         thinkingContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
       }
@@ -469,7 +475,7 @@ async function cleanupStreaming(modelName) {
         console.error('No valid session ID found — cannot store message.');
       } else {
         await fetchWithRetry(
-          `${window.location.origin}/api/chat/conversations/store`,
+          window.location.origin + '/api/chat/conversations/store',
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -490,14 +496,16 @@ async function cleanupStreaming(modelName) {
 
 /**
  * Determines the reasoning effort setting from a UI slider.
- * (Note: This function is kept for backward compatibility but its value is no longer sent to the API.)
+ * (Note: This is kept for backward compatibility but is no longer sent to the API.)
  * @returns {string} 'low', 'medium', or 'high'
  */
 function getReasoningEffortSetting() {
   const slider = document.getElementById('reasoning-effort-slider');
   if (slider) {
     const value = parseInt(slider.value, 10);
-    return value === 1 ? 'low' : value === 3 ? 'high' : 'medium';
+    if (value === 1) return 'low';
+    if (value === 3) return 'high';
+    return 'medium';
   }
   return 'medium';
 }

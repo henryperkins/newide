@@ -1,24 +1,15 @@
-/**
+/*
  * streaming_utils.js
- * 
+ *
  * A helper module that provides reusable functions for:
- *  - Chunk processing of incoming SSE data
- *  - Managing “thinking” UI blocks
- *  - Rendering content with throttling
- *  - Basic error handling and displaying UI error indicators
+ *  - Basic SSE streaming utilities (now mostly delegated to deepseekProcessor for chain-of-thought)
+ *  - Ensuring a message container
+ *  - Rendering throttling
+ *  - Error handling and UI indicators
  */
 
 /**
- * Processes an incoming data chunk from the server, updating the main text buffer,
- * thinking text buffer, and the leftover chunk buffer while managing the "thinking" mode.
- * 
- * @param {Object} data - Parsed JSON chunk from SSE (e.g., { choices: [...] }).
- * @param {string} chunkBuffer - Accumulated leftover text not yet assigned.
- * @param {string} mainTextBuffer - Main text buffer for displayed output.
- * @param {string} thinkingTextBuffer - Text buffer for "thinking" content.
- * @param {boolean} isThinking - Flag indicating if we are in "thinking" mode.
- * @param {Object} deepSeekProcessor - Object with methods for parsing deep-seek logic.
- * @returns {Object} An object with updated { mainTextBuffer, thinkingTextBuffer, chunkBuffer, isThinking }.
+ * Deprecated. Please call deepSeekProcessor.processChunkAndUpdateBuffers directly.
  */
 export function processDataChunk(
   data,
@@ -28,49 +19,21 @@ export function processDataChunk(
   isThinking,
   deepSeekProcessor
 ) {
-  if (!data.choices || data.choices.length === 0) {
-    return { mainTextBuffer, thinkingTextBuffer, chunkBuffer, isThinking };
-  }
+  console.warn('[Deprecated] processDataChunk is replaced by deepSeekProcessor.processChunkAndUpdateBuffers.');
 
-  data.choices.forEach(choice => {
-    // Process token content if available
-    if (choice.delta && choice.delta.content) {
-      const text = choice.delta.content;
-      chunkBuffer += text;
-
-      const result = deepSeekProcessor.processStreamingChunk(
-        chunkBuffer,
-        isThinking,
-        mainTextBuffer,
-        thinkingTextBuffer
-      );
-      mainTextBuffer = result.mainBuffer;
-      thinkingTextBuffer = result.thinkingBuffer;
-      isThinking = result.isThinking;
-      chunkBuffer = result.remainingChunk;
-
-      // Re-check for leftover data: if any remains, process it recursively with an empty content chunk.
-      // Removed recursive call to processDataChunk for remainingChunk
-    }
-
-    // If the server signals finishing (via finish_reason), finalize the content.
-    if (choice.finish_reason) {
-      if (chunkBuffer) {
-        mainTextBuffer += chunkBuffer;
-        chunkBuffer = '';
-      }
-      // Turn off "thinking" mode
-      isThinking = false;
-    }
-  });
-
-  return { mainTextBuffer, thinkingTextBuffer, chunkBuffer, isThinking };
+  return deepSeekProcessor.processChunkAndUpdateBuffers(
+    data,
+    chunkBuffer,
+    mainTextBuffer,
+    thinkingTextBuffer,
+    isThinking
+  );
 }
 
 /**
  * Ensures that a main message container exists in the DOM.
  * If not found, creates one inside the element with the ID "chat-history".
- * 
+ *
  * @returns {HTMLElement|null} The message container element or null if not found.
  */
 export function ensureMessageContainer() {
@@ -86,57 +49,6 @@ export function ensureMessageContainer() {
     chatHistory.appendChild(messageContainer);
   }
   return messageContainer;
-}
-
-/**
- * Creates or updates a "thinking" container within the parent container.
- * The container is used to display chain-of-thought details.
- *
- * @param {HTMLElement} parentContainer - The parent message container.
- * @param {string} thinkingText - The text to display in the thinking block.
- * @param {Object} deepSeekProcessor - Provides a method to generate HTML for the thinking block.
- * @returns {HTMLElement|null} The thinking container element or null if not found.
- */
-export function ensureThinkingContainer(parentContainer, thinkingText, deepSeekProcessor) {
-  if (!parentContainer) return null;
-
-  let thinkingContainer = parentContainer.querySelector('.thinking-pre');
-  if (!thinkingContainer) {
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = deepSeekProcessor.createThinkingBlockHTML(thinkingText);
-    parentContainer.appendChild(wrapper.firstElementChild);
-
-    thinkingContainer = parentContainer.querySelector('.thinking-pre');
-
-    // Let deepseekProcessor.initializeExistingBlocks handle toggles.
-  }
-
-  if (thinkingContainer && thinkingText) {
-    thinkingContainer.textContent = thinkingText;
-  }
-
-  return thinkingContainer;
-}
-
-/**
- * Finalizes the "thinking" container by updating its text content.
- * Also removes any gradient overlay if the text fits the container.
- *
- * @param {HTMLElement} parentContainer - The parent assistant-message container.
- * @param {string} thinkingTextBuffer - Final "thinking" text to be rendered.
- */
-export function finalizeThinkingContainer(parentContainer, thinkingTextBuffer) {
-  if (!parentContainer) return;
-  const thinkingContainer = parentContainer.querySelector('.thinking-pre');
-  if (!thinkingContainer) return;
-
-  thinkingContainer.textContent = thinkingTextBuffer;
-
-  // Remove gradient overlay if content is short
-  const gradientOverlay = parentContainer.querySelector('.thinking-content > div:last-child');
-  if (thinkingContainer.scrollHeight <= thinkingContainer.clientHeight && gradientOverlay) {
-    gradientOverlay.remove();
-  }
 }
 
 /**
