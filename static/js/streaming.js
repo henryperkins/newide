@@ -1,7 +1,7 @@
 import { getSessionId } from './session.js';
 import { updateTokenUsage, fetchWithRetry, retry, eventBus } from './utils/helpers.js';
 import { showNotification, handleMessageError, removeTypingIndicator } from './ui/notificationManager.js';
-import { processDeepSeekResponse, deepSeekProcessor } from './ui/deepseekProcessor.js';
+import { deepSeekProcessor } from './ui/deepseekProcessor.js';
 import {
   processDataChunk,
   ensureMessageContainer,

@@ -499,9 +499,7 @@ export function renderAssistantMessage(content, isThinking = false) {
   el.setAttribute('role', 'log');
   el.setAttribute('aria-live', 'polite');
   
-  if (content.includes('<think>')) {
-    content = deepSeekProcessor.replaceThinkingBlocks(content);
-  }
+  content = deepSeekProcessor.replaceThinkingBlocks(content);
   
   const markdown = renderMarkdown(content);
   const processedContent = processCodeBlocks(markdown);
