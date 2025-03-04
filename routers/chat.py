@@ -621,9 +621,7 @@ async def generate_stream_chunks(
                     if hasattr(partial, "choices") and partial.choices:
                         choice = partial.choices[0]
                         # For DeepSeek partial, use choice.message.content
-                        if hasattr(choice.message, "content") and choice.message.content is not None:
-                            content = choice.message.content
-                        elif hasattr(choice.delta, "content") and choice.delta.content is not None:
+                        if hasattr(choice.delta, "content") and choice.delta.content is not None:
                             content = choice.delta.content
                             full_content += content
                             yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
@@ -687,19 +685,15 @@ async def generate_stream_chunks(
                 for idx, choice in enumerate(chunk.choices):
                     partial = {
                         "index": idx,
-                        "delta": {},
+                        "delta": {
+                            "content": choice.delta.content or "",
+                            "role": getattr(choice.delta, "role", None),
+                            "tool_calls": getattr(choice.delta, "tool_calls", None),
+                            "content_filter_results": getattr(chunk, "content_filter_results", None)
+                        },
                         "finish_reason": choice.finish_reason
                     }
-                    if hasattr(choice.delta, "content"):
-                        content_part = choice.delta.content or ""
-                        full_content += content_part
-                        partial["delta"]["content"] = content_part
-                    if hasattr(choice.delta, "role"):
-                        partial["delta"]["role"] = choice.delta.role
-                    if hasattr(choice.delta, "tool_calls"):
-                        partial["delta"]["tool_calls"] = choice.delta.tool_calls
-                    if hasattr(chunk, "content_filter_results"):
-                        partial["delta"]["content_filter_results"] = chunk.content_filter_results
+                    full_content += partial["delta"]["content"]
                     chunk_choices.append(partial)
                 response_data["choices"] = chunk_choices
                 yield f"data: {json.dumps(response_data)}\n\n"
