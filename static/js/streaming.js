@@ -1,3 +1,11 @@
+/**
+ * streaming.js
+ *
+ * Fixed version: chain-of-thought text now displays because we attach the
+ * "thinking-toggle" class to .thinking-header, ensuring that initializeThinkingToggle
+ * can find the toggle button and reveal the .thinking-content.
+ */
+
 import { getSessionId } from './session.js';
 import { updateTokenUsage, fetchWithRetry, retry, eventBus } from './utils/helpers.js';
 import { showNotification, handleMessageError, removeTypingIndicator } from './ui/notificationManager.js';
@@ -409,10 +417,10 @@ function renderBufferedContent() {
       if (!messageContainer.__previousHtml) {
         messageContainer.__previousHtml = "";
       }
-      
+
       const processedMain = deepSeekProcessor.processDeepSeekResponse(mainContent);
       const oldMain = messageContainer.__previousHtml;
-      
+
       // Append only new content to reduce flicker
       if (processedMain.startsWith(oldMain)) {
         const remainder = processedMain.slice(oldMain.length);
@@ -426,10 +434,15 @@ function renderBufferedContent() {
     }
 
     // Update thinking container with proper toggle support
+    //
+    // FIX: We attach class="thinking-toggle" here so initializeThinkingToggle
+    //      can properly find the click target. We also add aria-expanded="false" 
+    //      by default.
+    //
     if (thinkingContent) {
       const thinkingHTML = `
         <div class="thinking-container collapsible collapsed">
-          <div class="thinking-header">
+          <div class="thinking-header thinking-toggle" aria-expanded="false">
             <span class="toggle-icon">▶</span>
             Chain of Thought
           </div>
@@ -438,7 +451,7 @@ function renderBufferedContent() {
           </div>
         </div>
       `;
-      
+
       // Only replace thinking container if new content exists
       if (thinkingContainer.innerHTML !== thinkingHTML) {
         thinkingContainer.innerHTML = thinkingHTML;
