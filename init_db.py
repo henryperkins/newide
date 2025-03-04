@@ -218,6 +218,11 @@ async def init_database():
                 ADD COLUMN IF NOT EXISTS active_tokens INTEGER
             """))
 
+            await conn.execute(text("""
+                ALTER TABLE model_usage_stats
+                ADD COLUMN IF NOT EXISTS reasoning_tokens INTEGER
+            """))
+
             # Add missing columns
             await conn.execute(text("""
                 ALTER TABLE model_usage_stats
