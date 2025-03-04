@@ -311,13 +311,13 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
 
     # Store conversation in DB
     await save_conversation(
-        db_session=db_session,  # Ensure db_session is passed correctly
-        session_id,
-        model_name,
-        chat_message.message,
-        full_content,
-        formatted_content,
-        response,
+        db_session,  # Ensure db_session is passed correctly
+        session_id=session_id,
+        model_name=model_name,
+        user_text=chat_message.message,
+        assistant_text=full_content,
+        formatted_assistant_text=formatted_content,
+        raw_response=response,
     )
 
     # Build final return
