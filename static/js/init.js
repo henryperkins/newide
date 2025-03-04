@@ -3,10 +3,9 @@ import { deepSeekProcessor } from './ui/deepseekProcessor.js';
 import { initThemeSwitcher } from './ui/themeSwitcher.js';
 import { initTabSystem } from './ui/tabManager.js';
 import { configureMarkdown } from './ui/markdownParser.js';
-import { loadConversationFromLocalStorage, loadOlderMessages } from './ui/displayManager.js';
+import { loadConversationFromDb, loadOlderMessages } from './ui/displayManager.js';
 import StatsDisplay from './ui/statsDisplay.js';
 import fileManager from './fileManager.js';
-import './update_deepseek.js'; // Import DeepSeek-R1 configuration updater
 
 // Configure DOMPurify
 DOMPurify.setConfig({
@@ -83,7 +82,7 @@ function initApplication() {
   initModelSelector();
 
   // 7. Load conversation from local storage, show welcome message if needed
-  loadConversationFromLocalStorage();
+  loadConversationFromDb();
   maybeShowWelcomeMessage();
 
   console.log('Application initialization complete');
@@ -246,62 +245,45 @@ function initUserInput() {
   // Save conversation
   if (saveConvoBtn) {
     saveConvoBtn.addEventListener('click', () => {
-      const conversation = localStorage.getItem('conversation');
-      if (!conversation) {
-        alert('No conversation to save!');
-        return;
-      }
-      const timestamp = new Date().toLocaleString().replace(/[\/\s:,]/g, '_');
-      const key = `conversation_${timestamp}`;
-      localStorage.setItem(key, conversation);
-      alert('Conversation saved!');
-      refreshConversationList();
+      // Use the DB-based saveConversation from displayManager
+      import('./ui/displayManager.js')
+        .then(module => {
+          const { saveConversation } = module;
+          saveConversation();
+        })
+        .catch(err => console.error('Failed to load displayManager:', err));
     });
   }
 
   // Clear conversation
   if (clearConvoBtn) {
     clearConvoBtn.addEventListener('click', () => {
-      if (
-        confirm('Are you sure you want to clear the current conversation?')
-      ) {
-        localStorage.removeItem('conversation');
-        const chatHistory = document.getElementById('chat-history');
-        if (chatHistory) {
-          chatHistory.innerHTML = '';
-        }
-        refreshConversationList();
-      }
+      // Call the DB-based clearConversation from displayManager
+      import('./ui/displayManager.js')
+        .then(module => {
+          const { clearConversation } = module;
+          clearConversation();
+        })
+        .catch(err => console.error('Failed to load displayManager:', err));
     });
   }
 
-  // Conversation list
+  // The local "conversation list" is not needed for DB-based approach.
+  // Hide or remove the conversation dropdown logic.
   if (convoList) {
-    convoList.addEventListener('change', e => {
-      const key = e.target.value;
-      if (!key) return;
-      const savedConvo = localStorage.getItem(key);
-      if (!savedConvo) {
-        alert('Selected conversation not found.');
-        return;
-      }
-      if (
-        confirm(
-          'Load this conversation? This will replace your current conversation.'
-        )
-      ) {
-        localStorage.setItem('conversation', savedConvo);
-        location.reload();
-      } else {
-        convoList.selectedIndex = 0;
-      }
-    });
+    convoList.classList.add('hidden');
   }
 
   // Load older messages
   if (loadOlderBtn) {
     loadOlderBtn.addEventListener('click', () => {
-      loadOlderMessages();
+      // Use the DB-based loadOlderMessages
+      import('./ui/displayManager.js')
+        .then(module => {
+          const { loadOlderMessages } = module;
+          loadOlderMessages();
+        })
+        .catch(err => console.error('Failed to load displayManager:', err));
     });
   }
 
@@ -433,18 +415,55 @@ function initConversationControls() {
     clearConvoBtn.id = 'clear-convo-btn';
     clearConvoBtn.className = 'btn btn-danger text-sm flex items-center gap-1';
     clearConvoBtn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-           viewBox="0 0 24 24" fill="none" stroke="currentColor" 
-           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="3 6 5 6 21 6"></polyline>
-        <path d="M19 6v14a2 2 0 0 1-2 2H7
-                 a2 2 0 0 1-2-2V6m3 0V4
-                 a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2
-                 v2"></path>
-      </svg>
-      Clear Conversation
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+             viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7
+                   a2 2 0 0 1-2-2V6m3 0V4
+                   a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2
+                   v2"></path>
+        </svg>
+        Clear Conversation
     `;
     conversationControls.appendChild(clearConvoBtn);
+
+    // Add "New Conversation" button
+    const newConvoBtn = document.createElement('button');
+    newConvoBtn.id = 'new-convo-btn';
+    newConvoBtn.className = 'btn btn-primary text-sm flex items-center gap-1';
+    newConvoBtn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+           viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+         <line x1="12" y1="5" x2="12" y2="19"></line>
+         <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+      New Conversation
+    `;
+    newConvoBtn.addEventListener('click', async () => {
+      try {
+        const mod = await import('./ui/displayManager.js');
+        const sessionId = await mod.getSessionId?.();
+        if (sessionId) {
+          // Attempt to fetch a single message to confirm a valid conversation
+          const res = await fetch(`/api/chat/conversations/history?session_id=${sessionId}&offset=0&limit=1`);
+          if (res.ok) {
+            await mod.saveConversation?.(true);
+          } else {
+            console.warn('No valid existing conversation found; skipping save');
+          }
+        }
+        if (typeof mod.createNewConversation === 'function') {
+          mod.createNewConversation();
+        } else {
+          console.warn('createNewConversation not found in displayManager.js');
+        }
+      } catch (err) {
+        console.error('Failed to handle new conversation:', err);
+      }
+    });
+    conversationControls.appendChild(newConvoBtn);
 
     // Add conversation dropdown selector
     const convoSelectContainer = document.createElement('div');
@@ -766,7 +785,7 @@ function setupMobileStatsToggle() {
   mobileStatsToggle.addEventListener('click', e => {
     e.stopPropagation();
     const hidden = mobileStatsPanel.classList.contains('hidden');
-    mobileStatsPanel.classList.toggle('hidden', !hidden);
+    mobileStatsPanel.classList.toggle('hidden');
     mobileStatsPanel.setAttribute('aria-hidden', String(!hidden));
     mobileStatsToggle.setAttribute('aria-expanded', String(hidden));
 

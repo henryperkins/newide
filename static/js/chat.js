@@ -547,16 +547,8 @@ async function storeChatMessage(role, content) {
       console.warn('Failed to store message in backend:', err);
     }
     
-    // Also store in localStorage as backup
-    try {
-      const key = `conversation_${currentSessionId}`;
-      let convo = JSON.parse(localStorage.getItem(key) || '[]');
-      convo.push({ role, content, timestamp: new Date().toISOString() });
-      if (convo.length > 50) convo = convo.slice(-50);
-      localStorage.setItem(key, JSON.stringify(convo));
-    } catch (e) {
-      console.warn('Failed to store message locally:', e);
-    }
+    // Removed localStorage backup to rely solely on DB-based storage
+    // If offline backup is ever needed, reintroduce selectively.
   } catch (error) {
     console.error('Error in storeChatMessage:', error);
   }

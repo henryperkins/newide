@@ -249,38 +249,31 @@ export function createThinkingBlockHTML(thinkingContent) {
 }
 
 /**
- * Replaces all <think>...</think> blocks in content with a togglable chain-of-thought UI.
- * Automatically sanitizes the chain-of-thought text inside each block.
+ * Replaces all <think>...</think> blocks in content.
+ * By default, we'd insert them in-place. But to avoid them appearing at the top
+ * before the rest of the content, remove them from the original string, then
+ * append the chain-of-thought blocks after the main content.
  *
  * @param {string} content
  * @returns {string}
  */
 export function replaceThinkingBlocks(content) {
   if (!content) return '';
-
-  // We do a safe extraction of <think> blocks. Overlapping tags are not truly valid,
-  // but we try to be defensive in case of partial or spurious tags.
+  // Extract text from each <think> block
   const blocks = extractThinkingContent(content);
   if (!blocks.length) return content;
 
-  let output = content;
+  // Remove all <think> blocks from the main content
+  let mainOutput = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+
+  // Convert each block to togglable HTML, appended after the main content
+  let appended = '';
   for (const blockText of blocks) {
-    const rawBlock = `<think>${blockText}</think>`;
-    const idx = output.indexOf(rawBlock);
-    if (idx !== -1) {
-      const before = output.substring(0, idx);
-      const after = output.substring(idx + rawBlock.length);
-
-      // Convert this block to togglable HTML
-      const replacedHTML = createThinkingBlockHTML(blockText);
-
-      output = before + replacedHTML + after;
-    }
+    appended += createThinkingBlockHTML(blockText);
   }
 
-  // Remove leftover <think> tags if any remain (e.g. malformed or nested)
-  output = output.replace(/<think>[\s\S]*?<\/think>/g, '');
-  return output;
+  // Combine main content + appended chain-of-thought blocks
+  return mainOutput + appended;
 }
 
 /* -------------------------------------------------------------------------
@@ -288,11 +281,11 @@ export function replaceThinkingBlocks(content) {
  * ------------------------------------------------------------------------- */
 
 /**
- * Scan the DOM for existing .thinking-process containers that might
+ * Scan the DOM for existing .thinking-block containers that might
  * have been inserted (e.g. from historical content), attach toggling behavior,
  * and handle a brief "new" highlight effect.
  */
-function initializeExistingBlocks() {
+export function initializeExistingBlocks() {
   document.querySelectorAll('.thinking-block').forEach(container => {
     const toggleBtn = container.querySelector('.thinking-toggle');
     const content = container.querySelector('.thinking-content');
@@ -301,7 +294,7 @@ function initializeExistingBlocks() {
     if (toggleBtn && content) {
       // Set initial state based on data-collapsed attribute
       const isCollapsed = container.getAttribute('data-collapsed') === 'true';
-      
+
       if (isCollapsed) {
         toggleBtn.setAttribute('aria-expanded', 'false');
         content.style.display = 'none';
@@ -311,44 +304,23 @@ function initializeExistingBlocks() {
         content.style.display = 'block';
         if (toggleIcon) toggleIcon.textContent = '▼';
       }
-      
-      // Create proper animation using Web Animation API
-      const handleToggle = () => {
-        const isExpanded = toggleBtn.getAttribute('aria-expanded') === 'true';
-        const newExpanded = !isExpanded;
 
-        // Update ARIA attributes immediately
-        toggleBtn.setAttribute('aria-expanded', newExpanded);
-        
-        // Create slide animation
-        const startHeight = newExpanded ? 0 : content.scrollHeight;
-        const endHeight = newExpanded ? content.scrollHeight : 0;
-        
-        const animation = content.animate(
-          [
-            { height: `${startHeight}px`, opacity: newExpanded ? 0 : 1 },
-            { height: `${endHeight}px`, opacity: newExpanded ? 1 : 0 }
-          ],
-          { duration: 300, easing: 'ease-out', fill: 'forwards' }
-        );
-        
-        // Update classes and icon once animation completes
-        animation.onfinish = () => {
-          content.style.height = newExpanded ? 'auto' : '0';
-          content.style.display = newExpanded ? 'block' : 'none';
-          container.setAttribute('data-collapsed', !newExpanded);
-          
-          if (toggleIcon) {
-            toggleIcon.textContent = newExpanded ? '▼' : '▶';
-          }
-        };
+      // We removed the Web Animation API usage to prevent flickering and scrolling
+      const handleToggle = () => {
+        const expanded = toggleBtn.getAttribute('aria-expanded') === 'true';
+        toggleBtn.setAttribute('aria-expanded', !expanded);
+        container.setAttribute('data-collapsed', expanded ? 'true' : 'false');
+        content.style.display = expanded ? 'none' : 'block';
+        if (toggleIcon) {
+          toggleIcon.textContent = expanded ? '▶' : '▼';
+        }
       };
 
       // Click handler
       toggleBtn.addEventListener('click', handleToggle);
-        
+
       // Keyboard accessibility
-      toggleBtn.addEventListener('keydown', (e) => {
+      toggleBtn.addEventListener('keydown', e => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           handleToggle();
@@ -356,7 +328,7 @@ function initializeExistingBlocks() {
       });
     }
   });
-  
+
   // Also handle legacy thinking-process blocks for backward compatibility
   document.querySelectorAll('.thinking-process').forEach(thinkingProcess => {
     const toggleBtn = thinkingProcess.querySelector('.thinking-toggle');
@@ -364,15 +336,10 @@ function initializeExistingBlocks() {
     const toggleIcon = thinkingProcess.querySelector('.toggle-icon');
 
     // Ensure data-collapsed is set
-    if (!block.hasAttribute('data-collapsed')) {
-      block.setAttribute('data-collapsed', 'false');
+    if (!thinkingProcess.hasAttribute('data-collapsed')) {
+      thinkingProcess.setAttribute('data-collapsed', 'false');
     }
 
-    const toggleBtn = block.querySelector('.thinking-toggle');
-    const content = block.querySelector('.thinking-content');
-    const toggleIcon = block.querySelector('.toggle-icon');
-
-    // Attach toggle logic
     if (toggleBtn && content) {
       toggleBtn.addEventListener('click', () => {
         const expanded = toggleBtn.getAttribute('aria-expanded') === 'true';
@@ -443,11 +410,6 @@ export function extractThinkingContent(content) {
       // Recurse on post-block text, in case more blocks exist
       const remainder = source.substring(closeIndex + 8);
       recursiveExtract(remainder);
-
-      // Also check if the block text itself contained nested blocks
-      // (though they are already counted, we might extract them here
-      // if you want each nested block as well. But we already do
-      // because openCount increments. So let's avoid double extracting.
     }
   }
 
@@ -492,45 +454,23 @@ function createThinkingBlock(thinkingContent) {
   
   container.innerHTML = html;
   
-  // Add toggle functionality with animation
+  // Add toggle functionality with animation removed
   const toggleButton = container.querySelector('.thinking-toggle');
   const contentDiv = container.querySelector('.thinking-content');
   const toggleIcon = container.querySelector('.toggle-icon');
 
   if (toggleButton && contentDiv) {
-    // Set initial state to expanded
     let isExpanded = true;
     
-    // Create proper animation using Web Animation API
     const handleToggle = () => {
       const newExpanded = !isExpanded;
       isExpanded = newExpanded;
-
-      // Update ARIA attributes immediately
       toggleButton.setAttribute('aria-expanded', newExpanded);
-      
-      // Create slide animation
-      const startHeight = newExpanded ? 0 : contentDiv.scrollHeight;
-      const endHeight = newExpanded ? contentDiv.scrollHeight : 0;
-      
-      const animation = contentDiv.animate(
-        [
-          { height: `${startHeight}px`, opacity: newExpanded ? 0 : 1 },
-          { height: `${endHeight}px`, opacity: newExpanded ? 1 : 0 }
-        ],
-        { duration: 300, easing: 'ease-out', fill: 'forwards' }
-      );
-      
-      // Update classes and icon once animation completes
-      animation.onfinish = () => {
-        contentDiv.style.height = newExpanded ? 'auto' : '0';
-        contentDiv.style.display = newExpanded ? 'block' : 'none';
-        container.setAttribute('data-collapsed', !newExpanded);
-        
-        if (toggleIcon) {
-          toggleIcon.textContent = newExpanded ? '▼' : '▶';
-        }
-      };
+      container.setAttribute('data-collapsed', !newExpanded);
+      contentDiv.style.display = newExpanded ? 'block' : 'none';
+      if (toggleIcon) {
+        toggleIcon.textContent = newExpanded ? '▼' : '▶';
+      }
     };
 
     // Click handler

@@ -11,7 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import text, select, insert, func as sa_func
+from sqlalchemy import text, select, insert, delete, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from azure.core.exceptions import HttpResponseError
 from azure.ai.inference import ChatCompletionsClient
@@ -245,6 +245,33 @@ async def list_sessions(
         logger.exception("Error listing conversation sessions: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+
+@router.post("/conversations/clear")
+async def clear_db_conversation(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[User] = Depends(get_current_user)
+):
+    """
+    Deletes all messages for a given session_id from the DB.
+    """
+    try:
+        body = await request.json()
+        session_id = body.get("session_id")
+        if not session_id:
+            raise HTTPException(status_code=400, detail="Missing session_id")
+
+        # Validate UUID
+        session_uuid = uuid.UUID(session_id)
+
+        # Delete conversation rows
+        await db.execute(delete(Conversation).where(Conversation.session_id == session_uuid))
+        await db.commit()
+
+        return {"status": "cleared"}
+    except Exception as exc:
+        logger.exception("Error clearing conversation: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 ###############################################################################
 #                         ROUTE: NON-STREAM COMPLETION                        #
