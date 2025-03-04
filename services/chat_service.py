@@ -133,6 +133,12 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
                 logger.warning(f"No configuration found for model {model_name}")
             return model_configs
 
+        async def fetch_and_validate_model_configs():
+            model_configs = await fetch_model_configs()
+            if model_name not in model_configs:
+                logger.warning(f"No configuration found for model {model_name}")
+            return model_configs
+
         model_configs = await fetch_and_validate_model_configs()
     except Exception as e:
         logger.error(f"Error fetching model_configs: {str(e)}")
@@ -148,7 +154,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
 
     try:
         # Distinguish between ChatCompletionsClient and AzureOpenAI:
-        if isinstance(azure_client, ChatCompletionsClient):
+        if azure_client and isinstance(azure_client, ChatCompletionsClient):
             #
             #  1) The azure.ai.inference ChatCompletionsClient
             #     Usually used for DeepSeek if your environment requires it.
@@ -315,7 +321,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
 
     # Store conversation in DB
     await save_conversation(
-        db_session=db_session,
+        db_session=db,
         session_id=session_id,
         model_name=model_name,
         user_text=chat_message.message,
