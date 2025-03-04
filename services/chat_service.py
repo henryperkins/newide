@@ -135,31 +135,9 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
     is_deepseek = is_deepseek_model(model_name)
 
     # Construct "messages" from ChatMessage if none provided
-    if hasattr(chat_message, "messages") and chat_message.messages:
-        messages = chat_message.messages
-    else:
-        messages = [{"role": "user", "content": chat_message.message}]
-
-    # Model-specific parameter handling
-    params: Dict[str, Any] = {"messages": messages}
-    temperature = chat_message.temperature
-    max_tokens = chat_message.max_completion_tokens
-
-    if is_deepseek:
-        # DeepSeek-specific parameters
-        if temperature is not None:
-            raise ValueError("Temperature not supported for DeepSeek models")
-        params["max_tokens"] = max_tokens if max_tokens is not None else config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
-    elif is_o_series_model(model_name):
-        # O-series parameters
-        if temperature is not None:
-            raise ValueError("Temperature not supported for O-series models")
-        params["max_completion_tokens"] = max_tokens if max_tokens is not None else config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
-        # No need to add reasoning_effort to params - handled by client headers
-    else:
-        # Standard models
-        params["temperature"] = temperature if temperature is not None else 0.7
-        params["max_completion_tokens"] = max_tokens if max_tokens is not None else 1000
+    is_o_series = is_o_series_model(model_name)
+    is_deepseek = is_deepseek_model(model_name)
+    params = prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
 
     try:
         # Distinguish between ChatCompletionsClient and AzureOpenAI:
