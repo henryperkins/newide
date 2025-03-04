@@ -113,6 +113,8 @@ export function streamChatResponse(
     if (validModelName.includes('deepseek')) {
       params.append('enable_thinking', 'true');
       console.log('DeepSeek model detected, enabling thinking mode');
+    } else {
+      console.warn('DeepSeek thinking mode not enabled for model:', validModelName);
     }
 
     const apiUrl = `${window.location.origin}/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
@@ -172,6 +174,9 @@ export function streamChatResponse(
     eventSource.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
+        if (data.choices && data.choices[0]?.delta?.content?.includes('<think>')) {
+          console.log('Thinking block detected in streaming chunk:', data.choices[0].delta.content);
+        }
         processDataChunkWrapper(data);
         scheduleRender();
       } catch (err) {

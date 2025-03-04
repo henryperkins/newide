@@ -128,7 +128,7 @@ export function createThinkingBlockHTML(thinkingContent) {
   // Sanitize HTML with DOMPurify
   // Only allow minimal tags, forbid inline styles/on* attributes
   const safeContent = DOMPurify.sanitize(formattedContent, {
-    ALLOWED_TAGS: ['div', 'span', 'code', 'pre', 'button', 'blockquote', 'ul', 'ol', 'li', 'table', 'tr', 'td'],
+    ALLOWED_TAGS: ['div', 'span', 'code', 'pre', 'button', 'blockquote', 'ul', 'ol', 'li', 'table', 'tr', 'td', 'think'],
     ALLOWED_ATTR: ['class', 'aria-expanded', 'data-language'],
     FORBID_ATTR: ['style', 'on*']
   });
