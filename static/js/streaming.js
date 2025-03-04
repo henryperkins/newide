@@ -393,7 +393,9 @@ function renderBufferedContent() {
       messageContainer = ensureMessageContainer();
     }
     if (messageContainer) {
-      messageContainer.innerHTML = mainTextBuffer;
+      // Replace <think> blocks with interactive HTML
+      const revisedText = deepSeekProcessor.replaceThinkingBlocks(mainTextBuffer);
+      messageContainer.innerHTML = revisedText;
       messageContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
       deepSeekProcessor.initializeExistingBlocks();
       if (thinkingContainer && thinkingTextBuffer) {

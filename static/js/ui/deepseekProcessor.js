@@ -72,7 +72,8 @@ export function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, think
     // Everything before <think> goes to mainBuffer if not thinking yet
     if (openTagIndex > 0 && !result.isThinking) {
       const beforeThink = chunkBuffer.substring(0, openTagIndex);
-      result.mainBuffer = processDeepSeekResponse(result.mainBuffer + beforeThink);
+      // Remove or comment out the call so you don’t strip <think> prematurely:
+      result.mainBuffer += beforeThink;
     }
 
     // Check if there's a closing </think> tag
