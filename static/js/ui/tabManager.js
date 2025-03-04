@@ -94,6 +94,14 @@ function initMobileSidebarToggle() {
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
   const toggleButton = document.getElementById('sidebar-toggle');
+
+  console.log('[initMobileSidebarToggle] sidebar:', !!sidebar, 'overlay:', !!overlay, 'toggleButton:', !!toggleButton);
+
+  toggleButton.addEventListener('click', () => {
+    console.log('[toggleButton clicked] aria-expanded:', toggleButton.getAttribute('aria-expanded'));
+    const newState = toggleButton.getAttribute('aria-expanded') !== 'true';
+    setSidebarState(newState);
+  });
   const closeButton = document.getElementById('close-sidebar');
   const chatContainer = document.getElementById('chat-container');
   
