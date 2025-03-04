@@ -534,9 +534,7 @@ async def create_chat_completion(
 
         # ------------------- Post-processing & DB Storage -------------------
         full_content = response_data["choices"][0]["message"]["content"]
-        formatted_content = (
-            expand_chain_of_thought(full_content) if deepseek_check else full_content
-        )
+        formatted_content = full_content  # Let the client handle chain-of-thought
 
         # Just count the last user message
         user_msg_content = request.messages[-1]["content"]
@@ -858,9 +856,7 @@ async def generate_stream_chunks(
 
         # ------------------- Post-stream usage & DB store -------------------
         if full_content:
-            formatted_content = (
-                expand_chain_of_thought(full_content) if deepseek_check else full_content
-            )
+            formatted_content = full_content
 
             # Token counting
             prompt_tokens = count_tokens(message, model_name)
