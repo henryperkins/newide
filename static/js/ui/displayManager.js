@@ -439,24 +439,24 @@ const pruneOldMessages = debounce(() => {
     hasMoreMessages = true;
     
     const sessionId = getSessionId();
-    if (sessionId) {
-      const storageKey = `conversation_${sessionId}`;
-      const storedConversation = localStorage.getItem(storageKey);
-      if (storedConversation) {
-        try {
-          const allMessages = JSON.parse(storedConversation);
-          const unloadedCount = Math.max(0, allMessages.length - messageRenderLimit);
-          updateLoadMoreButton(unloadedCount);
-        } catch (e) {
-          console.error('Error calculating unloaded messages count:', e);
-          updateLoadMoreButton();
-        }
-      } else {
-        updateLoadMoreButton();
-      }
-    } else {
-      updateLoadMoreButton();
-    }
+    // if (sessionId) {
+    //   const storageKey = `conversation_${sessionId}`;
+    //   const storedConversation = localStorage.getItem(storageKey);
+    //   if (storedConversation) {
+    //     try {
+    //       const allMessages = JSON.parse(storedConversation);
+    //       const unloadedCount = Math.max(0, allMessages.length - messageRenderLimit);
+    //       updateLoadMoreButton(unloadedCount);
+    //     } catch (e) {
+    //       console.error('Error calculating unloaded messages count:', e);
+    //       updateLoadMoreButton();
+    //     }
+    //   } else {
+    //     updateLoadMoreButton();
+    //   }
+    // } else {
+    //   updateLoadMoreButton();
+    // }
 
     requestAnimationFrame(() => {
       const heightDiff = scrollHeightBefore - chatHistory.scrollHeight;
@@ -501,9 +501,9 @@ function storeChatMessage(role, content) {
 function showWelcomeMessageIfNeeded() {
   const sessionId = getSessionId();
   if (!sessionId) return;
-  const storageKey = `conversation_${sessionId}`;
-  const storedConversation = localStorage.getItem(storageKey);
-  const hasConversation = storedConversation && JSON.parse(storedConversation).length > 0;
+  // const storageKey = `conversation_${sessionId}`;
+  // const storedConversation = localStorage.getItem(storageKey);
+  // const hasConversation = storedConversation && JSON.parse(storedConversation).length > 0;
   const welcomeShown = sessionStorage.getItem('welcome_message_shown') === 'true';
   if (!hasConversation && !welcomeShown) {
     const chatHistory = document.getElementById('chat-history');
@@ -562,7 +562,7 @@ async function deleteConversation() {
         const sessionId = await getSessionId();
         if (sessionId) {
           // Remove from localStorage
-          localStorage.removeItem(`conversation_${sessionId}`);
+          // localStorage.removeItem(`conversation_${sessionId}`);
 
           // Also delete from DB
           await fetch('/api/chat/conversations/delete', {
@@ -605,7 +605,7 @@ async function deleteConversation() {
 export function createNewConversation() {
     // Generate a new random session ID
     const newSessionId = crypto.randomUUID?.() || (Date.now().toString(36) + Math.random().toString(36).slice(2));
-    localStorage.setItem('current_session_id', newSessionId);
+    // localStorage.setItem('current_session_id', newSessionId);
 
     // Clear chat UI but keep system messages + conversation controls
     const chatHistory = document.getElementById('chat-history');
