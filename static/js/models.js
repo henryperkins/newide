@@ -466,6 +466,8 @@ class ModelManager {
             console.log("[switchModel] Aborting current streaming inference...");
             window.currentController.abort();
             window.currentController = null;
+            // Provide a small user-facing confirmation
+            showNotification('Stopped the current model inference; switching now...', 'info');
         }
         console.log('[switchModel] Initiating switchModel for:', modelId, 'currentModel:', this.currentModel);
         console.warn('[switchModel] Additional debug message');
