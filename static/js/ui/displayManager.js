@@ -624,8 +624,7 @@ export function createNewConversation() {
 export {
   initDisplayManager,
   deleteConversation,
-  saveConversation,
-  createNewConversation
+  saveConversation
 };
 
 function limitChatHistory(chatHistory, maxCount) {
