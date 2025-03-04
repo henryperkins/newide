@@ -428,7 +428,7 @@
   .sidebar {
     @apply fixed top-[64px] bottom-0 right-0 w-full sm:w-[320px] md:w-[384px]
            bg-white dark:bg-dark-800 border-l border-dark-200 
-           dark:border-dark-700 z-40 transform transition-transform ease-out
+           dark:border-dark-700 z-30 transform transition-transform ease-out
            flex flex-col overflow-hidden;
   }
 
