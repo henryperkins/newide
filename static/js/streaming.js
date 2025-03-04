@@ -394,17 +394,63 @@ function forceRender() {
  */
 function renderBufferedContent() {
   try {
-    if (!messageContainer) {
-      messageContainer = ensureMessageContainer();
+    // Ensure containers exist
+    messageContainer = ensureMessageContainer();
+    thinkingContainer = ensureThinkingContainer(messageContainer, thinkingTextBuffer, deepSeekProcessor);
+
+    // Process and separate buffers
+    const { mainContent, thinkingContent } = deepSeekProcessor.separateContentBuffers(
+      mainTextBuffer,
+      thinkingTextBuffer
+    );
+
+    // Update main content with incremental rendering
+    if (mainContent) {
+      if (!messageContainer.__previousHtml) {
+        messageContainer.__previousHtml = "";
+      }
+      
+      const processedMain = deepSeekProcessor.processDeepSeekResponse(mainContent);
+      const oldMain = messageContainer.__previousHtml;
+      
+      // Append only new content to reduce flicker
+      if (processedMain.startsWith(oldMain)) {
+        const remainder = processedMain.slice(oldMain.length);
+        if (remainder) {
+          messageContainer.insertAdjacentHTML('beforeend', remainder);
+        }
+      } else {
+        messageContainer.innerHTML = processedMain;
+      }
+      messageContainer.__previousHtml = processedMain;
     }
-    if (messageContainer) {
-      // Replace <think> blocks with interactive HTML
-      const revisedText = deepSeekProcessor.replaceThinkingBlocks(mainTextBuffer);
-      messageContainer.innerHTML = revisedText;
+
+    // Update thinking container with proper toggle support
+    if (thinkingContent) {
+      const thinkingHTML = `
+        <div class="thinking-container collapsible collapsed">
+          <div class="thinking-header">
+            <span class="toggle-icon">▶</span>
+            Chain of Thought
+          </div>
+          <div class="thinking-content" style="display: none;">
+            ${deepSeekProcessor.markdownToHtml(thinkingContent || '')}
+          </div>
+        </div>
+      `;
+      
+      // Only replace thinking container if new content exists
+      if (thinkingContainer.innerHTML !== thinkingHTML) {
+        thinkingContainer.innerHTML = thinkingHTML;
+        // Initialize toggle functionality
+        deepSeekProcessor.initializeThinkingToggle(thinkingContainer);
+      }
+    }
+
+    // Scroll to bottom if not in error state
+    if (!errorState) {
       messageContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      deepSeekProcessor.initializeExistingBlocks();
-      if (thinkingContainer && thinkingTextBuffer) {
-        thinkingContainer.textContent = thinkingTextBuffer;
+      if (thinkingContainer) {
         thinkingContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
       }
     }

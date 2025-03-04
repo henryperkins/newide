@@ -420,10 +420,8 @@ function formatThinkingContent(content) {
   // Process basic markdown (quotes, lists, tables) before escaping
   formatted = processMarkdownElements(formatted);
 
-  // Escape HTML characters so we don't inadvertently allow raw HTML
-  formatted = formatted.replace(/[&<>"']/g, (char) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]
-  );
+  // Disable HTML escaping for chain-of-thought so code blocks and markdown are properly rendered.
+  // (User wants to see raw markdown code blocks inside thinking content.)
 
   // Handle fenced code blocks: ```lang\n code ... ```
   formatted = formatted.replace(/```([\w-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
@@ -546,5 +544,48 @@ export const deepSeekProcessor = {
   initializeExistingBlocks,
   extractThinkingContent,
   createThinkingBlock,
+  markdownToHtml: (content) => {
+    // Simple markdown parser for thinking content
+    return content
+      .replace(/### (.*)/g, '<h3>$1</h3>')
+      .replace(/## (.*)/g, '<h2>$1</h2>')
+      .replace(/# (.*)/g, '<h1>$1</h1>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`(.*?)`/g, '<code>$1</code>')
+      .replace(/\n/g, '<br>');
+  },
+
+  // New methods for streaming separation
+  separateContentBuffers(mainBuffer, thinkingBuffer) {
+    // Clean main content by removing ALL thinking tags
+    const mainContent = mainBuffer.replace(/<\/?think>/g, '');
+    
+    // Extract thinking content while preserving original structure
+    const thinkingContent = thinkingBuffer.trim();
+    
+    return {
+      mainContent: mainContent.trim(),
+      thinkingContent: thinkingContent
+    };
+  },
+
+  initializeThinkingToggle(container) {
+    const toggleBtn = container.querySelector('.thinking-toggle');
+    const contentDiv = container.querySelector('.thinking-content');
+    const toggleIcon = container.querySelector('.toggle-icon');
+    
+    if (toggleBtn && contentDiv) {
+      toggleBtn.addEventListener('click', () => {
+        const isCollapsed = toggleBtn.getAttribute('aria-expanded') === 'true';
+        toggleBtn.setAttribute('aria-expanded', !isCollapsed);
+        contentDiv.style.display = isCollapsed ? 'none' : 'block';
+        if (toggleIcon) {
+          toggleIcon.style.transform = isCollapsed ? 'rotate(90deg)' : 'rotate(0deg)';
+        }
+      });
+    }
+  },
+
   stateManager // Expose state manager for testing
 };

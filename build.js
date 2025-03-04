@@ -9,6 +9,7 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const isWindows = process.platform === 'win32';
 
 // Config
 const inputFile = 'static/css/tailwind.css';
@@ -22,28 +23,13 @@ const isWatch = args.includes('--watch');
 const isVerbose = args.includes('--verbose');
 
 /**
- * Get the appropriate PostCSS command based on options
+ * Log a message, but only if verbose mode is enabled or it's an error
  */
-function getCommand() {
-  const baseCommand = `npx postcss ${inputFile} -o ${outputFile}`;
-  
-  if (isProduction) {
-    return `NODE_ENV=production ${baseCommand}`;
+function log(message, isError = false) {
+  if (isVerbose || isError) {
+    const timestamp = new Date().toLocaleTimeString();
+    console.log(`[${timestamp}] ${message}`);
   }
-  
-  if (isWatch) {
-    return `${baseCommand} --watch`;
-  }
-  
-  return baseCommand;
-}
-
-/**
- * Log with timestamp
- */
-function log(message) {
-  const timestamp = new Date().toLocaleTimeString();
-  console.log(`[${timestamp}] ${message}`);
 }
 
 /**
@@ -83,16 +69,25 @@ function buildTailwind() {
   
   ensureOutputDirectory();
   
-  const command = getCommand();
-  log(`Building Tailwind CSS in ${isProduction ? 'production' : 'development'} mode`);
-  log(`Using updated configuration with ring opacity support`);
-  
-  if (isVerbose) {
-    log(`Executing command: ${command}`);
-  }
-  
   try {
-    execSync(command, { stdio: 'inherit' });
+    log(`Building Tailwind CSS in ${isProduction ? 'production' : 'development'} mode`);
+    log(`Using updated configuration with ring opacity support`);
+    
+    // FIXED: Use cross-env directly instead of trying to set environment variables
+    // in the shell command - this way it works across all platforms
+    const env = { ...process.env, NODE_ENV: isProduction ? 'production' : 'development' };
+    const postcssCmd = `npx postcss ${inputFile} -o ${outputFile}${isWatch ? ' --watch' : ''}`;
+    
+    if (isVerbose) {
+      log(`Executing command with NODE_ENV=${env.NODE_ENV}: ${postcssCmd}`);
+    }
+    
+    execSync(postcssCmd, { 
+      env: env, 
+      stdio: 'inherit' 
+    });
+    
+    log('CSS build completed successfully');
     
     if (!isWatch) {
       const stats = fs.statSync(outputFile);

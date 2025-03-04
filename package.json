@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "description": "Azure OpenAI Chat Application",
   "scripts": {
-    "build:css": "node build.js --production",
+    "build:css": "cross-env NODE_ENV=production node build.js --production",
     "watch:css": "node build.js --watch",
     "build": "node build.js --production --verbose",
     "dev": "node build.js --watch",
@@ -17,6 +17,7 @@
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/typography": "^0.5.16",
     "autoprefixer": "^10.4.20",
+    "cross-env": "^7.0.3",
     "cssnano": "^6.1.2",
     "postcss": "^8.5.3",
     "postcss-cli": "^10.1.0",

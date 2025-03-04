@@ -45,8 +45,8 @@ router = APIRouter(prefix="/chat")
 
 
 def is_o_series_model(name: str) -> bool:
-    """Check if model name starts with 'o-series'."""
-    return name.startswith("o-series")
+    """Check if model name is 'o1' or starts with 'o-series'."""
+    return name.startswith("o-series") or name == "o1"
 
 
 def is_deepseek_model(name: str) -> bool:
@@ -300,6 +300,12 @@ async def create_chat_completion(
 
         # Validate O-series constraints
         if is_o_series_model(model_name):
+            # Per o1models-reference-guide.md, convert any 'system' role to 'developer'
+            # so that the model sees it as a developer message for reasoning.
+            for msg in request.messages:
+                if msg.get("role") == "system":
+                    msg["role"] = "developer"
+
             if request.temperature is not None:
                 raise HTTPException(
                     status_code=400,
@@ -338,7 +344,7 @@ async def create_chat_completion(
             request.max_completion_tokens = 5000
 
         response_data: Dict[str, Any] = {}
-        is_inference_client = isinstance(client, ChatCompletionsClient)
+        is_inference_client = isinstance(client, ChatCompletionsClient) or isinstance(client, AzureOpenAI)
         deepseek_check = is_deepseek_model(model_name)
 
         # ------------------- Non-streaming logic ----------------------------
@@ -397,7 +403,7 @@ async def create_chat_completion(
                     last_error = exc
                     is_timeout = False
                     if (isinstance(exc, HttpResponseError)
-                            and exc.status_code in (429, 500, 503)):
+                            and exc.status_code in (403, 429, 500, 503)):
                         logger.warning(
                             "Server error (%s). Retry %d/%d",
                             exc.status_code,
@@ -434,30 +440,92 @@ async def create_chat_completion(
                 ) from last_error
 
         elif is_inference_client and is_o_series_model(model_name):
-            # O-series path
-            if not hasattr(client, "chat"):
-                raise ValueError("Client does not support 'chat' attribute.")
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=request.messages,
-                reasoning_effort=request.reasoning_effort or "medium",
-                max_completion_tokens=request.max_completion_tokens,
-                stream=False
-            )
-            response_data = response.model_dump()
+            if isinstance(client, ChatCompletionsClient):
+                response = client.complete(
+                    messages=request.messages,
+                    max_tokens=request.max_completion_tokens,
+                    stream=False
+                )
+                # Convert to an Azure-like response
+                usage_data = {}
+                if response.usage:
+                    usage_data = {
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "completion_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens
+                    }
+                response_data = {
+                    "id": f"chatcmpl-{uuid.uuid4()}",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": model_name,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": response.choices[0].message.content,
+                            },
+                            "finish_reason": response.choices[0].finish_reason,
+                        }
+                    ],
+                    "usage": usage_data,
+                }
+            else:
+                if not hasattr(client, "chat"):
+                    raise ValueError("Client does not support 'chat' attribute.")
+                response = client.chat.completions.create(
+                    model=model_name,
+                    messages=request.messages,
+                    reasoning_effort=request.reasoning_effort or "medium",
+                    max_completion_tokens=request.max_completion_tokens,
+                    stream=False
+                )
+                response_data = response.model_dump()
 
         elif is_inference_client:
-            # Standard AzureOpenAI path
-            if not hasattr(client, "chat"):
-                raise ValueError("Client does not support 'chat' attribute.")
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=request.messages,
-                max_completion_tokens=request.max_completion_tokens,
-                temperature=request.temperature,
-                stream=False
-            )
-            response_data = response.model_dump()
+            if isinstance(client, ChatCompletionsClient):
+                response = client.complete(
+                    messages=request.messages,
+                    max_tokens=request.max_completion_tokens,
+                    stream=False
+                )
+                # Convert to an Azure-like response
+                usage_data = {}
+                if response.usage:
+                    usage_data = {
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "completion_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens
+                    }
+                response_data = {
+                    "id": f"chatcmpl-{uuid.uuid4()}",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": model_name,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": response.choices[0].message.content,
+                            },
+                            "finish_reason": response.choices[0].finish_reason,
+                        }
+                    ],
+                    "usage": usage_data,
+                }
+            else:
+                if not hasattr(client, "chat"):
+                    raise ValueError("Client does not support 'chat' attribute.")
+                response = client.chat.completions.create(
+                    model=model_name,
+                    messages=request.messages,
+                    max_completion_tokens=request.max_completion_tokens,
+                    temperature=request.temperature,
+                    stream=False
+                )
+                response_data = response.model_dump()
         else:
             raise HTTPException(
                 status_code=500,
@@ -544,10 +612,16 @@ async def create_chat_completion(
     except Exception as exc:
         error_detail = handle_client_error(exc)
         logger.exception("Error creating chat completion: %s", exc)
-        raise HTTPException(
-            status_code=error_detail["status_code"],
-            detail=error_detail["message"]
-        ) from exc
+        if "Forbidden" in str(error_detail["message"]):
+            raise HTTPException(
+                status_code=403,
+                detail="Your Azure OpenAI resource is temporarily blocked by their content policy. Please contact Azure support or review your content usage."
+            ) from exc
+        else:
+            raise HTTPException(
+                status_code=error_detail["status_code"],
+                detail=error_detail["message"]
+            ) from exc
 
 
 ###############################################################################

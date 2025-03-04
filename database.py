@@ -1,13 +1,17 @@
+"""Database connection configuration for the application using asyncio PostgreSQL driver."""
+
+# Standard library imports
 import ssl
 import json
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import sessionmaker
 from typing import AsyncGenerator
-import config
-from fastapi import Depends
 
-# Import models from consolidated models.py
-from models import Base
+# Third-party imports
+from fastapi import Depends  # Only if used elsewhere
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+
+# Local imports
+import config
+from models import Base  # Keep if used for metadata elsewhere
 
 # Create an SSL context for Azure Database for PostgreSQL
 ssl_context = ssl.create_default_context()
@@ -18,29 +22,30 @@ ssl_context.check_hostname = True
 try:
     ssl_context.load_verify_locations("DigiCertGlobalRootCA.crt.pem")
 except Exception as e:
-    raise RuntimeError(f"Failed to load SSL certificate: {e}")
+    raise RuntimeError(f"Failed to load SSL certificate: {e}") from e
 
 # Construct PostgreSQL connection URL with proper SSL mode
 POSTGRES_URL = (
     f"postgresql+asyncpg://{config.settings.POSTGRES_USER}:{config.settings.POSTGRES_PASSWORD}"
-    f"@{config.settings.POSTGRES_HOST}:{config.settings.POSTGRES_PORT}/{config.settings.POSTGRES_DB}?ssl=true"
+    f"@{config.settings.POSTGRES_HOST}:{config.settings.POSTGRES_PORT}/"
+    f"{config.settings.POSTGRES_DB}?ssl=true"
 )
 
 # Create async engine with SSL context
 engine = create_async_engine(
     POSTGRES_URL,
-    connect_args={
-        "ssl": ssl_context
-    },
+    connect_args={"ssl": ssl_context},
     json_serializer=lambda obj: json.dumps(obj, default=str),
-    pool_size=20,
-    max_overflow=10,
-    pool_recycle=300
+    pool_size=15,
+    max_overflow=5,
+    pool_recycle=180,
+    pool_pre_ping=True,
+    pool_timeout=30
 )
 
 # Create a session maker for async sessions
 AsyncSessionLocal = async_sessionmaker(
-    bind=engine, 
+    bind=engine,
     class_=AsyncSession,
     expire_on_commit=False,
     autoflush=False
