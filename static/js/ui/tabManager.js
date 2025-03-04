@@ -242,6 +242,17 @@ function toggleSidebar(show) {
   console.log("toggleSidebar: toggling to", show ? "open" : "close"); // Debug log
   console.log("Sidebar element:", document.getElementById('sidebar')); // Debug log
   const sidebar = document.getElementById('sidebar');
+
+  console.log('[toggleSidebar] before:', sidebar.classList);
+  if (show) {
+    sidebar.classList.remove('translate-x-full');
+    sidebar.classList.add('translate-x-0', 'sidebar-open');
+    console.log('[toggleSidebar] after opening:', sidebar.classList);
+  } else {
+    sidebar.classList.add('translate-x-full');
+    sidebar.classList.remove('translate-x-0', 'sidebar-open');
+    console.log('[toggleSidebar] after closing:', sidebar.classList);
+  }
   const overlay = document.getElementById('sidebar-overlay');
   const toggleButton = document.getElementById('sidebar-toggle');
   const chatContainer = document.getElementById('chat-container');
