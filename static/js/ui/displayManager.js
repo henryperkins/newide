@@ -247,6 +247,7 @@ async function saveConversation() {
         }
 
         // Also notify server of the chosen title so it appears in dropdown
+        const chatTitle = 'Conversation ' + new Date().toLocaleString();
         try {
             await fetch('/api/chat/conversations/set_title', {
                 method: 'POST',

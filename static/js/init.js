@@ -203,8 +203,8 @@ function initUserInput() {
       // Call the DB-based clearConversation from displayManager
       import('./ui/displayManager.js')
         .then(module => {
-          const { clearConversation } = module;
-          clearConversation();
+          const { deleteConversation } = module;
+          deleteConversation();
         })
         .catch(err => console.error('Failed to load displayManager:', err));
     });
