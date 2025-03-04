@@ -135,6 +135,13 @@
     z-index: 10; /* Ensure higher than sidebar */
   }
 
+  /* Remove overflow: hidden on smaller screens */
+  @media (max-width: 768px) {
+    .chat-container {
+      overflow: auto;
+    }
+  }
+
   /* Loading state styles */
   .loading {
     @apply relative pointer-events-none;
