@@ -1,4 +1,3 @@
-
 import { getSessionId } from './session.js';
 import { updateTokenUsage, fetchWithRetry, retry, eventBus } from './utils/helpers.js';
 import { showNotification, handleMessageError, removeTypingIndicator } from './ui/notificationManager.js';
@@ -109,7 +108,6 @@ export function streamChatResponse(
     const params = new URLSearchParams();
     params.append('model', validModelName);
     params.append('message', messageContent || '');
-    // Headers are handled automatically by the client
 
     // For DeepSeek-R1, enable thinking mode.
     if (validModelName.includes('deepseek')) {
@@ -123,7 +121,6 @@ export function streamChatResponse(
       params.append('developer_config', developerConfig.trim());
     }
     const fullUrl = `${apiUrl}&${params.toString()}`;
-    // Elimina esta importación y llamada, o muévela al tope del archivo.
 
     // Create EventSource for SSE
     const eventSource = new EventSource(fullUrl);
@@ -208,7 +205,7 @@ export function streamChatResponse(
       }
     };
 
-    // Listen for the server's "complete" event to finish streaming
+    // Listen for the server's "complete" event
     eventSource.addEventListener('complete', async (e) => {
       try {
         clearTimeout(connectionTimeoutId);
@@ -295,7 +292,11 @@ async function attemptErrorRecovery(messageContent, error) {
     });
   }
 
-  if (error.recoverable || ['ConnectionError', 'NetworkError', 'TimeoutError'].includes(error.name)) {
+  // Only do exponential backoff if it's a known connection-type error
+  if (
+    error.recoverable ||
+    ['ConnectionError', 'NetworkError', 'TimeoutError'].includes(error.name)
+  ) {
     showNotification('Retrying connection...', 'info', 3000);
     await new Promise(r => setTimeout(r, 2000));
     try {
@@ -334,14 +335,25 @@ async function attemptErrorRecovery(messageContent, error) {
  * Wrapper around processDataChunk to update local streaming state.
  */
 function processDataChunkWrapper(data) {
-  const result = processDataChunk(data, chunkBuffer, mainTextBuffer, thinkingTextBuffer, isThinking, deepSeekProcessor);
+  const result = processDataChunk(
+    data,
+    chunkBuffer,
+    mainTextBuffer,
+    thinkingTextBuffer,
+    isThinking,
+    deepSeekProcessor
+  );
   mainTextBuffer = result.mainTextBuffer;
   thinkingTextBuffer = result.thinkingTextBuffer;
   chunkBuffer = result.chunkBuffer;
   isThinking = result.isThinking;
   if (isThinking && thinkingTextBuffer) {
     const container = ensureMessageContainer();
-    thinkingContainer = ensureThinkingContainer(container, thinkingTextBuffer, deepSeekProcessor);
+    thinkingContainer = ensureThinkingContainer(
+      container,
+      thinkingTextBuffer,
+      deepSeekProcessor
+    );
   }
 }
 
@@ -415,16 +427,19 @@ async function cleanupStreaming(modelName) {
       if (!sessionId) {
         console.error('No valid session ID found — cannot store message.');
       } else {
-        await fetchWithRetry(`${window.location.origin}/api/chat/conversations/store`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: sessionId,
-            role: 'assistant',
-            content: mainTextBuffer,
-            model: modelName || 'DeepSeek-R1'
-          })
-        }).catch(err => console.warn('Failed to store message:', err));
+        await fetchWithRetry(
+          `${window.location.origin}/api/chat/conversations/store`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              session_id: sessionId,
+              role: 'assistant',
+              content: mainTextBuffer,
+              model: modelName || 'DeepSeek-R1'
+            })
+          }
+        ).catch(err => console.warn('Failed to store message:', err));
       }
     } catch (e) {
       console.warn('Failed to store message:', e);
