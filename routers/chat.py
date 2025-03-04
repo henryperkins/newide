@@ -70,12 +70,14 @@ async def store_message(
       - role (e.g. 'user', 'assistant')
       - content (the message content)
     """
-    # Limit concurrent SSE connections per session
-    active_connections = await db.execute(
-        text("SELECT COUNT(*) FROM pg_stat_activity WHERE query LIKE '%/api/chat/sse%' AND state = 'active'")
-    )
-    if active_connections.scalar() >= 10:  # Limit to 10 concurrent connections
-        raise HTTPException(status_code=429, detail="Too many concurrent streaming connections. Please try again later.")
+    try:
+        # Limit concurrent SSE connections per session
+        active_connections = await db.execute(
+            text("SELECT COUNT(*) FROM pg_stat_activity WHERE query LIKE '%/api/chat/sse%' AND state = 'active'")
+        )
+        if active_connections.scalar() >= 10:  # Limit to 10 concurrent connections
+            raise HTTPException(status_code=429, detail="Too many concurrent streaming connections. Please try again later.")
+        
         body = await request.json()
         if not body:
             raise HTTPException(status_code=400, detail="Invalid or missing JSON body")
@@ -113,7 +115,6 @@ async def store_message(
         await db.commit()
 
         return {"status": "success"}
-
     except HTTPException as http_exc:
         raise http_exc
     except Exception as e:
