@@ -346,7 +346,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
         formatted_content = re.sub(think_regex, replace_thinking, formatted_content)
 
     # Store conversation in DB
-    await save_conversation(
+    save_conversation(
         db_session=db_session,
         session_id=session_id,
         model_name=model_name,
