@@ -211,18 +211,75 @@ export function replaceThinkingBlocks(content) {
  * Attaches toggle logic, handles "new" highlight effect, etc.
  */
 function initializeExistingBlocks() {
+  document.querySelectorAll('.thinking-block').forEach(container => {
+    const toggleBtn = container.querySelector('.thinking-toggle');
+    const content = container.querySelector('.thinking-content');
+    const toggleIcon = container.querySelector('.toggle-icon');
+
+    if (toggleBtn && content) {
+      // Set initial state based on data-collapsed attribute
+      const isCollapsed = container.getAttribute('data-collapsed') === 'true';
+      
+      if (isCollapsed) {
+        toggleBtn.setAttribute('aria-expanded', 'false');
+        content.style.display = 'none';
+        if (toggleIcon) toggleIcon.textContent = '▶';
+      } else {
+        toggleBtn.setAttribute('aria-expanded', 'true');
+        content.style.display = 'block';
+        if (toggleIcon) toggleIcon.textContent = '▼';
+      }
+      
+      // Create proper animation using Web Animation API
+      const handleToggle = () => {
+        const isExpanded = toggleBtn.getAttribute('aria-expanded') === 'true';
+        const newExpanded = !isExpanded;
+
+        // Update ARIA attributes immediately
+        toggleBtn.setAttribute('aria-expanded', newExpanded);
+        
+        // Create slide animation
+        const startHeight = newExpanded ? 0 : content.scrollHeight;
+        const endHeight = newExpanded ? content.scrollHeight : 0;
+        
+        const animation = content.animate(
+          [
+            { height: `${startHeight}px`, opacity: newExpanded ? 0 : 1 },
+            { height: `${endHeight}px`, opacity: newExpanded ? 1 : 0 }
+          ],
+          { duration: 300, easing: 'ease-out', fill: 'forwards' }
+        );
+        
+        // Update classes and icon once animation completes
+        animation.onfinish = () => {
+          content.style.height = newExpanded ? 'auto' : '0';
+          content.style.display = newExpanded ? 'block' : 'none';
+          container.setAttribute('data-collapsed', !newExpanded);
+          
+          if (toggleIcon) {
+            toggleIcon.textContent = newExpanded ? '▼' : '▶';
+          }
+        };
+      };
+
+      // Click handler
+      toggleBtn.addEventListener('click', handleToggle);
+        
+      // Keyboard accessibility
+      toggleBtn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleToggle();
+        }
+      });
+    }
+  });
+  
+  // Also handle legacy thinking-process blocks for backward compatibility
   document.querySelectorAll('.thinking-process').forEach(thinkingProcess => {
     const toggleBtn = thinkingProcess.querySelector('.thinking-toggle');
     const content = thinkingProcess.querySelector('.thinking-content');
     const toggleIcon = thinkingProcess.querySelector('.toggle-icon');
-
-    // Mark newly inserted blocks
-    if (!thinkingProcess.classList.contains('new')) {
-      thinkingProcess.classList.add('new');
-      setTimeout(() => {
-        thinkingProcess.classList.remove('new');
-      }, 2000);
-    }
 
     // Ensure data-collapsed is set
     if (!thinkingProcess.hasAttribute('data-collapsed')) {
@@ -233,13 +290,13 @@ function initializeExistingBlocks() {
       toggleBtn.addEventListener('click', () => {
         const expanded = toggleBtn.getAttribute('aria-expanded') === 'true';
         toggleBtn.setAttribute('aria-expanded', !expanded);
-        thinkingProcess.setAttribute('data-collapsed', expanded ? 'false' : 'true');
+        thinkingProcess.setAttribute('data-collapsed', expanded ? 'true' : 'false');
         content.classList.toggle('hidden', expanded);
 
         // Subtle icon rotation
         if (toggleIcon) {
           toggleIcon.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-          toggleIcon.style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+          toggleIcon.style.transform = expanded ? 'rotate(-90deg)' : 'rotate(0deg)';
         }
       });
     }
@@ -310,79 +367,70 @@ function extractThinkingContent(content) {
  * @returns {HTMLElement} A DOM element representing the thinking block
  */
 function createThinkingBlock(thinkingContent) {
+  // Create container with better semantics and ARIA support
   const container = document.createElement('div');
-  container.className = 'thinking-process shadow-sm my-4';
-  const id = `thinking-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  container.id = id;
-
-  // Format content
-  const formattedContent = formatThinkingContent(thinkingContent);
-  stateManager.updateState(id, {content: formattedContent});
-
-  container.innerHTML = `
-    <div class="thinking-header">
+  container.className = 'thinking-block';
+  container.setAttribute('data-collapsed', 'false');
+  
+  // Generate unique ID for accessibility
+  const id = `thinking-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  
+  // Create toggle button with proper accessibility attributes
+  const html = `
+    <div class="thinking-container">
       <button class="thinking-toggle" 
-              aria-expanded="false"
-              aria-controls="${id}-content"
-              id="${id}-toggle">
-        <span class="font-medium">Thinking Process</span>
-        <span class="toggle-icon transition-transform duration-200">▼</span>
+              aria-expanded="true" 
+              aria-controls="${id}-content">
+        <span class="toggle-icon">▼</span>
+        <span>Chain of Thought</span>
       </button>
-    </div>
-    <div class="thinking-content" 
-         id="${id}-content"
-         role="region"
-         aria-live="polite"
-         aria-labelledby="${id}-toggle">
-      <pre class="thinking-pre">${formattedContent}</pre>
-      <div class="thinking-gradient from-thinking-bg/90 dark:from-dark-800/90 to-transparent"></div>
+      <div id="${id}-content" class="thinking-content">
+        ${formatThinkingContent(thinkingContent || '')}
+      </div>
     </div>
   `;
-
-  // Mark it as new for CSS transitions
-  container.classList.add('new');
-  setTimeout(() => {
-    container.classList.remove('new');
-  }, 2000);
-
+  
+  container.innerHTML = html;
+  
+  // Add toggle functionality with animation
   const toggleButton = container.querySelector('.thinking-toggle');
   const contentDiv = container.querySelector('.thinking-content');
   const toggleIcon = container.querySelector('.toggle-icon');
 
   if (toggleButton && contentDiv) {
-    const id = container.id;
-      
+    // Set initial state to expanded
+    let isExpanded = true;
+    
+    // Create proper animation using Web Animation API
     const handleToggle = () => {
-      const currentState = stateManager.getState(id);
-      const newExpanded = !currentState.expanded;
-        
-      stateManager.queueAnimation(id, async () => {
-        // Animate with Web Animations API
-        const animation = contentDiv.animate(
-          [
-            { opacity: 1, maxHeight: `${contentDiv.scrollHeight}px` },
-            { opacity: 0, maxHeight: '0px' }
-          ],
-          { duration: 300, easing: 'ease-in-out' }
-        );
+      const newExpanded = !isExpanded;
+      isExpanded = newExpanded;
 
-        if (newExpanded) {
-          animation.reverse();
-        }
-
-        await animation.finished;
-          
-        // Update DOM and state after animation
-        contentDiv.classList.toggle('hidden', !newExpanded);
-        toggleButton.setAttribute('aria-expanded', newExpanded);
+      // Update ARIA attributes immediately
+      toggleButton.setAttribute('aria-expanded', newExpanded);
+      
+      // Create slide animation
+      const startHeight = newExpanded ? 0 : contentDiv.scrollHeight;
+      const endHeight = newExpanded ? contentDiv.scrollHeight : 0;
+      
+      const animation = contentDiv.animate(
+        [
+          { height: `${startHeight}px`, opacity: newExpanded ? 0 : 1 },
+          { height: `${endHeight}px`, opacity: newExpanded ? 1 : 0 }
+        ],
+        { duration: 300, easing: 'ease-out', fill: 'forwards' }
+      );
+      
+      // Update classes and icon once animation completes
+      animation.onfinish = () => {
+        contentDiv.style.height = newExpanded ? 'auto' : '0';
+        contentDiv.style.display = newExpanded ? 'block' : 'none';
         container.setAttribute('data-collapsed', !newExpanded);
-        stateManager.updateState(id, {expanded: newExpanded});
-          
+        
         if (toggleIcon) {
-          toggleIcon.style.transform = newExpanded ? 
-            'rotate(0deg)' : 'rotate(-90deg)';
+          toggleIcon.textContent = newExpanded ? '▼' : '▶';
         }
-      });
+      };
     };
 
     // Click handler

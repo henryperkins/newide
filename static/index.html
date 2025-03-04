@@ -274,8 +274,8 @@
                 </div>
             </div>
 
-            <!-- Sidebar -->
-            <aside id="sidebar" class="md:static md:w-[320px] md:flex-shrink-0 fixed inset-y-0 right-0 w-[320px] md:w-[384px] bg-white dark:bg-dark-800 border-l border-dark-200 dark:border-dark-700 shadow-xl md:shadow-none transform translate-x-full md:translate-x-0 transition-transform duration-300 z-40 flex flex-col">
+            <!-- Sidebar with simplified structure -->
+            <aside id="sidebar" class="sidebar translate-x-full">
                 <!-- Sidebar Header with close button -->
                 <div class="p-4 border-b border-dark-200 dark:border-dark-700 flex justify-between items-center">
                     <h2 class="text-lg font-semibold">Settings</h2>
@@ -553,7 +553,7 @@
             </aside>
             
             <!-- Sidebar Overlay (for mobile) -->
-            <div id="sidebar-overlay" class="fixed inset-0 bg-dark-900 bg-opacity-50 z-30 hidden md:hidden" aria-hidden="true"></div>
+            <div id="sidebar-overlay" class="hidden"></div>
         </main>
 
         <!-- Modal System (centralized for all dialogs) -->
@@ -570,7 +570,7 @@
     </div>
 
     <!-- Core Modules (deferred for better performance) -->
-    <script type="module" src="/static/js/init.js" defer></script>
+    <script type="module" src="/static/js/init.js"></script>
     <script type="module" src="/static/js/chat.js" defer></script>
     <script type="module" src="/static/js/streaming.js" defer></script>
 </body>

@@ -282,3 +282,182 @@
 .thinking-process.new {
   animation: fadeIn 0.5s ease forwards, pulse 1.5s ease-in-out 1;
 }
+
+/**
+ * Custom styling for thinking blocks
+ */
+
+/* Improved styling for thinking blocks */
+.thinking-block {
+  position: relative;
+  margin: 1rem 0;
+  border-radius: 0.5rem;
+  border: 1px solid var(--thinking-border, oklch(76% 0.12 276));
+  background-color: var(--thinking-bg, oklch(97% 0.01 276));
+  overflow: hidden;
+  transition: border-color 0.3s ease;
+}
+
+.dark .thinking-block {
+  --thinking-border: oklch(42% 0.12 276);
+  --thinking-bg: oklch(24% 0.02 276/0.3);
+}
+
+.thinking-container {
+  width: 100%;
+}
+
+.thinking-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: oklch(36% 0.095 276);
+  background: transparent;
+  text-align: left;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.dark .thinking-toggle {
+  color: oklch(89% 0.078 276);
+}
+
+.thinking-toggle:hover {
+  background-color: oklch(96% 0.02 276);
+}
+
+.dark .thinking-toggle:hover {
+  background-color: oklch(32% 0.02 276);
+}
+
+.toggle-icon {
+  transition: transform 0.3s ease;
+  display: inline-block;
+  width: 1rem;
+  text-align: center;
+}
+
+.thinking-content {
+  padding: 0 1rem 1rem 1rem;
+  overflow: hidden;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: oklch(36% 0.095 276/0.9);
+}
+
+.dark .thinking-content {
+  color: oklch(89% 0.078 276/0.9);
+}
+
+/* Legacy compatibility for old thinking blocks */
+.thinking-process {
+  border: 1px solid var(--thinking-border, oklch(76% 0.12 276));
+  background-color: var(--thinking-bg, oklch(97% 0.01 276));
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  overflow: hidden;
+}
+
+.dark .thinking-process {
+  --thinking-border: oklch(42% 0.12 276);
+  --thinking-bg: oklch(24% 0.02 276/0.3);
+}
+
+.thinking-header {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Make thinking content display properly on mobile */
+@media (max-width: 640px) {
+  .thinking-block {
+    margin: 0.75rem 0;
+  }
+  
+  .thinking-toggle {
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .thinking-content {
+    padding: 0 0.75rem 0.75rem 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  /* Legacy styles */
+  .thinking-process {
+    margin: 0.75rem 0;
+  }
+  
+  .thinking-header {
+    padding: 0.5rem 0.75rem;
+  }
+}
+
+/* Code blocks within thinking content */
+.thinking-content code {
+  font-family: 'JetBrains Mono', monospace;
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.15em 0.3em;
+  border-radius: 0.2em;
+}
+
+.dark .thinking-content code {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.thinking-content pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+
+.dark .thinking-content pre {
+  background-color: rgba(0, 0, 0, 0.25);
+}
+
+.thinking-content pre code {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+  display: block;
+}
+
+/* Animation for new thinking blocks */
+@keyframes thinking-highlight {
+  0% {
+    border-color: oklch(65% 0.2 276);
+    box-shadow: 0 0 0 2px oklch(65% 0.2 276 / 0.3);
+  }
+  50% {
+    border-color: var(--thinking-border, oklch(76% 0.12 276));
+    box-shadow: 0 0 0 0 transparent;
+  }
+  100% {
+    border-color: var(--thinking-border, oklch(76% 0.12 276));
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.thinking-block.new {
+  animation: thinking-highlight 2s ease-out;
+}
+
+.thinking-process.new {
+  animation: thinking-highlight 2s ease-out;
+}
+
+/* Make sure toggle focus states are visible */
+.thinking-toggle:focus-visible {
+  outline: 2px solid oklch(65% 0.2 276);
+  outline-offset: -2px;
+}
