@@ -119,6 +119,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
     # Grab model_configs if available
     try:
         from services.config_service import ConfigService
+        from clients import get_model_client_dependency
         from database import AsyncSessionLocal
 
         async def fetch_model_configs():
@@ -203,7 +204,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
 
             else:
                 # Handle other models with ChatCompletionsClient
-                response = client.complete(
+                response = azure_client.complete(
                     messages=params["messages"],
                     temperature=params.get("temperature", 0.7),
                     max_tokens=params.get("max_tokens", 1000)
@@ -346,7 +347,7 @@ def prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
 
     # Store conversation in DB
     await save_conversation(
-        db_session=db_session,
+        db_session=db,
         session_id=session_id,
         model_name=model_name,
         user_text=chat_message.message,
