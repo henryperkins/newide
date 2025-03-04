@@ -300,11 +300,21 @@ async def create_chat_completion(
                 while retry_count <= max_retries:
                     try:
                         # Non-streaming completion for DeepSeek
-                        response = client.complete(
-                            messages=messages,
-                            max_tokens=DEEPSEEK_R1_DEFAULT_MAX_TOKENS, 
-                            stream=False
-                        )
+                        if isinstance(client, ChatCompletionsClient):
+                            response = client.complete(
+                                messages=messages,
+                                max_tokens=DEEPSEEK_R1_DEFAULT_MAX_TOKENS, 
+                                stream=False
+                            )
+                        elif isinstance(client, AzureOpenAI):
+                            response = client.chat.completions.create(
+                                model=request.model,
+                                messages=messages,
+                                max_completion_tokens=DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
+                                stream=False
+                            )
+                        else:
+                            raise ValueError("Unsupported client type")
                         usage_data = {
                             "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
                             "completion_tokens": response.usage.completion_tokens if response.usage else 0,
@@ -591,11 +601,21 @@ async def generate_stream_chunks(
         while retry_count <= max_retries:
             try:
                 # Streamed completions for DeepSeek
-                stream_response = client.complete(
-                    messages=params["messages"],
-                    max_tokens=params["max_tokens"],
-                    stream=True
-                )
+                if isinstance(client, ChatCompletionsClient):
+                    stream_response = client.complete(
+                        messages=params["messages"],
+                        max_tokens=params["max_tokens"],
+                        stream=True
+                    )
+                elif isinstance(client, AzureOpenAI):
+                    stream_response = client.chat.completions.create(
+                        model=model_name,
+                        messages=params["messages"],
+                        max_completion_tokens=params["max_tokens"],
+                        stream=True
+                    )
+                else:
+                    raise ValueError("Unsupported client type")
                 # Each item in stream_response is a partial update
                 for partial in stream_response:
                     if hasattr(partial, "choices") and partial.choices:
