@@ -240,6 +240,9 @@ export async function sendMessage() {
       showNotification('Could not retrieve a valid session ID. Please refresh.', 'error');
       return;
     }
+    // Immediately store user message in local queue
+    storeChatMessage('user', messageContent);  // Moved before rendering to ensure correct ordering
+
     renderUserMessage(messageContent);
     const modelSelect = document.getElementById('model-select');
     let modelName = 'DeepSeek-R1';  // This is the model name, not the deployment name which is in the URL

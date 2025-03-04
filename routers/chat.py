@@ -620,8 +620,11 @@ async def generate_stream_chunks(
                 for partial in stream_response:
                     if hasattr(partial, "choices") and partial.choices:
                         choice = partial.choices[0]
-                        if hasattr(choice.delta, "content"):
-                            content = choice.delta.content or ""
+                        # For DeepSeek partial, use choice.message.content
+                        if hasattr(choice.message, "content") and choice.message.content is not None:
+                            content = choice.message.content
+                        elif hasattr(choice.delta, "content") and choice.delta.content is not None:
+                            content = choice.delta.content
                             full_content += content
                             yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
                 break
