@@ -381,7 +381,7 @@ function addConversationManagementButtons() {
   if (!document.getElementById('clear-convo-btn')) {
     const clearConvoBtn = document.createElement('button');
     clearConvoBtn.id = 'clear-convo-btn';
-    clearConvoBtn.className = 'btn btn-danger';
+    clearConvoBtn.className = 'btn btn-danger conversation-button';
     clearConvoBtn.innerHTML = `
       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v10M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
@@ -407,7 +407,7 @@ function addConversationManagementButtons() {
   if (!document.getElementById('new-convo-btn')) {
     const newConvoBtn = document.createElement('button');
     newConvoBtn.id = 'new-convo-btn';
-    newConvoBtn.className = 'btn btn-primary';
+    newConvoBtn.className = 'btn btn-primary conversation-button';
     newConvoBtn.innerHTML = `
       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
