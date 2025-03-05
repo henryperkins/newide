@@ -7,7 +7,7 @@ import os
 import re
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from sqlalchemy import insert, text
 from azure.ai.inference import ChatCompletionsClient
 from azure.core.exceptions import HttpResponseError
 
