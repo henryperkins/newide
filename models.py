@@ -229,8 +229,10 @@ class ModelTransition(Base):
     from_model = Column(String(50), nullable=True)  # Null for first model
     to_model = Column(String(50), nullable=False)
     tracking_id = Column(String(64), nullable=True)  # For correlation with conversations
-    timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"))
+    timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"), index=True)
     success = Column(Integer, default=1)  # 1=success, 0=failed
+    # Add server-side timestamp for ordering
+    server_created_at = Column(DateTime(timezone=True), server_default=text("NOW()"))
     error_message = Column(Text, nullable=True) 
     duration_ms = Column(Integer, nullable=True)  # Time taken for switch
     transition_metadata = Column(JSONB, nullable=True)  # Additional switching metadata
