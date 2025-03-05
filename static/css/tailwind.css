@@ -191,6 +191,11 @@
       /* Reduced size on mobile */
       @apply px-2 py-1 text-sm;
     }
+    .conversation-button.touch-target {
+      min-height: auto;
+      min-width: auto;
+      @apply px-2 py-1 text-sm;
+    }
   }
   .fade-enter-active {
     @apply opacity-100 transition-opacity duration-300;
