@@ -1,6 +1,7 @@
 import { showNotification } from './ui/notificationManager.js';
 import { eventBus } from './utils/helpers.js';
 import { modelManager } from './models.js';
+import { generateDefaultModelConfig } from './utils/modelUtils.js';
 
 const DEFAULT_CONFIG = {
   reasoningEffort: "medium",
@@ -370,21 +371,26 @@ export async function getModelSettings() {
 
 export function isFeatureEnabled(featureName) {
   if (!cachedConfig) return false;
+  const modelName = cachedConfig.selectedModel;
+  const model = modelManager.modelConfigs[modelName];
+  
   switch (featureName) {
     case 'streaming':
-      return cachedConfig.appSettings?.streamingEnabled
-             && isModelStreamingSupported(cachedConfig.selectedModel);
+      return cachedConfig.appSettings?.streamingEnabled && 
+             model?.supports_streaming;
     case 'reasoning':
-      return cachedConfig.selectedModel?.toLowerCase().startsWith('o1')
-             || cachedConfig.selectedModel?.toLowerCase().startsWith('o3');
+      return model?.requires_reasoning_effort || 
+             model?.model_type === 'o-series' ||
+             modelName?.toLowerCase().startsWith('o1') || 
+             modelName?.toLowerCase().startsWith('o3');
+    case 'vision':
+      return model?.supports_vision;
+    case 'thinking':
+      return model?.model_type === 'deepseek' || 
+             model?.enable_thinking;
     default:
       return false;
   }
-}
-
-function isModelStreamingSupported(modelName) {
-  const model = modelManager.modelConfigs[modelName];
-  return model ? !!model.supports_streaming : false;
 }
 
 export function getReasoningEffort() {
@@ -400,28 +406,46 @@ export async function getModelAPIConfig(modelName) {
   let modelConfig = null;
   
   try {
-    const resp = await fetch(`${window.location.origin}/api/config/models/${encodeURIComponent(modelName)}`);
-    if (resp.ok) {
-      modelConfig = await resp.json();
+    // First check if the model is already in modelManager
+    if (modelManager.modelConfigs[modelName]) {
+      modelConfig = modelManager.modelConfigs[modelName];
+    } else {
+      // If not, try to fetch from server
+      const resp = await fetch(`${window.location.origin}/api/config/models/${encodeURIComponent(modelName)}`);
+      if (resp.ok) {
+        modelConfig = await resp.json();
+      }
     }
   } catch (error) {
     console.error('Error fetching model config:', error);
   }
+  
+  // Map the model config to API config format
   if (modelConfig) {
     return {
       endpoint: modelConfig.azure_endpoint || config.azureOpenAI?.endpoint,
       apiVersion: modelConfig.api_version || config.azureOpenAI?.apiVersion,
       deploymentName: modelName,
-      maxTokens: modelConfig.max_tokens || config.maxTokenLimit,
-      maxCompletionTokens: modelConfig.max_completion_tokens || config.maxCompletionTokens
+      maxTokens: modelConfig.max_tokens || config.maxTokenLimit || 4096,
+      maxCompletionTokens: modelConfig.max_completion_tokens || config.maxCompletionTokens || 4096,
+      supportsStreaming: modelConfig.supports_streaming || false,
+      supportsTemperature: modelConfig.supports_temperature || false,
+      supportsVision: modelConfig.supports_vision || false,
+      requiresReasoningEffort: modelConfig.requires_reasoning_effort || false
     };
   }
+  
+  // Return default config if no model config found
   return {
-    endpoint: config.azureOpenAI?.endpoint,
-    apiVersion: config.azureOpenAI?.apiVersion,
+    endpoint: config.azureOpenAI?.endpoint || "https://o1models.openai.azure.com",
+    apiVersion: config.azureOpenAI?.apiVersion || "2025-01-01-preview",
     deploymentName: modelName,
     maxTokens: config.maxTokenLimit || 4096,
-    maxCompletionTokens: config.maxCompletionTokens || 4096
+    maxCompletionTokens: config.maxCompletionTokens || 4096,
+    supportsStreaming: false,
+    supportsTemperature: false,
+    supportsVision: false,
+    requiresReasoningEffort: modelName.toLowerCase().startsWith('o')
   };
 }
 
