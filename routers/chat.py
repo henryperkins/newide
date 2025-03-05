@@ -834,15 +834,20 @@ async def generate_stream_chunks(
             raise ValueError("Client does not support 'chat' attribute.")
 
         extra_kwargs = {}
-        if is_o_series and reasoning_effort:
-            extra_kwargs["reasoning_effort"] = reasoning_effort
+        if is_o_series:
+            if reasoning_effort:
+                extra_kwargs["reasoning_effort"] = reasoning_effort
+            if max_tokens:
+                extra_kwargs["max_completion_tokens"] = max_tokens
+        else:
+            if max_tokens:
+                extra_kwargs["max_tokens"] = max_tokens
+            if temperature is not None:
+                extra_kwargs["temperature"] = temperature
 
         stream = client.chat.completions.create(
             model=model_name,
             messages=messages_list,
-            max_completion_tokens=max_tokens if is_o_series else None,
-            max_tokens=max_tokens if not is_o_series else None,
-            temperature=None if is_o_series else temperature,
             stream=True,
             **extra_kwargs
         )
