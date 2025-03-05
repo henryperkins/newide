@@ -281,6 +281,7 @@ async def init_database():
             await conn.execute(text("ALTER TABLE model_transitions ALTER COLUMN session_id SET NOT NULL"))
             await conn.execute(text("ALTER TABLE model_transitions ADD COLUMN IF NOT EXISTS transition_metadata JSONB"))
             await conn.execute(text("ALTER TABLE model_transitions ADD COLUMN IF NOT EXISTS extra_metadata JSONB"))
+            await conn.execute(text("ALTER TABLE model_transitions ADD COLUMN IF NOT EXISTS server_created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"))
 
             await conn.execute(text("ALTER TABLE uploaded_files ALTER COLUMN session_id SET NOT NULL"))
 
@@ -366,6 +367,7 @@ async def init_database():
             "CREATE INDEX IF NOT EXISTS idx_model_transitions_models ON model_transitions(from_model, to_model)",
             "CREATE INDEX IF NOT EXISTS idx_model_transitions_timestamp ON model_transitions(timestamp)",
             "CREATE INDEX IF NOT EXISTS idx_model_transitions_tracking_id ON model_transitions(tracking_id)",
+            "CREATE INDEX IF NOT EXISTS idx_model_transitions_server_created ON model_transitions(server_created_at)",
             
             # Assistants indexes
             "CREATE INDEX IF NOT EXISTS idx_assistants_created_at ON assistants(created_at)"
