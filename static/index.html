@@ -41,6 +41,152 @@
     <script src="/static/lib/markdown-it.min.js" defer></script>
     <script src="/static/lib/purify.min.js" defer></script>
     <script src="/static/lib/prism.min.js" defer></script>
+    
+    <!-- UI Fix script - ensures buttons work properly -->
+    <script src="/static/js/ui-fix.js"></script>
+    
+    <!-- Inline script to guarantee UI functionality -->
+    <script>
+      // Force the UI controls to work by directly attaching event handlers
+      window.addEventListener('DOMContentLoaded', () => {
+        // Sidebar toggle
+        document.getElementById('sidebar-toggle')?.addEventListener('click', function() {
+          const sidebar = document.getElementById('sidebar');
+          const overlay = document.getElementById('sidebar-overlay');
+          const isHidden = sidebar.classList.contains('translate-x-full');
+          
+          console.log("Direct sidebar toggle clicked, currently hidden:", isHidden);
+          
+          // Toggle sidebar visibility
+          if (isHidden) {
+            sidebar.classList.remove('translate-x-full');
+            overlay?.classList.remove('hidden');
+          } else {
+            sidebar.classList.add('translate-x-full');
+            overlay?.classList.add('hidden');
+          }
+        });
+        
+        // Theme toggle
+        document.getElementById('theme-toggle')?.addEventListener('click', function() {
+          console.log("Direct theme toggle clicked");
+          document.documentElement.classList.toggle('dark');
+          localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+        });
+        
+        // Token usage toggle
+        document.getElementById('token-usage-toggle')?.addEventListener('click', function() {
+          console.log("Direct token usage toggle clicked");
+          const tokenDetails = document.getElementById('token-details');
+          const tokenChevron = document.getElementById('token-chevron');
+          if (tokenDetails && tokenChevron) {
+            tokenDetails.classList.toggle('hidden');
+            tokenChevron.classList.toggle('rotate-180');
+          }
+        });
+        
+        // Mobile stats toggle
+        document.getElementById('mobile-stats-toggle')?.addEventListener('click', function() {
+          console.log("Direct mobile stats toggle clicked");
+          document.getElementById('mobile-stats-panel')?.classList.toggle('hidden');
+        });
+        
+        // Fix for tabs in sidebar
+        document.querySelectorAll('[data-target-tab]').forEach(button => {
+          button.addEventListener('click', function() {
+            console.log("Direct tab button clicked:", this.getAttribute('data-target-tab'));
+            
+            // Get all tab buttons and content panels
+            const allTabButtons = document.querySelectorAll('[data-target-tab]');
+            const allTabContents = document.querySelectorAll('[role="tabpanel"]');
+            
+            // Remove active state from all tabs
+            allTabButtons.forEach(btn => {
+              btn.classList.remove('border-primary-500', 'text-primary-700', 'dark:text-primary-300');
+              btn.classList.add('border-transparent', 'text-dark-500');
+              btn.setAttribute('aria-selected', 'false');
+            });
+            
+            // Hide all tab contents
+            allTabContents.forEach(content => {
+              content.classList.add('hidden');
+              content.setAttribute('aria-hidden', 'true');
+            });
+            
+            // Set active state for clicked tab
+            this.classList.remove('border-transparent', 'text-dark-500');
+            this.classList.add('border-primary-500', 'text-primary-700', 'dark:text-primary-300');
+            this.setAttribute('aria-selected', 'true');
+            
+            // Show corresponding content
+            const tabId = this.getAttribute('data-target-tab');
+            const activeContent = document.getElementById(tabId);
+            if (activeContent) {
+              activeContent.classList.remove('hidden');
+              activeContent.setAttribute('aria-hidden', 'false');
+            }
+          });
+        });
+        
+        // Close button for sidebar
+        document.getElementById('close-sidebar')?.addEventListener('click', function() {
+          console.log("Direct close sidebar button clicked");
+          const sidebar = document.getElementById('sidebar');
+          const overlay = document.getElementById('sidebar-overlay');
+          
+          if (sidebar) sidebar.classList.add('translate-x-full');
+          if (overlay) overlay.classList.add('hidden');
+        });
+        
+        // Font size control
+        document.getElementById('font-size-up')?.addEventListener('click', function() {
+          console.log("Direct font-size-up clicked");
+          adjustFontSize(1);
+        });
+        
+        document.getElementById('font-size-down')?.addEventListener('click', function() {
+          console.log("Direct font-size-down clicked");
+          adjustFontSize(-1);
+        });
+        
+        document.getElementById('font-size-reset')?.addEventListener('dblclick', function() {
+          console.log("Direct font-size-reset double-clicked");
+          adjustFontSize(0);
+        });
+        
+        document.getElementById('mobile-font-up')?.addEventListener('click', function() {
+          console.log("Direct mobile-font-up clicked");
+          adjustFontSize(1);
+        });
+        
+        document.getElementById('mobile-font-down')?.addEventListener('click', function() {
+          console.log("Direct mobile-font-down clicked");
+          adjustFontSize(-1);
+        });
+        
+        function adjustFontSize(direction) {
+          console.log("Adjusting font size:", direction);
+          const sizes = ['text-sm', 'text-base', 'text-lg', 'text-xl'];
+          
+          // Handle reset case (direction === 0)
+          if (direction === 0) {
+            document.documentElement.classList.remove(...sizes);
+            document.documentElement.classList.add('text-base'); // Default size
+            localStorage.removeItem('fontSize'); // Clear stored preference
+            return;
+          }
+          
+          let currentIndex = sizes.findIndex(sz => document.documentElement.classList.contains(sz));
+          if (currentIndex === -1) currentIndex = 1; // Default to text-base (index 1)
+          const newIndex = Math.min(Math.max(currentIndex + direction, 0), sizes.length - 1);
+          document.documentElement.classList.remove(...sizes);
+          document.documentElement.classList.add(sizes[newIndex]);
+          localStorage.setItem('fontSize', sizes[newIndex]);
+        }
+        
+        console.log("✅ Direct event handlers attached in index.html");
+      });
+    </script>
 </head>
 <body class="h-full bg-dark-50 dark:bg-dark-900 text-dark-900 dark:text-dark-50">
     <!-- Skip link for accessibility -->
@@ -576,5 +722,7 @@
     <script type="module" src="/static/js/init.js"></script>
     <script type="module" src="/static/js/chat.js" defer></script>
     <script type="module" src="/static/js/streaming.js" defer></script>
+    <script src="/static/js/verify-ui.js" defer></script>
+    <script src="/static/js/debug-ui.js" defer></script>
 </body>
 </html>
