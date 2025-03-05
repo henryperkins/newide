@@ -368,7 +368,7 @@
     right: 0;
     bottom: 0;
     width: 384px; /* Fixed sidebar width */
-    z-index: 20; /* Lower than input area but higher than chat container */
+    z-index: 50; /* Higher than overlay (z-40) to ensure clickability */
     transform: translateX(100%);
     transition: transform 0.3s ease-in-out;
   }
