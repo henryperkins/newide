@@ -118,3 +118,7 @@ build/
 *.bak
 *.backup
 *.swp
+.aider.tags.cache.v3
+.aider.chat.history.md
+.aider.input.history.md
+.aider.input.history
