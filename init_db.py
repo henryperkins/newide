@@ -153,7 +153,8 @@ async def init_database():
                 success INTEGER DEFAULT 1,
                 error_message TEXT,
                 duration_ms INTEGER,
-                transition_metadata JSONB
+                transition_metadata JSONB,
+                server_created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             )
         """))
 
