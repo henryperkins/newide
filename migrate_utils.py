@@ -34,6 +34,37 @@ async def check_database_consistency() -> Tuple[bool, List[str]]:
     inconsistencies = []
     
     async with engine.connect() as conn:
+
+async def clean_orphaned_db_elements(confirm: bool = True) -> None:
+    """Safely remove known orphaned database elements that are not in the ORM.
+    Requires explicit confirmation to prevent accidental data loss.
+    """
+    if not confirm:
+        raise ValueError("Cleanup requires confirmation flag")
+        
+    async with engine.begin() as conn:
+        logger.info("Cleaning known orphaned database elements...")
+        # Remove entire tables that are no longer needed
+        await conn.execute(text("""
+            DROP TABLE IF EXISTS 
+                legacy_analytics,
+                temp_uploads,
+                user_preferences_old;
+        """))
+        
+        # Remove specific columns from tables
+        await conn.execute(text("""
+            ALTER TABLE IF EXISTS users 
+            DROP COLUMN IF EXISTS 
+                social_login_token,
+                legacy_password_hash;
+            
+            ALTER TABLE IF EXISTS conversations
+            DROP COLUMN IF EXISTS 
+                deprecated_ranking_score,
+                old_format_flag;
+        """))
+        logger.info("Completed orphaned database element cleanup")
         # Get ORM table definitions
         orm_tables = Base.metadata.tables
         
