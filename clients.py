@@ -121,7 +121,7 @@ class ModelRegistry:
         elif config.is_o_series_model(model_id):
             template["azure_endpoint"] = config.AZURE_OPENAI_ENDPOINT
             template["api_version"] = config.AZURE_OPENAI_API_VERSION
-            template["supports_streaming"] = False
+            template["supports_streaming"] = True
             template["supports_temperature"] = False
             template["requires_reasoning_effort"] = True
         
@@ -385,25 +385,49 @@ async def get_model_client_dependency(model_name: Optional[str] = None) -> Dict[
         model_name: Optional model name to get client for. If None, uses default.
         
     Returns:
-        Dict with "client" key containing the client object
+        Dict with "client" key containing the client object and "model_config" with configuration
     """
     try:
+        # Get model type for later use
+        model_type = "standard"
+        if config.is_deepseek_model(model_name):
+            model_type = "deepseek"
+        elif config.is_o_series_model(model_name):
+            model_type = "o_series"
+            
+        # Build model config
+        model_config = {
+            "model_type": model_type,
+            "supports_streaming": True,
+            "supports_temperature": not config.is_o_series_model(model_name)
+        }
+        
         if config.is_deepseek_model(model_name):
             client = ChatCompletionsClient(
                 endpoint=config.AZURE_INFERENCE_ENDPOINT,
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                model=model_name,
-                api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION
+                model="DeepSeek-R1",  # Fixed model name
+                api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+                connection_timeout=120.0,
+                read_timeout=120.0
             )
-            return {"client": client, "model_name": model_name}
+            return {
+                "client": client, 
+                "model_name": model_name,
+                "model_config": model_config
+            }
         
-        # Use async client for Azure OpenAI
-        client = AsyncAzureOpenAI(
+        # Use non-async client for better compatibility with both streaming and non-streaming
+        client = AzureOpenAI(
             api_key=config.AZURE_OPENAI_API_KEY,
             api_version=config.AZURE_OPENAI_API_VERSION,
             azure_endpoint=config.AZURE_OPENAI_ENDPOINT
         )
-        return {"client": client, "model_name": model_name or config.AZURE_OPENAI_DEPLOYMENT_NAME}
+        return {
+            "client": client, 
+            "model_name": model_name or config.AZURE_OPENAI_DEPLOYMENT_NAME,
+            "model_config": model_config
+        }
     except Exception as e:
         logger.error(f"Error in get_model_client_dependency: {str(e)}")
         return {"client": None, "error": str(e)}

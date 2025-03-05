@@ -436,7 +436,7 @@
   #sidebar-overlay {
     @apply fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity
            duration-300 md:hidden;
-    pointer-events: auto; /* Allow clicks on the overlay to close sidebar */
+    pointer-events: none; /* Prevent overlay from blocking sidebar interactions */
   }
 
   /* Chat container padding adjustment */

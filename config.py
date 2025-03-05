@@ -291,6 +291,110 @@ AZURE_EMBEDDING_DEPLOYMENT = os.getenv(
 )
 AZURE_EMBEDDING_DIMENSION = int(os.getenv("AZURE_EMBEDDING_DIMENSION", "1536"))
 
+def get_azure_search_index_schema(index_name: str) -> dict:
+    """
+    Build a schema dict for Azure AI Search index creation.
+    This includes vector search configs, semantic configs, etc.
+    """
+    return {
+        "name": index_name,
+        "fields": [
+            {
+                "name": "id",
+                "type": "Edm.String",
+                "key": True,
+                "filterable": True
+            },
+            {
+                "name": "filename",
+                "type": "Edm.String",
+                "searchable": True,
+                "filterable": True,
+                "sortable": True
+            },
+            {
+                "name": "content",
+                "type": "Edm.String",
+                "searchable": True,
+                "analyzer": "standard.lucene"
+            },
+            {
+                "name": "chunk_content",
+                "type": "Edm.String",
+                "searchable": True,
+                "analyzer": "standard.lucene"
+            },
+            {
+                "name": "filepath",
+                "type": "Edm.String",
+                "searchable": True,
+                "filterable": True
+            },
+            {
+                "name": "file_type",
+                "type": "Edm.String",
+                "filterable": True
+            },
+            {
+                "name": "session_id",
+                "type": "Edm.String",
+                "filterable": True
+            },
+            {
+                "name": "chunk_id",
+                "type": "Edm.Int32",
+                "filterable": True,
+                "sortable": True
+            },
+            {
+                "name": "chunk_total",
+                "type": "Edm.Int32"
+            },
+            {
+                "name": "content_vector",
+                "type": "Collection(Edm.Single)",
+                "searchable": True,
+                "dimensions": AZURE_EMBEDDING_DIMENSION,
+                "vectorSearchConfiguration": "vectorConfig"
+            },
+            {
+                "name": "last_updated",
+                "type": "Edm.DateTimeOffset",
+                "filterable": True,
+                "sortable": True
+            }
+        ],
+        "vectorSearch": {
+            "algorithmConfigurations": [
+                {
+                    "name": "vectorConfig",
+                    "kind": "hnsw",
+                    "parameters": {
+                        "m": 4,
+                        "efConstruction": 400,
+                        "efSearch": 500,
+                        "metric": "cosine"
+                    }
+                }
+            ]
+        },
+        "semantic": {
+            "configurations": [
+                {
+                    "name": "default",
+                    "prioritizedFields": {
+                        "contentFields": [
+                            {"fieldName": "content"},
+                            {"fieldName": "chunk_content"}
+                        ],
+                        "titleField": {"fieldName": "filename"},
+                        "urlField": {"fieldName": "filepath"}
+                    }
+                }
+            ]
+        }
+    }
+
 
 def build_azure_openai_url(deployment_name: str = None, api_version: str = None) -> str:
     """Build the Azure OpenAI API URL with support for different model types."""

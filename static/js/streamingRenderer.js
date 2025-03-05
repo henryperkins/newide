@@ -45,9 +45,20 @@ export function renderContentEfficiently(container, newHTML, options = {}) {
 
   container.__previousHtml = newHTML;
 
-  // Optional scroll behavior
+  // Optional scroll behavior - get chat history container for consistent scrolling
   if (options.scroll) {
-    container.scrollIntoView(options.scrollOptions || { behavior: 'smooth', block: 'end' });
+    const chatHistory = document.getElementById('chat-history');
+    if (chatHistory) {
+      // Use scrollTo instead of scrollIntoView for more predictable behavior
+      const scrollOptions = options.scrollOptions || { behavior: 'smooth' };
+      chatHistory.scrollTo({
+        top: chatHistory.scrollHeight,
+        ...scrollOptions
+      });
+    } else {
+      // Fallback to scrollIntoView if chat history not found
+      container.scrollIntoView(options.scrollOptions || { behavior: 'smooth', block: 'end' });
+    }
   }
 }
 

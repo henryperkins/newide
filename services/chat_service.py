@@ -113,6 +113,129 @@ def prepare_model_parameters(
     return params
 
 
+async def get_file_context(db_session: AsyncSession, file_ids: List[str], use_search: bool = False) -> Optional[str]:
+    """
+    Retrieve file content to be used as context in the chat.
+    
+    Args:
+        db_session: Database session
+        file_ids: List of file IDs to include as context
+        use_search: Whether to use Azure Search for context retrieval
+        
+    Returns:
+        Formatted context string or None if no valid files found
+    """
+    if not file_ids:
+        return None
+    
+    try:
+        # Import here to avoid circular imports
+        from clients import get_model_client_dependency
+        
+        # If Azure Search is enabled, use it to get content
+        if use_search:
+            try:
+                from services.azure_search_service import AzureSearchService
+                from models import UploadedFile
+                
+                # Need to get the session_id first
+                file_result = await db_session.execute(
+                    text("""
+                        SELECT session_id 
+                        FROM uploaded_files 
+                        WHERE id = :file_id::uuid
+                        LIMIT 1
+                    """),
+                    {"file_id": file_ids[0]}
+                )
+                
+                session_id_row = file_result.fetchone()
+                if not session_id_row:
+                    logger.warning(f"Could not find session_id for file {file_ids[0]}")
+                    return None
+                    
+                session_id = session_id_row[0]
+                
+                # Get Azure client
+                client_wrapper = await get_model_client_dependency()
+                azure_client = client_wrapper.get("client")
+                
+                # Use Azure Search
+                search_service = AzureSearchService(azure_client)
+                results = await search_service.query_index(
+                    session_id=session_id,
+                    query="",  # Empty query returns all content
+                    file_ids=file_ids,
+                    top=10
+                )
+                
+                if results:
+                    # Format search results
+                    formatted_content = "## Document Context\n\n"
+                    for i, result in enumerate(results):
+                        # Add file information
+                        formatted_content += f"### {result.get('filename')}\n"
+                        if 'content' in result:
+                            formatted_content += result.get('content', '') + "\n\n"
+                    
+                    return formatted_content
+            except Exception as e:
+                logger.error(f"Error using Azure Search for file context: {e}")
+                # Fall back to direct file content retrieval
+        
+        # Get the file contents directly from database
+        file_contents = []
+        for file_id in file_ids:
+            result = await db_session.execute(
+                text("""
+                    SELECT filename, content, file_type
+                    FROM uploaded_files 
+                    WHERE id = :file_id::uuid
+                """),
+                {"file_id": file_id}
+            )
+            
+            row = result.fetchone()
+            if row:
+                filename, content, file_type = row
+                # Truncate large files
+                MAX_CHARS_PER_FILE = 15000  # Limit file size to avoid exceeding context window
+                if content and len(content) > MAX_CHARS_PER_FILE:
+                    content = content[:MAX_CHARS_PER_FILE] + f"\n\n[File truncated due to size. Original length: {len(content)} characters]"
+                
+                file_contents.append({
+                    "filename": filename,
+                    "content": content,
+                    "file_type": file_type
+                })
+        
+        if not file_contents:
+            return None
+            
+        # Format the context string
+        context = "## Document Context\n\n"
+        for file_info in file_contents:
+            # Add file information
+            context += f"### {file_info['filename']}\n\n"
+            
+            # Add file content based on file type
+            if file_info['file_type'] in ['.py', '.js', '.html', '.css', '.jsx', '.ts', '.tsx', '.json']:
+                # Format code files with markdown code blocks
+                context += f"```{file_info['file_type'][1:]}\n{file_info['content']}\n```\n\n"
+            else:
+                # Regular text content
+                context += file_info['content'] + "\n\n"
+        
+        # Add instructions for AI on how to use the context
+        context += "\nRefer to the document context above when answering questions about the files. Include specific details from the files when relevant."
+        
+        return context
+            
+    except Exception as e:
+        logger.error(f"Error retrieving file context: {e}")
+        return None
+
+
 async def process_chat_message(
     chat_message: ChatMessage,
     db_session: AsyncSession,
@@ -152,6 +275,111 @@ async def process_chat_message(
 
     # Prepare API parameters based on model type
     params = prepare_model_parameters(chat_message, model_name, is_deepseek, is_o_series)
+    
+    # Process advanced data sources integration if files are included
+    if chat_message.include_files and chat_message.file_ids and chat_message.use_file_search:
+        try:
+            from services.azure_search_service import AzureSearchService
+            from models import UploadedFile
+            
+            # Get session_id for Azure Search
+            file_result = await db_session.execute(
+                text("""
+                    SELECT session_id 
+                    FROM uploaded_files 
+                    WHERE id = :file_id::uuid
+                    LIMIT 1
+                """),
+                {"file_id": chat_message.file_ids[0]}
+            )
+            
+            session_id_row = file_result.fetchone()
+            if not session_id_row:
+                logger.warning(f"Could not find session_id for file {chat_message.file_ids[0]}")
+            else:
+                session_id = session_id_row[0]
+                
+                # Set up data_sources for direct Azure Search integration
+                params["data_sources"] = [
+                    {
+                        "type": "azure_search",
+                        "parameters": {
+                            "endpoint": config.AZURE_SEARCH_ENDPOINT,
+                            "authentication": {
+                                "type": "api_key",
+                                "api_key": config.AZURE_SEARCH_KEY
+                            },
+                            "index_name": f"index-{session_id}",
+                            "query_type": "hybrid",  # Use both vector and keyword search
+                            "embedding_dependency": {
+                                "type": "deployment_name",
+                                "deployment_name": config.AZURE_EMBEDDING_DEPLOYMENT
+                            },
+                            "in_scope": True,
+                            "top_n_documents": 5,
+                            "strictness": 3,
+                            "role_information": "You are an AI assistant that helps people find information from their files. When referencing information from files, cite the specific file.",
+                            "fields_mapping": {
+                                "content_fields_separator": "\n",
+                                "content_fields": ["content", "chunk_content"],
+                                "filepath_field": "filepath",
+                                "title_field": "filename",
+                                "url_field": "id",
+                                "vector_fields": ["content_vector"]
+                            }
+                        }
+                    }
+                ]
+                
+                # If specific file_ids are provided, add filter to only search those files
+                if len(chat_message.file_ids) > 0:
+                    id_filters = [f"id eq '{file_id}' or startsWith(id, '{file_id}-chunk-')" for file_id in chat_message.file_ids]
+                    params["data_sources"][0]["parameters"]["filter"] = " or ".join(id_filters)
+                
+                logger.info(f"Using direct Azure Search integration with {len(chat_message.file_ids)} files")
+        except Exception as e:
+            logger.error(f"Error setting up direct Azure Search integration: {e}")
+            # Fall back to traditional context approach
+            file_context = await get_file_context(db_session, chat_message.file_ids, False)
+            if file_context:
+                # Add file context as a system message before the user's message
+                file_system_message = {
+                    "role": "developer" if is_o_series else "system",
+                    "content": file_context
+                }
+                
+                # Insert file context before the user's message
+                user_msg_index = 0
+                for i, msg in enumerate(params["messages"]):
+                    if msg["role"] not in ["system", "developer"]:
+                        user_msg_index = i
+                        break
+                
+                # Insert the file context message
+                params["messages"].insert(user_msg_index, file_system_message)
+                
+                logger.info(f"Added file context ({len(file_context)} chars) to message (fallback method)")
+    # Use traditional context method if not using search or if direct integration isn't requested
+    elif chat_message.include_files and chat_message.file_ids:
+        file_context = await get_file_context(db_session, chat_message.file_ids, False)
+        if file_context:
+            # Add file context as a system message before the user's message
+            file_system_message = {
+                "role": "developer" if is_o_series else "system",
+                "content": file_context
+            }
+            
+            # Insert file context before the user's message
+            user_msg_index = 0
+            for i, msg in enumerate(params["messages"]):
+                if msg["role"] not in ["system", "developer"]:
+                    user_msg_index = i
+                    break
+            
+            # Insert the file context message
+            params["messages"].insert(user_msg_index, file_system_message)
+            
+            logger.info(f"Added file context ({len(file_context)} chars) to message")
 
     try:
         from clients import get_model_client_dependency

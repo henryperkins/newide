@@ -1,0 +1,8355 @@
+
+# 2025-02-22 23:13:43.605003
++yes
+
+# 2025-02-22 23:15:34.947553
++no
+
+# 2025-02-22 23:16:40.853092
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-22 23:18:02.511534
++yes
+
+# 2025-02-22 23:18:23.422618
++/add services/chat_service.py
+
+# 2025-02-22 23:18:35.981721
++/add models.py
+
+# 2025-02-22 23:18:44.215314
++/add static/js/models.js
+
+# 2025-02-22 23:18:55.441994
++/add static/js/ui/displayManager.js
+
+# 2025-02-22 23:18:59.939746
++/add static/js/messageHandler.js
+
+# 2025-02-22 23:19:21.977744
++/add static/js/init.js
+
+# 2025-02-22 23:19:53.366952
++/add static/js/config.js
+
+# 2025-02-22 23:20:37.269534
++/architect how do enable the streaming checkbox and the model selection dropdown on index.html
+
+# 2025-02-22 23:20:40.548363
++yes
+
+# 2025-02-22 23:21:35.598889
++no
+
+# 2025-02-22 23:21:44.356190
++/add static/js/*
+
+# 2025-02-22 23:21:47.074588
++/architect how do enable the streaming checkbox and the model selection dropdown on index.html
+
+# 2025-02-22 23:22:32.757643
++yes
+
+# 2025-02-22 23:22:59.070653
++no
+
+# 2025-02-22 23:23:14.416090
++/add deepseek-documentaiton/DeepSeek.md
+
+# 2025-02-22 23:23:17.207995
++/architect how do enable the streaming checkbox and the model selection dropdown on index.html
+
+# 2025-02-22 23:24:10.335565
++yes
+
+# 2025-02-22 23:24:15.318148
++no
+
+# 2025-02-23 03:47:38.036396
++/add static/js/*
+
+# 2025-02-23 03:47:46.058444
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-23 03:48:45.819886
++yes
+
+# 2025-02-23 03:48:56.606122
++/add static/index.html
+
+# 2025-02-23 03:49:02.828936
++/add main.py
+
+# 2025-02-23 03:49:07.796572
++/add services/chat_service.py
+
+# 2025-02-23 03:49:14.539377
++/add routers/chat.py
+
+# 2025-02-23 03:50:01.879403
++/add config.py
+
+# 2025-02-23 03:50:19.279428
++/add models.py
+
+# 2025-02-23 03:50:22.417494
++/add routers/chat.py
+
+# 2025-02-23 03:50:58.367611
++/architect identify any issues
+
+# 2025-02-23 03:51:44.699283
++yes
+
+# 2025-02-23 03:52:38.181621
++no
+
+# 2025-02-23 03:52:47.190348
++/architect
+
+# 2025-02-23 03:52:55.091874
++expand on the identified issues 
+
+# 2025-02-23 03:54:43.242574
++no
+
+# 2025-02-23 03:54:52.304935
++no new features just remediationa
+
+# 2025-02-23 03:55:34.912989
++l
+
+# 2025-02-23 03:57:47.127195
++no
+
+# 2025-02-23 03:58:04.929786
++focus on frontend ui actions
+
+# 2025-02-23 03:58:47.927719
++yes
+
+# 2025-02-24 05:02:08.828059
++no
+
+# 2025-02-24 05:02:52.407430
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-24 05:03:16.667495
++no
+
+# 2025-02-24 05:03:19.207710
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-24 05:03:44.247423
++yes
+
+# 2025-02-24 05:03:53.187589
++/add static/js/*
+
+# 2025-02-24 05:04:04.387368
++/add static/index.html
+
+# 2025-02-24 05:04:22.159980
++/add main.py
+
+# 2025-02-24 05:04:27.297631
++/add config.py
+
+# 2025-02-24 05:04:32.067810
++/add routers/config.py
+
+# 2025-02-24 05:04:35.912508
++/add routers/chat.py
+
+# 2025-02-24 05:04:39.752426
++/add services/chat_service.py
+
+# 2025-02-24 05:04:44.707673
++/add services/config_service.py
+
+# 2025-02-24 05:04:51.028325
++/add clients.py
+
+# 2025-02-24 05:05:03.584314
++/add routers/session.py
+
+# 2025-02-24 05:05:23.167560
++/architect analyze the codebase
+
+# 2025-02-24 05:08:07.707965
++no
+
+# 2025-02-24 05:08:57.328232
++/architect how are typing indicatirs currently implemented
+
+# 2025-02-24 05:09:51.487158
++no
+
+# 2025-02-24 05:10:02.027839
++/add static/css/*
+
+# 2025-02-24 05:10:04.567964
++/architect how are typing indicatirs currently implemented
+
+# 2025-02-24 05:11:02.107195
++no
+
+# 2025-02-24 05:11:34.350950
++/architect how are typing indicatirs currently implemented and propose an enhanced veversion with proper state management and      
+
+# 2025-02-24 05:12:20.547524
++accessibility features?                                                                yes
+
+# 2025-02-24 05:12:22.327489
++yes
+
+# 2025-02-24 05:15:05.567454
++/architect how are typing indicatirs currently implemented
+
+# 2025-02-24 05:18:36.912325
++no
+
+# 2025-02-24 05:18:54.532852
++/architect when i hit the send button on index.html nothing happens
+
+# 2025-02-24 05:20:20.937486
++no
+
+# 2025-02-24 05:20:30.432465
++/architect verify 
+
+# 2025-02-24 05:21:49.186747
++yes
+
+# 2025-02-24 05:36:08.478388
++no
+
+# 2025-02-24 05:37:17.434953
++/architect test
+
+# 2025-02-24 05:37:31.734880
++no
+
+# 2025-02-24 05:37:39.155187
++/architect test
+
+# 2025-02-24 05:37:44.694488
++no
+
+# 2025-02-24 05:38:00.234706
++/add static/js/*
+
+# 2025-02-24 05:38:10.334496
++/add static/index.html
+
+# 2025-02-24 05:38:18.164735
++/add config.py
+
+# 2025-02-24 05:38:23.415584
++/add routers/config.py
+
+# 2025-02-24 05:38:28.255503
++/add services/config_service.py
+
+# 2025-02-24 05:38:31.860411
++/add main.py
+
+# 2025-02-24 05:38:36.855400
++/add clients.py
+
+# 2025-02-24 05:38:40.574737
++/add routers/chat.py
+
+# 2025-02-24 05:38:44.099808
++/add services/chat_service.py
+
+# 2025-02-24 05:38:49.719677
++/add models.py
+
+# 2025-02-24 05:38:53.580530
++/add pydantic_models.py
+
+# 2025-02-24 05:39:07.540449
++/add database.py
+
+# 2025-02-24 05:39:39.559157
++/architect analyze the codebase
+
+# 2025-02-24 05:40:50.883432
++no
+
+# 2025-02-24 05:41:20.153503
++/architect in english. and focus your analysis on why the send button doesnt work
+
+# 2025-02-24 05:41:48.205953
++yes
+
+# 2025-02-24 05:45:30.926291
++no
+
+# 2025-02-24 05:45:35.096232
++/architect in english. and focus your analysis on why the send button doesnt work
+
+# 2025-02-24 05:46:35.216273
++/add routers/session.py
+
+# 2025-02-24 05:46:50.296148
++/add routers/security.py
+
+# 2025-02-24 05:47:03.356379
++/add init_db.py
+
+# 2025-02-24 05:47:12.395816
++/add utils.py
+
+# 2025-02-24 05:47:47.696343
++/architect analyze the codebase and create a plan to implement user authentication using the postgresql database
+
+# 2025-02-24 05:49:06.948987
++no
+
+# 2025-02-24 05:49:34.036510
++/architect expand on your high-level plan and provide specific code solutions customized for this app
+
+# 2025-02-24 05:53:34.295567
++no
+
+# 2025-02-24 05:53:47.476864
++/architect how will users register or login?
+
+# 2025-02-24 05:54:20.242111
++no
+
+# 2025-02-24 05:54:42.144004
++/architect include in your plan login.html and register.html
+
+# 2025-02-24 05:55:37.508490
++yes
+
+# 2025-02-24 05:56:32.960459
++/add static/login.html
+
+# 2025-02-24 05:56:37.019884
++/add static/register.html
+
+# 2025-02-24 05:56:57.150982
++/architect login and register html pages have been created - now what?
+
+# 2025-02-24 05:57:53.618919
++yes
+
+# 2025-02-24 06:03:25.526338
++/architrct analyze the codebase for issues with user authentication system
+
+# 2025-02-24 06:03:32.226284
++/add routers/auth.py
+
+# 2025-02-24 06:03:47.727074
++/architect analyze the codebase for issues with user authentication system
+
+# 2025-02-24 06:05:36.275525
++no
+
+# 2025-02-24 06:05:49.393200
++/architect analyze the codebase for issues with user authentication system for a development build
+
+# 2025-02-24 06:07:14.513632
++no
+
+# 2025-02-24 06:07:35.581857
++/architect analyze the codebase for issues with user authentication system for a development build - and i want you to have to login in order to interact with the chat
+
+# 2025-02-24 06:09:11.998763
++yes
+
+# 2025-02-24 06:12:37.104297
++/architect analyze the user login and registration system
+
+# 2025-02-24 06:14:05.633107
++what should i use for the JWT secret?
+
+# 2025-02-24 06:16:22.092843
++no
+
+# 2025-02-24 06:17:24.573165
++/architect investigate why the send button on index.html doesnt work
+
+# 2025-02-24 06:17:28.353213
++yes
+
+# 2025-02-24 06:18:50.094244
++no
+
+# 2025-02-24 06:18:59.394718
++/architect investigate why the send button on index.html doesnt work in english
+
+# 2025-02-24 06:19:47.290661
++yes
+
+# 2025-02-24 06:21:34.839610
++/add static/js/*
+
+# 2025-02-24 06:21:39.006314
++`querySelectorAll`
+
+# 2025-02-24 06:21:45.304503
++/architect investigate why the send button on index.html doesnt work in english
+
+# 2025-02-24 06:22:42.371606
++yes
+
+# 2025-02-24 06:23:48.308606
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-24 06:24:26.650495
++yes
+
+# 2025-02-24 06:24:58.976864
++/architect the button is still not procviding any feedback or action
+
+# 2025-02-24 06:26:48.938139
++yes
+
+# 2025-02-24 06:27:36.087053
++/add routers/chat.py
+
+# 2025-02-24 06:27:41.584965
++/add services/chat_service.py
+
+# 2025-02-24 06:27:53.156974
++/add routers/config.py
+
+# 2025-02-24 06:28:01.257454
++/architect investigate why the send button on index.html doesnt work in english
+
+# 2025-02-24 06:28:48.442164
++yes
+
+# 2025-02-24 06:29:13.682529
++no
+
+# 2025-02-24 06:29:21.829985
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-24 06:30:15.873934
++yes
+
+# 2025-02-24 06:30:37.458985
++/add static/css/*
+
+# 2025-02-24 06:30:46.299477
++/add static/index.css
+
+# 2025-02-24 06:30:52.268937
++/architect investigate why the send button on index.html doesnt work in english
+
+# 2025-02-24 06:32:29.498820
++yes
+
+# 2025-02-24 06:35:43.191489
++/architect investigate why the send button on index.html doesnt work in english
+
+# 2025-02-24 06:37:15.847910
++yes
+
+# 2025-02-24 06:39:21.309850
++no
+
+# 2025-02-24 06:39:32.941263
++/architect investigate why the send button on index.html doesnt work in english on mobile device
+
+# 2025-02-24 06:40:26.464518
++yes
+
+# 2025-02-24 06:41:29.524522
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-24 06:42:01.473550
++yes
+
+# 2025-02-24 06:42:04.304539
++/architect investigate why the send button on index.html doesnt work in english on mobile device
+
+# 2025-02-24 06:43:20.948247
++yes
+
+# 2025-02-24 06:44:50.851023
++/architect investigate why the send button on index.html doesnt work in english on mobile device
+
+# 2025-02-24 06:45:32.888577
++yes
+
+# 2025-02-24 06:48:11.151912
++/architect investigate why the send button on index.html doesnt work in english on mobile device
+
+# 2025-02-24 07:01:16.624091
++yes
+
+# 2025-02-24 07:07:22.654287
++/reset
+
+# 2025-02-24 07:07:30.613915
++/add services/chat_service.py
+
+# 2025-02-24 07:08:00.913984
++/add static/index.html
+
+# 2025-02-24 07:08:05.774249
++/add routers/chat.py
+
+# 2025-02-24 07:08:11.014259
++/add routers/auth.py
+
+# 2025-02-24 07:08:24.274227
++/add static/js/ui/*
+
+# 2025-02-24 07:08:29.974126
++/add static/js/chat.js
+
+# 2025-02-24 07:08:36.858729
++/add static/js/init.js
+
+# 2025-02-24 07:08:43.629753
++/add static/js/models.js
+
+# 2025-02-24 07:08:49.813609
++/add models.py
+
+# 2025-02-24 07:09:24.873899
++/web https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/reasoning?tabs=python-secure
+
+# 2025-02-24 07:09:26.759157
++yes
+
+# 2025-02-24 07:10:05.019460
++/architect why doesnt the send button work
+
+# 2025-02-24 07:11:46.394543
++no
+
+# 2025-02-24 07:11:50.539378
++/web https://learn.microsoft.com/en-us/azure/ai-studio/how-to/deploy-models-deepseek?pivots=programming-language-python
+
+# 2025-02-24 07:11:56.233699
++/architect why doesnt the send button work
+
+# 2025-02-24 07:12:27.273631
++yes
+
+# 2025-02-24 07:16:04.938919
++no
+
+# 2025-02-24 07:16:36.309083
++/architect why doesnt the send button work
+
+# 2025-02-24 07:18:23.754071
++no
+
+# 2025-02-24 07:18:28.124955
++/add config.py
+
+# 2025-02-24 07:18:32.289590
++/add routers/config.py
+
+# 2025-02-24 07:18:37.734415
++/add static/js/config.js
+
+# 2025-02-24 07:18:41.794407
++/add services/config_service.py
+
+# 2025-02-24 07:18:45.454526
++/add clients.py
+
+# 2025-02-24 07:18:49.034071
++/architect why doesnt the send button work
+
+# 2025-02-24 07:19:50.604413
++yee
+
+# 2025-02-24 07:19:53.054866
++yes
+
+# 2025-02-24 07:21:05.074248
++no
+
+# 2025-02-24 07:43:24.663718
++/run git push
+
+# 2025-02-24 07:43:28.464194
++no
+
+# 2025-02-24 09:49:39.609655
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-24 09:50:36.588403
++yes
+
+# 2025-02-24 09:50:40.424013
++/add static/index.css
+
+# 2025-02-24 09:50:43.344476
++/add static/index.html
+
+# 2025-02-24 09:50:52.903843
++/add static/css/*
+
+# 2025-02-24 09:51:00.179869
++/add static/js/ui/*
+
+# 2025-02-24 09:51:07.409207
++/add static/js/chat.js
+
+# 2025-02-24 09:51:58.049227
++/architect fix the layout and UI on mobile and desktop devices
+
+# 2025-02-24 09:53:08.318925
++yes
+
+# 2025-02-24 09:54:01.224182
++no
+
+# 2025-02-24 09:54:26.464384
++/architect Continue your analysis of the relevant files to modify to implement better mobile support and desktop experience
+
+# 2025-02-24 09:55:26.139056
++yes
+
+# 2025-02-24 10:27:34.284425
++/run git push
+
+# 2025-02-24 10:27:38.373905
++no
+
+# 2025-02-24 13:11:10.579241
++yes
+
+# 2025-02-24 16:19:40.508614
++no
+
+# 2025-02-24 16:19:50.268623
++/add static/index.html
+
+# 2025-02-24 16:20:03.188437
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-24 16:20:34.373335
++yes
+
+# 2025-02-24 16:20:39.949336
++fix the 404s
+
+# 2025-02-24 16:21:15.838352
++yes
+
+# 2025-02-24 16:21:36.709224
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-24 16:22:03.349239
++yes
+
+# 2025-02-24 16:22:11.748440
++/architect fix
+
+# 2025-02-24 16:22:28.868939
++yes
+
+# 2025-02-24 16:23:08.768390
++no
+
+# 2025-02-24 16:23:15.593754
++/add static/js/ui/themeswitcher.js
+
+# 2025-02-24 16:23:24.077263
++/add static/js/init.js
+
+# 2025-02-24 16:23:30.178964
++/add static/login.html
+
+# 2025-02-24 16:25:37.248931
++no
+
+# 2025-02-24 16:26:04.229292
++/add static/css/tailwind.css
+
+# 2025-02-24 16:26:10.369151
++/add tailwind.config.js
+
+# 2025-02-24 16:26:23.429304
++/add static/index.html
+
+# 2025-02-24 16:26:28.908894
++/add static/js/ui/themeswitcher.js
+
+# 2025-02-24 16:26:45.239751
++/add static/js/ui/*
+
+# 2025-02-24 16:27:05.428533
++/add package.json
+
+# 2025-02-24 16:27:11.919069
++/add postcss.config.js
+
+# 2025-02-24 16:27:43.049182
++/add static/login.html
+
+# 2025-02-24 16:27:49.039581
++/add static/register.html
+
+# 2025-02-24 16:28:02.404318
++/add routers/*
+
+# 2025-02-24 16:28:13.543827
++/architect analyze the codebase
+
+# 2025-02-24 16:28:48.894796
++yes
+
+# 2025-02-24 16:29:19.604633
++no
+
+# 2025-02-24 16:29:25.884230
++/add config.py
+
+# 2025-02-24 16:29:36.054887
++/architect analyze the codebase
+
+# 2025-02-24 16:31:00.738591
++no
+
+# 2025-02-24 16:33:21.688898
++/web https://learn.microsoft.com/en-us/azure/ai-services/openai/reference-preview
+
+# 2025-02-24 16:33:32.298385
++/architect analyze the codebase
+
+# 2025-02-24 16:35:27.019648
++no
+
+# 2025-02-24 16:35:31.478761
++/web https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/reasoning?tabs=python-secure
+
+# 2025-02-24 16:35:36.859493
++/architect analyze the codebase
+
+# 2025-02-24 16:35:58.009565
++/add clients.py
+
+# 2025-02-24 16:36:18.079257
++/add static/js/models.js
+
+# 2025-02-24 16:36:27.508877
++/add azure_file_service.py
+
+# 2025-02-24 16:36:36.859225
++/add services/azure_file_service.py
+
+# 2025-02-24 16:36:41.679208
++/add services/file_service.py
+
+# 2025-02-24 16:36:45.629661
++/add static/js/fileManager.js
+
+# 2025-02-24 16:36:51.599562
++/architect analyze the codebase
+
+# 2025-02-24 16:38:04.124708
++no
+
+# 2025-02-24 16:38:33.248408
++/architect analyze the codebase ensuring it follows the api spec for azure openai and the o1 series model
+
+# 2025-02-24 16:40:00.568748
++no
+
+# 2025-02-24 16:40:22.223692
++/architect analyze the file upload and handling components 
+
+# 2025-02-24 16:41:47.404390
++no
+
+# 2025-02-24 16:42:25.543397
++/architect identify specific api issues
+
+# 2025-02-24 16:45:55.814246
++/add database.py
+
+# 2025-02-24 16:46:09.853811
++/add main.py
+
+# 2025-02-24 16:46:22.337823
++/add init_db.py
+
+# 2025-02-24 16:46:30.537953
++/add static/js/*
+
+# 2025-02-24 16:46:36.508319
++/architect analyze the codebase
+
+# 2025-02-24 16:49:27.228924
++no
+
+# 2025-02-24 16:50:01.118933
++/add static/*
+
+# 2025-02-24 16:50:11.237353
++/drop static/lib/*
+
+# 2025-02-24 16:50:20.619343
++/drop static/fonts/*
+
+# 2025-02-24 16:50:35.583810
++/drop static/css/tailwind.compiled.css
+
+# 2025-02-24 16:50:42.934462
++/drop static/js/global-declarations.d.ts
+
+# 2025-02-24 16:50:49.734766
++/drop static/js/utils/service-worker.js
+
+# 2025-02-24 16:51:06.777207
++/drop static/site.webmanifest
+
+# 2025-02-24 16:51:14.237493
++/add package.json
+
+# 2025-02-24 16:51:18.897313
++/add tailwind.config.js
+
+# 2025-02-24 16:51:22.797402
++/add postcss.config.js
+
+# 2025-02-24 16:51:38.744005
++/architect analyze the user interface
+
+# 2025-02-24 16:52:31.556985
++no
+
+# 2025-02-24 16:52:36.392709
++/architect analyze the user interface further 
+
+# 2025-02-24 16:55:01.786529
++no
+
+# 2025-02-24 16:55:15.554216
++/architect analyze the tailwind css
+
+# 2025-02-24 16:57:01.430450
++no
+
+# 2025-02-24 16:57:19.369856
++/architect list some ideas to enhance the user experience
+
+# 2025-02-24 16:58:56.590857
++no
+
+# 2025-02-24 16:59:47.180777
++/architect expand on 1, 2, 3, 5, 7 and 10
+
+# 2025-02-24 17:00:29.080023
++no
+
+# 2025-02-24 17:01:05.620407
++/architect analyze the codebase and expand on 1, 2, 3, 5, 7 and 10 providing complete code solutions customized for this application
+
+# 2025-02-24 17:02:18.563452
++yes
+
+# 2025-02-24 17:06:29.349392
++/architect list some ideas to enhance the user experience
+
+# 2025-02-24 17:07:52.600645
++no
+
+# 2025-02-24 17:08:45.599444
++/architect expand on Detailed Progress Diagnostics, Paginated Chat History and in-chat file references
+
+# 2025-02-24 17:09:48.431425
++no
+
+# 2025-02-24 17:10:16.691803
++/architect analyze the codebase and expand on those 3 features,  providing complete code solutions customized for this application
+
+# 2025-02-24 17:12:01.453515
++yes
+
+# 2025-02-24 17:18:04.009947
++implement conversation management UI controls
+
+# 2025-02-24 17:21:00.174409
++yes
+
+# 2025-02-24 17:21:13.624631
++/architect abalyze recent changes 
+
+# 2025-02-24 17:40:01.577216
++yes
+
+# 2025-02-24 17:45:00.134850
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-24 17:46:13.720462
++yes
+
+# 2025-02-24 17:46:44.758448
++/architect fix 404 with themeswitcher its casesensitive
+
+# 2025-02-24 17:47:25.495693
++yes
+
+# 2025-02-24 17:48:27.453678
++/run git push
+
+# 2025-02-24 17:48:31.568492
++no
+
+# 2025-02-25 17:29:04.020159
++yes
+
+# 2025-02-25 17:30:47.246293
++no
+
+# 2025-02-25 17:34:46.415071
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-25 17:35:35.882794
++yes
+
+# 2025-02-25 17:35:43.303285
++/add services/chat_service.py
+
+# 2025-02-25 17:35:47.952068
++/add routers/chat.py
+
+# 2025-02-25 17:36:37.380298
++/add clients.py
+
+# 2025-02-25 17:36:41.416233
++/add config.py
+
+# 2025-02-25 17:37:17.315021
++/architect whats wrong?
+
+# 2025-02-25 17:39:10.786100
++yes
+
+# 2025-02-25 17:47:26.439984
++/model
+
+# 2025-02-25 17:48:08.889544
++/model together_ai/deepseek-ai/DeepSeek-R1
+
+# 2025-02-25 17:49:09.409050
++/architect whats wrong?
+
+# 2025-02-25 17:49:52.667582
++yes
+
+# 2025-02-25 17:50:57.778668
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-25 17:52:06.922250
++yes
+
+# 2025-02-25 17:52:19.961822
++/architect whats wrong?
+
+# 2025-02-25 17:54:20.850273
++no
+
+# 2025-02-25 17:54:55.171775
++/architect instancename.cognitiveservices.azure.com is valid as well
+
+# 2025-02-25 18:00:12.030678
++no
+
+# 2025-02-25 18:00:33.421411
++/architect https://DeepSeek-R1D2.eastus2.models.ai.azure.com is the format of the DeepSeek endpoint
+
+# 2025-02-25 18:00:36.320262
++no
+
+# 2025-02-25 18:02:48.916085
++/add models.py
+
+# 2025-02-25 18:02:55.224948
++/add pydantic_models.py
+
+# 2025-02-25 18:03:01.122558
++/architect whats wrong?
+
+# 2025-02-25 18:03:44.761363
++yes
+
+# 2025-02-25 18:04:32.696977
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-25 18:06:25.131314
++yes
+
+# 2025-02-25 18:06:51.114511
++/add static/js/models.js
+
+# 2025-02-25 18:08:25.911998
++/architect whats wrong?
+
+# 2025-02-25 18:09:59.435621
++no
+
+# 2025-02-25 18:10:03.382172
++/clear
+
+# 2025-02-25 18:10:10.855446
++/model sonnet
+
+# 2025-02-25 18:10:22.220861
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-25 18:11:31.328196
++yes
+
+# 2025-02-25 18:11:37.694290
++/add routers/session.py
+
+# 2025-02-25 18:11:42.523421
++/add static/js/session.js
+
+# 2025-02-25 18:11:51.234040
++/architect whats wrong?
+
+# 2025-02-25 18:12:42.021248
++yes
+
+# 2025-02-25 18:14:21.992488
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-25 18:21:56.314378
++no
+
+# 2025-02-25 18:22:58.794987
++/add routers/config.py
+
+# 2025-02-25 18:23:55.028439
++/add static/js/init.js
+
+# 2025-02-25 18:24:25.868670
++/add static/index.html
+
+# 2025-02-25 18:24:31.537610
++/architect whats wrong?
+
+# 2025-02-25 18:25:01.120036
++no
+
+# 2025-02-25 18:25:26.510955
++/architect the model isnt switching to r1 from o1 in the chat interface
+
+# 2025-02-25 18:34:16.483348
++yes
+
+# 2025-02-25 18:38:12.479825
++/drop pydantic_models.py
+
+# 2025-02-25 18:38:31.764841
++/drop routers/session.py
+
+# 2025-02-25 18:38:36.111970
++/drop static/js/session.js
+
+# 2025-02-25 18:38:41.410979
++/drop static/js/init.js
+
+# 2025-02-25 18:39:34.086738
++/architect azure_endpoint:                                                       
+
+# 2025-02-25 18:41:03.117303
++/architect azure_endpoint does not contain the correct endpoint variable, it is supposed to use AZURE_INFERENCE_ENDPOINT
+
+# 2025-02-25 18:42:20.584397
++yes
+
+# 2025-02-25 18:43:04.725664
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-26 01:47:25.971164
++yes
+
+# 2025-02-26 01:48:01.722165
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-26 01:49:22.787957
++no
+
+# 2025-02-26 01:49:29.380371
++/add main.py
+
+# 2025-02-26 01:49:39.803450
++/add static/js/*
+
+# 2025-02-26 01:49:53.917247
++/add config.py
+
+# 2025-02-26 01:50:01.540903
++/add routers/config.py
+
+# 2025-02-26 01:50:06.557209
++/add services/config_service.py
+
+# 2025-02-26 01:50:11.646458
++/add models.py
+
+# 2025-02-26 01:50:17.818746
++/add clients.py
+
+# 2025-02-26 01:50:29.290779
++/drop static/js/build.js
+
+# 2025-02-26 01:50:44.958639
++/drop static/js/global-declarations.d.ts
+
+# 2025-02-26 01:51:03.219408
++/add static/index.html
+
+# 2025-02-26 01:52:31.832723
++/add deepseekr1-reference.md
+
+# 2025-02-26 01:52:33.902823
++no
+
+# 2025-02-26 01:52:43.075564
++/add static/deepseekr1-reference.md
+
+# 2025-02-26 01:52:44.786463
++no
+
+# 2025-02-26 01:52:55.466211
++/add static/js/deepseekr1-reference.md
+
+# 2025-02-26 01:53:44.189620
++/architect the model dropdown menu isnt populated it should have o1hp and DeepSeek-R1 as options to use
+
+# 2025-02-26 01:55:12.639330
++yes
+
+# 2025-02-26 01:59:37.792221
++drop *
+
+# 2025-02-26 01:59:48.126695
++/drop *
+
+# 2025-02-26 02:00:01.285686
++/add static/js/models.js
+
+# 2025-02-26 02:00:11.098644
++finish the edits to models.js
+
+# 2025-02-26 02:01:19.532760
++/add static/js/ui/displayManager.js
+
+# 2025-02-26 02:01:26.940795
++/add config.py
+
+# 2025-02-26 02:01:34.539512
++/add static/js/config.js
+
+# 2025-02-26 02:02:46.245458
++finish the edits to models.js
+
+# 2025-02-26 02:03:34.596977
++yes
+
+# 2025-02-27 02:47:00.231872
++no
+
+# 2025-02-27 02:47:11.961680
++/architect {
+
+# 2025-02-27 02:47:31.316564
++no
+
+# 2025-02-27 02:47:40.397035
++/arch
+
+# 2025-02-27 02:47:57.390916
++{
+
+# 2025-02-27 02:47:58.766728
++ [session b2ef98aa-7115-4b3e-8d7d-c7438c8a9412] Azure AI Inference call failed: (None) Auth token validation failed. Please provide a valid key or a valid AAD token
+
+# 2025-02-27 02:47:58.773579
++Code: None
+
+# 2025-02-27 02:47:58.781935
++Message: Auth token validation failed. Please provide a valid key or a valid AAD token
+
+# 2025-02-27 02:47:58.788134
++Traceback (most recent call last):
+
+# 2025-02-27 02:47:58.797549
++  File "/home/azureuser/newide/services/chat_service.py", line 171, in process_chat_message
+
+# 2025-02-27 02:47:58.803805
++    response = azure_client.complete(
+
+# 2025-02-27 02:47:58.809137
++               ^^^^^^^^^^^^^^^^^^^^^^
+
+# 2025-02-27 02:47:58.819290
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/azure/ai/inference/_patch.py", line 737, in complete
+
+# 2025-02-27 02:47:58.828770
++    map_error(status_code=response.status_code, response=response, error_map=error_map)
+
+# 2025-02-27 02:47:58.839973
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/azure/core/exceptions.py", line 163, in map_error
+
+# 2025-02-27 02:47:58.844769
++    raise error
+
+# 2025-02-27 02:47:58.855975
++azure.core.exceptions.ClientAuthenticationError: (None) Auth token validation failed. Please provide a valid key or a valid AAD token
+
+# 2025-02-27 02:47:58.860748
++Code: None
+
+# 2025-02-27 02:47:58.871341
++Message: Auth token validation failed. Please provide a valid key or a valid AAD token
+
+# 2025-02-27 02:47:58.934232
++Handled Azure AI error gracefully. {'error': {'code': 401, 'message': 'Error during Azure AI Inference call', 'type': 'api_call_error', 'inner_error': '(None) Auth token validation failed. Please provide a valid key or a valid AAD token\nCode: None\nMessage: Auth token validation failed. Please provide a valid key or a valid AAD token'}}
+
+# 2025-02-27 02:48:00.226508
++Error: 'choices'
+
+# 2025-02-27 02:48:02.875864
++}
+
+# 2025-02-27 02:48:28.775582
++yes
+
+# 2025-02-27 02:49:10.895329
++no
+
+# 2025-02-27 02:49:16.586633
++/add config.py
+
+# 2025-02-27 02:49:24.477294
++/add routers/chat.py
+
+# 2025-02-27 02:49:30.720497
++/add clients.py
+
+# 2025-02-27 02:49:37.813284
++/add docs/*
+
+# 2025-02-27 02:49:47.598478
++/add static/js/chat.js
+
+# 2025-02-27 02:49:59.758047
++/add pydantic_models.py
+
+# 2025-02-27 02:50:04.595063
++/add models.py
+
+# 2025-02-27 02:50:14.545387
++/add services/config_service.py
+
+# 2025-02-27 02:50:22.110279
++/add routers/config.py
+
+# 2025-02-27 02:50:30.172622
++/add static/js/config.js
+
+# 2025-02-27 02:50:52.228907
++{
+
+# 2025-02-27 02:50:53.247176
++ [session b2ef98aa-7115-4b3e-8d7d-c7438c8a9412] Azure AI Inference call failed: (None) Auth token validation failed. Please provide a valid key or a valid AAD token
+
+# 2025-02-27 02:50:53.254065
++Code: None
+
+# 2025-02-27 02:50:53.262216
++Message: Auth token validation failed. Please provide a valid key or a valid AAD token
+
+# 2025-02-27 02:50:53.268442
++Traceback (most recent call last):
+
+# 2025-02-27 02:50:53.277922
++  File "/home/azureuser/newide/services/chat_service.py", line 171, in process_chat_message
+
+# 2025-02-27 02:50:53.284103
++    response = azure_client.complete(
+
+# 2025-02-27 02:50:53.289255
++               ^^^^^^^^^^^^^^^^^^^^^^
+
+# 2025-02-27 02:50:53.299465
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/azure/ai/inference/_patch.py", line 737, in complete
+
+# 2025-02-27 02:50:53.308949
++    map_error(status_code=response.status_code, response=response, error_map=error_map)
+
+# 2025-02-27 02:50:53.320151
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/azure/core/exceptions.py", line 163, in map_error
+
+# 2025-02-27 02:50:53.324938
++    raise error
+
+# 2025-02-27 02:50:53.335751
++azure.core.exceptions.ClientAuthenticationError: (None) Auth token validation failed. Please provide a valid key or a valid AAD token
+
+# 2025-02-27 02:50:53.340731
++Code: None
+
+# 2025-02-27 02:50:53.351585
++Message: Auth token validation failed. Please provide a valid key or a valid AAD token
+
+# 2025-02-27 02:50:53.414263
++Handled Azure AI error gracefully. {'error': {'code': 401, 'message': 'Error during Azure AI Inference call', 'type': 'api_call_error', 'inner_error': '(None) Auth token validation failed. Please provide a valid key or a valid AAD token\nCode: None\nMessage: Auth token validation failed. Please provide a valid key or a valid AAD token'}}
+
+# 2025-02-27 02:50:54.874661
++Error: 'choices'
+
+# 2025-02-27 02:50:57.796918
++}
+
+# 2025-02-27 02:52:18.074874
++yes
+
+# 2025-02-27 03:30:31.066476
++/add docs/reasoning-o1.md
+
+# 2025-02-27 03:30:34.635447
++/add docs/deepseekr1-reference.md
+
+# 2025-02-27 03:30:47.603817
++/add models.py
+
+# 2025-02-27 03:30:50.992311
++/add static/js/models.js
+
+# 2025-02-27 03:30:53.497948
++/add pydantic_models.py
+
+# 2025-02-27 03:30:56.640291
++/add config.py
+
+# 2025-02-27 03:30:59.699893
++/add services/config_service.py
+
+# 2025-02-27 03:31:01.642674
++/add clients.py
+
+# 2025-02-27 03:31:06.592665
++/add routers/config.py
+
+# 2025-02-27 03:31:44.229572
++/add services/chat_service.py
+
+# 2025-02-27 03:31:51.457683
++/add routers/chat.py
+
+# 2025-02-27 03:32:14.929241
++/add static/js/chat.js
+
+# 2025-02-27 03:32:46.919741
++/architect analyze  the available codebase and documentation
+
+# 2025-02-27 03:33:28.163647
++no
+
+# 2025-02-27 03:33:37.272367
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 03:34:15.155766
++yes
+
+# 2025-02-27 03:34:48.275850
++/architect See the the error in the terminal output and analyze the relevant files. let me know if you need acccess to others
+
+# 2025-02-27 03:35:31.795319
++yes
+
+# 2025-02-27 03:36:50.457953
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 03:37:28.068323
++yes
+
+# 2025-02-27 03:38:12.850674
++/add static/js/ui/statsDisplay.js
+
+# 2025-02-27 03:38:21.889860
++/add routers/model_stats.py
+
+# 2025-02-27 03:38:36.319744
++/architect analyze the files and find teh root of the issues in the terminal output
+
+# 2025-02-27 03:39:04.894045
++yes
+
+# 2025-02-27 03:39:43.977309
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 03:40:33.274065
++no
+
+# 2025-02-27 03:40:40.141679
++/architect
+
+# 2025-02-27 03:41:03.305250
++{
+
+# 2025-02-27 03:41:05.828304
++POST https://liveonshuffle.com/api/chat/ 429 (Too Many Requests)
++makeApiRequest @ chat.js:367
++await in makeApiRequest
++handleChatRequest @ chat.js:211
++sendMessage @ chat.js:109
++await in sendMessage
++universalSendMessage @ (index):529
++(anonymous) @ (index):597
++debugging.js:20  [makeApiRequest] Error response: 429 
++console.error @ debugging.js:20
++makeApiRequest @ chat.js:370
++await in makeApiRequest
++handleChatRequest @ chat.js:211
++sendMessage @ chat.js:109
++await in sendMessage
++universalSendMessage @ (index):529
++(anonymous) @ (index):597
++debugging.js:20  [sendMessage] API Error details: {detail: "Operation returned an invalid status 'Too Many Req…-troubleshoot-online-endpoints#http-status-codes\n"}detail: "Operation returned an invalid status 'Too Many Requests'\nContent: \nPlease check this guide to understand why this error code might have been returned \nhttps://docs.microsoft.com/en-us/azure/machine-learning/how-to-troubleshoot-online-endpoints#http-status-codes\n"[[Prototype]]: Object
++console.error @ debugging.js:20
++sendMessage @ chat.js:138
++await in sendMessage
++universalSendMessage @ (index):529
++(anonymous) @ (index):597
++debugging.js:20  [sendMessage] Error parsing response: Error: HTTP error! status: 429, details: {"detail":"Operation returned an invalid status 'Too Many Requests'\nContent: \nPlease check this guide to understand why this error code might have been returned \nhttps://docs.microsoft.com/en-us/azure/machine-learning/how-to-troubleshoot-online-endpoints#http-status-codes\n"}
++    at sendMessage (chat.js:144:17)
++console.error @ debugging.js:20
++sendMessage @ chat.js:154
++await in sendMessage
++universalSendMessage @ (index):529
++(anonymous) @ (index):597
++debugging.js:20  [handleMessageError] Error: HTTP error! status: 429, details: {"detail":"Operation returned an invalid status 'Too Many Requests'\nContent: \nPlease check this guide to understand why this error code might have been returned \nhttps://docs.microsoft.com/en-us/azure/machine-learning/how-to-troubleshoot-online-endpoints#http-status-codes\n"}
++    at sendMessage (chat.js:144:17)
++console.error @ debugging.js:20
++handleMessageError @ notificationManager.js:42
++sendMessage @ chat.js:161
++await in sendMessage
++universalSendMessage @ (index):529
++(anonymous) @ (index):597
++statsDisplay.js:51 
++            
++            
++            GET https://liveonshuffle.com/api/model-stats/connections 502 (Bad Gateway)
++(anonymous) @ statsDisplay.js:51
++setInterval
++startConnectionTracking @ statsDisplay.js:49
++StatsDisplay @ statsDisplay.js:21
++(anonymous) @ chat.js:13
++debugging.js:20  Failed to fetch active connections SyntaxError: Unexpected token '<', "<html>
++<h"... is not valid JSON
++console.error @ debugging.js:20
++(anonymous) @ statsDisplay.js:55
++setInterval
++startConnectionTracking @ statsDisplay.js:49
++StatsDisplay @ statsDisplay.js:21
++(anonymous) @ chat.js:13
++statsDisplay.js:51 
++            
++            
++            GET https://liveonshuffle.com/api/model-stats/connections 502 (Bad Gateway)
++(anonymous) @ statsDisplay.js:51
++setInterval
++startConnectionTracking @ statsDisplay.js:49
++StatsDisplay @ statsDisplay.js:21
++initPerformanceStats @ init.js:376
++(anonymous) @ init.js:109
++debugging.js:20  Failed to fetch active connections SyntaxError: Unexpected token '<', "<html>
++<h"... is not valid JSON
+
+# 2025-02-27 03:41:07.476194
++}
+
+# 2025-02-27 03:41:09.402982
++no
+
+# 2025-02-27 03:41:33.044067
++yes
+
+# 2025-02-27 03:42:44.836821
++are there other places in the code where the response structure is missing the index field?
+
+# 2025-02-27 03:43:19.688758
++no
+
+# 2025-02-27 03:43:23.557678
++/drop *
+
+# 2025-02-27 03:43:32.379870
++/add static/js/config.js
+
+# 2025-02-27 03:43:36.472483
++/add static/js/models.js
+
+# 2025-02-27 03:43:41.176145
++/add static/js/chat.js
+
+# 2025-02-27 03:43:47.571238
++/add static/js/ui/displayManager.js
+
+# 2025-02-27 03:43:59.896842
++/add static/js/init.js
+
+# 2025-02-27 03:44:02.393389
++/add static/js/streaming.js
+
+# 2025-02-27 03:44:28.785843
++/add static/js/utils/helpers.js
+
+# 2025-02-27 03:44:36.708570
++I have added different files for you to check
+
+# 2025-02-27 03:44:46.981667
++yes
+
+# 2025-02-27 03:45:24.180097
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 03:46:14.259605
++no
+
+# 2025-02-27 03:46:26.350329
++/add docs/deepseekr1-reference.md
+
+# 2025-02-27 03:47:14.136489
++the html or javascript that is displaying the thinking in the chat window is either not parsing or rendering properly or something because the chat window is displaying the raw html
+
+# 2025-02-27 03:47:47.571627
++yes
+
+# 2025-02-27 03:48:51.152989
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 03:49:57.999290
++yes
+
+# 2025-02-27 03:50:01.946428
++{
+
+# 2025-02-27 03:50:04.951470
++OST https://liveonshuffle.com/api/chat/ 429 (Too Many Requests)
++makeApiRequest @ chat.js:367
++await in makeApiRequest
++handleChatRequest @ chat.js:211
++sendMessage @ chat.js:109
++await in sendMessage
++universalSendMessage @ (index):529
++(anonymous) @ (index):597
++debugging.js:20  [makeApiRequest] Error response: 429 
++console.error @ debugging.js:20
++makeApiRequest @ chat.js:370
++await in makeApiRequest
++handleChatRequest @ chat.js:211
++sendMessage @ chat.js:109
++await in sendMessage
++universalSendMessage @ (index):529
++(anonymous) @ (index):597
++debugging.js:20  [sendMessage] API Error details: {detail: "Operation returned an invalid status 'Too Many Req…-troubleshoot-online-endpoints#http-status-codes\n"}
++console.error @ debugging.js:20
++sendMessage @ chat.js:138
++await in sendMessage
++universalSendMessage @ (index):529
++(anonymous) @ (index):597
++debugging.js:20  [sendMessage] Error parsing response: Error: HTTP error! status: 429, details: {"detail":"Operation returned an invalid status 'Too Many Requests'\nContent: \nPlease check this guide to understand why this error code might have been returned \nhttps://docs.microsoft.com/en-us/azure/machine-learning/how-to-troubleshoot-online-endpoints#http-status-codes\n"}
++    at sendMessage (chat.js:144:17)
++console.error @ debugging.js:20
++sendMessage @ chat.js:154
++await in sendMessage
++universalSendMessage @ (index):529
++(anonymous) @ (index):597
++debugging.js:20  [handleMessageError] Error: HTTP error! status: 429, details: {"detail":"Operation returned an invalid status 'Too Many Requests'\nContent: \nPlease check this guide to understand why this error code might have been returned \nhttps://docs.microsoft.com/en-us/azure/machine-learning/how-to-troubleshoot-online-endpoints#http-status-codes\n"}
++    at sendMessage (chat.js:144:17)
+
+# 2025-02-27 03:50:06.264118
++}
+
+# 2025-02-27 03:50:57.016724
++yes
+
+# 2025-02-27 03:52:38.522134
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 03:53:49.748705
++no
+
+# 2025-02-27 03:53:53.056092
++{
+
+# 2025-02-27 03:53:56.454677
++INFO:     98.46.143.48:0 - "GET /api/config/ HTTP/1.1" 200 OK
++Failed to parse error content: Expecting value: line 2 column 1 (char 1)
+
+# 2025-02-27 03:53:58.914668
++}
+
+# 2025-02-27 03:54:54.060310
++yes
+
+# 2025-02-27 03:55:46.646155
++/add routers/config.py
+
+# 2025-02-27 03:55:52.878587
++/drop *
+
+# 2025-02-27 03:56:01.134075
++/add routers/chat.py
+
+# 2025-02-27 03:56:05.838412
++/add routers/config.py
+
+# 2025-02-27 03:56:10.932831
++/add services/config_service.py
+
+# 2025-02-27 03:56:13.443939
++/add clients.py
+
+# 2025-02-27 03:56:21.543153
++/add config.py
+
+# 2025-02-27 03:56:26.244654
++/add pydantic_models.py
+
+# 2025-02-27 03:56:32.435055
++/add services/chat_service.py
+
+# 2025-02-27 03:56:47.618229
++Are you sure there's no issue in the configuration in the backend and that's what's causing the error?
+
+# 2025-02-27 03:57:26.839410
++no
+
+# 2025-02-27 03:57:58.000911
++It said it couldn't parse something in the error, is that perhaps the output from the deepseek model ? It happened right after you made some changes to display its thinking better
+
+# 2025-02-27 03:58:43.874012
++yes
+
+# 2025-02-27 03:59:42.603438
++and the changes in chat.py and chat_service.py ?
+
+# 2025-02-27 04:00:06.187540
++yes
+
+# 2025-02-27 04:00:53.041316
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 06:30:40.952674
++no
+
+# 2025-02-27 06:30:58.791070
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 06:31:03.511711
++no
+
+# 2025-02-27 06:31:22.378795
++how do i quit rhe on use uvicorn process
+
+# 2025-02-27 06:33:02.309966
++yes
+
+# 2025-02-27 06:33:02.311969
++/run pkill uvicorn
+
+# 2025-02-27 06:33:02.312018
++/run pkill uvicorn
+
+# 2025-02-27 06:33:08.380741
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 06:49:59.611262
++yes
+
+# 2025-02-27 06:50:28.401772
++/architect analyze the output
+
+# 2025-02-27 06:52:18.553003
++no
+
+# 2025-02-27 06:53:45.301856
++reduce refresh of stats or reduce the amount of times it is reported in the terminal 
+
+# 2025-02-27 06:54:32.772182
++yes
+
+# 2025-02-27 06:59:24.304995
++reduce refresh of stats or reduce the amount of times it is reported in the terminal 
+
+# 2025-02-27 06:59:33.814994
++yes
+
+# 2025-02-27 07:00:33.824872
++/add routers/model_stats.py
+
+# 2025-02-27 07:00:40.189313
++/add services/model_stats_service.py
+
+# 2025-02-27 07:01:10.039954
++/add static/js/ui/displayManager.js
+
+# 2025-02-27 07:01:19.278499
++reduce refresh of stats or reduce the amount of times it is reported in the terminal
+
+# 2025-02-27 07:03:14.643057
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 07:04:48.842115
++/architect are reasoning tokens being counted?
+
+# 2025-02-27 07:05:44.895467
++no
+
+# 2025-02-27 12:43:07.967349
++/run venv/bin/uvicorn main:app ==reload
+
+# 2025-02-27 12:43:22.067272
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 12:43:26.107021
++no
+
+# 2025-02-27 12:43:30.392028
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 12:48:30.424277
++no
+
+# 2025-02-27 12:48:38.789435
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 13:13:09.035704
++/add static/js/chat.js
+
+# 2025-02-27 13:13:14.494859
++/add static/js/streaming.js
+
+# 2025-02-27 13:13:22.030554
++/add static/js/config.js
+
+# 2025-02-27 13:13:27.864922
++/add static/js/models.js
+
+# 2025-02-27 13:13:32.011100
++/add static/js/ui/notificationManager.js
+
+# 2025-02-27 13:13:34.680060
++/add static/js/ui/displayManager.js
+
+# 2025-02-27 13:13:42.239716
++/add static/js/ui/statsDisplay.js
+
+# 2025-02-27 13:13:50.135329
++/add static/js/utils/helpers.js
+
+# 2025-02-27 13:14:48.335230
++/architect the send button is not working, can't presss it
+
+# 2025-02-27 13:15:16.805144
++y
+
+# 2025-02-27 13:16:04.624716
++/add static/js/utils/helpers.js
+
+# 2025-02-27 13:16:09.233668
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 17:55:53.212172
++no
+
+# 2025-02-27 17:56:23.197677
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 18:57:26.862362
++no
+
+# 2025-02-27 18:59:04.319799
++no
+
+# 2025-02-27 18:59:23.319438
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 18:59:46.479665
++yes
+
+# 2025-02-27 19:00:11.116157
++/add routers/config.py
+
+# 2025-02-27 19:00:18.270653
++/add services/config_service.py
+
+# 2025-02-27 19:00:22.878121
++/add clients.py
+
+# 2025-02-27 19:00:26.386236
++/add docs/deepseekr1-reference.md
+
+# 2025-02-27 19:00:47.025632
++/add static/js/models.js
+
+# 2025-02-27 19:00:50.100618
++/add static/js/ui/statsDisplay.js
+
+# 2025-02-27 19:01:07.185200
++/architect exaine the output and analyze the codebase for the source of the issues
+
+# 2025-02-27 19:03:06.497120
++no
+
+# 2025-02-27 19:03:09.187402
++/add pydantic_models.py
+
+# 2025-02-27 19:03:17.277552
++/architect examine the output and analyze the codebase for the source of the issues
+
+# 2025-02-27 19:05:10.103239
++yes
+
+# 2025-02-27 19:08:32.118354
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 19:09:41.563219
++no
+
+# 2025-02-27 19:09:43.588492
++/architect
+
+# 2025-02-27 19:09:51.533591
++/add docs/reasoning-o1.md
+
+# 2025-02-27 19:09:54.118046
++{
+
+# 2025-02-27 19:09:57.568377
++/api/config/models/DeepSeek-R1:1 
++            
++            
++            Failed to load resource: the server responded with a status of 400 ()
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:345  Error in sendMessage: Error: Invalid session. Please refresh the page.
++    at sendMessage (chat.js:259:13)
++    at HTMLTextAreaElement.<anonymous> (chat.js:153:7)
++sendMessage @ chat.js:345
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:345  Error in sendMessage: Error: Invalid session. Please refresh the page.
++    at HTMLButtonElement.sendMessage (chat.js:259:13)
++sendMessage @ chat.js:345
++}
+
+# 2025-02-27 19:10:04.453198
++}
+
+# 2025-02-27 19:10:23.771730
++{
+
+# 2025-02-27 19:10:26.583027
++/api/config/models/DeepSeek-R1:1 
++            
++            
++            Failed to load resource: the server responded with a status of 400 ()
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:345  Error in sendMessage: Error: Invalid session. Please refresh the page.
++    at sendMessage (chat.js:259:13)
++    at HTMLTextAreaElement.<anonymous> (chat.js:153:7)
++sendMessage @ chat.js:345
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:345  Error in sendMessage: Error: Invalid session. Please refresh the page.
++    at HTMLButtonElement.sendMessage (chat.js:259:13)
++sendMessage @ chat.js:345
++
+
+# 2025-02-27 19:10:27.968505
++}
+
+# 2025-02-27 19:10:48.613326
++/model
+
+# 2025-02-27 19:11:31.498085
++{
++            
++            
++            Failed to load resource: the server responded with a status of 400 ()
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:345  Error in sendMessage: Error: Invalid session. Please refresh the page.
++    at sendMessage (chat.js:259:13)
++    at HTMLTextAreaElement.<anonymous> (chat.js:153:7)
++sendMessage @ chat.js:345
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:345  Error in sendMessage: Error: Invalid session. Please refresh the page.
++    at HTMLButtonElement.sendMessage (chat.js:259:13)
++sendMessage @ chat.js:345
++
+
+# 2025-02-27 19:11:34.877736
++no
+
+# 2025-02-27 19:12:07.357574
++/architect
+
+# 2025-02-27 19:12:08.937540
++{
+
+# 2025-02-27 19:12:11.427699
++/api/config/models/DeepSeek-R1:1 
++            
++            
++            Failed to load resource: the server responded with a status of 400 ()
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:345  Error in sendMessage: Error: Invalid session. Please refresh the page.
++    at sendMessage (chat.js:259:13)
++    at HTMLTextAreaElement.<anonymous> (chat.js:153:7)
++sendMessage @ chat.js:345
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++chat.js:345  Error in sendMessage: Error: Invalid session. Please refresh the page.
++    at HTMLButtonElement.sendMessage (chat.js:259:13)
++sendMessage @ chat.js:345
++
+
+# 2025-02-27 19:12:12.762672
++}
+
+# 2025-02-27 19:39:36.003325
++no
+
+# 2025-02-27 19:39:51.854035
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 19:40:56.558542
++yes
+
+# 2025-02-27 19:40:59.408667
++/architect
+
+# 2025-02-27 19:41:12.929061
++/add routers/session.py
+
+# 2025-02-27 19:41:16.428942
++/add static/js/session.js
+
+# 2025-02-27 19:41:22.548717
++/add models.py
+
+# 2025-02-27 19:41:25.084234
++/add pydantic_models.py
+
+# 2025-02-27 19:41:28.333463
++/add static/js/models.js
+
+# 2025-02-27 19:41:32.789117
++/add main.py
+
+# 2025-02-27 19:41:43.434135
++/add docs/deepseekr1-reference.md
+
+# 2025-02-27 19:41:46.923468
++/add docs/reasoning-o1.md
+
+# 2025-02-27 19:41:50.948616
++/add clients.py
+
+# 2025-02-27 19:42:07.508843
++/add routers/model_stats.py
+
+# 2025-02-27 19:42:13.583592
++/add static/js/ui/statsDisplay.js
+
+# 2025-02-27 19:42:17.103692
++/add config.py
+
+# 2025-02-27 19:42:20.403874
++/add static/js/utils/helpers.js
+
+# 2025-02-27 19:42:23.708477
++/add static/js/chat.js
+
+# 2025-02-27 19:42:29.808845
++/add utils.py
+
+# 2025-02-27 19:42:40.664487
++Examine the output 404 errors and analyze the codebase
+
+# 2025-02-27 19:44:01.028023
++no
+
+# 2025-02-27 20:01:33.103987
++/architect
+
+# 2025-02-27 20:01:41.593182
++/run venv/bin/uvicorn --reload
+
+# 2025-02-27 20:01:44.803377
++no
+
+# 2025-02-27 20:01:50.498334
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 20:02:15.408018
++yes
+
+# 2025-02-27 20:02:18.558184
++/add static/js/models.js
+
+# 2025-02-27 20:02:20.628138
++/add pydantic_models.py
+
+# 2025-02-27 20:02:23.673353
++/add models.py
+
+# 2025-02-27 20:02:26.702697
++/add static/js/init.js
+
+# 2025-02-27 20:02:33.218452
++/add routers/config.py
+
+# 2025-02-27 20:02:41.268154
++/add services/config_service.py
+
+# 2025-02-27 20:03:05.687500
++/architect Analyze the codebase and identify the root issue of the errors in the terminal output
+
+# 2025-02-27 20:03:35.167233
++no
+
+# 2025-02-27 20:03:40.712765
++/add docs/deepseekr1-reference.md
+
+# 2025-02-27 20:03:44.787566
++/add docs/reasoning-o1.md
+
+# 2025-02-27 20:03:59.237583
++/architect Analyze the codebase and identify the root issue of the errors in the terminal output - use the markdown documentation for API usage requirements
+
+# 2025-02-27 20:11:20.161947
++no
+
+# 2025-02-27 20:11:30.581959
++{
+
+# 2025-02-27 20:11:38.722361
++Here are the accepted configuration parameters for DeepSeek-R1, based on the provided documentation:
++
++**Request Headers**:
++
++*   **`Authorization`**: (Yes) Required.  Include a valid token with the `Bearer` prefix. Example: `Authorization: Bearer <YOUR_TOKEN>`
++*   **`extra-parameters`**: (No) Optional.  Controls how extra parameters not recognized by the API are handled. Accepted values:
++    *   `pass-through`: Pass them to the model.
++    *   `drop`: Ignore them.
++    *   `error`: Reject the request if extra parameters are provided.
++*   **`azureml-model-deployment`**: (No) Optional.  Name of the deployment to route the request to, if your endpoint supports multiple deployments.
++
++**Request Body**:
++
++*   **`model`**: (No, but required if endpoint serves multiple models) Model name, e.g., `"DeepSeek-R1"`. Can be omitted if the endpoint only serves a single model.
++*   **`messages`**: (Yes) Required. A list of message objects for the chat conversation. Each message should have a `role` (system, user, or assistant) and `content`.
++*   **`frequency_penalty`**: (No) Optional. Number. Reduces repetition of exact words. Higher values mean stronger penalty.
++*   **`presence_penalty`**: (No) Optional. Number. Reduces repetition of topics.
++*   **`max_tokens`**: (No) Optional. Integer. Limits the maximum number of tokens in the model's response.
++*   **`stop`**: (No) Optional. String or String array. Sequences where the API should stop generating text.
++*   **`stream`**: (No) Optional. Boolean. Default: `false`. If `true`, partial tokens are streamed back as generated (Server-Sent Events).
++*   **`temperature`**: (No) Optional. Number. Default: `1`. Controls randomness. Higher values (e.g., `1`) lead to more varied completions, lower values (e.g., `0.2`) to more controlled, deterministic outputs.
++*   **`top_p`**: (No) Optional. Number. Default: `1`. Alternative to `temperature` for sampling, using nucleus sampling.
++*   **`tool_choice`**: (No) Optional. [ChatCompletionToolChoiceOption](https://learn.microsoft.com/en-us/azure/ai-foundry/model-inference/reference/reference-model-inference-chat-completions#chatcompletiontoolchoiceoption). Controls function calling behavior. Values include `"none"`, `"auto"`, or specifying a specific function.
++*   **`tools`**: (No) Optional. [ChatCompletionTool](https://learn.microsoft.com/en-us/azure/ai-foundry/model-inference/reference/reference-model-inference-chat-completions#chatcompletiontool) array. A list of tools (currently only functions are supported) that the model may call.
++*   **`response_format`**: (No) Optional. [ChatCompletionResponseFormat](https://learn.microsoft.com/en-us/azure/ai-foundry/model-inference/reference/reference-model-inference-chat-completions#chatcompletionresponseformat). Controls the response format. Default: `"text"`. Can be set to `"json_object"` for JSON responses.
++*   **`seed`**: (No) Optional. Integer. Attempts to make sampling deterministic for debugging, but determinism is not guaranteed.
++
++**API Endpoint Query Parameter**:
++
++*   **`api-version`**: (Yes) Required. Specifies the API version. Example: `2024-05-01-preview`.
++
++Please note that while `temperature` and `top_p` are listed as accepted parameters, the documentation also mentions that reasoning models like DeepSeek-R1 **generally do not support** `temperature`, `presence_penalty`, `repetition_penalty`, and `top_p`. It's recommended to test and verify the behavior of these parameters for DeepSeek-R1 specifically.
+
+# 2025-02-27 20:11:41.672085
++}
+
+# 2025-02-27 20:11:47.527821
++no
+
+# 2025-02-27 20:13:14.083412
++It supports temperature and streaming, but doesn't require that these parameters be sent in the payload
+
+# 2025-02-27 20:13:51.243309
++no
+
+# 2025-02-27 20:14:13.713915
++Include streaming because a lot of th codebase is already built around this parameter with R1
+
+# 2025-02-27 20:14:30.528682
++yes
+
+# 2025-02-27 20:15:28.845224
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 20:16:06.733722
++yes
+
+# 2025-02-27 20:16:12.782980
++/add static/js/utils/helpers.js
+
+# 2025-02-27 20:16:16.378398
++/add static/js/chat.js
+
+# 2025-02-27 20:16:26.502646
++/add static/js/config.js
+
+# 2025-02-27 20:16:34.034234
++/add database.py
+
+# 2025-02-27 20:16:49.147835
++/architect Analyze the codebase and identify the root issue of the errors in the terminal output
+
+# 2025-02-27 20:18:03.403765
++yes
+
+# 2025-02-27 20:18:46.983620
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 20:19:09.173238
++yes
+
+# 2025-02-27 20:19:18.008319
++/add routers/chat.py
+
+# 2025-02-27 20:19:30.212982
++/add models.py
+
+# 2025-02-27 20:19:47.725634
++{
+
+# 2025-02-27 20:19:52.495936
++models.js:965 
++            
++            
++            POST https://liveonshuffle.com/api/config/models/DeepSeek-R1 400 (Bad Request)
++createModelOnServer @ models.js:965
++ensureLocalModelConfigs @ models.js:924
++refreshModelsList @ models.js:98
++await in refreshModelsList
++initialize @ models.js:24
++(anonymous) @ models.js:999
++}
+
+# 2025-02-27 20:20:02.768349
++}
+
+# 2025-02-27 20:20:04.856213
++no
+
+# 2025-02-27 20:20:27.418143
++yes
+
+# 2025-02-27 20:20:48.731852
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 20:21:06.741922
++no
+
+# 2025-02-27 20:21:08.887498
++{
+
+# 2025-02-27 20:21:10.692836
++models.js:961 
++            
++            
++            POST https://liveonshuffle.com/api/config/models/DeepSeek-R1 400 (Bad Request)
++createModelOnServer @ models.js:961
++ensureLocalModelConfigs @ models.js:920
++refreshModelsList @ models.js:98
++await in refreshModelsList
++initialize @ models.js:24
++(anonymous) @ models.js:995
++
+
+# 2025-02-27 20:21:11.432967
++}
+
+# 2025-02-27 20:21:27.867202
++yes
+
+# 2025-02-27 20:24:28.015416
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 20:24:48.991063
++no
+
+# 2025-02-27 20:24:52.996189
++{
+
+# 2025-02-27 20:24:56.126181
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++(anonymous) @ chat.js:43
++(anonymous) @ helpers.js:200
++setTimeout
++(anonymous) @ helpers.js:200
++chat.js:43  Uncaught TypeError: Cannot read properties of undefined (reading 'value')
++    at chat.js:43:26
++    at helpers.js:200:41
++(anonymous) @ chat.js:43
++(anonymous) @ helpers.js:200
++setTimeout
++(anonymous) @ helpers.js:200
++
+
+# 2025-02-27 20:24:57.355710
++}
+
+# 2025-02-27 20:25:14.485699
++yes
+
+# 2025-02-27 20:25:36.835184
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 20:26:13.895017
++yes
+
+# 2025-02-27 20:26:18.885121
++{
+
+# 2025-02-27 20:26:34.771206
++Examine the 404 errors in the terminal output in api/sessions
+
+# 2025-02-27 20:26:40.460491
++and this browser console feedback:
+
+# 2025-02-27 20:26:43.050092
++chat.js:271 
++            
++            
++            POST https://liveonshuffle.com/api/session 405 (Method Not Allowed)
++sendMessage @ chat.js:271
++chat.js:376  Error in sendMessage: Error: Invalid session. Please refresh the page.
++    at HTMLButtonElement.sendMessage (chat.js:289:15)
++sendMessage @ chat.js:376
++
+
+# 2025-02-27 20:26:45.194701
++}
+
+# 2025-02-27 20:26:46.769709
++no
+
+# 2025-02-27 20:27:22.730430
++/add routers/session.py
+
+# 2025-02-27 20:27:28.409760
++/add static/js/session.js
+
+# 2025-02-27 20:27:31.571564
++/add routers/auth.py
+
+# 2025-02-27 20:27:45.165438
++{
+
+# 2025-02-27 20:27:51.602004
++Examine the 404 errors in the terminal output in api/sessions
+
+# 2025-02-27 20:27:55.931687
++and this browser console feedback:
+
+# 2025-02-27 20:28:01.501791
++chat.js:271 
++            
++            
++            POST https://liveonshuffle.com/api/session 405 (Method Not Allowed)
++sendMessage @ chat.js:271
++chat.js:376  Error in sendMessage: Error: Invalid session. Please refresh the page.
++    at HTMLButtonElement.sendMessage (chat.js:289:15)
++sendMessage @ chat.js:376
++
+
+# 2025-02-27 20:28:02.611824
++}
+
+# 2025-02-27 20:28:36.451990
++yes
+
+# 2025-02-27 20:29:36.243497
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 20:31:06.043448
++yes
+
+# 2025-02-27 20:31:30.289502
++/drop static/js/chat.js
+
+# 2025-02-27 20:31:38.843839
++/drop docs/reasoning-o1.md
+
+# 2025-02-27 20:31:41.649227
++/drop docs/deepseekr1-reference.md
+
+# 2025-02-27 20:31:45.229254
++/drop database.py
+
+# 2025-02-27 20:31:55.999503
++Identify the source of the error in the terminal output
+
+# 2025-02-27 20:32:15.018714
++yes
+
+# 2025-02-27 20:32:38.813258
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-27 20:33:14.563755
++no
+
+# 2025-02-27 20:33:16.583987
++{
+
+# 2025-02-27 20:33:33.428954
++/add static/js/chat.js
+
+# 2025-02-27 20:33:37.793414
++{
+
+# 2025-02-27 20:33:40.988764
++chat.js:375  Error in sendMessage: Error: Invalid session. Please refresh the page.
++    at HTMLButtonElement.sendMessage (chat.js:288:15)
++sendMessage @ chat.js:375
++}
+
+# 2025-02-27 20:33:48.082971
++}
+
+# 2025-02-27 20:34:08.934250
++yes
+
+# 2025-02-27 20:36:03.503590
++/run git add .
+
+# 2025-02-27 20:36:04.968371
++no
+
+# 2025-02-27 20:36:08.139569
++/run git commit .
+
+# 2025-02-27 20:36:14.407617
++/run git push
+
+# 2025-02-27 20:36:19.247077
++no
+
+# 2025-02-27 20:36:21.668043
++/run git push
+
+# 2025-02-27 20:36:24.934312
++no
+
+# 2025-02-28 00:37:41.720411
++yes
+
+# 2025-02-28 00:39:11.560572
++no
+
+# 2025-02-28 00:39:39.105283
++/add static/js/ui/*
+
+# 2025-02-28 00:39:49.260199
++/add static/js/chat.js
+
+# 2025-02-28 00:39:54.705445
++/add static/js/streaming.js
+
+# 2025-02-28 00:40:03.385599
++/add postcss.config.js
+
+# 2025-02-28 00:40:19.395048
++/architect analyze the files for deepseek thinking logic
+
+# 2025-02-28 00:43:17.194656
++no
+
+# 2025-02-28 00:43:21.275063
++/add static/js/ui/*
+
+# 2025-02-28 00:43:23.874535
++/add postcss.config.js
+
+# 2025-02-28 00:43:33.975115
++/add static/css/tailwind.css
+
+# 2025-02-28 00:43:38.975411
++/add tailwind.config.js
+
+# 2025-02-28 00:43:43.725296
++/add static/index.html
+
+# 2025-02-28 00:43:48.945611
++/add static/js/chat.js
+
+# 2025-02-28 00:43:57.075816
++/add static/js/streaming.js
+
+# 2025-02-28 00:44:04.245527
++/add static/js/config.js
+
+# 2025-02-28 00:44:12.395767
++/add static/js/models.js
+
+# 2025-02-28 00:44:18.276068
++/architect analyze the files for deepseek thinking logic
+
+# 2025-02-28 00:45:46.371464
++/model
+
+# 2025-02-28 00:46:33.356994
++/model fireworks_ai/accounts/fireworks/models/deepseek-r1
+
+# 2025-02-28 00:47:08.317226
++no
+
+# 2025-02-28 00:47:16.196851
++/add routers/chat.py
+
+# 2025-02-28 00:47:21.796703
++/add services/chat_service.py
+
+# 2025-02-28 00:47:45.571951
++/architect identify issues in the feature 
+
+# 2025-02-28 00:47:59.701779
++/architect analyze the files for deepseek thinking logic
+
+# 2025-02-28 00:48:26.781846
++yes
+
+# 2025-02-28 00:49:24.316054
++yes
+
+# 2025-02-28 00:50:04.256247
++no
+
+# 2025-02-28 00:50:18.238368
++/add static/js/ui/*
+
+# 2025-02-28 00:50:39.158544
++/architect identify deepseek thinking customizatuob logic
+
+# 2025-02-28 00:51:55.559469
++no
+
+# 2025-02-28 00:52:19.998978
++/architect identify deepseek thinking customizatuob logic in the javascript files 
+
+# 2025-02-28 00:53:01.473166
++no
+
+# 2025-02-28 00:53:07.693256
++/add static/js/chat.js
+
+# 2025-02-28 00:53:11.863236
++/add static/js/init.js
+
+# 2025-02-28 00:53:15.803245
++/add static/js/streaming.js
+
+# 2025-02-28 00:53:22.063686
++/add static/js/config.js
+
+# 2025-02-28 00:53:26.357088
++/architect identify deepseek thinking customizatuob logic in the javascript files 
+
+# 2025-02-28 00:53:49.046338
++/architect what changes to remediate the thinking display need to be made still 
+
+# 2025-02-28 00:54:59.727469
++yes
+
+# 2025-02-28 00:55:45.347984
++no
+
+# 2025-02-28 00:56:05.387523
++/add static/js/streaming.js
+
+# 2025-02-28 00:56:48.139821
++/architect identify issues wity the capture, formatting and display of deepseeks thinking text
+
+# 2025-02-28 00:56:59.503765
++yes
+
+# 2025-02-28 00:57:50.137340
++no
+
+# 2025-02-28 00:59:03.959134
++/add static/index.html
+
+# 2025-02-28 00:59:11.584302
++/add tailwind.config.js
+
+# 2025-02-28 00:59:15.923745
++/add static/css/tailwind.css
+
+# 2025-02-28 00:59:20.183340
++/architect identify issues wity the capture, formatting and display of deepseeks thinking text
+
+# 2025-02-28 00:59:34.002094
++/architect identify issues wity the capture, formatting and display of deepseeks thin
+
+# 2025-02-28 01:01:38.942445
++no
+
+# 2025-02-28 01:01:42.732884
++/clear
+
+# 2025-02-28 01:02:02.093251
++/architect identify issues wity the capture, formatting and display of deepseeks thinking or reasoning output
+
+# 2025-02-28 01:02:26.736181
++no
+
+# 2025-02-28 01:02:51.427329
++/architect identify issues wity the capture, formatting and display of deepseeks thinking text - provide a complete code solution
+
+# 2025-02-28 01:02:57.197175
++/clear
+
+# 2025-02-28 01:03:06.827261
++/architect identify issues wity the capture, formatting and display of deepseeks thinking text - provide a complete code solution - no new modules
+
+# 2025-02-28 01:05:46.728161
++yes
+
+# 2025-02-28 01:06:17.085337
++no
+
+# 2025-02-28 01:06:35.915014
++/add static/js/utils/helpers.js
+
+# 2025-02-28 01:06:46.245109
++/add docs/deepseekr1-reference.md
+
+# 2025-02-28 01:06:52.165055
++/architect identify issues wity the capture, formatting and display of deepseeks thinking text - provide a complete code solution - no new modules
+
+# 2025-02-28 01:08:22.526310
++/architect identify issues with the capture, formatting and display of deepseeks thinking or reasoning output - provide a complete code solution 
+
+# 2025-02-28 01:10:10.470836
++no
+
+# 2025-02-28 01:10:28.633305
++/architect identify issues wity the capture, formatting and display of deepseeks thinking text - provide a complete code solution - no new modules - reference the deepseek documentation reference material
+
+# 2025-02-28 01:10:56.082282
++/architect identify issues with the capture, formatting and display of deepseeks thinking or reasoning output - provide the complete remediation code
+
+# 2025-02-28 01:11:03.146282
++no
+
+# 2025-02-28 01:11:09.402406
++/architect identify issues with the capture, formatting and display of deepseeks thinking or reasoning output - provide the complete remediation code
+
+# 2025-02-28 01:12:00.835560
++no
+
+# 2025-02-28 01:13:49.904688
++no
+
+# 2025-02-28 01:13:58.350012
++/architect identify issues with the capture, formatting and display of deepseeks thinking or reasoning output
+
+# 2025-02-28 01:27:10.666155
++no
+
+# 2025-02-28 01:27:27.471235
++/architect identify issues with javascript
+
+# 2025-02-28 01:29:09.165741
++/add static/js/utils/helpers.js
+
+# 2025-02-28 01:29:17.906135
++/add docs/deepseekr1-reference.md
+
+# 2025-02-28 01:29:29.200226
++/add tailwind.config.js
+
+# 2025-02-28 01:29:43.073942
++/add static/js/ui/deepseekProcessor.js
+
+# 2025-02-28 01:29:53.830263
++/add static/css/tailwind.css
+
+# 2025-02-28 01:29:59.015156
++/add static/index.html
+
+# 2025-02-28 01:30:05.700231
++/add static/js/chat.js
+
+# 2025-02-28 01:30:09.674969
++/add static/js/streaming.js
+
+# 2025-02-28 01:30:16.275871
++/add static/js/ui/displayManager.js
+
+# 2025-02-28 01:30:27.309978
++/add static/js/ui/tabManager.js
+
+# 2025-02-28 01:30:36.215829
++/add postcss.config.js
+
+# 2025-02-28 01:30:45.670151
++/add static/js/build.js
+
+# 2025-02-28 01:30:55.276190
++/add static/js/config.js
+
+# 2025-02-28 01:31:03.650713
++/add static/js/models.js
+
+# 2025-02-28 01:31:15.249930
++/add static/js/init.js
+
+# 2025-02-28 01:31:22.594702
++/add services/chat_service.py
+
+# 2025-02-28 01:31:34.454705
++/add pydantic_models.py
+
+# 2025-02-28 01:31:46.414541
++/architect identify issues with the capture, formatting and display of deepseeks thinking or reasoning output
+
+# 2025-02-28 01:32:40.942638
++no
+
+# 2025-02-28 01:32:58.903912
++/architect centralize the front end logic in deepseekProcessor.js
+
+# 2025-02-28 01:33:48.743701
++no
+
+# 2025-02-28 01:34:15.883638
++/web https://learn.microsoft.com/en-us/azure/ai-studio/how-to/deploy-models-deepseek?pivots=programming-language-python
+
+# 2025-02-28 01:34:39.080050
++/architect centralize the front end logic in deepseekProcessor.js - reference the documentation for proper code
+
+# 2025-02-28 01:35:46.880305
++yes
+
+# 2025-02-28 01:41:39.402498
++/architect identify issues with the capture, formatting and display of deepseeks thinking or reasoning output
+
+# 2025-02-28 01:42:55.421411
++yes
+
+# 2025-02-28 01:45:07.230873
++/architect somewhere in this refactoring we messed up the mobile menu mechanics.
+
+# 2025-02-28 01:46:52.165474
++yes
+
+# 2025-02-28 01:49:37.320472
++/architect none of tge buttons or ifons in the header work
+
+# 2025-02-28 01:50:37.915535
++yes
+
+# 2025-02-28 01:52:47.151694
++/architect okay now just the cogwheel doesnt work
+
+# 2025-02-28 01:53:30.579444
++yes
+
+# 2025-02-28 01:54:44.091255
++yyyy
+
+# 2025-02-28 01:56:34.984311
++/run npm run dev
+
+# 2025-02-28 01:56:34.984377
++/run npm run dev
+
+# 2025-02-28 01:57:59.252022
++no
+
+# 2025-02-28 01:58:09.092863
++/reset
+
+# 2025-02-28 02:45:24.412850
++no
+
+# 2025-02-28 03:24:01.572438
++/add static/js/ui/deepseekProcessor.js
+
+# 2025-02-28 03:24:14.507708
++/add static/js/streaming.js
+
+# 2025-02-28 03:24:20.632556
++/add static/js/chat.js
+
+# 2025-02-28 03:24:27.572147
++/add static/index.html
+
+# 2025-02-28 03:24:55.962065
++/add static/js/build.js
+
+# 2025-02-28 03:25:12.292253
++/add static/js/init.js
+
+# 2025-02-28 03:25:23.782369
++/add models.py
+
+# 2025-02-28 03:25:33.972108
++/add routers/chat.py
+
+# 2025-02-28 03:25:41.032596
++/add clients.py
+
+# 2025-02-28 03:25:46.031550
++/add routers/session.py
+
+# 2025-02-28 03:25:50.716801
++/add session_utils.py
+
+# 2025-02-28 03:26:15.236654
++/architect not gettijg a response from deepseek-r1
+
+# 2025-02-28 03:29:57.538408
++/add static/js/ui/*
+
+# 2025-02-28 03:30:03.558821
++/add static/js/*
+
+# 2025-02-28 03:30:08.298844
++/add static/index.html
+
+# 2025-02-28 03:30:12.153324
++/add static/css/tailwind.css
+
+# 2025-02-28 03:30:15.548232
++/add tailwind.config.js
+
+# 2025-02-28 03:30:23.228097
++/drop static/js/debugging.js
+
+# 2025-02-28 03:30:27.683831
++/drop static/js/fileManager.js
+
+# 2025-02-28 03:30:34.648354
++/drop static/js/utils/service-worker.js
+
+# 2025-02-28 03:30:44.424397
++/drop static/js/ui/statsDisplay.js
+
+# 2025-02-28 03:30:49.003142
++/drop static/js/global-declarations.d.ts
+
+# 2025-02-28 03:31:00.898247
++/add clients.py
+
+# 2025-02-28 03:31:03.527992
++/add session_utils.py
+
+# 2025-02-28 03:31:09.773286
++/add routers/session.py
+
+# 2025-02-28 03:31:15.588020
++/add services/chat_service.py
+
+# 2025-02-28 03:31:17.467810
++/add routers/chat.py
+
+# 2025-02-28 03:31:29.168198
++/architect the deepseek-r1 model is not responding 
+
+# 2025-02-28 03:32:13.437332
++no
+
+# 2025-02-28 03:32:18.016673
++/add docs/deepseekr1-reference.md
+
+# 2025-02-28 03:32:31.177712
++/architect read the documentation for deepseek and analyze the relavent logic
+
+# 2025-02-28 03:34:26.718215
++no
+
+# 2025-02-28 03:34:31.043367
++/architect
+
+# 2025-02-28 03:34:32.660464
++{
+
+# 2025-02-28 03:34:35.050442
++init.js:635  Token usage elements not found: Object
++initTokenUsageDisplay @ init.js:635
++127.0.0.1/:1  The resource http://127.0.0.1:8001/static/fonts/jetbrains-mono/jetbrains-mono-400.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
++127.0.0.1/:1  The resource http://127.0.0.1:8001/static/fonts/inter/inter-500.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
++
+
+# 2025-02-28 03:34:36.003253
++}
+
+# 2025-02-28 03:34:40.448462
++no
+
+# 2025-02-28 03:36:19.549488
++yes
+
+# 2025-02-28 06:34:40.742545
++/architect
+
+# 2025-02-28 06:35:29.872424
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 06:36:02.681416
++/run git pull
+
+# 2025-02-28 06:36:07.087974
++no
+
+# 2025-02-28 06:36:10.333490
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 06:37:26.457633
++yes
+
+# 2025-02-28 06:37:43.638306
++cannot declare a const variable twice: params
+
+# 2025-02-28 06:38:14.217184
++yes
+
+# 2025-02-28 06:39:29.628289
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 06:40:25.411862
++still gettinf the same error
+
+# 2025-02-28 06:50:09.553380
++    no
+
+# 2025-02-28 06:50:11.561309
++no
+
+# 2025-02-28 06:50:20.827374
++/add static/js/*
+
+# 2025-02-28 06:50:25.817323
++still gettinf the same error
+
+# 2025-02-28 06:51:42.072045
++mo
+
+# 2025-02-28 06:51:45.439822
++no
+
+# 2025-02-28 06:56:54.915835
++analyze he codebase
+
+# 2025-02-28 07:07:08.462709
++yes
+
+# 2025-02-28 07:43:00.296852
++provide a detailed white paper on this applications functuona ans features
+
+# 2025-02-28 07:47:19.223788
++no
+
+# 2025-02-28 07:47:29.727890
++geneate a more accurate white paper
+
+# 2025-02-28 10:07:03.334186
++no
+
+# 2025-02-28 10:08:21.505472
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 10:32:05.827513
++no
+
+# 2025-02-28 10:32:18.475228
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 10:33:04.155832
++yes
+
+# 2025-02-28 10:33:10.132482
++/architect
+
+# 2025-02-28 10:33:28.714445
++/add clients.py
+
+# 2025-02-28 10:33:33.838373
++/add config.py
+
+# 2025-02-28 10:33:37.478152
++/add services/chat_service.py
+
+# 2025-02-28 10:33:39.585990
++/add routers/chat.py
+
+# 2025-02-28 10:33:44.476618
++/add routers/config.py
+
+# 2025-02-28 10:33:49.948548
++/add services/config_service.py
+
+# 2025-02-28 10:33:57.516401
++/add database.py
+
+# 2025-02-28 10:34:12.076528
++/add models.py
+
+# 2025-02-28 10:34:17.416697
++/add pydantic_models.py
+
+# 2025-02-28 10:34:25.510434
++/add routers/session.py
+
+# 2025-02-28 10:34:27.807232
++/add session_utils.py
+
+# 2025-02-28 10:34:33.654388
++/add utils.py
+
+# 2025-02-28 10:35:06.138229
++{
+
+# 2025-02-28 10:35:09.074007
++n “routers/chat.py,” the code uses “client.chat_completions.create(…)” on line 433 when the client is a ChatCompletionsClient from “azure.ai.inference.” However, this particular client implementation likely does not have a “chat_completions” namespace. Instead, it might expose methods like “complete(…)” or “begin_chat_completions(…)” for streaming.
++
++Here’s how to fix it:
++
++Change the code that calls client.chat_completions.create(…) to the correct method for your ChatCompletionsClient. For example, if the library supports streaming via something like:
++stream = client.begin_chat_completions(
++deployment=model_name,
++**params,
++stream=True
++)
++then replace the existing line with that method call.
++
++Ensure your library version matches these method names. If the streaming is only supported in a newer library release, update your package dependencies:
++pip install azure-ai-inference --upgrade
++
++Remove or rename “chat_completions” references that do not exist in the ChatCompletionsClient. After the fix, your SSE streaming code should no longer trigger AttributeError, preventing the “ConnectionError” on the frontend.
++
++With the correct method call for streaming (and matching library versions), the SSE route can send data properly, avoiding the “Connection error” message and ensuring stable streaming responses on the frontend.
+
+# 2025-02-28 10:35:10.900706
++}
+
+# 2025-02-28 10:35:37.934375
++no
+
+# 2025-02-28 10:35:40.872009
++/add docs/deepseekr1-reference.md
+
+# 2025-02-28 10:35:44.897782
++/add docs/reasoning-o1.md
+
+# 2025-02-28 10:35:50.302381
++/add static/js/models.js
+
+# 2025-02-28 10:35:53.408759
++/add static/js/chat.js
+
+# 2025-02-28 10:35:56.598338
++/add static/js/init.js
+
+# 2025-02-28 10:36:00.910099
++/add static/js/streaming.js
+
+# 2025-02-28 10:36:12.351946
++/add postcss.config.js
+
+# 2025-02-28 10:36:16.825407
++/drop postcss.config.js
+
+# 2025-02-28 10:36:21.949415
++/add static/js/config.js
+
+# 2025-02-28 10:36:27.787805
++n “routers/chat.py,” the code uses “client.chat_completions.create(…)” on line 433 when the client is a ChatCompletionsClient from “azure.ai.inference.” However, this particular client implementation likely does not have a “chat_completions” namespace. Instead, it might expose methods like “complete(…)” or “begin_chat_completions(…)” for streaming.
++
++Here’s how to fix it:
++
++Change the code that calls client.chat_completions.create(…) to the correct method for your ChatCompletionsClient. For example, if the library supports streaming via something like:
++stream = client.begin_chat_completions(
++deployment=model_name,
++**params,
++stream=True
++)
++then replace the existing line with that method call.
++
++Ensure your library version matches these method names. If the streaming is only supported in a newer library release, update your package dependencies:
++pip install azure-ai-inference --upgrade
++
++Remove or rename “chat_completions” references that do not exist in the ChatCompletionsClient. After the fix, your SSE streaming code should no longer trigger AttributeError, preventing the “ConnectionError” on the frontend.
++
++With the correct method call for streaming (and matching library versions), the SSE route can send data properly, avoiding the “Connection error” message and ensuring stable streaming responses on the frontend.
+
+# 2025-02-28 10:36:43.150499
++}
+
+# 2025-02-28 10:39:39.908384
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 10:40:01.403524
++yes
+
+# 2025-02-28 10:40:07.997864
++analyze the terminal output
+
+# 2025-02-28 10:41:28.462141
++no
+
+# 2025-02-28 10:42:22.598056
++/add static/js/session.js
+
+# 2025-02-28 10:42:43.695654
++/add static/js/utils/helpers.js
+
+# 2025-02-28 10:43:02.722447
++/architect solve the 400 errors
+
+# 2025-02-28 10:44:42.530099
++yes
+
+# 2025-02-28 10:46:44.388061
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 10:49:06.697127
++yes
+
+# 2025-02-28 10:49:15.172608
++{
+
+# 2025-02-28 10:49:17.375274
++chat.js:462 
++            
++            
++            POST https://liveonshuffle.com/api/chat/conversations/store 400 (Bad Request)
++fetchWithRetry @ chat.js:462
++storeChatMessage @ chat.js:438
++renderUserMessage @ chat.js:410
++sendMessage @ chat.js:254
++(anonymous) @ chat.js:153
++chat.js:357 
++            
++            
++            POST https://liveonshuffle.com/api/chat/ 500 (Internal Server Error)
++fetchChatResponse @ chat.js:357
++sendMessage @ chat.js:282
++await in sendMessage
++(anonymous) @ chat.js:153
++notificationManager.js:19  [handleMessageError] Error: API error: 500 
++    at fetchChatResponse (chat.js:382:15)
++    at async sendMessage (chat.js:282:26)
++handleMessageError @ notificationManager.js:19
++sendMessage @ chat.js:296
++await in sendMessage
++(anonymous) @ chat.js:153
++statsDisplay.js:56 
++            
++            
++            GET https://liveonshuffle.com/api/model-stats/connections 502 (Bad Gateway)
++(anonymous) @ statsDisplay.js:56
++setInterval
++startConnectionTracking @ statsDisplay.js:54
++StatsDisplay @ statsDisplay.js:26
++initPerformanceStats @ init.js:229
++(anonymous) @ init.js:63
++
+
+# 2025-02-28 10:49:18.233133
++}
+
+# 2025-02-28 10:49:20.085227
++no
+
+# 2025-02-28 10:50:27.091938
++yes
+
+# 2025-02-28 10:51:53.221999
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 10:52:38.252484
++yes
+
+# 2025-02-28 10:52:44.014339
++{
+
+# 2025-02-28 10:52:50.194492
++/api/chat/conversations/store:1 
++            
++            
++            Failed to load resource: the server responded with a status of 500 ()
++/api/chat/:1 
++            
++            
++            Failed to load resource: the server responded with a status of 429 ()
++/api/chat/conversations/store:1 
++            
++            
++            Failed to load resource: the server responded with a status of 500 ()
++/api/chat/conversations/store:1 
++            
++            
++            Failed to load resource: the server responded with a status of 500 ()
++}
+
+# 2025-02-28 10:52:52.592357
++}
+
+# 2025-02-28 10:53:01.014387
++/api/chat/conversations/store:1 
++            
++            
++            Failed to load resource: the server responded with a status of 500 ()
++/api/chat/:1 
++            
++            
++            Failed to load resource: the server responded with a status of 429 ()
++/api/chat/conversations/store:1 
++            
++            
++            Failed to load resource: the server responded with a status of 500 ()
++/api/chat/conversations/store:1 
++            
++            
++            Failed to load resource: the server responded with a status of 500 ()
++}
+
+# 2025-02-28 10:53:10.845968
++{/api/chat/conversations/store:1 
++            
++            
++            Failed to load resource: the server responded with a status of 500 ()
++/api/chat/:1 
++            
++            
++            Failed to load resource: the server responded with a status of 429 ()
++/api/chat/conversations/store:1 
++            
++            
++            Failed to load resource: the server responded with a status of 500 ()
++/api/chat/conversations/store:1 
++            
++            
++            Failed to load resource: the server responded with a status of 500 ()
++}
+
+# 2025-02-28 10:53:41.676789
++}
+
+# 2025-02-28 10:53:57.369800
++yes
+
+# 2025-02-28 10:55:22.504697
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 10:55:45.164809
++yes
+
+# 2025-02-28 10:56:04.360229
++analyze the terminal output and remediate the relavent file(s)
+
+# 2025-02-28 10:58:10.076749
++no
+
+# 2025-02-28 10:59:00.683935
++/add static/js/ui/displayManager.js
+
+# 2025-02-28 10:59:30.098466
++analyze the terminal output and remediate the relavent file(s)
+
+# 2025-02-28 11:00:21.436614
++yes
+
+# 2025-02-28 11:01:27.954610
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 11:01:46.071973
++yes
+
+# 2025-02-28 11:01:57.391020
++Analyze the terminal output and chat.js:462 
++            
++            
++            POST https://liveonshuffle.com/api/chat/conversations/store 400 (Bad Request)
++fetchWithRetry @ chat.js:462
++storeChatMessage @ chat.js:438
++renderUserMessage @ chat.js:410
++sendMessage @ chat.js:254
++await in sendMessage
++(anonymous) @ chat.js:153
++chat.js:357 
++            
++            
++            POST https://liveonshuffle.com/api/chat/ 500 (Internal Server Error)
++fetchChatResponse @ chat.js:357
++sendMessage @ chat.js:282
++await in sendMessage
++(anonymous) @ chat.js:153
++notificationManager.js:19  [handleMessageError] Error: API error: 500 
++    at fetchChatResponse (chat.js:382:15)
++    at async sendMessage (chat.js:282:26)
++handleMessageError @ notificationManager.js:19
++sendMessage @ chat.js:296
++await in sendMessage
++(anonymous) @ chat.js:153
++
+
+# 2025-02-28 11:06:14.947166
++/clear
+
+# 2025-02-28 11:06:22.155255
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 11:06:49.615674
++yes
+
+# 2025-02-28 11:07:29.675957
++api/chat/ and api/chat/conversations/store are giving a 400 error, please investigate the functions that are effected by this
+
+# 2025-02-28 11:08:31.069393
++no
+
+# 2025-02-28 11:08:50.859355
++find out where those routes need to be created and why, and then create the missing routes
+
+# 2025-02-28 11:10:14.611723
++yes
+
+# 2025-02-28 11:12:29.102454
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 11:13:12.282733
++yes
+
+# 2025-02-28 11:13:17.464859
++{
+
+# 2025-02-28 11:13:19.860340
++/api/chat/conversations/store:1 
++            
++            
++            Failed to load resource: the server responded with a status of 400 ()
++/api/chat/conversations/store:1 
++            
++            
++            Failed to load resource: the server responded with a status of 400 ()
++}
+
+# 2025-02-28 11:15:03.252982
++}
+
+# 2025-02-28 11:15:19.305223
++Fix: /api/chat/conversations/store:1 
++            
++            
++            Failed to load resource: the server responded with a status of 400 ()
++/api/chat/conversations/store:1 
++            
++            
++            Failed to load resource: the server responded with a status of 400 ()
++}
+
+# 2025-02-28 11:17:02.349901
++yes
+
+# 2025-02-28 11:19:45.998063
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 11:20:19.425478
++no
+
+# 2025-02-28 11:20:22.670326
++{
+
+# 2025-02-28 11:20:26.489730
++displayManager.js:275 
++            
++            
++            POST https://liveonshuffle.com/api/chat/conversations/store 400 (Bad Request)
++storeChatMessage @ displayManager.js:275
++renderUserMessage @ displayManager.js:170
++(anonymous) @ displayManager.js:125
++loadConversationFromLocalStorage @ displayManager.js:124
++(anonymous) @ init.js:64
++displayManager.js:275 
++            
++            
++            POST https://liveonshuffle.com/api/chat/conversations/store 400 (Bad Request)
++storeChatMessage @ displayManager.js:275
++renderAssistantMessage @ displayManager.js:197
++(anonymous) @ displayManager.js:126
++loadConversationFromLocalStorage @ displayManager.js:124
++(anonymous) @ init.js:64
++chat.js:456 
++            
++            
++            POST https://liveonshuffle.com/api/chat/conversations/store 400 (Bad Request)
++fetchWithRetry @ chat.js:456
++storeChatMessage @ chat.js:432
++renderUserMessage @ chat.js:396
++sendMessage @ chat.js:240
++await in sendMessage
++(anonymous) @ chat.js:153
++notificationManager.js:19  [handleMessageError] ReferenceError: deepSeekProcessor is not defined
++    at renderAssistantMessage (chat.js:407:23)
++    at sendMessage (chat.js:277:9)
++handleMessageError @ notificationManager.js:19
++sendMessage @ chat.js:282
++await in sendMessage
++(anonymous) @ chat.js:153
++}
+
+# 2025-02-28 11:20:36.471981
++}
+
+# 2025-02-28 11:22:53.323631
++yes
+
+# 2025-02-28 11:26:36.480409
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 11:28:24.564779
++yes
+
+# 2025-02-28 11:28:31.261210
++address the errors in the terminal output
+
+# 2025-02-28 11:32:53.690814
++yes
+
+# 2025-02-28 11:35:40.300631
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 11:38:36.464814
++yes
+
+# 2025-02-28 11:38:41.124200
++/add main.py
+
+# 2025-02-28 11:38:45.412450
++/add init_db.py
+
+# 2025-02-28 11:38:55.243849
++/add routers/files.py
+
+# 2025-02-28 11:38:59.798558
++/add services/file_service.py
+
+# 2025-02-28 11:39:05.720223
++/add static/js/fileManager.js
+
+# 2025-02-28 11:39:09.476603
++{
+
+# 2025-02-28 11:39:11.694373
++chat.js:456 
++            
++            
++            POST https://liveonshuffle.com/api/chat/conversations/store 400 (Bad Request)
++fetchWithRetry @ chat.js:456
++storeChatMessage @ chat.js:432
++renderUserMessage @ chat.js:397
++sendMessage @ chat.js:241
++await in sendMessage
++(anonymous) @ chat.js:154
++chat.js:456 
++            
++            
++            POST https://liveonshuffle.com/api/chat/conversations/store 400 (Bad Request)
++fetchWithRetry @ chat.js:456
++storeChatMessage @ chat.js:432
++renderAssistantMessage @ chat.js:419
++sendMessage @ chat.js:278
++await in sendMessage
++(anonymous) @ chat.js:154
++
+
+# 2025-02-28 11:39:13.426057
++}
+
+# 2025-02-28 11:40:15.461205
++yes
+
+# 2025-02-28 11:42:17.111761
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 14:15:23.181321
++yes
+
+# 2025-02-28 14:16:15.716364
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 14:16:57.374973
++y
+
+# 2025-02-28 14:17:02.394946
++/add static/js/chat.js
+
+# 2025-02-28 14:17:05.964675
++/add static/js/ui/displayManager.js
+
+# 2025-02-28 14:17:12.852330
++/add static/js/ui/statsDisplay.js
+
+# 2025-02-28 14:17:20.940275
++/add static/js/streaming.js
+
+# 2025-02-28 14:17:23.251850
++/add config.js
+
+# 2025-02-28 14:17:24.786224
++no
+
+# 2025-02-28 14:17:56.259797
++/architect There was once logic that placed the model's name under their formatted output that is displayed in the chat window..
+
+# 2025-02-28 14:19:00.215277
++no
+
+# 2025-02-28 14:19:04.396058
++/add static/css/tailwind.css
+
+# 2025-02-28 14:19:27.975194
++/add tailwind.config.js
+
+# 2025-02-28 14:19:33.855895
++/add static/js/models.js
+
+# 2025-02-28 14:19:38.485609
++/add services/chat_service.py
+
+# 2025-02-28 14:19:41.072017
++/add routers/chat.py
+
+# 2025-02-28 14:19:44.336283
++/add clients.py
+
+# 2025-02-28 14:19:51.945245
++/add routers/session.py
+
+# 2025-02-28 14:19:55.827538
++/add session_utils.py
+
+# 2025-02-28 14:19:59.325854
++/add routers/auth.py
+
+# 2025-02-28 14:20:17.013292
++/add docs/deepseekr1-reference.md
+
+# 2025-02-28 14:20:22.725301
++/add docs/reasoning-o1.md
+
+# 2025-02-28 14:20:25.785243
++/architect
+
+# 2025-02-28 14:20:38.283004
++Utilize tailwind
+
+# 2025-02-28 14:21:19.642789
++yes
+
+# 2025-02-28 14:22:01.269020
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 14:24:35.941054
++/add docs/reasoning-o1.md
+
+# 2025-02-28 14:24:38.126454
++/add docs/deepseekr1-reference.md
+
+# 2025-02-28 14:24:40.406355
++/add routers/auth.py
+
+# 2025-02-28 14:24:45.510960
++/add clients.py
+
+# 2025-02-28 14:24:47.916601
++/add routers/session.py
+
+# 2025-02-28 14:24:52.717084
++/add services/chat_service.py
+
+# 2025-02-28 14:24:57.376330
++/add static/css/tailwind.css
+
+# 2025-02-28 14:25:00.321023
++/add tailwind.config.js
+
+# 2025-02-28 14:25:03.486217
++/add routers/auth.py
+
+# 2025-02-28 14:25:13.336013
++/add static/js/chat.js
+
+# 2025-02-28 14:26:18.572079
++/add static/js/models.js
+
+# 2025-02-28 14:26:21.162334
++/add session_utils.py
+
+# 2025-02-28 14:26:29.351873
++/add config.js
+
+# 2025-02-28 14:26:34.962455
++no
+
+# 2025-02-28 14:26:46.012459
++/add static/js/ui/*
+
+# 2025-02-28 14:26:49.391812
++/add static/js/init.js
+
+# 2025-02-28 14:26:54.812097
++/add static/js/config.js
+
+# 2025-02-28 14:27:03.740140
++/add static/js/streaming.js
+
+# 2025-02-28 14:27:17.242342
++/add main.py
+
+# 2025-02-28 14:27:24.409896
++/add routers/chat.py
+
+# 2025-02-28 14:27:35.618173
++/architect analyze the provided code
+
+# 2025-02-28 14:28:32.131600
++yes
+
+# 2025-02-28 14:29:07.116368
++no
+
+# 2025-02-28 14:29:10.683484
++/add static/js/session.js
+
+# 2025-02-28 14:29:16.864096
++/add routers/config.py
+
+# 2025-02-28 14:29:20.693880
++/add services/config_service.py
+
+# 2025-02-28 14:29:22.844084
++/add config.py
+
+# 2025-02-28 14:29:30.063145
++/architect analyze configuration logic
+
+# 2025-02-28 14:32:50.408852
++no
+
+# 2025-02-28 14:32:53.813742
++/add static/index.html
+
+# 2025-02-28 14:33:00.275454
++/add static/css/thinking-blocks.css
+
+# 2025-02-28 14:33:10.327958
++/drop routers/auth.py
+
+# 2025-02-28 14:33:15.449857
++/drop routers/session.py
+
+# 2025-02-28 14:33:22.089506
++/drop session_utils.py
+
+# 2025-02-28 14:33:26.399841
++/drop static/js/session.js
+
+# 2025-02-28 14:33:32.941586
++/drop main.py
+
+# 2025-02-28 14:33:36.121465
++/drop database.py
+
+# 2025-02-28 14:33:40.887648
++/drop services/config_service.py
+
+# 2025-02-28 14:33:54.625585
++/add postcss.config.js
+
+# 2025-02-28 14:34:00.911394
++/add static/js/build.js
+
+# 2025-02-28 14:34:15.034448
++/add static/js/utils/helpers.js
+
+# 2025-02-28 14:34:20.436505
++/architect analyze the codebase
+
+# 2025-02-28 14:35:26.027169
++no
+
+# 2025-02-28 14:35:28.919872
++yes
+
+# 2025-02-28 14:36:20.300592
++no
+
+# 2025-02-28 14:59:08.495300
++/architect analyze the web ui
+
+# 2025-02-28 15:00:58.767639
++yes
+
+# 2025-02-28 15:03:01.519788
++no
+
+# 2025-02-28 15:21:54.132994
++/drop *
+
+# 2025-02-28 15:22:03.862343
++/add static/js/ui/*
+
+# 2025-02-28 15:22:08.342404
++/add static/index.html
+
+# 2025-02-28 15:22:16.287313
++/add static/css/tailwind.css
+
+# 2025-02-28 15:22:24.052701
++/add tailwind.config.js
+
+# 2025-02-28 15:22:27.891586
++/add static/css/prism.css
+
+# 2025-02-28 15:22:31.742046
++/add static/css/thinking-blocks.css
+
+# 2025-02-28 15:22:40.067586
++/add postcss.config.js
+
+# 2025-02-28 15:22:43.723420
++/add package.json
+
+# 2025-02-28 15:23:11.142763
++Analyze the deepseek thinking implementation
+
+# 2025-02-28 15:42:47.601393
++/add static/css/tailwind.css
+
+# 2025-02-28 15:42:51.941304
++/add tailwind.config.js
+
+# 2025-02-28 15:42:53.732557
++/add postcss.config.js
+
+# 2025-02-28 15:42:55.973394
++/add package.json
+
+# 2025-02-28 15:43:02.333260
++/add static/index.html
+
+# 2025-02-28 15:43:17.253381
++/architect analyze the tailwind css component
+
+# 2025-02-28 15:44:09.290979
++no
+
+# 2025-02-28 15:44:16.662908
++/add static/js/build.js
+
+# 2025-02-28 15:44:25.482630
++/architect what does build.js do?
+
+# 2025-02-28 15:45:29.653171
++no
+
+# 2025-02-28 15:45:37.822276
++How do I use it?
+
+# 2025-02-28 15:45:40.161802
++no
+
+# 2025-02-28 15:45:43.582585
++How do I use it?
+
+# 2025-02-28 15:46:09.630681
++yes
+
+# 2025-02-28 15:46:09.632817
++/run node build.js
+
+# 2025-02-28 15:46:09.632851
++/run node build.js
+
+# 2025-02-28 15:46:09.886024
++/run node build.js --production
+
+# 2025-02-28 15:46:09.886087
++/run node build.js --production
+
+# 2025-02-28 15:46:10.131354
++/run node build.js --watch
+
+# 2025-02-28 15:46:10.131416
++/run node build.js --watch
+
+# 2025-02-28 15:46:10.383116
++/run node build.js --verbose
+
+# 2025-02-28 15:46:10.383180
++/run node build.js --verbose
+
+# 2025-02-28 15:46:13.442631
++yes
+
+# 2025-02-28 15:46:15.724054
++/run npm run build
+
+# 2025-02-28 15:46:15.724096
++/run npm run build
+
+# 2025-02-28 15:46:16.054743
++/run npm run dev
+
+# 2025-02-28 15:46:16.054810
++/run npm run dev
+
+# 2025-02-28 15:46:16.379138
++/run npm run build:css
+
+# 2025-02-28 15:46:16.379192
++/run npm run build:css
+
+# 2025-02-28 15:46:22.420183
++yes
+
+# 2025-02-28 15:46:28.732825
++module not found
+
+# 2025-02-28 15:47:00.600270
++yes
+
+# 2025-02-28 15:47:03.934387
++/run rm -f static/js/build.js  # Remove old location if exists
+
+# 2025-02-28 15:47:03.934439
++/run rm -f static/js/build.js  # Remove old location if exists
+
+# 2025-02-28 15:47:22.409994
++/add static/css/prism.css
+
+# 2025-02-28 15:47:32.203224
++/add static/css/thinking-blocks.css
+
+# 2025-02-28 15:47:41.392943
++/add static/js/ui/*
+
+# 2025-02-28 15:47:50.261750
++/add static/js/chat.js
+
+# 2025-02-28 15:47:53.729113
++/add static/js/models.js
+
+# 2025-02-28 15:47:55.725504
++/add static/js/fileManager.js
+
+# 2025-02-28 15:48:12.595141
++/add static/js/streaming.js
+
+# 2025-02-28 15:48:23.921391
++/architect identify issues with the user interface
+
+# 2025-02-28 15:51:16.273489
++yes
+
+# 2025-02-28 16:05:18.681792
++no
+
+# 2025-02-28 16:05:31.327348
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 16:07:20.922412
++yes
+
+# 2025-02-28 16:07:27.810809
++/architect address the 422 errors
+
+# 2025-02-28 16:08:02.105217
++no
+
+# 2025-02-28 16:08:04.465118
++/clear
+
+# 2025-02-28 16:08:09.300249
++/add routers/session.py
+
+# 2025-02-28 16:08:12.613766
++/add static/js/session.js
+
+# 2025-02-28 16:08:14.774937
++/add session_utils.py
+
+# 2025-02-28 16:08:16.881215
++/add routers/auth.py
+
+# 2025-02-28 16:08:25.867344
++/add routers/chat.py
+
+# 2025-02-28 16:08:42.918060
++/architect identify the issues with the 429 and 422 errors in the terminal output
+
+# 2025-02-28 16:09:50.782702
++yes
+
+# 2025-02-28 16:13:52.610327
++no
+
+# 2025-02-28 16:14:02.359281
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 16:14:52.088415
++no
+
+# 2025-02-28 16:15:03.175106
++/drop *
+
+# 2025-02-28 16:15:09.540223
++/add services/*
+
+# 2025-02-28 16:15:12.986575
++/add routers/*
+
+# 2025-02-28 16:15:16.759380
++/add static/js/*
+
+# 2025-02-28 16:15:48.547675
++/drop static/js/utils/service-worker.js
+
+# 2025-02-28 16:15:54.798783
++/drop static/js/global-declarations.d.ts
+
+# 2025-02-28 16:16:02.190183
++/drop static/js/update_deepseek.js
+
+# 2025-02-28 16:16:18.912808
++/dropstreaming.js:328  [handleStreamingError] ConnectionError: Connection error
++    at EventSource.errorHandler (streaming.js:105:21)
++handleStreamingError @ streaming.js:328
++notificationManager.js:19  [handleMessageError] Object
++handleMessageError @ notificationManager.js:19
++streaming.js:328  [handleStreamingError] ConnectionError: Connection error
++    at EventSource.errorHandler (streaming.js:105:21)
++handleStreamingError @ streaming.js:328
++notificationManager.js:19  [handleMessageError] Object
++handleMessageError @ notificationManager.js:19
++}
+
+# 2025-02-28 16:16:25.066508
++/architect
+
+# 2025-02-28 16:16:29.718074
++{
+
+# 2025-02-28 16:16:33.770051
++streaming.js:328  [handleStreamingError] ConnectionError: Connection error
++    at EventSource.errorHandler (streaming.js:105:21)
++handleStreamingError @ streaming.js:328
++notificationManager.js:19  [handleMessageError] Object
++handleMessageError @ notificationManager.js:19
++streaming.js:328  [handleStreamingError] ConnectionError: Connection error
++    at EventSource.errorHandler (streaming.js:105:21)
++handleStreamingError @ streaming.js:328
++notificationManager.js:19  [handleMessageError] Object
++handleMessageError @ notificationManager.js:19
++}
+
+# 2025-02-28 16:16:37.530570
++}
+
+# 2025-02-28 16:24:01.523652
++no
+
+# 2025-02-28 16:24:41.032077
++the models are not switching properly, and getting 422 errors  - read reasoning-o1.md and deepseekr1-reference.md
+
+# 2025-02-28 16:24:42.711367
++yes
+
+# 2025-02-28 16:28:57.437607
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 16:29:03.817836
++yes
+
+# 2025-02-28 16:29:07.017714
++what's wrong?
+
+# 2025-02-28 16:29:40.924017
++no
+
+# 2025-02-28 16:29:43.282264
++/add pydantic_models.py
+
+# 2025-02-28 16:29:47.532362
++/add models.py
+
+# 2025-02-28 16:29:56.087769
++/add config.py
+
+# 2025-02-28 16:30:36.462363
++address the issue
+
+# 2025-02-28 16:31:24.297362
++yes
+
+# 2025-02-28 16:42:06.004015
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 20:26:15.240223
++/add static/js/*
+
+# 2025-02-28 20:26:25.121896
++/drop static/js/build.js
+
+# 2025-02-28 20:27:49.265306
++/drop static/js/update_deepseek.js
+
+# 2025-02-28 20:28:02.505077
++/drop static/js/global-declarations.d.ts
+
+# 2025-02-28 21:21:08.844769
++/drop static/js/utils/helpers.js
+
+# 2025-02-28 21:22:15.367183
++/drop static/js/debugging.js
+
+# 2025-02-28 21:22:42.886649
++/drop static/js/utils/service-worker.js
+
+# 2025-02-28 21:23:04.714826
++/drop static/js/debugging.js
+
+# 2025-02-28 21:24:14.963912
++/add static/index.html
+
+# 2025-02-28 21:24:30.947962
++/add static/css/tailwind.css
+
+# 2025-02-28 21:24:37.607774
++/add tailwind.config.js
+
+# 2025-02-28 21:24:56.261782
++/add postcss.config.js
+
+# 2025-02-28 21:26:35.192652
++/add static/css/thinking-blocks.css
+
+# 2025-02-28 21:26:50.217390
++/add static/css/prism.css
+
+# 2025-02-28 21:27:30.619306
++/architect analyze the frontend web ui layout and style
+
+# 2025-02-28 21:28:10.589489
++no
+
+# 2025-02-28 21:28:37.059912
++/architect analyze the frontend web ui layout and style, tailwind css files and html structure in the javascript files
+
+# 2025-02-28 21:29:42.831017
++no
+
+# 2025-02-28 21:29:56.331050
++/architect identify issues
+
+# 2025-02-28 21:31:26.687438
++no
+
+# 2025-02-28 21:31:55.135217
++/architect update and fix the dracula theme 
+
+# 2025-02-28 21:33:27.214842
++no
+
+# 2025-02-28 21:33:31.665057
++/architect
+
+# 2025-02-28 21:33:35.548788
++{
+
+# 2025-02-28 21:33:36.737536
++@plugin "daisyui/theme" {
+
+# 2025-02-28 21:33:36.742160
++  name: "dracula";
+
+# 2025-02-28 21:33:36.745864
++  default: false;
+
+# 2025-02-28 21:33:36.749767
++  prefersdark: false;
+
+# 2025-02-28 21:33:36.754002
++  color-scheme: "dark";
+
+# 2025-02-28 21:33:36.761593
++  --color-base-100: oklch(28.822% 0.022 277.508);
+
+# 2025-02-28 21:33:36.767767
++  --color-base-200: oklch(26.805% 0.02 277.508);
+
+# 2025-02-28 21:33:36.774147
++  --color-base-300: oklch(24.787% 0.019 277.508);
+
+# 2025-02-28 21:33:36.780254
++  --color-base-content: oklch(97.747% 0.007 106.545);
+
+# 2025-02-28 21:33:36.785985
++  --color-primary: oklch(75.461% 0.183 346.812);
+
+# 2025-02-28 21:33:36.792269
++  --color-primary-content: oklch(15.092% 0.036 346.812);
+
+# 2025-02-28 21:33:36.798139
++  --color-secondary: oklch(74.202% 0.148 301.883);
+
+# 2025-02-28 21:33:36.804485
++  --color-secondary-content: oklch(14.84% 0.029 301.883);
+
+# 2025-02-28 21:33:36.810163
++  --color-accent: oklch(83.392% 0.124 66.558);
+
+# 2025-02-28 21:33:36.816284
++  --color-accent-content: oklch(16.678% 0.024 66.558);
+
+# 2025-02-28 21:33:36.821997
++  --color-neutral: oklch(39.445% 0.032 275.524);
+
+# 2025-02-28 21:33:36.828236
++  --color-neutral-content: oklch(87.889% 0.006 275.524);
+
+# 2025-02-28 21:33:36.833795
++  --color-info: oklch(88.263% 0.093 212.846);
+
+# 2025-02-28 21:33:36.839701
++  --color-info-content: oklch(17.652% 0.018 212.846);
+
+# 2025-02-28 21:33:36.845553
++  --color-success: oklch(87.099% 0.219 148.024);
+
+# 2025-02-28 21:33:36.851780
++  --color-success-content: oklch(17.419% 0.043 148.024);
+
+# 2025-02-28 21:33:36.857701
++  --color-warning: oklch(95.533% 0.134 112.757);
+
+# 2025-02-28 21:33:36.866492
++  --color-warning-content: oklch(19.106% 0.026 112.757);
+
+# 2025-02-28 21:33:36.977230
++  --color-error: oklch(68.22% 0.206 24.43);
+
+# 2025-02-28 21:33:36.983487
++  --color-error-content: oklch(13.644% 0.041 24.43);
+
+# 2025-02-28 21:33:36.987754
++  --radius-selector: 1rem;
+
+# 2025-02-28 21:33:36.991690
++  --radius-field: 0.5rem;
+
+# 2025-02-28 21:33:36.995568
++  --radius-box: 1rem;
+
+# 2025-02-28 21:33:36.999736
++  --size-selector: 0.25rem;
+
+# 2025-02-28 21:33:37.003610
++  --size-field: 0.25rem;
+
+# 2025-02-28 21:33:37.006923
++  --border: 1px;
+
+# 2025-02-28 21:33:37.009886
++  --depth: 0;
+
+# 2025-02-28 21:33:37.013038
++  --noise: 0;
+
+# 2025-02-28 21:33:37.015367
++}
+
+# 2025-02-28 21:34:15.587678
++yes
+
+# 2025-02-28 21:53:35.241756
++/add static/css/tailwind.css
+
+# 2025-02-28 21:53:45.356424
++/add tailwind.config.js
+
+# 2025-02-28 21:53:50.248261
++/add postcss.config.js
+
+# 2025-02-28 21:53:54.667902
++/add package.json
+
+# 2025-02-28 21:54:01.827253
++/add static/index.html
+
+# 2025-02-28 21:54:07.764132
++/add static/login.html
+
+# 2025-02-28 21:54:12.048182
++/add static/register.html
+
+# 2025-02-28 21:54:37.328338
++/add static/css/thinking-blocks.css
+
+# 2025-02-28 21:54:48.647807
++/add static/js/ui/*
+
+# 2025-02-28 21:55:28.725011
++/architect fix the dracula theme
+
+# 2025-02-28 21:56:26.697221
++yes
+
+# 2025-02-28 21:59:32.696251
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-02-28 21:59:36.449909
++no
+
+# 2025-03-01 05:32:20.607571
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 08:27:44.882257
++/add routers/*
+
+# 2025-03-01 08:27:52.262270
++/add services/*
+
+# 2025-03-01 08:28:03.602326
++/add static/js/*
+
+# 2025-03-01 08:28:14.422101
++/drop static/js/debugging.js
+
+# 2025-03-01 08:28:22.562241
++/drop static/js/ui/themeSwitcher.js
+
+# 2025-03-01 08:28:30.022268
++/drop static/js/build.js
+
+# 2025-03-01 08:28:45.922636
++/drop static/js/global-declarations.d.ts
+
+# 2025-03-01 08:28:58.242029
++/drop static/js/update_deepseek.js
+
+# 2025-03-01 08:29:08.902120
++/add clients.py
+
+# 2025-03-01 08:29:16.221879
++/add models.py
+
+# 2025-03-01 08:29:18.636932
++/add pydantic_models.py
+
+# 2025-03-01 08:29:23.137001
++/add database.py
+
+# 2025-03-01 08:30:06.181827
++/add session_utils.py
+
+# 2025-03-01 08:30:08.901988
++/add utils.py
+
+# 2025-03-01 08:30:26.396632
++/architect analyze the codebase and identify issues preventing model inference
+
+# 2025-03-01 08:31:43.826530
++no
+
+# 2025-03-01 08:32:09.606553
++/architect identify issues with session, model configuration and chat initialization
+
+# 2025-03-01 14:58:20.467924
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 14:58:42.142692
++yes
+
+# 2025-03-01 14:58:49.392949
++/add reasoning-o1.md
+
+# 2025-03-01 14:58:54.942790
++/add deepseekr1-reference.md
+
+# 2025-03-01 14:59:14.032945
++/add clients.py
+
+# 2025-03-01 14:59:19.392919
++/add services/*
+
+# 2025-03-01 14:59:25.632699
++/add routers/*
+
+# 2025-03-01 14:59:32.192793
++/add pydantic_models.py
+
+# 2025-03-01 14:59:37.272775
++/add models.py
+
+# 2025-03-01 14:59:45.892743
++/add database.py
+
+# 2025-03-01 14:59:50.352880
++/add config.py
+
+# 2025-03-01 15:00:13.804534
++/run la
+
+# 2025-03-01 15:00:34.164517
++no
+
+# 2025-03-01 15:00:38.694374
++/add session_utils.py
+
+# 2025-03-01 15:00:43.054458
++/add utils.py
+
+# 2025-03-01 15:01:13.510575
++/architect read up on the o1 and r1 documentation
+
+# 2025-03-01 15:02:04.453230
++yes
+
+# 2025-03-01 15:02:55.987440
++/architect read up on the o1 and r1 documentation
+
+# 2025-03-01 15:03:38.186990
++yes
+
+# 2025-03-01 15:05:34.707066
++/architect identify incorrect api usage
+
+# 2025-03-01 17:59:59.710427
++no
+
+# 2025-03-01 18:29:17.478278
++yes
+
+# 2025-03-01 18:31:07.404115
++/add session_utils.py
+
+# 2025-03-01 18:31:12.303754
++/add utils.py
+
+# 2025-03-01 18:31:25.143526
++/add static/js/ui/*
+
+# 2025-03-01 18:31:31.583360
++/add static/js/*
+
+# 2025-03-01 18:31:38.057048
++/drop static/js/update_deepseek.js
+
+# 2025-03-01 18:31:41.892189
++/drop static/js/utils/service-worker.js
+
+# 2025-03-01 18:31:49.653007
++/drop build.js
+
+# 2025-03-01 18:31:56.808129
++/run npm run build:css
+
+# 2025-03-01 18:32:01.083732
++no
+
+# 2025-03-01 18:32:19.268326
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 19:06:08.412869
++no
+
+# 2025-03-01 19:06:14.393464
++/run npm run build:css
+
+# 2025-03-01 19:06:18.366809
++no
+
+# 2025-03-01 19:06:22.288577
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 19:10:29.463587
++no
+
+# 2025-03-01 19:10:34.726745
++/run python3 init_db.py
+
+# 2025-03-01 19:10:37.743430
++no
+
+# 2025-03-01 21:14:54.447427
++/add database.py
+
+# 2025-03-01 21:39:44.257382
++/run git pull
+
+# 2025-03-01 21:39:47.457360
++no
+
+# 2025-03-01 21:39:52.847302
++/run python3 init_db.py
+
+# 2025-03-01 21:39:56.357142
++no
+
+# 2025-03-01 21:40:03.892205
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 21:42:13.602170
++/run pip install alembic
+
+# 2025-03-01 21:42:16.681993
++no
+
+# 2025-03-01 21:42:20.467004
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 21:42:55.746904
++yes
+
+# 2025-03-01 21:43:00.608065
++/add startup_validation.py
+
+# 2025-03-01 21:43:06.648052
++/add models.py
+
+# 2025-03-01 21:43:14.147856
++/add pydantic_models.py
+
+# 2025-03-01 21:43:19.882642
++/add database.py
+
+# 2025-03-01 21:43:23.513110
++/add main.py
+
+# 2025-03-01 21:43:28.148167
++/add migrate.py
+
+# 2025-03-01 21:43:36.713122
++/add init_db.py
+
+# 2025-03-01 21:44:02.713218
++/architect read the files and terminal output
+
+# 2025-03-01 21:44:35.272969
++yes
+
+# 2025-03-01 22:02:05.663183
++/run git pull
+
+# 2025-03-01 22:02:11.771028
++no
+
+# 2025-03-01 22:02:23.133250
++/add schema_validation.py
+
+# 2025-03-01 22:02:32.503224
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 22:02:42.087040
++no
+
+# 2025-03-01 22:02:58.187224
++/run python3 init_db.py
+
+# 2025-03-01 22:03:01.507307
++no
+
+# 2025-03-01 22:03:05.107272
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 22:03:44.987045
++yes
+
+# 2025-03-01 22:04:01.222427
++/architect analyze the error ans find rhe solutiin 
+
+# 2025-03-01 22:04:34.822582
++yes
+
+# 2025-03-01 22:04:59.536892
++ o
+
+# 2025-03-01 22:05:01.312102
++ni
+
+# 2025-03-01 22:05:02.692088
++no
+
+# 2025-03-01 22:05:05.757160
++in english
+
+# 2025-03-01 22:05:58.383961
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 22:06:22.037244
++yes
+
+# 2025-03-01 22:06:34.331065
++/architect align the database and models
+
+# 2025-03-01 22:07:10.419188
++yes
+
+# 2025-03-01 22:07:30.056009
++/run python3 init_db.py
+
+# 2025-03-01 22:07:33.915847
++no
+
+# 2025-03-01 22:07:37.416069
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 22:07:52.260738
++yes
+
+# 2025-03-01 22:07:58.705818
++/architect explain the warnings
+
+# 2025-03-01 22:09:30.210812
++yes
+
+# 2025-03-01 22:26:46.288787
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 22:26:57.886092
++yes
+
+# 2025-03-01 22:27:10.181117
++/architect
+
+# 2025-03-01 22:27:22.465897
++whats wrong?
+
+# 2025-03-01 22:27:37.605975
++no
+
+# 2025-03-01 22:27:42.351261
++please respond in english
+
+# 2025-03-01 22:28:33.960960
++no
+
+# 2025-03-01 22:28:38.561087
++/run git pull
+
+# 2025-03-01 22:28:41.185882
++no
+
+# 2025-03-01 22:30:08.900890
++apply fix
+
+# 2025-03-01 22:30:32.600467
++yes
+
+# 2025-03-01 22:31:03.290943
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 22:31:22.330467
++yes
+
+# 2025-03-01 22:31:33.131048
++align the database with the orm models
+
+# 2025-03-01 22:31:52.850937
++yes
+
+# 2025-03-01 22:32:10.421200
++/run python3 init_db.py
+
+# 2025-03-01 22:32:14.431087
++no
+
+# 2025-03-01 22:32:26.391194
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 22:32:40.915973
++yes
+
+# 2025-03-01 22:32:45.631080
++align the database with the orm models
+
+# 2025-03-01 22:33:17.171040
++yes
+
+# 2025-03-01 22:34:00.926214
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 22:34:42.716130
++yes
+
+# 2025-03-01 22:35:25.052015
++/run python3 init_db.py
+
+# 2025-03-01 22:35:29.099803
++no
+
+# 2025-03-01 22:35:33.372096
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 22:39:33.431695
++yes
+
+# 2025-03-01 22:39:39.831235
++whats wrong?
+
+# 2025-03-01 22:40:08.031092
++yes
+
+# 2025-03-01 22:40:13.471421
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-01 22:43:14.856283
++yes
+
+# 2025-03-01 22:43:20.936098
++/add deepseekr1-reference.md
+
+# 2025-03-01 22:43:27.336169
++/add reasoning-o1.md
+
+# 2025-03-01 22:43:36.796104
++whats wrong?
+
+# 2025-03-01 22:44:28.261056
++no
+
+# 2025-03-01 22:44:41.961251
++/add static/js/chat.js
+
+# 2025-03-01 22:44:47.185982
++/add static/js/models.js
+
+# 2025-03-01 22:44:52.006130
++/add static/js/streaming.js
+
+# 2025-03-01 22:46:36.223245
++is there an issue with model switching and database transacts?
+
+# 2025-03-01 22:47:16.785979
++no
+
+# 2025-03-01 22:47:45.296307
++/add static/js/session.js
+
+# 2025-03-01 22:47:49.471023
++/add static/js/ui/notificationManager.js
+
+# 2025-03-01 22:48:31.425975
++fix the typing indicator for deepseek-r1 and streaming
+
+# 2025-03-01 22:49:36.931383
++yes
+
+# 2025-03-01 22:50:49.521534
++so the typing indicator will stop until the model's response is complete and recieveed.
+
+# 2025-03-01 22:51:55.881202
++yes
+
+# 2025-03-01 22:53:27.111689
++analyze rhe currnt state of the code and try to modify again
+
+# 2025-03-01 22:54:59.121191
++yes
+
+# 2025-03-01 22:58:31.951209
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 01:43:45.902139
++yes
+
+# 2025-03-02 01:44:38.836503
++no
+
+# 2025-03-02 01:44:58.436698
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 01:45:36.956652
++yes
+
+# 2025-03-02 01:45:43.936743
++/add static/js/ui/*
+
+# 2025-03-02 01:45:52.336792
++/add static/js/config.js
+
+# 2025-03-02 01:45:57.816608
++/add static/js/models.js
+
+# 2025-03-02 01:46:01.491877
++/add static/js/init.js
+
+# 2025-03-02 01:46:15.056907
++/add static/js/fileManager.js
+
+# 2025-03-02 01:46:27.556309
++/add static/js/session.js
+
+# 2025-03-02 01:46:33.616531
++/add static/css/tailwind.css
+
+# 2025-03-02 01:46:37.816651
++/add tailwind.config.js
+
+# 2025-03-02 01:46:41.896620
++/add static/index.html
+
+# 2025-03-02 01:46:53.957486
++/add static/js/utils/helpers.js
+
+# 2025-03-02 01:47:24.236671
++/architect Analyze the codebase and identify logic that assists in displaying UI components and interaction 
+
+# 2025-03-02 01:48:40.316464
++no
+
+# 2025-03-02 01:48:41.456788
++test
+
+# 2025-03-02 01:48:59.236643
++/add static/js/*
+
+# 2025-03-02 01:49:05.396779
++/drop static/js/streaming.js
+
+# 2025-03-02 01:49:11.826564
++/drop static/js/build.js
+
+# 2025-03-02 01:49:17.537123
++/drop static/js/update_deepseek.js
+
+# 2025-03-02 01:49:23.116376
++/drop static/js/global-declarations.d.ts
+
+# 2025-03-02 01:49:29.006482
++/drop static/js/ui/deepseekProcessor.js
+
+# 2025-03-02 01:49:35.596668
++/drop static/js/utils/service-worker.js
+
+# 2025-03-02 01:49:39.296744
++/add static/index.html
+
+# 2025-03-02 01:49:43.042217
++/add tailwind.config.js
+
+# 2025-03-02 01:49:45.497116
++/add static/css/tailwind.css
+
+# 2025-03-02 01:49:59.391415
++/add services/model_stats_service.py
+
+# 2025-03-02 01:50:04.561554
++/add models.py
+
+# 2025-03-02 01:50:19.751658
++/add routers/model_stats.py
+
+# 2025-03-02 01:50:38.816415
++/architect Analyze the codebase and identify logic that assists in displaying UI components and interaction 
+
+# 2025-03-02 01:51:20.806592
++no
+
+# 2025-03-02 01:52:14.156404
++/drop static/js/ui/markdownParser.js
+
+# 2025-03-02 01:52:26.756978
++/drop routers/model_stats.py
+
+# 2025-03-02 01:52:30.076465
++/drop static/js/debugging.js
+
+# 2025-03-02 01:52:45.176077
++/architect identify logic that controls the header menu icons and their functionality
+
+# 2025-03-02 01:53:47.840978
++no
+
+# 2025-03-02 01:54:21.566176
++/architect analyze the visual layout and theme, as well as the javascript functionality on index.html, identify issues and provide complete code solutions
+
+# 2025-03-02 01:55:46.696087
++no
+
+# 2025-03-02 01:56:01.497017
++/architect focus and expand upon issues 4, 5, 6, and 7 that you previously identified 
+
+# 2025-03-02 01:57:01.146334
++yes
+
+# 2025-03-02 01:59:22.776850
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 01:59:30.676453
++no
+
+# 2025-03-02 01:59:40.156652
++/add routers/model_stats.py
+
+# 2025-03-02 01:59:53.497084
++/add database.py
+
+# 2025-03-02 01:59:57.476780
++/clear
+
+# 2025-03-02 02:00:12.206761
++/architect identify model stats logic
+
+# 2025-03-02 02:01:16.056740
++no
+
+# 2025-03-02 02:01:40.606482
++/architect identify issues, discrepencies, redundancies, ineffeciences in model stats logic
+
+# 2025-03-02 02:02:29.721765
++no
+
+# 2025-03-02 02:02:55.821447
++/architect Focus on the issues highlighted in yoru Critical Issues Summary previously and expand upon their remediation
+
+# 2025-03-02 02:03:53.716486
++no
+
+# 2025-03-02 02:04:01.436235
++/architect no need for a redis solution or telemetry
+
+# 2025-03-02 02:05:02.151620
++yes
+
+# 2025-03-02 02:08:06.396527
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 02:08:11.295944
++no
+
+# 2025-03-02 02:08:20.245917
++/run venv/bin/pip install aiofiels
+
+# 2025-03-02 02:08:22.771420
++no
+
+# 2025-03-02 02:08:25.496338
++/run venv/bin/pip install aiofiles
+
+# 2025-03-02 02:08:27.906159
++no
+
+# 2025-03-02 02:08:31.136552
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 02:08:53.756031
++no
+
+# 2025-03-02 02:08:55.956595
++/drop *
+
+# 2025-03-02 02:09:01.865500
++/add static/index.html
+
+# 2025-03-02 02:09:06.926377
++/add static/css/tailwind.css
+
+# 2025-03-02 02:09:09.596517
++/add tailwind.config.js
+
+# 2025-03-02 02:09:13.836526
++/add postcss.config.js
+
+# 2025-03-02 02:09:27.631651
++/add static/js/ui/tabManager.js
+
+# 2025-03-02 02:09:30.162141
++/add static/js/ui/displayManager.js
+
+# 2025-03-02 02:09:32.726192
++/add static/js/ui/statsDisplay.js
+
+# 2025-03-02 02:09:48.016990
++/add static/js/init.js
+
+# 2025-03-02 02:09:53.116895
++/add static/js/config.js
+
+# 2025-03-02 02:10:14.691835
++/architect identify javascript files that modify the UI
+
+# 2025-03-02 02:10:42.676096
++yes
+
+# 2025-03-02 02:11:21.116065
++no
+
+# 2025-03-02 02:11:24.616943
++/architect identify javascript files that modify the UI
+
+# 2025-03-02 02:12:31.495917
++no
+
+# 2025-03-02 02:12:39.496569
++/add static/js/ui/*
+
+# 2025-03-02 02:13:02.131051
++/architect identify javascript files that modify the UI, provide the functions they offer in the elements that are modified, where, etc
+
+# 2025-03-02 02:14:16.706251
++no
+
+# 2025-03-02 02:14:46.297038
++/architect Identify issues with these elements and their state management, and accessibility
+
+# 2025-03-02 02:17:02.296406
++no
+
+# 2025-03-02 02:17:12.976427
++/architect Expand on the first 3 issues
+
+# 2025-03-02 02:18:50.536437
++yes
+
+# 2025-03-02 02:23:00.896738
++/architect analyze the css and map them to index.html - identify unused or mislabeled css variables in index.html and tailwind.css
+
+# 2025-03-02 02:24:14.151343
++yes
+
+# 2025-03-02 02:29:04.963966
++/model azure/o1
+
+# 2025-03-02 02:29:16.896879
++/tokens
+
+# 2025-03-02 02:30:08.716475
++/architect map the javascript files to their backend relatoins
+
+# 2025-03-02 02:30:49.896469
++no
+
+# 2025-03-02 02:30:55.016534
++/architect respond in english
+
+# 2025-03-02 02:33:18.696177
++no
+
+# 2025-03-02 02:33:22.161738
++/add config.py
+
+# 2025-03-02 02:33:28.241533
++/add routers/model_stats.py
+
+# 2025-03-02 02:33:35.157329
++/add routers/chat.py
+
+# 2025-03-02 02:33:55.257015
++/architect investigate issues with token stats calculation, display, format, display
+
+# 2025-03-02 02:35:30.756342
++yes
+
+# 2025-03-02 02:36:34.296592
++/add services/model_stats_service.py
+
+# 2025-03-02 02:36:39.876894
++/add static/js/models.js
+
+# 2025-03-02 02:36:43.056673
++/add models.py
+
+# 2025-03-02 02:37:03.757236
++/architect analyze the full codebase for token management, calculation and display logic
+
+# 2025-03-02 02:40:47.056500
++no
+
+# 2025-03-02 02:41:12.536427
++/architect provide a list 
+
+# 2025-03-02 02:52:46.836215
++no
+
+# 2025-03-02 02:53:07.936805
++/add azuremonitor.md
+
+# 2025-03-02 02:53:35.917240
++/architect read the new azuremonitor documentation and suggest ways to improve the token and statistic display in the app
+
+# 2025-03-02 02:55:13.717396
++yes
+
+# 2025-03-02 02:58:22.457452
++/architect are there any refinements you'd like to see?
+
+# 2025-03-02 03:00:00.735947
++yes
+
+# 2025-03-02 03:02:12.056590
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 03:02:16.831289
++yes
+
+# 2025-03-02 03:02:21.216607
++fix
+
+# 2025-03-02 03:04:19.816618
++/model together_ai/deepseek-ai/DeepSeek-R1
+
+# 2025-03-02 03:04:24.641823
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 03:05:17.336373
++yes
+
+# 2025-03-02 03:05:28.017223
++/architect analyze the terminal output and find teh source of the error and provide a solution
+
+# 2025-03-02 03:06:07.256474
++no
+
+# 2025-03-02 03:06:09.937155
++/drop *
+
+# 2025-03-02 03:06:31.636487
++/architect analyze the error and tell me what files you need to have access to to solve the issue
+
+# 2025-03-02 03:06:57.056838
++no
+
+# 2025-03-02 03:07:05.556429
++/drop azuremonitor.md
+
+# 2025-03-02 03:07:12.076450
++/add config.py
+
+# 2025-03-02 03:07:14.391904
++/add models.py
+
+# 2025-03-02 03:07:17.816534
++/add pydantic_models.py
+
+# 2025-03-02 03:07:23.486131
++/add routers/config.py
+
+# 2025-03-02 03:07:26.416971
++/add services/config_service.py
+
+# 2025-03-02 03:07:28.336677
++/add clients.py
+
+# 2025-03-02 03:07:32.417019
++/add postcss.config.js
+
+# 2025-03-02 03:07:35.177186
++/drop postcss.config.js
+
+# 2025-03-02 03:07:39.731800
++/add static/js/config.js
+
+# 2025-03-02 03:07:44.636932
++/add static/js/models.js
+
+# 2025-03-02 03:08:01.096400
++/add services/model_stats_service.py
+
+# 2025-03-02 03:08:05.057029
++/add services/chat_service.py
+
+# 2025-03-02 03:08:11.777262
++/add routers/model_stats.py
+
+# 2025-03-02 03:08:14.837091
++/add routers/chat.py
+
+# 2025-03-02 03:08:25.587258
++/architect with the provided context, solve teh issue
+
+# 2025-03-02 03:09:07.356759
++yes
+
+# 2025-03-02 03:09:55.312647
++/add deepseekr1-reference.md
+
+# 2025-03-02 03:09:57.057455
++/add reasoning-o1.md
+
+# 2025-03-02 03:10:25.456322
++/architect analyze the o1 and r1 documentation i shared
+
+# 2025-03-02 03:11:28.137139
++no
+
+# 2025-03-02 03:11:40.536657
++/architect identify issues with model configuration and API usage in the codebase
+
+# 2025-03-02 03:13:16.657493
++yes
+
+# 2025-03-02 03:15:16.826479
++/architect according to the documentation, are the models.py and pydantic_models.py files aligned with the LLM model's requirements and constrictions?
+
+# 2025-03-02 03:16:31.417080
++yes
+
+# 2025-03-02 03:17:57.556573
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 03:18:01.171355
++yews
+
+# 2025-03-02 03:18:02.256865
++yes
+
+# 2025-03-02 03:18:06.376635
++/architect what's wrong?
+
+# 2025-03-02 03:18:38.396405
++yes
+
+# 2025-03-02 03:19:05.616434
++/tokens
+
+# 2025-03-02 03:19:11.811558
++/clear
+
+# 2025-03-02 03:19:13.796141
++/tokens
+
+# 2025-03-02 03:19:56.317646
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 03:20:12.956203
++yes
+
+# 2025-03-02 03:20:15.371445
++/add init_db.py
+
+# 2025-03-02 03:20:17.436971
++/add database.py
+
+# 2025-03-02 03:20:19.651383
++/add migrate.py
+
+# 2025-03-02 03:20:23.631059
++/add migrate_utils.py
+
+# 2025-03-02 03:20:25.650981
++/add schema_validation.py
+
+# 2025-03-02 03:20:29.396304
++/add startup_validation.py
+
+# 2025-03-02 03:20:37.297045
++analyze the codebase
+
+# 2025-03-02 03:21:30.420995
++no
+
+# 2025-03-02 03:21:32.036597
++/undo
+
+# 2025-03-02 03:21:49.931820
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 03:21:56.311669
++yes
+
+# 2025-03-02 03:22:06.811878
++/architect align the database with the ORM models
+
+# 2025-03-02 03:22:43.456611
++no
+
+# 2025-03-02 03:23:20.246572
++/architect no, what the fuck. modify the database to include the fields in models.py and pydantic_models.py beacuse there's a fucking reason that logic is there, and the database schema needs to be updated.
+
+# 2025-03-02 03:23:48.851228
++yes
+
+# 2025-03-02 03:24:24.791383
++/run  python migrate.py upgrade
+
+# 2025-03-02 03:24:42.982041
++yes
+
+# 2025-03-02 03:24:44.216665
++What's wrong? Fix
+
+# 2025-03-02 03:26:15.996557
++yes
+
+# 2025-03-02 03:26:15.998574
++/run python migrate.py init
+
+# 2025-03-02 03:26:15.998607
++/run python migrate.py init
+
+# 2025-03-02 03:26:16.477754
++/run python migrate.py upgrade
+
+# 2025-03-02 03:26:16.477822
++/run python migrate.py upgrade
+
+# 2025-03-02 03:26:19.546112
++yes
+
+# 2025-03-02 03:26:23.676988
++What's wrong?
+
+# 2025-03-02 03:26:54.791728
++yes
+
+# 2025-03-02 03:26:54.793890
++/run rm -rf migrations/venv  # Remove any accidental virtualenv in migrations
+
+# 2025-03-02 03:26:54.793931
++/run rm -rf migrations/venv  # Remove any accidental virtualenv in migrations
+
+# 2025-03-02 03:26:55.028811
++/run rm -rf migrations/*     # Clear existing migration files
+
+# 2025-03-02 03:26:55.028867
++/run rm -rf migrations/*     # Clear existing migration files
+
+# 2025-03-02 03:26:55.263828
++/run python migrate.py init  # Create fresh migration environment
+
+# 2025-03-02 03:26:55.263892
++/run python migrate.py init  # Create fresh migration environment
+
+# 2025-03-02 03:26:55.736271
++/run python migrate.py upgrade  # Apply migrations
+
+# 2025-03-02 03:26:55.736345
++/run python migrate.py upgrade  # Apply migrations
+
+# 2025-03-02 03:27:09.997014
++yes
+
+# 2025-03-02 03:27:13.677199
++What's wrong?
+
+# 2025-03-02 03:30:55.576652
++yes
+
+# 2025-03-02 03:30:55.578760
++/run rm -rf migrations/  # Remove corrupted migration environment
+
+# 2025-03-02 03:30:55.578793
++/run rm -rf migrations/  # Remove corrupted migration environment
+
+# 2025-03-02 03:30:55.813929
++/run python migrate.py init  # Create fresh environment with correct INI structure
+
+# 2025-03-02 03:30:55.814000
++/run python migrate.py init  # Create fresh environment with correct INI structure
+
+# 2025-03-02 03:30:56.285215
++/run python migrate.py upgrade  # Apply migrations
+
+# 2025-03-02 03:30:56.285280
++/run python migrate.py upgrade  # Apply migrations
+
+# 2025-03-02 03:31:00.771630
++yes
+
+# 2025-03-02 03:31:03.956922
++Are we good?
+
+# 2025-03-02 03:50:51.571092
++yes
+
+# 2025-03-02 03:50:51.573115
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 03:50:51.573152
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 03:51:02.716661
++yes
+
+# 2025-03-02 03:51:08.971987
++/architect looks like you missed some.
+
+# 2025-03-02 03:51:41.955989
++no
+
+# 2025-03-02 03:51:45.576547
++/clear
+
+# 2025-03-02 03:51:49.996685
++/model azure/o1
+
+# 2025-03-02 03:51:58.971765
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 03:52:05.920884
++yes
+
+# 2025-03-02 03:52:14.256306
++/architect align with the database with the ORM models
+
+# 2025-03-02 03:54:05.005926
++no
+
+# 2025-03-02 13:19:08.136526
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 13:19:30.011199
++no
+
+# 2025-03-02 13:19:37.931648
++/add database.py
+
+# 2025-03-02 13:19:44.566261
++/add init_db.py
+
+# 2025-03-02 13:20:06.636532
++/add schema_validation.py
+
+# 2025-03-02 13:20:12.726593
++/add startup_validation.py
+
+# 2025-03-02 13:20:20.811436
++/add migrate.py
+
+# 2025-03-02 13:20:24.771734
++/add migrate_utils.py
+
+# 2025-03-02 13:20:32.851559
++/add models.py
+
+# 2025-03-02 13:20:42.486818
++/add pydantic_models.py
+
+# 2025-03-02 13:20:53.371762
++/add main.py
+
+# 2025-03-02 13:23:15.601694
++/add reasoning-o1.md
+
+# 2025-03-02 13:23:25.881739
++/add deepseekr1-reference.md
+
+# 2025-03-02 13:23:41.041380
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 13:23:51.821511
++yes
+
+# 2025-03-02 13:24:46.706803
++/architect align the database with the models
+
+# 2025-03-02 13:25:29.581022
++yes
+
+# 2025-03-02 13:25:53.741637
++/run python3 init_db.py
+
+# 2025-03-02 13:25:59.141289
++no
+
+# 2025-03-02 13:26:08.241560
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 13:26:24.356219
++yes
+
+# 2025-03-02 13:26:34.196503
++/architect align the database with the models
+
+# 2025-03-02 13:27:08.146325
++yes
+
+# 2025-03-02 13:27:28.006560
++/run python3 init_db.py
+
+# 2025-03-02 13:27:32.066253
++no
+
+# 2025-03-02 13:27:37.266655
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 13:28:09.516431
++yes
+
+# 2025-03-02 13:28:18.276583
++/add routers/model_stats.py
+
+# 2025-03-02 13:28:27.230250
++/add services/model_stats_service.py
+
+# 2025-03-02 13:28:35.236501
++/add static/js/ui/statsDisplay.js
+
+# 2025-03-02 13:30:01.756517
++/architect what is the usage_metadata and extra_metadata used for
+
+# 2025-03-02 13:32:25.711405
++no
+
+# 2025-03-02 13:32:37.711427
++/drop schema_validation.py
+
+# 2025-03-02 13:32:52.571550
++/drop migrate.py
+
+# 2025-03-02 13:32:58.491251
++/drop migrate_utils.py
+
+# 2025-03-02 13:33:15.471496
++/drop startup_validation.py
+
+# 2025-03-02 13:34:10.846369
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 14:13:55.266548
++no
+
+# 2025-03-02 14:15:12.926635
++/drop main.py
+
+# 2025-03-02 14:15:19.526820
++/add routers/chat.py
+
+# 2025-03-02 14:15:24.271552
++/add clients.py
+
+# 2025-03-02 14:15:33.656648
++/add services/chat_service.py
+
+# 2025-03-02 14:15:50.951804
++/add static/js/chat.js
+
+# 2025-03-02 14:16:06.286856
++/architect
+
+# 2025-03-02 14:16:14.011791
++{
+
+# 2025-03-02 14:16:36.334426
++recieved this error after sending a message to DeepSeek-R1: Connection Error
+
+# 2025-03-02 14:16:36.361905
++Connection failed (EventSource closed) (EventSource connection closed) (URL: https://liveonshuffle.com/api/chat/sse?session_id=0a8a440f-3117-42c1-af8e-ac5f19c4ccb5&model=DeepSeek-R1&message=Test&reasoning_effort=medium&developer_config=Formatting+re-enabled+-+use+markdown+code+blocks&enable_thinking=true)
+
+# 2025-03-02 14:16:36.369614
++Details:
+
+# 2025-03-02 14:16:36.372599
++URL: N/A
+
+# 2025-03-02 14:16:37.606572
++Ready State: N/A
+
+# 2025-03-02 14:16:40.226538
++}
+
+# 2025-03-02 14:16:42.871332
++no
+
+# 2025-03-02 14:17:26.931507
++yes
+
+# 2025-03-02 14:17:56.706490
++no
+
+# 2025-03-02 14:18:26.346848
++respond in english, what does the chat completion look like?
+
+# 2025-03-02 14:19:30.906289
++no
+
+# 2025-03-02 14:19:38.246890
++why is it failing
+
+# 2025-03-02 14:27:18.691444
++no
+
+# 2025-03-02 14:27:26.731763
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 14:28:13.451376
++yes
+
+# 2025-03-02 14:28:16.991804
++whats wrong?
+
+# 2025-03-02 15:57:21.406830
++/add services/chat_service.py
+
+# 2025-03-02 15:57:27.066594
++/add static/js/chat.js
+
+# 2025-03-02 15:57:31.386744
++/add routers/chat.py
+
+# 2025-03-02 15:57:35.666946
++/add clients.py
+
+# 2025-03-02 15:57:44.826730
++/add config.py
+
+# 2025-03-02 15:57:58.146444
++/add services/config_service.py
+
+# 2025-03-02 15:58:06.706683
++/add routers/config.py
+
+# 2025-03-02 15:58:13.946790
++/add models.py
+
+# 2025-03-02 15:58:29.966723
++/architect Error: 'ChatMessage' object has no attribute 'model' 
+
+# 2025-03-02 15:59:54.276449
++yes
+
+# 2025-03-02 16:00:36.521411
++no
+
+# 2025-03-02 16:00:52.001746
++/architect respond in english
+
+# 2025-03-02 16:02:20.651678
++yes
+
+# 2025-03-02 16:02:54.351681
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 16:03:02.891358
++no
+
+# 2025-03-02 19:58:17.696825
++yes
+
+# 2025-03-02 19:59:37.613539
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 20:00:17.683636
++yes
+
+# 2025-03-02 20:00:27.087458
++/add static/index.html
+
+# 2025-03-02 20:00:31.733577
++/add static/css/tailwind.css
+
+# 2025-03-02 20:00:58.373383
++/add tailwind.config.js
+
+# 2025-03-02 20:01:11.041585
++/add static/js/ui/displayManager.js
+
+# 2025-03-02 20:01:17.573520
++/add static/js/init.js
+
+# 2025-03-02 20:01:45.811260
++/architect the icons on the right side of the header do not work, theres no feedback or action
+
+# 2025-03-02 20:02:35.386064
++yes
+
+# 2025-03-02 20:04:27.810960
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 20:05:13.006178
++yes
+
+# 2025-03-02 20:05:46.066276
++/architect is there something wrong with the caching mechanisms? respond in english, and make sure youre checking for mobile view as well
+
+# 2025-03-02 20:06:14.575465
++yes
+
+# 2025-03-02 20:06:58.522200
++no
+
+# 2025-03-02 20:07:06.302396
++/add static/js/utils/service-worker.js
+
+# 2025-03-02 20:07:41.425667
++/architect try to prevent caching, also check service-worker.js
+
+# 2025-03-02 20:08:01.871100
++yes
+
+# 2025-03-02 20:09:08.196709
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 20:09:48.891451
++yes
+
+# 2025-03-02 20:09:59.786396
++/add static/js/ui/*
+
+# 2025-03-02 20:10:12.356545
++/architect literally nothing works now
+
+# 2025-03-02 20:11:00.877119
++yes
+
+# 2025-03-02 20:11:56.820123
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-02 20:12:42.181977
++no
+
+# 2025-03-02 20:13:09.903061
++/run git pull
+
+# 2025-03-02 20:13:12.569879
++no
+
+# 2025-03-02 20:13:21.610434
++/architect SyntaxError: Unexpected identifier 'updateModelSpecificUI'
+
+# 2025-03-02 20:14:00.106532
++yes
+
+# 2025-03-02 20:19:06.181296
++/drop *
+
+# 2025-03-02 20:19:15.541759
++/add static/js/models.js
+
+# 2025-03-02 20:19:24.960773
++attempt to modify models.js again
+
+# 2025-03-02 20:19:45.521435
++yes
+
+# 2025-03-02 20:20:42.941510
++no
+
+# 2025-03-03 03:42:47.901683
++/architect
+
+# 2025-03-03 03:43:16.229584
++/add reasoning-o1.md
+
+# 2025-03-03 03:43:23.122712
++/add static/deepseek-reference.md
+
+# 2025-03-03 03:43:30.072658
++{
+
+# 2025-03-03 03:43:31.586532
++/api/chat/sse?session_id=0256141d-2d39-4489-8713-f1fc39b9a2ed&model=deepseek-r1&message=Test&enable_thinking=true HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:31.605603
++INFO:httpx:HTTP Request: POST https://o1models.openai.azure.com/openai/deployments/deepseek-r1/chat/completions?api-version=2025-01-01-preview "HTTP/1.1 404 DeploymentNotFound"
+
+# 2025-03-03 03:43:31.614741
++ERROR:logging_config:[ChatRouter] SSE streaming error
+
+# 2025-03-03 03:43:31.620127
++Traceback (most recent call last):
+
+# 2025-03-03 03:43:31.628384
++  File "/home/azureuser/newide/routers/chat.py", line 643, in generate_stream_chunks
+
+# 2025-03-03 03:43:31.634813
++    response = client.chat.completions.create(
+
+# 2025-03-03 03:43:31.640733
++               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+# 2025-03-03 03:43:31.650732
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_utils/_utils.py", line 279, in wrapper
+
+# 2025-03-03 03:43:31.656788
++    return func(*args, **kwargs)
+
+# 2025-03-03 03:43:31.661406
++           ^^^^^^^^^^^^^^^^^^^^^
+
+# 2025-03-03 03:43:31.672857
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 879, in create
+
+# 2025-03-03 03:43:31.678253
++    return self._post(
+
+# 2025-03-03 03:43:31.682071
++           ^^^^^^^^^^^
+
+# 2025-03-03 03:43:31.695609
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_base_client.py", line 1290, in post
+
+# 2025-03-03 03:43:31.761462
++    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+
+# 2025-03-03 03:43:31.772135
++                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+# 2025-03-03 03:43:31.783463
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_base_client.py", line 967, in request
+
+# 2025-03-03 03:43:31.789563
++    return self._request(
+
+# 2025-03-03 03:43:31.794211
++           ^^^^^^^^^^^^^^
+
+# 2025-03-03 03:43:31.804499
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_base_client.py", line 1071, in _request
+
+# 2025-03-03 03:43:31.813219
++    raise self._make_status_error_from_response(err.response) from None
+
+# 2025-03-03 03:43:31.833058
++openai.NotFoundError: Error code: 404 - {'error': {'code': 'DeploymentNotFound', 'message': 'The API deployment for this resource does not exist. If you created the deployment within the last 5 minutes, please wait a moment and try again.'}}
+
+# 2025-03-03 03:43:31.921014
++INFO:     98.46.143.48:0 - "GET /static/css/tailwind.compiled.css HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:31.930965
++INFO:     98.46.143.48:0 - "GET /api/session/create HTTP/1.1" 405 Method Not Allowed
+
+# 2025-03-03 03:43:31.949013
++INFO:     98.46.143.48:0 - "GET /api/config HTTP/1.1" 307 Temporary Redirect
+
+# 2025-03-03 03:43:31.958095
++INFO:     98.46.143.48:0 - "GET /api/model-stats/connections HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:31.967126
++INFO:     98.46.143.48:0 - "GET /api/config/models/DeepSeek-R1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:31.977228
++INFO:     98.46.143.48:0 - "GET /api/chat/conversations/store HTTP/1.1" 405 Method Not Allowed
+
+# 2025-03-03 03:43:31.986203
++INFO:     98.46.143.48:0 - "GET /api/chat HTTP/1.1" 405 Method Not Allowed
+
+# 2025-03-03 03:43:31.996053
++INFO:     98.46.143.48:0 - "GET /api/chat/conversations/store HTTP/1.1" 405 Method Not Allowed
+
+# 2025-03-03 03:43:32.014636
++INFO:     98.46.143.48:0 - "GET /api/config/models/o1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.023695
++INFO:     98.46.143.48:0 - "GET /api/config/models/DeepSeek-R1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.032119
++INFO:     98.46.143.48:0 - "GET /api/config/models/switch HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.049123
++INFO:     98.46.143.48:0 - "GET /api/chat HTTP/1.1" 405 Method Not Allowed
+
+# 2025-03-03 03:43:32.058777
++INFO:     98.46.143.48:0 - "GET /api/chat/conversations/store HTTP/1.1" 405 Method Not Allowed
+
+# 2025-03-03 03:43:32.076780
++WARNING:logging_config:Using o1 as fallback for deepseek-r1
+
+# 2025-03-03 03:43:32.084631
++INFO:     98.46.143.48:0 - "GET /api/config/models/o1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.092963
++INFO:     98.46.143.48:0 - "GET /api/config/models/switch HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.109913
++INFO:     98.46.143.48:0 - "GET /api/model-stats/connections HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.118602
++INFO:     98.46.143.48:0 - "GET /api/config/models/DeepSeek-R1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.132585
++INFO:     98.46.143.48:0 - "GET /api/chat/sse?session_id=0256141d-2d39-4489-8713-f1fc39b9a2ed&model=deepseek-r1&message=Test&enable_thinking=true HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.148932
++INFO:httpx:HTTP Request: POST https://o1models.openai.azure.com/openai/deployments/deepseek-r1/chat/completions?api-version=2025-01-01-preview "HTTP/1.1 404 DeploymentNotFound"
+
+# 2025-03-03 03:43:32.157440
++ERROR:logging_config:[ChatRouter] SSE streaming error
+
+# 2025-03-03 03:43:32.162682
++Traceback (most recent call last):
+
+# 2025-03-03 03:43:32.170959
++  File "/home/azureuser/newide/routers/chat.py", line 643, in generate_stream_chunks
+
+# 2025-03-03 03:43:32.177709
++    response = client.chat.completions.create(
+
+# 2025-03-03 03:43:32.183627
++               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+# 2025-03-03 03:43:32.193971
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_utils/_utils.py", line 279, in wrapper
+
+# 2025-03-03 03:43:32.199964
++    return func(*args, **kwargs)
+
+# 2025-03-03 03:43:32.204942
++           ^^^^^^^^^^^^^^^^^^^^^
+
+# 2025-03-03 03:43:32.216345
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 879, in create
+
+# 2025-03-03 03:43:32.222295
++    return self._post(
+
+# 2025-03-03 03:43:32.226377
++           ^^^^^^^^^^^
+
+# 2025-03-03 03:43:32.235966
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_base_client.py", line 1290, in post
+
+# 2025-03-03 03:43:32.245830
++    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+
+# 2025-03-03 03:43:32.255641
++                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+# 2025-03-03 03:43:32.266496
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_base_client.py", line 967, in request
+
+# 2025-03-03 03:43:32.272242
++    return self._request(
+
+# 2025-03-03 03:43:32.276530
++           ^^^^^^^^^^^^^^
+
+# 2025-03-03 03:43:32.286524
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_base_client.py", line 1071, in _request
+
+# 2025-03-03 03:43:32.294932
++    raise self._make_status_error_from_response(err.response) from None
+
+# 2025-03-03 03:43:32.313773
++openai.NotFoundError: Error code: 404 - {'error': {'code': 'DeploymentNotFound', 'message': 'The API deployment for this resource does not exist. If you created the deployment within the last 5 minutes, please wait a moment and try again.'}}
+
+# 2025-03-03 03:43:32.325387
++INFO:     98.46.143.48:0 - "GET /static/js/streaming.js HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.333277
++INFO:     98.46.143.48:0 - "GET /api/config/models HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.341553
++INFO:     98.46.143.48:0 - "GET /api/config/selectedModel HTTP/1.1" 404 Not Found
+
+# 2025-03-03 03:43:32.350072
++INFO:     98.46.143.48:0 - "GET /api/config/current-model HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.358756
++INFO:     98.46.143.48:0 - "GET /api/config/selectedModel HTTP/1.1" 404 Not Found
+
+# 2025-03-03 03:43:32.366162
++INFO:     98.46.143.48:0 - "GET /api/config/ HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.374456
++INFO:     98.46.143.48:0 - "GET /api/config/selectedModel HTTP/1.1" 404 Not Found
+
+# 2025-03-03 03:43:32.480206
++INFO:     98.46.143.48:0 - "GET /api/model-stats/connections HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.495364
++INFO:     98.46.143.48:0 - "GET / HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.504400
++INFO:     98.46.143.48:0 - "GET /static/css/tailwind.compiled.css HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:43:32.513922
++INFO:     98.46.143.48:0 - "GET /static/css/thinking-blocks.css HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:43:32.523857
++INFO:     98.46.143.48:0 - "GET /static/css/deepseek-thinking-fix.css HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:43:32.532568
++INFO:     98.46.143.48:0 - "GET /static/js/init.js HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:43:32.541277
++INFO:     98.46.143.48:0 - "GET /static/js/chat.js HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:43:32.550084
++INFO:     98.46.143.48:0 - "GET /static/js/streaming.js HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:43:32.559276
++INFO:     98.46.143.48:0 - "GET /static/js/streaming_utils.js HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:43:32.568941
++INFO:     98.46.143.48:0 - "GET /static/js/ui/deepseekProcessor.js HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:43:32.577748
++INFO:     98.46.143.48:0 - "GET /static/js/models.js HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:43:32.586251
++INFO:     98.46.143.48:0 - "GET /api/config HTTP/1.1" 307 Temporary Redirect
+
+# 2025-03-03 03:43:32.595455
++INFO:     98.46.143.48:0 - "GET /apple-touch-icon-precomposed.png HTTP/1.1" 404 Not Found
+
+# 2025-03-03 03:43:32.603557
++INFO:     98.46.143.48:0 - "GET /apple-touch-icon.png HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.612224
++INFO:     98.46.143.48:0 - "GET /static/img/apple-touch-icon.png HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.620303
++INFO:     98.46.143.48:0 - "GET /static/img/favicon.ico HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.627623
++INFO:     98.46.143.48:0 - "GET /favicon.ico HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.634829
++INFO:     98.46.143.48:0 - "GET /api/config/models HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.642878
++INFO:     98.46.143.48:0 - "GET /api/model-stats/connections HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.650175
++INFO:     98.46.143.48:0 - "GET /api/config/ HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.655418
++INFO:routers.config:Creating model o1
+
+# 2025-03-03 03:43:32.660971
++INFO:routers.config:Creating model DeepSeek-R1
+
+# 2025-03-03 03:43:32.668270
++INFO:     98.46.143.48:0 - "POST /api/config/models/o1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.676780
++INFO:     98.46.143.48:0 - "POST /api/config/models/DeepSeek-R1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.684964
++INFO:     98.46.143.48:0 - "GET /api/config/current-model HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.691627
++INFO:     98.46.143.48:0 - "GET / HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.699135
++INFO:     98.46.143.48:0 - "GET /static/site.webmanifest HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.707335
++INFO:     98.46.143.48:0 - "GET /api/config HTTP/1.1" 307 Temporary Redirect
+
+# 2025-03-03 03:43:32.715109
++INFO:     98.46.143.48:0 - "GET /api/config/models HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.722895
++INFO:     98.46.143.48:0 - "GET /api/model-stats/connections HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.728637
++INFO:routers.config:Creating model o1
+
+# 2025-03-03 03:43:32.734016
++INFO:routers.config:Creating model DeepSeek-R1
+
+# 2025-03-03 03:43:32.741116
++INFO:     98.46.143.48:0 - "POST /api/config/models/o1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.749603
++INFO:     98.46.143.48:0 - "POST /api/config/models/DeepSeek-R1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.756935
++INFO:     98.46.143.48:0 - "GET /api/config/ HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:32.764455
++INFO:     98.46.143.48:0 - "GET /api/config/current-model HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:34.101487
++INFO:     98.46.143.48:0 - "GET /api/model-stats/connections HTTP/1.1" 200 OK
+
+# 2025-03-03 03:43:36.741498
++}
+
+# 2025-03-03 03:44:38.950768
++/add clients.py
+
+# 2025-03-03 03:44:48.878678
++/add config.py
+
+# 2025-03-03 03:44:57.730632
++/add utils.py
+
+# 2025-03-03 03:45:03.910529
++/add routers/session.py
+
+# 2025-03-03 03:45:09.160637
++/add session_utils.py
+
+# 2025-03-03 03:45:16.510583
++/add services/chat_service.py
+
+# 2025-03-03 03:45:22.950507
++/add routers/chat.py
+
+# 2025-03-03 03:45:34.310441
++/add routers/config.py
+
+# 2025-03-03 03:45:43.749680
++/add services/config_service.py
+
+# 2025-03-03 03:46:00.478673
++/add static/js/streaming.js
+
+# 2025-03-03 03:46:05.510489
++/add static/js/chat.js
+
+# 2025-03-03 03:46:50.265624
++/add models.py
+
+# 2025-03-03 03:46:54.900597
++/add pydantic_models.py
+
+# 2025-03-03 03:46:57.898458
++{
+
+# 2025-03-03 03:46:59.098741
++Recieving this error: Can you help me make sense of it?
+
+# 2025-03-03 03:46:59.116763
++/api/chat/sse?session_id=0256141d-2d39-4489-8713-f1fc39b9a2ed&model=deepseek-r1&message=Test&enable_thinking=true HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.133960
++INFO:httpx:HTTP Request: POST https://o1models.openai.azure.com/openai/deployments/deepseek-r1/chat/completions?api-version=2025-01-01-preview "HTTP/1.1 404 DeploymentNotFound"
+
+# 2025-03-03 03:46:59.143038
++ERROR:logging_config:[ChatRouter] SSE streaming error
+
+# 2025-03-03 03:46:59.148296
++Traceback (most recent call last):
+
+# 2025-03-03 03:46:59.156328
++  File "/home/azureuser/newide/routers/chat.py", line 643, in generate_stream_chunks
+
+# 2025-03-03 03:46:59.162837
++    response = client.chat.completions.create(
+
+# 2025-03-03 03:46:59.168664
++               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+# 2025-03-03 03:46:59.178542
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_utils/_utils.py", line 279, in wrapper
+
+# 2025-03-03 03:46:59.184650
++    return func(*args, **kwargs)
+
+# 2025-03-03 03:46:59.189120
++           ^^^^^^^^^^^^^^^^^^^^^
+
+# 2025-03-03 03:46:59.200286
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 879, in create
+
+# 2025-03-03 03:46:59.205827
++    return self._post(
+
+# 2025-03-03 03:46:59.209595
++           ^^^^^^^^^^^
+
+# 2025-03-03 03:46:59.222888
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_base_client.py", line 1290, in post
+
+# 2025-03-03 03:46:59.270183
++    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+
+# 2025-03-03 03:46:59.280731
++                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+# 2025-03-03 03:46:59.291920
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_base_client.py", line 967, in request
+
+# 2025-03-03 03:46:59.297771
++    return self._request(
+
+# 2025-03-03 03:46:59.302402
++           ^^^^^^^^^^^^^^
+
+# 2025-03-03 03:46:59.312940
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_base_client.py", line 1071, in _request
+
+# 2025-03-03 03:46:59.321729
++    raise self._make_status_error_from_response(err.response) from None
+
+# 2025-03-03 03:46:59.341613
++openai.NotFoundError: Error code: 404 - {'error': {'code': 'DeploymentNotFound', 'message': 'The API deployment for this resource does not exist. If you created the deployment within the last 5 minutes, please wait a moment and try again.'}}
+
+# 2025-03-03 03:46:59.354024
++INFO:     98.46.143.48:0 - "GET /static/css/tailwind.compiled.css HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.363608
++INFO:     98.46.143.48:0 - "GET /api/session/create HTTP/1.1" 405 Method Not Allowed
+
+# 2025-03-03 03:46:59.381841
++INFO:     98.46.143.48:0 - "GET /api/config HTTP/1.1" 307 Temporary Redirect
+
+# 2025-03-03 03:46:59.390714
++INFO:     98.46.143.48:0 - "GET /api/model-stats/connections HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.399642
++INFO:     98.46.143.48:0 - "GET /api/config/models/DeepSeek-R1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.409683
++INFO:     98.46.143.48:0 - "GET /api/chat/conversations/store HTTP/1.1" 405 Method Not Allowed
+
+# 2025-03-03 03:46:59.418537
++INFO:     98.46.143.48:0 - "GET /api/chat HTTP/1.1" 405 Method Not Allowed
+
+# 2025-03-03 03:46:59.428391
++INFO:     98.46.143.48:0 - "GET /api/chat/conversations/store HTTP/1.1" 405 Method Not Allowed
+
+# 2025-03-03 03:46:59.446936
++INFO:     98.46.143.48:0 - "GET /api/config/models/o1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.455742
++INFO:     98.46.143.48:0 - "GET /api/config/models/DeepSeek-R1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.464372
++INFO:     98.46.143.48:0 - "GET /api/config/models/switch HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.481291
++INFO:     98.46.143.48:0 - "GET /api/chat HTTP/1.1" 405 Method Not Allowed
+
+# 2025-03-03 03:46:59.491156
++INFO:     98.46.143.48:0 - "GET /api/chat/conversations/store HTTP/1.1" 405 Method Not Allowed
+
+# 2025-03-03 03:46:59.509053
++WARNING:logging_config:Using o1 as fallback for deepseek-r1
+
+# 2025-03-03 03:46:59.517005
++INFO:     98.46.143.48:0 - "GET /api/config/models/o1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.525334
++INFO:     98.46.143.48:0 - "GET /api/config/models/switch HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.617545
++INFO:     98.46.143.48:0 - "GET /api/model-stats/connections HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.626350
++INFO:     98.46.143.48:0 - "GET /api/config/models/DeepSeek-R1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.640401
++INFO:     98.46.143.48:0 - "GET /api/chat/sse?session_id=0256141d-2d39-4489-8713-f1fc39b9a2ed&model=deepseek-r1&message=Test&enable_thinking=true HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.656882
++INFO:httpx:HTTP Request: POST https://o1models.openai.azure.com/openai/deployments/deepseek-r1/chat/completions?api-version=2025-01-01-preview "HTTP/1.1 404 DeploymentNotFound"
+
+# 2025-03-03 03:46:59.665658
++ERROR:logging_config:[ChatRouter] SSE streaming error
+
+# 2025-03-03 03:46:59.670966
++Traceback (most recent call last):
+
+# 2025-03-03 03:46:59.679325
++  File "/home/azureuser/newide/routers/chat.py", line 643, in generate_stream_chunks
+
+# 2025-03-03 03:46:59.686099
++    response = client.chat.completions.create(
+
+# 2025-03-03 03:46:59.692243
++               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+# 2025-03-03 03:46:59.702438
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_utils/_utils.py", line 279, in wrapper
+
+# 2025-03-03 03:46:59.708672
++    return func(*args, **kwargs)
+
+# 2025-03-03 03:46:59.713572
++           ^^^^^^^^^^^^^^^^^^^^^
+
+# 2025-03-03 03:46:59.725034
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 879, in create
+
+# 2025-03-03 03:46:59.730756
++    return self._post(
+
+# 2025-03-03 03:46:59.734851
++           ^^^^^^^^^^^
+
+# 2025-03-03 03:46:59.744628
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_base_client.py", line 1290, in post
+
+# 2025-03-03 03:46:59.754542
++    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+
+# 2025-03-03 03:46:59.764312
++                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+# 2025-03-03 03:46:59.775278
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_base_client.py", line 967, in request
+
+# 2025-03-03 03:46:59.780812
++    return self._request(
+
+# 2025-03-03 03:46:59.785114
++           ^^^^^^^^^^^^^^
+
+# 2025-03-03 03:46:59.795183
++  File "/home/azureuser/newide/venv/lib/python3.12/site-packages/openai/_base_client.py", line 1071, in _request
+
+# 2025-03-03 03:46:59.803608
++    raise self._make_status_error_from_response(err.response) from None
+
+# 2025-03-03 03:46:59.822467
++openai.NotFoundError: Error code: 404 - {'error': {'code': 'DeploymentNotFound', 'message': 'The API deployment for this resource does not exist. If you created the deployment within the last 5 minutes, please wait a moment and try again.'}}
+
+# 2025-03-03 03:46:59.833992
++INFO:     98.46.143.48:0 - "GET /static/js/streaming.js HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.841830
++INFO:     98.46.143.48:0 - "GET /api/config/models HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.850121
++INFO:     98.46.143.48:0 - "GET /api/config/selectedModel HTTP/1.1" 404 Not Found
+
+# 2025-03-03 03:46:59.858544
++INFO:     98.46.143.48:0 - "GET /api/config/current-model HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.867272
++INFO:     98.46.143.48:0 - "GET /api/config/selectedModel HTTP/1.1" 404 Not Found
+
+# 2025-03-03 03:46:59.874688
++INFO:     98.46.143.48:0 - "GET /api/config/ HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.883056
++INFO:     98.46.143.48:0 - "GET /api/config/selectedModel HTTP/1.1" 404 Not Found
+
+# 2025-03-03 03:46:59.917278
++INFO:     98.46.143.48:0 - "GET /api/model-stats/connections HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.932243
++INFO:     98.46.143.48:0 - "GET / HTTP/1.1" 200 OK
+
+# 2025-03-03 03:46:59.941069
++INFO:     98.46.143.48:0 - "GET /static/css/tailwind.compiled.css HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:46:59.950504
++INFO:     98.46.143.48:0 - "GET /static/css/thinking-blocks.css HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:46:59.960427
++INFO:     98.46.143.48:0 - "GET /static/css/deepseek-thinking-fix.css HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:46:59.969067
++INFO:     98.46.143.48:0 - "GET /static/js/init.js HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:46:59.977509
++INFO:     98.46.143.48:0 - "GET /static/js/chat.js HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:46:59.986264
++INFO:     98.46.143.48:0 - "GET /static/js/streaming.js HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:46:59.995437
++INFO:     98.46.143.48:0 - "GET /static/js/streaming_utils.js HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:47:00.004947
++INFO:     98.46.143.48:0 - "GET /static/js/ui/deepseekProcessor.js HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:47:00.013892
++INFO:     98.46.143.48:0 - "GET /static/js/models.js HTTP/1.1" 304 Not Modified
+
+# 2025-03-03 03:47:00.022468
++INFO:     98.46.143.48:0 - "GET /api/config HTTP/1.1" 307 Temporary Redirect
+
+# 2025-03-03 03:47:00.031837
++INFO:     98.46.143.48:0 - "GET /apple-touch-icon-precomposed.png HTTP/1.1" 404 Not Found
+
+# 2025-03-03 03:47:00.039950
++INFO:     98.46.143.48:0 - "GET /apple-touch-icon.png HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.048492
++INFO:     98.46.143.48:0 - "GET /static/img/apple-touch-icon.png HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.056697
++INFO:     98.46.143.48:0 - "GET /static/img/favicon.ico HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.064069
++INFO:     98.46.143.48:0 - "GET /favicon.ico HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.071215
++INFO:     98.46.143.48:0 - "GET /api/config/models HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.079006
++INFO:     98.46.143.48:0 - "GET /api/model-stats/connections HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.086378
++INFO:     98.46.143.48:0 - "GET /api/config/ HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.091626
++INFO:routers.config:Creating model o1
+
+# 2025-03-03 03:47:00.097125
++INFO:routers.config:Creating model DeepSeek-R1
+
+# 2025-03-03 03:47:00.104325
++INFO:     98.46.143.48:0 - "POST /api/config/models/o1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.112842
++INFO:     98.46.143.48:0 - "POST /api/config/models/DeepSeek-R1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.120917
++INFO:     98.46.143.48:0 - "GET /api/config/current-model HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.127462
++INFO:     98.46.143.48:0 - "GET / HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.134815
++INFO:     98.46.143.48:0 - "GET /static/site.webmanifest HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.143106
++INFO:     98.46.143.48:0 - "GET /api/config HTTP/1.1" 307 Temporary Redirect
+
+# 2025-03-03 03:47:00.150670
++INFO:     98.46.143.48:0 - "GET /api/config/models HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.158422
++INFO:     98.46.143.48:0 - "GET /api/model-stats/connections HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.164127
++INFO:routers.config:Creating model o1
+
+# 2025-03-03 03:47:00.242124
++INFO:routers.config:Creating model DeepSeek-R1
+
+# 2025-03-03 03:47:00.249735
++INFO:     98.46.143.48:0 - "POST /api/config/models/o1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.258247
++INFO:     98.46.143.48:0 - "POST /api/config/models/DeepSeek-R1 HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.265487
++INFO:     98.46.143.48:0 - "GET /api/config/ HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:00.273037
++INFO:     98.46.143.48:0 - "GET /api/config/current-model HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:01.310365
++INFO:     98.46.143.48:0 - "GET /api/model-stats/connections HTTP/1.1" 200 OK
+
+# 2025-03-03 03:47:03.388252
++}
+
+# 2025-03-03 03:47:06.130204
++no
+
+# 2025-03-03 03:47:41.125661
++in english please
+
+# 2025-03-03 03:48:18.561372
++no
+
+# 2025-03-03 03:48:59.120567
++the request is supposed to use DeepSeek-R1 and through Azure AI Inference library, see deepseek-reference.md
+
+# 2025-03-03 03:49:52.917449
++yes
+
+# 2025-03-03 03:50:42.563790
++analyze the codebase
+
+# 2025-03-03 03:51:59.354262
++no
+
+# 2025-03-03 03:52:03.843708
++/add static/js/models.js
+
+# 2025-03-03 03:52:55.189789
++/add static/js/config.js
+
+# 2025-03-03 03:52:59.363410
++/add static/js/init.js
+
+# 2025-03-03 03:53:06.593678
++/add static/index.html
+
+# 2025-03-03 03:53:12.273652
++/add tailwind.config.js
+
+# 2025-03-03 03:53:17.429661
++/add static/css/tailwind.css
+
+# 2025-03-03 03:53:39.781656
++/add static/js/ui/deepseekProcessor.js
+
+# 2025-03-03 03:53:47.153545
++/add static/js/ui/displayManager.js
+
+# 2025-03-03 03:53:54.661656
++analyze the codebase
+
+# 2025-03-03 03:55:49.369553
++no
+
+# 2025-03-03 03:56:11.496677
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-03 03:56:36.346516
++yes
+
+# 2025-03-03 03:56:42.536542
++whats wrong?
+
+# 2025-03-03 03:57:16.399553
++yes
+
+# 2025-03-03 03:59:10.881565
++i think youre confusing how to create a client for serverless api in azure
+
+# 2025-03-03 04:00:15.189634
++yes
+
+# 2025-03-03 04:01:01.327659
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-03 04:01:26.121457
++yes
+
+# 2025-03-03 04:01:36.221720
++where is this error occuring and why
+
+# 2025-03-03 04:02:15.646287
++yes
+
+# 2025-03-03 04:02:53.261391
++no
+
+# 2025-03-03 04:03:12.861700
++/undo
+
+# 2025-03-03 04:04:07.280406
++identify all deepseek-r1 "openai" clients or endpoints ans replace them with severless api from azure clients or endpoints
+
+# 2025-03-03 04:05:08.349430
++yes
+
+# 2025-03-03 04:06:52.561527
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-03 04:07:11.650593
++no
+
+# 2025-03-03 04:07:34.308753
++/model together_ai/deepseek-ai/DeepSeek-R1
+
+# 2025-03-03 04:07:38.430647
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-03 04:08:00.081448
++yes
+
+# 2025-03-03 04:08:14.260688
++whats wrong?
+
+# 2025-03-03 04:09:43.342585
++yes
+
+# 2025-03-03 04:10:13.781500
++/clear
+
+# 2025-03-03 04:10:16.717711
++/tokens
+
+# 2025-03-03 04:10:31.719390
++/drop static/index.html
+
+# 2025-03-03 04:10:41.799844
++/tokens
+
+# 2025-03-03 04:10:50.609701
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-03 04:11:10.310609
++yes
+
+# 2025-03-03 04:11:22.559744
++identify all deepseek-r1 "openai" clients or endpoints ans replace them with severless api from azure clients or endpoints
+
+# 2025-03-03 04:12:34.884363
++yes
+
+# 2025-03-03 04:14:38.326400
++/drop *
+
+# 2025-03-03 04:14:46.245423
++/add models.py
+
+# 2025-03-03 04:14:53.166781
++/add reasoning-o1.md
+
+# 2025-03-03 04:14:57.674454
++/add static/deepseek-reference.md
+
+# 2025-03-03 04:15:01.941595
++/add clients.py
+
+# 2025-03-03 04:15:05.715659
++/add .snapshots/config.json
+
+# 2025-03-03 04:15:15.586505
++/drop .snapshots/config.json
+
+# 2025-03-03 04:15:34.588797
++/add config.py
+
+# 2025-03-03 04:15:54.781496
++analyze the code shared and all documentation
+
+# 2025-03-03 04:16:23.760479
++yes
+
+# 2025-03-03 04:17:41.264588
++ensure and verify api usage is correct for both mosels
+
+# 2025-03-03 04:18:28.989294
++no
+
+# 2025-03-03 04:18:30.789353
++yes
+
+# 2025-03-03 04:19:47.007493
++the formatting re-enabled bit is supposed to be sent to the o1 model in a developer message
+
+# 2025-03-03 04:20:33.804217
++yes
+
+# 2025-03-03 04:21:19.075419
++/add static/js/streaming.js
+
+# 2025-03-03 04:21:25.838659
++/add services/chat_service.py
+
+# 2025-03-03 04:21:44.509771
++analyze the files for incorrect api usage for deepseek-r1
+
+# 2025-03-03 04:22:25.204385
++no
+
+# 2025-03-03 04:22:31.524779
++/clear
+
+# 2025-03-03 04:22:38.994674
++/drop reasoning-o1.md
+
+# 2025-03-03 04:22:41.794569
++analyze the files for incorrect api usage for deepseek-r1
+
+# 2025-03-03 04:23:39.245572
++no
+
+# 2025-03-03 04:24:30.201753
++make sure you maintain compatibility with o1 series models with your changes to correct DeepSeek-R1 usage
+
+# 2025-03-03 04:25:07.889437
++yes
+
+# 2025-03-03 18:43:07.306975
++make sure you maintain compatibility with o1 series models with your changes to correct DeepSeek-R1 usage analyze the codebase again
+
+# 2025-03-03 18:44:54.666934
++yes
+
+# 2025-03-03 18:46:02.382317
++/add static/js/streaming_utils.js
+
+# 2025-03-03 18:46:14.061911
++/add utils.py
+
+# 2025-03-03 18:46:21.246947
++/add session_utils.py
+
+# 2025-03-03 18:46:25.714229
++/add routers/session.py
+
+# 2025-03-03 18:46:42.594281
++analyze the files for incorrect api usage for deepseek-r1
+
+# 2025-03-03 18:48:11.235717
++no
+
+# 2025-03-03 18:48:43.606909
++you do not need to pass deployment name for deepseek because it is a serverless api deployment 
+
+# 2025-03-03 18:49:43.364497
++no
+
+# 2025-03-03 18:49:54.506956
++you do not need to pass deployment name for deepseek because it is a serverless api deployment but you do need model name
+
+# 2025-03-03 18:51:06.634802
++no
+
+# 2025-03-03 18:51:16.534777
++you do not need to pass deployment name for deepseek because it is a serverless api deployment but you do need model name DeepSeek-R1
+
+# 2025-03-04 01:35:42.654095
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 01:36:15.351914
++yes
+
+# 2025-03-04 01:36:24.092390
++/add init_db.py
+
+# 2025-03-04 01:36:28.962073
++/add database.py
+
+# 2025-03-04 01:36:33.499190
++/add schema_validation.py
+
+# 2025-03-04 01:36:38.690235
++/add migrate.py
+
+# 2025-03-04 01:36:42.271314
++/add migrate_utils.py
+
+# 2025-03-04 01:36:46.482017
++/add startup_validation.py
+
+# 2025-03-04 01:36:59.780540
++/add reasoning-o1.md
+
+# 2025-03-04 01:37:02.011398
++no
+
+# 2025-03-04 01:37:10.001864
++/add o1models-reference-guide.md
+
+# 2025-03-04 01:37:13.969273
++/add main.py
+
+# 2025-03-04 01:37:19.901402
++/add pydantic_models.py
+
+# 2025-03-04 01:37:24.032421
++/add models.py
+
+# 2025-03-04 01:39:33.129581
++/architect align the database with ORM
+
+# 2025-03-04 01:40:09.191505
++No
+
+# 2025-03-04 01:40:14.392116
++in english
+
+# 2025-03-04 01:41:22.835096
++yes
+
+# 2025-03-04 01:41:22.837002
++/run python init_db.py
+
+# 2025-03-04 01:41:22.837031
++/run python init_db.py
+
+# 2025-03-04 01:41:28.155827
++no
+
+# 2025-03-04 01:41:36.615771
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 01:41:52.761618
++yes
+
+# 2025-03-04 01:42:02.400599
++/architect align the database with ORM
+
+# 2025-03-04 01:43:01.520634
++yes
+
+# 2025-03-04 01:43:18.591415
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 01:43:27.460854
++no
+
+# 2025-03-04 01:43:36.160809
++/run python init_db.py
+
+# 2025-03-04 01:43:40.475694
++yes
+
+# 2025-03-04 01:43:43.551165
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 01:45:01.505465
++yes
+
+# 2025-03-04 01:45:06.576139
++/add routers/chat.py
+
+# 2025-03-04 01:45:29.141757
++/add services/chat_service.py
+
+# 2025-03-04 01:45:36.370832
++/add static/js/streaming.js
+
+# 2025-03-04 01:45:45.506957
++/architect what is the issue?
+
+# 2025-03-04 01:46:25.095561
++yes
+
+# 2025-03-04 01:46:57.460385
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 01:49:58.035262
++yes
+
+# 2025-03-04 01:50:03.136593
++/add clients.py
+
+# 2025-03-04 01:50:11.315741
++/add static/js/ui/deepseekProcessor.js
+
+# 2025-03-04 01:50:19.916702
++/add static/js/streaming_utils.js
+
+# 2025-03-04 01:50:27.815636
++/add static/js/chat.js
+
+# 2025-03-04 01:51:15.415745
++/architect the DeepSeek-R1 model response is showing up blank, and the messages from o1 are appearing before the user messages in the chat window
+
+# 2025-03-04 01:52:14.910265
++yes
+
+# 2025-03-04 01:54:29.715385
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 01:55:14.310545
++yes
+
+# 2025-03-04 01:55:23.330652
++/architect whats the issue?
+
+# 2025-03-04 01:56:07.989137
++yes
+
+# 2025-03-04 01:56:59.961382
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 01:58:43.135798
++yes
+
+# 2025-03-04 02:00:13.327011
++/architect if model switch is performed, and the current model is responding, the inference should be stopped then the model switch can be performed 
+
+# 2025-03-04 02:00:43.654947
++yes
+
+# 2025-03-04 02:02:11.546382
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 02:03:02.512854
++yes
+
+# 2025-03-04 02:03:26.003002
++/architect a confirmation that the model stopped before the switch would be nice 
+
+# 2025-03-04 02:04:04.474166
++yes
+
+# 2025-03-04 02:04:15.844298
++/drop init_db.py
+
+# 2025-03-04 02:04:19.906678
++/drop database.py
+
+# 2025-03-04 02:04:24.467217
++/drop migrate.py
+
+# 2025-03-04 02:04:33.777360
++/drop migrate_utils.py
+
+# 2025-03-04 02:04:38.046741
++/drop startup_validation.py
+
+# 2025-03-04 02:04:48.116384
++/drop schema_validation.py
+
+# 2025-03-04 02:05:01.466589
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 02:05:39.956014
++yes
+
+# 2025-03-04 02:05:44.514139
++/add static/js/ui/notificationManager.js
+
+# 2025-03-04 02:06:34.116328
++/add static/js/ui/displayManager.js
+
+# 2025-03-04 02:06:59.004386
++/architect analyze the codebase
+
+# 2025-03-04 02:08:31.734280
++yes
+
+# 2025-03-04 02:10:38.596778
++/architect analyze the codebase
+
+# 2025-03-04 02:11:34.207289
++yes
+
+# 2025-03-04 02:14:34.540531
++/add services/streaming_helpers.py
+
+# 2025-03-04 02:14:36.779947
++/architect analyze the codebase
+
+# 2025-03-04 02:15:36.175270
++yes
+
+# 2025-03-04 02:16:01.355408
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 02:16:09.205035
++yes
+
+# 2025-03-04 02:16:16.095624
++/architect whats wrong?
+
+# 2025-03-04 02:16:54.286681
++yes
+
+# 2025-03-04 02:18:05.975703
++/drop static/js/ui/displayManager.js
+
+# 2025-03-04 02:18:11.406028
++/add static/js/debugging.js
+
+# 2025-03-04 02:18:15.990604
++/drop models.py
+
+# 2025-03-04 02:18:22.275693
++/drop main.py
+
+# 2025-03-04 02:18:44.565718
++/clear
+
+# 2025-03-04 02:18:55.655666
++/architect reanalyze the codebase
+
+# 2025-03-04 02:19:47.965374
++yes
+
+# 2025-03-04 02:21:20.755618
++no
+
+# 2025-03-04 02:21:47.670614
++/architect identify isssues with streaming/chat logic
+
+# 2025-03-04 02:24:04.325341
++yes
+
+# 2025-03-04 02:31:03.000024
++no
+
+# 2025-03-04 02:31:09.985661
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 02:31:18.650299
++yes
+
+# 2025-03-04 02:31:25.425745
++fix the syntax error
+
+# 2025-03-04 02:33:24.256299
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 02:33:32.450267
++yes
+
+# 2025-03-04 02:33:35.051302
++fix the syntax error
+
+# 2025-03-04 02:34:38.170196
++yes
+
+# 2025-03-04 02:37:10.390326
++no
+
+# 2025-03-04 02:37:14.689801
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 02:37:29.426805
++yes
+
+# 2025-03-04 02:37:36.831584
++/architect fix the syntax error
+
+# 2025-03-04 02:38:10.130333
++yes
+
+# 2025-03-04 02:38:36.850096
++no
+
+# 2025-03-04 02:38:48.781904
++/run git push
+
+# 2025-03-04 02:38:52.386689
++no
+
+# 2025-03-04 02:42:55.760741
++/run git pull
+
+# 2025-03-04 02:43:00.115112
++yes
+
+# 2025-03-04 02:43:07.509919
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 02:44:02.120511
++yee
+
+# 2025-03-04 02:44:04.004906
++yes
+
+# 2025-03-04 02:44:11.519933
++/architect Unexpected token '{'. import call expects one or two arguments.
+
+# 2025-03-04 02:44:55.520032
++yes
+
+# 2025-03-04 02:45:10.195269
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 02:45:39.044942
++no
+
+# 2025-03-04 02:45:44.505109
++/architect Importing binding name 'logInfo' is not found.
+
+# 2025-03-04 02:46:27.235082
++yes
+
+# 2025-03-04 02:48:54.255455
++/run git push
+
+# 2025-03-04 02:48:57.515343
++no
+
+# 2025-03-04 02:54:57.274847
++/run git pull
+
+# 2025-03-04 02:54:59.750501
++no
+
+# 2025-03-04 02:55:03.074864
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 02:56:32.659974
++yes
+
+# 2025-03-04 02:56:44.285437
++/add deepseek-reference.md
+
+# 2025-03-04 02:57:02.535399
++/add static/css/tailwind.css
+
+# 2025-03-04 02:57:13.189827
++/run npm run build:css
+
+# 2025-03-04 02:57:18.190648
++no
+
+# 2025-03-04 02:57:48.845246
++/architect deepseek responses are still not showing up in the chat window
+
+# 2025-03-04 03:00:06.580531
++yes
+
+# 2025-03-04 03:01:01.310611
++/architect deepseek responses are still not showing up in the chat window analyze the code
+
+# 2025-03-04 03:02:47.105143
++no
+
+# 2025-03-04 03:02:52.045260
++/architect deepseek responses are still not showing up in the chat window analyze the code in english
+
+# 2025-03-04 03:04:14.144994
++yes
+
+# 2025-03-04 03:05:02.040807
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 03:05:54.546735
++no
+
+# 2025-03-04 03:05:57.687385
++/clear
+
+# 2025-03-04 03:06:01.527075
++/architect deepseek responses are still not showing up in the chat window analyze the code in english
+
+# 2025-03-04 03:06:54.745132
++yes
+
+# 2025-03-04 03:07:52.065125
++/drop static/js/fileManager.js
+
+# 2025-03-04 03:08:11.425620
++/drop errors.py
+
+# 2025-03-04 03:08:17.265946
++/drop build.js
+
+# 2025-03-04 03:08:40.904944
++/add static/js/init.js
+
+# 2025-03-04 03:08:57.770764
++/add static/js/session.js
+
+# 2025-03-04 03:09:22.625708
++/add config.py
+
+# 2025-03-04 03:09:36.010394
++/architect analyze the codebase in english 
+
+# 2025-03-04 03:10:37.449907
++no
+
+# 2025-03-04 03:10:43.660552
++/architect deepseek responses are still not showing up in the chat window analyze the code in english
+
+# 2025-03-04 03:12:36.295227
++no
+
+# 2025-03-04 03:12:43.766165
++/add tailwind.config.js
+
+# 2025-03-04 03:12:52.685436
++/add static/css/thinking-blocks.css
+
+# 2025-03-04 03:12:57.776995
++/add static/css/deepseek-thinking-fix.css
+
+# 2025-03-04 03:13:01.837349
++/architect deepseek responses are still not showing up in the chat window analyze the code in english
+
+# 2025-03-04 03:14:17.874830
++yes
+
+# 2025-03-04 03:15:37.935943
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 03:20:48.745310
++no
+
+# 2025-03-04 03:20:52.465453
++/web https://learn.microsoft.com/en-us/azure/machine-learning/reference-model-inference-chat-completions?view=azureml-api-2
+
+# 2025-03-04 03:21:21.005510
++/web https://learn.microsoft.com/en-us/azure/machine-learning/reference-model-inference-api?view=azureml-api-2&tabs=python#inference-sdk-support
+
+# 2025-03-04 03:21:38.555090
++/architect deepseek responses are still not showing up in the chat window analyze the code and documentation in english
+
+# 2025-03-04 03:24:17.705562
++yes
+
+# 2025-03-04 03:25:59.475967
++/add static/index.html
+
+# 2025-03-04 03:26:08.995222
++/drop static/js/*
+
+# 2025-03-04 03:26:14.779955
++/architect deepseek responses are still not showing up in the chat window analyze the code and documentation in english
+
+# 2025-03-04 03:27:25.130338
++yes
+
+# 2025-03-04 03:28:08.311073
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 03:30:29.485580
++no
+
+# 2025-03-04 03:30:35.055166
++/run git push
+
+# 2025-03-04 03:30:39.800326
++no
+
+# 2025-03-04 07:30:08.205735
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 07:30:53.910886
++yes
+
+# 2025-03-04 07:30:59.430105
++/add static/js/ui/deepseekProcessor.js
+
+# 2025-03-04 07:31:05.870627
++/add services/streaming_helpers.py
+
+# 2025-03-04 07:31:09.805356
++/add static/js/streaming_utils.js
+
+# 2025-03-04 07:31:14.935985
++/add static/js/chat.js
+
+# 2025-03-04 07:31:20.750834
++/add routers/chat.py
+
+# 2025-03-04 07:31:27.285779
++/add services/chat_service.py
+
+# 2025-03-04 07:31:36.115749
++/add static/css/tailwind.css
+
+# 2025-03-04 07:31:40.540550
++/add tailwind.config.js
+
+# 2025-03-04 07:31:45.235637
++/add static/css/deepseek-thinking-fix.css
+
+# 2025-03-04 07:31:49.535434
++/add static/css/thinking-blocks.css
+
+# 2025-03-04 07:31:55.250492
++/add static/index.html
+
+# 2025-03-04 07:32:51.470316
++/architect the thinkinging output from DeepSeek-R1 on mobile is not formatting properly, the toggle dowsnt work and the chain of thought looks like a duplicate solution 
+
+# 2025-03-04 07:33:33.594788
++no
+
+# 2025-03-04 07:33:41.405833
++/architect the thinkinging output from DeepSeek-R1 on mobile is not formatting properly, the toggle dowsnt work and the chain of thought looks like a duplicate solution - respond in english
+
+# 2025-03-04 07:34:22.265547
++no
+
+# 2025-03-04 07:34:44.955714
++analyze the codebase further and provide a more complete solution
+
+# 2025-03-04 07:36:10.320573
++/add static/js/ui/displayManager.js
+
+# 2025-03-04 07:36:15.545992
++/add static/js/ui/markdownParser.js
+
+# 2025-03-04 07:36:28.990299
++/architect analyze the codebase further and provide a more complete solution
+
+# 2025-03-04 07:37:17.720192
++yes
+
+# 2025-03-04 07:38:28.045196
++/architect re-analyze the codebase further and provide a more complete solution
+
+# 2025-03-04 07:39:42.362872
++yes
+
+# 2025-03-04 07:40:10.535359
++/architect analyze the css files
+
+# 2025-03-04 07:41:03.075555
++yes
+
+# 2025-03-04 07:42:42.705638
++/add static/js/ui/notificationManager.js
+
+# 2025-03-04 07:43:06.900076
++/architect analyze the dracula-ish theme and improve it 
+
+# 2025-03-04 07:44:09.745257
++yes
+
+# 2025-03-04 07:45:15.240570
++/add build.js
+
+# 2025-03-04 07:45:19.040591
++/add package.json
+
+# 2025-03-04 07:45:25.085635
++/add postcss.config.js
+
+# 2025-03-04 07:45:35.840818
++/run rm package-lock.json
+
+# 2025-03-04 07:45:38.305287
++no
+
+# 2025-03-04 07:45:58.841214
++/architect analyze the dracula-ish theme and improve it -- i added more theme related files to analyze
+
+# 2025-03-04 07:47:08.619950
++yes
+
+# 2025-03-04 07:48:27.245973
++/run npm run build:css
+
+# 2025-03-04 07:48:31.665902
++no
+
+# 2025-03-04 07:48:37.465457
++/run npm install
+
+# 2025-03-04 07:48:40.745765
++no
+
+# 2025-03-04 07:48:43.365417
++/run npm run build:css
+
+# 2025-03-04 07:48:47.185131
++no
+
+# 2025-03-04 07:49:01.925989
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 07:50:19.830433
++yes
+
+# 2025-03-04 07:50:51.286182
++/add static/js/ui/themeSwitcher.js
+
+# 2025-03-04 07:51:10.571129
++/add static/js/session.js
+
+# 2025-03-04 07:51:31.085587
++/add static/js/streaming.js
+
+# 2025-03-04 07:52:18.645092
++/architect remove the non-streaming option for DeepSeek-R1
+
+# 2025-03-04 07:55:43.031502
++yes
+
+# 2025-03-04 09:26:51.567499
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 11:35:30.973946
++yes
+
+# 2025-03-04 11:35:46.788283
++/add static/js/init.js
+
+# 2025-03-04 11:35:52.499641
++/add static/js/ui/displayManager.js
+
+# 2025-03-04 11:36:18.082379
++/add static/js/ui/tabManager.js
+
+# 2025-03-04 11:36:43.399650
++/add static/js/ui/themeSwitcher.js
+
+# 2025-03-04 11:36:51.030272
++/add static/index.html
+
+# 2025-03-04 11:37:01.170712
++/add static/css/*
+
+# 2025-03-04 11:37:06.792963
++/drop static/css/tailwind.compiled.css
+
+# 2025-03-04 11:37:30.675073
++/architect when the mobile mebu is closed, the chat window isnt visible anymore 
+
+# 2025-03-04 11:38:17.848100
++yes
+
+# 2025-03-04 11:39:19.235865
++/architect when the mobile menu is closed, the chat window isnt visible anymore, the mobile menu returns to the bottom of the chat  
+
+# 2025-03-04 11:40:19.452684
++yes
+
+# 2025-03-04 11:40:42.298599
++/run npm run build:css
+
+# 2025-03-04 11:40:46.112430
++no
+
+# 2025-03-04 11:40:52.432799
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 11:41:22.831398
++yes
+
+# 2025-03-04 11:41:33.972486
++/add static/js/ui/statsDisplay.js
+
+# 2025-03-04 11:42:02.864266
++/architect when the mobile menu is closed, the chat window isnt visible anymore, the mobile menu returns to the bottom of the chat  
+
+# 2025-03-04 11:42:50.158945
++yes
+
+# 2025-03-04 11:43:29.773605
++/architect the token display is also expanded next to the mobile menu under the chat input field
+
+# 2025-03-04 11:44:12.652470
++yes
+
+# 2025-03-04 11:44:25.737689
++/run npm run build:css
+
+# 2025-03-04 11:44:29.212168
++no
+
+# 2025-03-04 11:44:32.767549
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 11:45:18.592280
++no
+
+# 2025-03-04 11:45:32.772481
++/help can you send pictures in aider
+
+# 2025-03-04 11:45:34.812121
++yes
+
+# 2025-03-04 11:47:46.612462
++/paste
+
+# 2025-03-04 11:48:01.276412
++/help Error processing clipboard content: wl-paste or xclip is required for 
+
+# 2025-03-04 11:48:55.632326
++/run sudo apt install wl-clipboard
+
+# 2025-03-04 11:49:01.132412
++no
+
+# 2025-03-04 11:49:30.637437
++/run sudo apt install xclip
+
+# 2025-03-04 11:49:35.397135
++no
+
+# 2025-03-04 11:49:44.407555
++/paste
+
+# 2025-03-04 12:27:24.913799
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 12:28:02.938628
++yes
+
+# 2025-03-04 12:28:19.634462
++/architect the mobile menu isnt opening on mobile device
+
+# 2025-03-04 12:28:34.358499
++no
+
+# 2025-03-04 12:28:42.128885
++/add static/index.html
+
+# 2025-03-04 12:28:51.628856
++/architect respond in english
+
+# 2025-03-04 12:29:09.878618
++no
+
+# 2025-03-04 12:29:17.033682
++/add static/js/*
+
+# 2025-03-04 12:29:21.608960
++/architect the mobile menu isnt opening on mobile device
+
+# 2025-03-04 12:30:19.533663
++no
+
+# 2025-03-04 12:30:36.095010
++/architect investigate your suggested troubleshooting tips
+
+# 2025-03-04 12:31:32.773424
++no
+
+# 2025-03-04 12:31:41.368954
++/drop static/js/utils/service-worker.js
+
+# 2025-03-04 12:32:00.594015
++/drop static/js/debugging.js
+
+# 2025-03-04 12:32:06.048801
++/drop static/js/ui/deepseekProcessor.js
+
+# 2025-03-04 12:32:15.908868
++/drop static/js/session.js
+
+# 2025-03-04 12:32:23.193717
++/drop static/js/global-declarations.d.ts
+
+# 2025-03-04 12:32:42.068555
++/add tailwind.config.js
+
+# 2025-03-04 12:32:46.868559
++/add static/css/tailwind.css
+
+# 2025-03-04 12:32:57.683451
++/architect investigate your suggested troubleshooting tips
+
+# 2025-03-04 12:33:42.378139
++yes
+
+# 2025-03-04 12:35:01.824005
++/drop static/js/utils/helpers.js
+
+# 2025-03-04 12:35:07.131379
++/drop static/js/ui/notificationManager.js
+
+# 2025-03-04 12:35:15.729013
++/drop static/js/streamingRenderer.js
+
+# 2025-03-04 12:35:20.037106
++/drop static/js/streaming.js
+
+# 2025-03-04 12:35:24.231983
++/drop static/js/streaming_utils.js
+
+# 2025-03-04 12:35:31.892157
++/architect investigate your suggested troubleshooting tips
+
+# 2025-03-04 12:36:16.948529
++yes
+
+# 2025-03-04 12:37:04.767970
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 12:37:46.314828
++yes
+
+# 2025-03-04 12:38:00.482410
++/drop static/js/config.js
+
+# 2025-03-04 12:38:10.818072
++/architect investigate your suggested troubleshooting tips it still doesnt open the menu
+
+# 2025-03-04 12:39:30.420595
++yes
+
+# 2025-03-04 12:40:20.674692
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 12:40:54.208451
++yes
+
+# 2025-03-04 12:41:15.218636
++/architect
+
+# 2025-03-04 12:41:24.108579
++SyntaxError: Cannot export a duplicate name 'createNewConversation'.
+
+# 2025-03-04 12:42:01.708437
++yes
+
+# 2025-03-04 12:42:14.703689
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 12:43:06.333445
++no
+
+# 2025-03-04 12:43:22.178545
++ok so the dark mode light mode toggle doesnt work either and thats rifht next to it 
+
+# 2025-03-04 12:44:13.208566
++no
+
+# 2025-03-04 12:44:16.553725
++thats lazy 
+
+# 2025-03-04 12:44:54.652100
++no 
+
+# 2025-03-04 12:44:56.241927
++no
+
+# 2025-03-04 12:44:58.831848
++in english
+
+# 2025-03-04 12:45:23.981800
++yes
+
+# 2025-03-04 12:45:57.809897
++identify other misuses of z-index in the code
+
+# 2025-03-04 12:47:18.497023
++yes
+
+# 2025-03-04 12:48:08.388729
++identify other misuses of z-index in the code
+
+# 2025-03-04 12:50:07.462449
++yes
+
+# 2025-03-04 12:50:34.382605
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 12:55:57.112550
++no
+
+# 2025-03-04 12:56:45.182813
++load older messages and clear conversation and save conversation are not workinf
+
+# 2025-03-04 13:01:50.667279
++yes
+
+# 2025-03-04 13:03:06.202463
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-04 13:04:43.092534
++no
+
+# 2025-03-04 13:04:48.772691
++/add routers/auth.py
+
+# 2025-03-04 13:05:35.832440
++/drop static/js/ui/markdownParser.js
+
+# 2025-03-04 13:05:43.377679
++/drop static/index.html
+
+# 2025-03-04 13:05:49.068183
++/drop routers/auth.py
+
+# 2025-03-04 13:05:57.812574
++/clear
+
+# 2025-03-04 13:06:06.262363
++the mobile menu is not opening 
+
+# 2025-03-04 13:06:59.702523
++no
+
+# 2025-03-04 13:07:01.902945
++they are 
+
+# 2025-03-04 13:10:14.867538
++yes
+
+# 2025-03-04 13:11:09.652786
++/add services/chat_service.py
+
+# 2025-03-04 13:11:13.422657
++/add routers/chat.py
+
+# 2025-03-04 13:11:24.787622
++/add static/js/streaming.js
+
+# 2025-03-04 13:11:29.092748
++/add services/streaming_helpers.py
+
+# 2025-03-04 13:11:33.867785
++/add static/js/streamingRenderer.js
+
+# 2025-03-04 13:11:38.687840
++/add static/js/streaming_utils.js
+
+# 2025-03-04 13:11:51.377695
++/add static/js/ui/deepseekProcessor.js
+
+# 2025-03-04 13:11:56.522797
++/add deepseek-reference.md
+
+# 2025-03-04 13:12:04.237563
++/drop static/css/tailwind.css
+
+# 2025-03-04 13:12:08.782931
++/drop tailwind.config.js
+
+# 2025-03-04 13:12:33.532556
++/add services/config_service.py
+
+# 2025-03-04 13:12:39.877855
++/add routers/config.py
+
+# 2025-03-04 13:12:50.247496
++analyze conversation management
+
+# 2025-03-04 13:14:41.404092
++yes
+
+# 2025-03-04 13:15:12.367831
++remove localstorage for database storage
+
+# 2025-03-04 13:16:09.967552
++yes
+
+# 2025-03-05 01:58:38.365515
++no
+
+# 2025-03-05 01:58:48.197641
++/add static/js/ui/notificationManager.js
+
+# 2025-03-05 01:58:56.525572
++/add static/js/streaming.js
+
+# 2025-03-05 01:59:01.130226
++/add static/js/chat.js
+
+# 2025-03-05 01:59:06.348360
++/add static/js/ui/displayManager.js
+
+# 2025-03-05 01:59:14.998008
++/add static/js/ui/statsDisplay.js
+
+# 2025-03-05 01:59:20.577830
++/add static/js/streamingRenderer.js
+
+# 2025-03-05 01:59:26.362539
++/add static/js/ui/deepseekProcessor.js
+
+# 2025-03-05 01:59:31.602234
++/add static/js/streaming_utils.js
+
+# 2025-03-05 01:59:52.879281
++/add static/js/utils/helpers.js
+
+# 2025-03-05 02:00:10.215259
++/add static/js/ui/markdownParser.js
+
+# 2025-03-05 02:00:23.861870
++analyze the codebase - respond in english
+
+# 2025-03-05 02:01:18.907033
++no
+
+# 2025-03-05 02:01:21.361678
++yes
+
+# 2025-03-05 02:01:55.593028
++no
+
+# 2025-03-05 02:02:10.412098
++analyze the shared files
+
+# 2025-03-05 02:03:47.176082
++no
+
+# 2025-03-05 02:03:54.813116
++identify duplicate or redundant code
+
+# 2025-03-05 02:10:15.083630
++no
+
+# 2025-03-05 02:10:32.697141
++unify the default model config logic
+
+# 2025-03-05 02:11:42.953681
++yes
+
+# 2025-03-05 02:13:42.473100
++unify the default model config logic - reanalyze
+
+# 2025-03-05 02:15:07.160868
++no
+
+# 2025-03-05 02:15:15.349439
++/drop *
+
+# 2025-03-05 02:15:34.632544
++/add static/js/config.js
+
+# 2025-03-05 02:15:40.225088
++/add static/js/models.js
+
+# 2025-03-05 02:15:44.292335
++unify the default model config logic - reanalyze
+
+# 2025-03-05 02:16:00.336531
++yes
+
+# 2025-03-05 02:17:19.042830
++analyze models and config
+
+# 2025-03-05 02:18:37.050553
++yes
+
+# 2025-03-05 02:20:56.822985
++/add static/js/utils/modelUtils.js
+
+# 2025-03-05 02:21:11.466095
++analyze the 3 files
+
+# 2025-03-05 02:22:21.877717
++no
+
+# 2025-03-05 02:22:26.581529
++/add deepseek-reference.md
+
+# 2025-03-05 02:22:30.815288
++/add o1models-reference-guide.md
+
+# 2025-03-05 02:22:44.822890
++does the code properly support o1 and r1?
+
+# 2025-03-05 02:23:19.320620
++no
+
+# 2025-03-05 02:23:25.925901
++/add static/js/chat.js
+
+# 2025-03-05 02:23:40.332998
++/add static/js/streaming.js
+
+# 2025-03-05 02:23:46.694234
++/add static/js/streamingRenderer.js
+
+# 2025-03-05 02:23:52.039613
++/add static/js/streaming_utils.js
+
+# 2025-03-05 02:23:57.929584
++analyze the shared files
+
+# 2025-03-05 02:25:36.789429
++no
+
+# 2025-03-05 02:26:14.539722
++reevaluate the purpose and function of each file
+
+# 2025-03-05 04:47:33.767615
++/add static/js/ui/displayManager.js
+
+# 2025-03-05 04:47:39.302929
++/add static/js/ui/tabManager.js
+
+# 2025-03-05 04:47:47.339285
++/add static/js/models.js
+
+# 2025-03-05 04:47:52.561298
++/add static/index.html
+
+# 2025-03-05 04:48:23.389839
++/add static/js/ui/themeSwitcher.js
+
+# 2025-03-05 04:48:30.000488
++/add static/js/init.js
+
+# 2025-03-05 04:48:35.025643
++/add static/css/tailwind.css
+
+# 2025-03-05 04:48:45.018836
++/add tailwind.config.js
+
+# 2025-03-05 04:49:38.423546
++the mobile menu isnt activating when i touch the cogwheel /settings button in the header navigation - respond in english
+
+# 2025-03-05 04:50:43.828030
++yes
+
+# 2025-03-05 04:52:10.931956
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 04:52:40.082616
++yes
+
+# 2025-03-05 04:53:22.268630
++/add static/js/utils/modelUtils.js
+
+# 2025-03-05 04:54:19.248970
++the menu activates and displays but it is dim and i cant select anything on the menu panel, when i touch it, the menu retreats
+
+# 2025-03-05 04:54:59.997366
++yes
+
+# 2025-03-05 04:55:17.906873
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 04:55:26.337371
++no
+
+# 2025-03-05 04:55:33.837405
++/run npm run build:css
+
+# 2025-03-05 04:55:37.045508
++no
+
+# 2025-03-05 04:55:39.107150
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 04:55:57.245740
++no
+
+# 2025-03-05 04:56:03.613931
++that didnt work, still same behavior
+
+# 2025-03-05 04:56:55.764757
++yes
+
+# 2025-03-05 04:57:13.447163
++/run npm run build:css
+
+# 2025-03-05 04:57:17.120495
++no
+
+# 2025-03-05 04:57:19.740012
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 04:57:41.389495
++no
+
+# 2025-03-05 04:58:06.300798
++/add static/js/chat.js
+
+# 2025-03-05 04:58:19.718754
++/add static/js/ui/notificationManager.js
+
+# 2025-03-05 04:58:32.856787
++still not working, analyze the shared files
+
+# 2025-03-05 05:01:27.517472
++yes
+
+# 2025-03-05 05:02:01.176095
++/run npm run build:css
+
+# 2025-03-05 05:02:04.580209
++no
+
+# 2025-03-05 05:02:08.353275
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 05:03:03.264409
++no
+
+# 2025-03-05 05:03:18.197542
++/add static/js/*
+
+# 2025-03-05 05:03:40.388291
++analyze qll the javascript files, the menu is still not usable
+
+# 2025-03-05 05:05:37.809386
++no
+
+# 2025-03-05 05:05:41.586070
++/drop *
+
+# 2025-03-05 05:05:51.255296
++/add static/css/tailwind.css
+
+# 2025-03-05 05:05:55.692974
++/add static/index.html
+
+# 2025-03-05 05:06:04.426309
++still not working, analyze the shared files
+
+# 2025-03-05 05:06:30.451217
++yes
+
+# 2025-03-05 05:07:22.575586
++no
+
+# 2025-03-05 05:07:35.727237
++/add static/js/ui-fix.js
+
+# 2025-03-05 05:08:20.557944
++/add static/js/verify-ui.js
+
+# 2025-03-05 05:08:38.210578
++/add static/js/debug-ui.js
+
+# 2025-03-05 05:08:46.664421
++still not working, analyze the shared files
+
+# 2025-03-05 05:12:51.606508
++yes
+
+# 2025-03-05 05:13:23.654285
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 05:16:13.386480
++no
+
+# 2025-03-05 05:16:19.862770
++/add static/js/ui/displayManager.js
+
+# 2025-03-05 05:16:57.364001
++/add static/js/ui/tabManager.js
+
+# 2025-03-05 05:17:23.786223
++/add static/js/utils/helpers.js
+
+# 2025-03-05 05:17:28.120176
++still not working, analyze the shared files
+
+# 2025-03-05 05:18:47.566026
++yes
+
+# 2025-03-05 05:19:09.395673
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 05:19:31.956449
++no
+
+# 2025-03-05 05:19:55.646304
++there is still an overlay preventing interaction with the open menu
+
+# 2025-03-05 05:21:04.240113
++yes
+
+# 2025-03-05 05:21:27.843686
++/run npm run build:css
+
+# 2025-03-05 05:21:31.330919
++no
+
+# 2025-03-05 05:21:35.217191
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 05:21:59.117383
++no
+
+# 2025-03-05 05:29:26.514369
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 05:30:55.505521
++no
+
+# 2025-03-05 05:30:57.780942
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 05:35:43.150510
++no
+
+# 2025-03-05 05:35:49.635086
++/add services/chat_service.py
+
+# 2025-03-05 05:35:54.097600
++/add models.py
+
+# 2025-03-05 05:36:05.978134
++/add static/js/chat.js
+
+# 2025-03-05 05:36:11.269375
++/add static/js/streaming.js
+
+# 2025-03-05 05:36:28.663749
++{
+
+# 2025-03-05 05:36:29.721312
++ Found inconsistencies in message handling:
+
+# 2025-03-05 05:36:29.730765
++  1. Storage redundancy: Duplicate calls to
+
+# 2025-03-05 05:36:29.737723
++  storeChatMessage('user', content) in chat.js
+
+# 2025-03-05 05:36:29.742457
++  2. Format inconsistencies:
+
+# 2025-03-05 05:36:29.749654
++    - Different fields stored in different components (basic vs.
+
+# 2025-03-05 05:36:29.753770
++  metadata-rich)
+
+# 2025-03-05 05:36:29.759609
++    - Mismatched parameter naming: maxTokens vs
+
+# 2025-03-05 05:36:29.763949
++  max_completion_tokens
+
+# 2025-03-05 05:36:29.768783
++  3. Error handling differences:
+
+# 2025-03-05 05:36:29.775096
++    - Different retry mechanisms in chat.js vs streaming.js
+
+# 2025-03-05 05:36:29.780701
++    - Inconsistent timeout calculations
+
+# 2025-03-05 05:36:29.785720
++  4. Processing inconsistencies:
+
+# 2025-03-05 05:36:29.792223
++    - Frontend uses deepSeekProcessor.replaceThinkingBlocks()
+
+# 2025-03-05 05:36:29.797802
++    - Backend uses expand_chain_of_thought()
+
+# 2025-03-05 05:36:29.804406
++    - Thinking block extraction uses string splitting in some
+
+# 2025-03-05 05:36:29.808776
++  places, regex in others
+
+# 2025-03-05 05:36:29.815567
++  5. Race conditions: Potential issues with messageQueue
+
+# 2025-03-05 05:36:29.819977
++  management during errors
+
+# 2025-03-05 05:36:29.826904
++  6. Naming convention mixing: camelCase in JS, snake_case in
+
+# 2025-03-05 05:36:29.832284
++  Python, inconsistent in API routes
+
+# 2025-03-05 05:36:32.173780
++}
+
+# 2025-03-05 05:37:00.886182
++no
+
+# 2025-03-05 05:37:29.528299
++/model together_ai/deepseek-ai/DeepSeek-R1
+
+# 2025-03-05 05:37:39.630596
++{
+
+# 2025-03-05 05:37:40.615076
++ Found inconsistencies in message handling:
+
+# 2025-03-05 05:37:40.959808
++  1. Storage redundancy: Duplicate calls to
+
+# 2025-03-05 05:37:40.966631
++  storeChatMessage('user', content) in chat.js
+
+# 2025-03-05 05:37:40.971254
++  2. Format inconsistencies:
+
+# 2025-03-05 05:37:40.978551
++    - Different fields stored in different components (basic vs.
+
+# 2025-03-05 05:37:40.982413
++  metadata-rich)
+
+# 2025-03-05 05:37:40.988348
++    - Mismatched parameter naming: maxTokens vs
+
+# 2025-03-05 05:37:40.992725
++  max_completion_tokens
+
+# 2025-03-05 05:37:40.997494
++  3. Error handling differences:
+
+# 2025-03-05 05:37:41.003758
++    - Different retry mechanisms in chat.js vs streaming.js
+
+# 2025-03-05 05:37:41.009295
++    - Inconsistent timeout calculations
+
+# 2025-03-05 05:37:41.014278
++  4. Processing inconsistencies:
+
+# 2025-03-05 05:37:41.020797
++    - Frontend uses deepSeekProcessor.replaceThinkingBlocks()
+
+# 2025-03-05 05:37:41.026467
++    - Backend uses expand_chain_of_thought()
+
+# 2025-03-05 05:37:41.033051
++    - Thinking block extraction uses string splitting in some
+
+# 2025-03-05 05:37:41.037784
++  places, regex in others
+
+# 2025-03-05 05:37:41.044538
++  5. Race conditions: Potential issues with messageQueue
+
+# 2025-03-05 05:37:41.048971
++  management during errors
+
+# 2025-03-05 05:37:41.055797
++  6. Naming convention mixing: camelCase in JS, snake_case in
+
+# 2025-03-05 05:37:41.061154
++  Python, inconsistent in API routes
+
+# 2025-03-05 05:37:43.292065
++}
+
+# 2025-03-05 05:40:04.591009
++no
+
+# 2025-03-05 05:40:32.591700
++analyze tye codebase and provide solution using existing code structure - no new modules
+
+# 2025-03-05 05:42:21.415757
++yes
+
+# 2025-03-05 05:45:03.530076
++/add chat.py
+
+# 2025-03-05 05:45:06.006404
++no
+
+# 2025-03-05 05:45:19.446064
++/add static/js/models.js
+
+# 2025-03-05 05:45:31.356557
++/add static/js/ui/deepseekProcessor.js
+
+# 2025-03-05 05:47:43.139476
++Search for all instances of storage methods (localStorage, sessionStorage, databases, collections, tables, models, CRUD, caching mechanisms) used for messages in the codebase, including functions, classes, or methods in chat.js, streaming.js, and database-related files that handle storing, retrieving, updating, or deleting messages.
+
+# 2025-03-05 05:49:28.057589
++no
+
+# 2025-03-05 05:49:31.371531
++identify issues 
+
+# 2025-03-05 05:51:29.914408
++/drop static/js/verify-ui.js
+
+# 2025-03-05 05:51:35.744970
++/drop static/js/ui/tabManager.js
+
+# 2025-03-05 05:51:43.328707
++/drop static/js/debug-ui.js
+
+# 2025-03-05 05:51:48.129252
++/drop static/js/ui-fix.js
+
+# 2025-03-05 05:52:11.063734
++/drop static/css/tailwind.css
+
+# 2025-03-05 05:52:22.521856
++/add init_db.py
+
+# 2025-03-05 05:52:26.091692
++/add database.py
+
+# 2025-03-05 05:52:31.120220
++/add migrate.py
+
+# 2025-03-05 05:52:34.556407
++/add migrate_utils.py
+
+# 2025-03-05 05:52:39.390565
++/add schema_validation.py
+
+# 2025-03-05 05:52:43.323365
++/add startup_validation.py
+
+# 2025-03-05 05:52:49.570914
++/add pydantic_models.py
+
+# 2025-03-05 05:53:00.243144
++/add routers/chat.py
+
+# 2025-03-05 05:53:04.857252
++/add routers/session.py
+
+# 2025-03-05 05:53:08.639581
++/add static/js/session.js
+
+# 2025-03-05 05:53:13.532534
++/add session_utils.py
+
+# 2025-03-05 05:53:22.585500
++Search for all instances of storage methods (localStorage, sessionStorage, databases, collections, tables, models, CRUD, caching mechanisms) used for messages in the codebase, including functions, classes, or methods in chat.js, streaming.js, and database-related files that handle storing, retrieving, updating, or deleting messages.
+
+# 2025-03-05 05:54:15.855461
++yes
+
+# 2025-03-05 05:55:13.193821
++no
+
+# 2025-03-05 05:55:23.772016
++/drop static/index.html
+
+# 2025-03-05 05:55:35.051518
++/add routers/model_stats.py
+
+# 2025-03-05 05:55:45.334961
++/drop static/js/ui/displayManager.js
+
+# 2025-03-05 05:56:17.028429
++Search for all instances of storage methods (localStorage, sessionStorage, databases, collections, tables, models, CRUD, caching mechanisms) used for messages in the codebase, including functions, classes, or methods in chat.js, streaming.js, and database-related files that handle storing, retrieving, updating, or deleting messages and other data
+
+# 2025-03-05 05:57:21.854477
++no
+
+# 2025-03-05 05:57:51.966115
++identify issues
+
+# 2025-03-05 06:59:55.174697
++no
+
+# 2025-03-05 06:59:59.418771
++/clear
+
+# 2025-03-05 07:00:27.175195
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 07:00:42.989993
++yes
+
+# 2025-03-05 07:01:03.791323
++align the database with orm
+
+# 2025-03-05 07:02:14.649679
++no
+
+# 2025-03-05 07:02:37.326541
++look at the python files aleady in place to update tye db
+
+# 2025-03-05 07:10:56.181204
++no
+
+# 2025-03-05 07:11:27.161991
++will the system also check when the database has somethunf the orm does not - and make adjustments?
+
+# 2025-03-05 07:13:41.991695
++yes
+
+# 2025-03-05 07:18:32.845850
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 07:18:41.184280
++yes
+
+# 2025-03-05 07:18:44.315166
++okay so now what
+
+# 2025-03-05 07:19:38.697558
++yes
+
+# 2025-03-05 07:20:20.094788
++/run python init_db.py
+
+# 2025-03-05 07:20:23.867082
++no
+
+# 2025-03-05 07:20:27.223860
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 07:20:39.742497
++yes
+
+# 2025-03-05 07:20:46.521408
++i ran init db and still this
+
+# 2025-03-05 07:22:26.140557
++yes
+
+# 2025-03-05 07:23:23.910720
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 07:23:29.229567
++no
+
+# 2025-03-05 07:23:32.681543
++/run python init_db.py
+
+# 2025-03-05 07:23:36.450854
++no
+
+# 2025-03-05 07:23:39.003601
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 07:26:01.750650
++yes
+
+# 2025-03-05 07:26:11.427633
++whats wrong ?
+
+# 2025-03-05 07:28:27.292278
++yes
+
+# 2025-03-05 07:29:07.270114
++no
+
+# 2025-03-05 07:30:01.711891
++{
+
+# 2025-03-05 07:30:02.748926
++POSTGRES_HOST=chatterpostgres.postgres.database.azure.com
+
+# 2025-03-05 07:30:02.754542
++POSTGRES_USER=hperkins
+
+# 2025-03-05 07:30:02.758597
++POSTGRES_PORT=5432
+
+# 2025-03-05 07:30:02.762604
++POSTGRES_DB=chatterdb
+
+# 2025-03-05 07:30:04.205764
++POSTGRES_PASSWORD=Twiohmld1234!
+
+# 2025-03-05 07:30:12.985158
++the certificate is in rye project root
+
+# 2025-03-05 07:30:18.785350
++}
+
+# 2025-03-05 07:31:09.768358
++yes
+
+# 2025-03-05 07:32:58.872695
++no
+
+# 2025-03-05 07:33:20.243010
++/drop static/js/*
+
+# 2025-03-05 07:33:28.053534
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 07:38:21.618079
++no
+
+# 2025-03-05 07:38:26.440386
++SyntaxError: Cannot declare a const variable twice: 'currentModel'.
+
+# 2025-03-05 07:39:05.793752
++yes
+
+# 2025-03-05 07:40:42.219707
++no
+
+# 2025-03-05 07:40:47.312795
++/add static/js/models.js
+
+# 2025-03-05 07:40:55.708194
++SyntaxError: Cannot declare a const variable twice: 'currentModel'.
+
+# 2025-03-05 07:45:24.571107
++yes
+
+# 2025-03-05 07:49:13.680302
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 07:50:09.238076
++yes
+
+# 2025-03-05 07:50:17.301547
++whats wrong?
+
+# 2025-03-05 07:51:04.619548
++yes
+
+# 2025-03-05 07:52:04.092552
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 07:52:27.050839
++yes
+
+# 2025-03-05 07:52:38.997534
++/drop static/js/fileManager.js
+
+# 2025-03-05 07:52:58.760970
++/drop schema_validation.py
+
+# 2025-03-05 07:53:03.215671
++/drop init_db.py
+
+# 2025-03-05 07:53:07.300202
++/drop migrate.py
+
+# 2025-03-05 07:53:11.756605
++/drop migrate_utils.py
+
+# 2025-03-05 07:53:16.059912
++whats wrong?
+
+# 2025-03-05 07:54:17.514634
++yes
+
+# 2025-03-05 07:58:49.895898
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 07:59:16.274005
++yes
+
+# 2025-03-05 07:59:24.398336
++/add o1models-reference-guide.md
+
+# 2025-03-05 07:59:27.740314
++whats wrong?
+
+# 2025-03-05 08:00:27.281174
++yes
+
+# 2025-03-05 08:01:00.664145
++/add o1models-reference-guide.md
+
+# 2025-03-05 08:01:04.366242
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-05 08:02:38.580014
++no

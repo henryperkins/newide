@@ -2,6 +2,7 @@ import { sendMessage } from './chat.js';
 import { deepSeekProcessor } from './ui/deepseekProcessor.js';
 import { initThemeSwitcher } from './ui/themeSwitcher.js';
 import { initTabSystem } from './ui/tabManager.js';
+import { initSidebar } from './ui/sidebarManager.js';
 import { configureMarkdown } from './ui/markdownParser.js';
 import { loadConversationFromDb, loadOlderMessages } from './ui/displayManager.js';
 import StatsDisplay from './ui/statsDisplay.js';
@@ -46,26 +47,32 @@ function initApplication() {
     console.error('Failed to initialize tab system:', err);
   }
 
-  // 3. Initialize existing thinking blocks
+  // 3. Initialize sidebar
+  try {
+    initSidebar();
+  } catch (err) {
+    console.error('Failed to initialize sidebar:', err);
+  }
+
+  // 4. Initialize existing thinking blocks
   try {
     deepSeekProcessor.initializeExistingBlocks();
   } catch (err) {
     console.error('Failed to initialize thinking blocks:', err);
   }
 
-  // 4. Initialize stats display
+  // 5. Initialize stats display
   try {
     window.statsDisplay = new StatsDisplay('performance-stats');
   } catch (err) {
     console.error('Failed to initialize stats display:', err);
   }
 
-  // 5. Initialize mobile or desktop features
+  // 6. Initialize mobile or desktop features
   // Always run initMobileUI even on desktop so that all interactive elements have listeners
   initMobileUI();
-  // Optionally keep or remove hideMobileSidebar if you want the sidebar hidden by default on desktop
 
-  // 6. Additional UI init
+  // 7. Additional UI init
   initPerformanceStats();
   configureMarkdown();
   initChatInterface();
@@ -73,12 +80,14 @@ function initApplication() {
   initConversationControls();
   initFontSizeControls();
   initTokenUsageDisplay();
+  initThinkingModeToggle();
   enhanceAccessibility();
   detectTouchCapability();
   registerKeyboardShortcuts();
   initModelSelector();
+  initConfigHandlers();
 
-  // 7. Load conversation from local storage, show welcome message if needed
+  // 8. Load conversation from local storage, show welcome message if needed
   loadConversationFromDb();
   maybeShowWelcomeMessage();
 
@@ -95,14 +104,10 @@ function initApplication() {
  */
 function initPerformanceStats() {
   try {
-    const statsDisplay = new StatsDisplay('performance-stats');
-    window.statsDisplay = statsDisplay;
-    statsDisplay.updateStats({
-      latency: 0,
-      tokensPerSecond: 0,
-      activeConnections: 0,
-      totalTokens: 0,
-    });
+    // Only initialize once to avoid duplicate instances
+    if (!window.statsDisplay) {
+      window.statsDisplay = new StatsDisplay('performance-stats');
+    }
   } catch (err) {
     console.error('Failed to initialize performance stats:', err);
   }
@@ -299,126 +304,129 @@ function openFileInSidebar(filename) {
  * Conversation controls container
  */
 function initConversationControls() {
-  const chatHistory = document.getElementById('chat-history');
-  if (!chatHistory) return;
+  // Instead of creating duplicative buttons, we'll ensure the existing HTML buttons work properly
+  console.log('Initializing conversation control buttons...');
 
-  let conversationControls = document.querySelector('.conversation-controls');
-  if (!conversationControls) {
-    conversationControls = document.createElement('div');
-    conversationControls.className = 'conversation-controls';
+  // Get references to existing buttons in index.html
+  const loadOlderBtn = document.getElementById('load-older-btn');
+  const saveOlderBtn = document.getElementById('save-older-btn');
 
-    // Insert conversation controls at the top of chat history
-    if (chatHistory.firstChild) {
-      chatHistory.insertBefore(conversationControls, chatHistory.firstChild);
-    } else {
-      chatHistory.appendChild(conversationControls);
-    }
-
-    // Add "Load Older Messages" button
-    const loadOlderBtn = document.createElement('button');
-    loadOlderBtn.id = 'load-older-btn';
-    loadOlderBtn.className = 'btn btn-secondary text-sm flex items-center gap-1';
-    loadOlderBtn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-           viewBox="0 0 24 24" fill="none" stroke="currentColor" 
-           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="17 11 12 6 7 11"></polyline>
-        <polyline points="17 18 12 13 7 18"></polyline>
-      </svg>
-      Load Older Messages
-    `;
-    loadOlderBtn.addEventListener('click', () => {
-      loadOlderMessages();
+  // Set up event handler for the Load Older Messages button
+  if (loadOlderBtn) {
+    // Remove any existing click handlers to prevent duplicates
+    loadOlderBtn.replaceWith(loadOlderBtn.cloneNode(true));
+    const newLoadOlderBtn = document.getElementById('load-older-btn');
+    
+    newLoadOlderBtn.addEventListener('click', async () => {
+      console.log('Load Older Messages clicked');
+      try {
+        const module = await import('./ui/displayManager.js');
+        if (typeof module.loadOlderMessages === 'function') {
+          module.loadOlderMessages();
+        } else {
+          console.error('loadOlderMessages function not found');
+        }
+      } catch (err) {
+        console.error('Failed to load older messages:', err);
+      }
     });
-    conversationControls.appendChild(loadOlderBtn);
+    
+    // Make sure it's visible
+    newLoadOlderBtn.classList.remove('hidden');
+  } else {
+    console.warn('Load Older Messages button not found in the DOM');
+  }
 
-    // Add "Save Conversation" button
-    const saveConvoBtn = document.createElement('button');
-    saveConvoBtn.id = 'save-convo-btn';
-    saveConvoBtn.className = 'btn btn-secondary text-sm flex items-center gap-1';
-    saveConvoBtn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-           viewBox="0 0 24 24" fill="none" stroke="currentColor" 
-           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M19 21H5a2 2 0 0 1-2-2V5
-                 a2 2 0 0 1 2-2h11l5 5v11
-                 a2 2 0 0 1-2 2z"></path>
-        <polyline points="17 21 17 13 7 13 7 21"></polyline>
-        <polyline points="7 3 7 8 15 8"></polyline>
-      </svg>
-      Save Conversation
-    `;
-    conversationControls.appendChild(saveConvoBtn);
+  // Set up event handler for the Save Conversation button
+  if (saveOlderBtn) {
+    // Remove any existing click handlers to prevent duplicates
+    saveOlderBtn.replaceWith(saveOlderBtn.cloneNode(true));
+    const newSaveOlderBtn = document.getElementById('save-older-btn');
+    
+    newSaveOlderBtn.addEventListener('click', async () => {
+      console.log('Save Conversation clicked');
+      try {
+        const module = await import('./ui/displayManager.js');
+        if (typeof module.saveConversation === 'function') {
+          module.saveConversation();
+        } else {
+          console.error('saveConversation function not found');
+        }
+      } catch (err) {
+        console.error('Failed to save conversation:', err);
+      }
+    });
+    
+    // Make sure it's visible
+    newSaveOlderBtn.classList.remove('hidden');
+  } else {
+    console.warn('Save Conversation button not found in the DOM');
+  }
 
-    // Add "Clear Conversation" button
+  // Add clear and new conversation buttons programmatically
+  addConversationManagementButtons();
+}
+
+/**
+ * Adds Clear and New Conversation buttons to the UI
+ */
+function addConversationManagementButtons() {
+  const btnContainer = document.querySelector('.flex.justify-center.items-center.gap-2.py-2.px-4');
+  if (!btnContainer) {
+    console.warn('Button container not found');
+    return;
+  }
+
+  // Create Clear Conversation button if it doesn't exist
+  if (!document.getElementById('clear-convo-btn')) {
     const clearConvoBtn = document.createElement('button');
     clearConvoBtn.id = 'clear-convo-btn';
-    clearConvoBtn.className = 'btn btn-danger text-sm flex items-center gap-1';
+    clearConvoBtn.className = 'btn btn-danger';
     clearConvoBtn.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-             viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="3 6 5 6 21 6"></polyline>
-          <path d="M19 6v14a2 2 0 0 1-2 2H7
-                   a2 2 0 0 1-2-2V6m3 0V4
-                   a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2
-                   v2"></path>
-        </svg>
-        Clear Conversation
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v10M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+      </svg>
+      Clear Conversation
     `;
-    conversationControls.appendChild(clearConvoBtn);
+    btnContainer.appendChild(clearConvoBtn);
+    
+    clearConvoBtn.addEventListener('click', async () => {
+      console.log('Clear Conversation clicked');
+      try {
+        const module = await import('./ui/displayManager.js');
+        if (typeof module.deleteConversation === 'function') {
+          module.deleteConversation();
+        }
+      } catch (err) {
+        console.error('Failed to clear conversation:', err);
+      }
+    });
+  }
 
-    // Add "New Conversation" button
+  // Create New Conversation button if it doesn't exist
+  if (!document.getElementById('new-convo-btn')) {
     const newConvoBtn = document.createElement('button');
     newConvoBtn.id = 'new-convo-btn';
-    newConvoBtn.className = 'btn btn-primary text-sm flex items-center gap-1';
+    newConvoBtn.className = 'btn btn-primary';
     newConvoBtn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-           viewBox="0 0 24 24" fill="none" stroke="currentColor"
-           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-         <line x1="12" y1="5" x2="12" y2="19"></line>
-         <line x1="5" y1="12" x2="19" y2="12"></line>
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
       </svg>
       New Conversation
     `;
+    btnContainer.appendChild(newConvoBtn);
+    
     newConvoBtn.addEventListener('click', async () => {
+      console.log('New Conversation clicked');
       try {
-        const mod = await import('./ui/displayManager.js');
-        const sessionId = await mod.getSessionId?.();
-        if (sessionId) {
-          // Attempt to fetch a single message to confirm a valid conversation
-          const res = await fetch(`/api/chat/conversations/history?session_id=${sessionId}&offset=0&limit=1`);
-          if (res.ok) {
-            await mod.saveConversation?.(true);
-          } else {
-            console.warn('No valid existing conversation found; skipping save');
-          }
-        }
-        if (typeof mod.createNewConversation === 'function') {
-          mod.createNewConversation();
-        } else {
-          console.warn('createNewConversation not found in displayManager.js');
+        const module = await import('./ui/displayManager.js');
+        if (typeof module.createNewConversation === 'function') {
+          module.createNewConversation();
         }
       } catch (err) {
-        console.error('Failed to handle new conversation:', err);
+        console.error('Failed to create new conversation:', err);
       }
     });
-    conversationControls.appendChild(newConvoBtn);
-
-    // Add conversation dropdown selector
-    const convoSelectContainer = document.createElement('div');
-    convoSelectContainer.className = 'flex items-center';
-
-    const convoSelect = document.createElement('select');
-    convoSelect.id = 'conversation-list';
-    convoSelect.className = 'form-input py-1 px-2 text-sm';
-    convoSelect.innerHTML = '<option value="">-- Select Conversation --</option>';
-
-    convoSelectContainer.appendChild(convoSelect);
-    conversationControls.appendChild(convoSelectContainer);
-
-    // Populate conversation list
-    refreshConversationList();
   }
 }
 
@@ -432,6 +440,33 @@ function initTokenUsageDisplay() {
     toggleButton.addEventListener('click', () => {
       tokenUsage.querySelector('#token-details').classList.toggle('hidden');
       toggleButton.classList.toggle('active');
+    });
+  }
+}
+
+/**
+ * Initialize the thinking mode toggle
+ */
+function initThinkingModeToggle() {
+  const thinkingModeToggle = document.getElementById('enable-thinking-mode');
+  if (thinkingModeToggle) {
+    // Check if previously enabled
+    const thinkingModeEnabled = localStorage.getItem('enableThinkingMode') === 'true';
+    thinkingModeToggle.checked = thinkingModeEnabled;
+    
+    // Set up event listener to save preference
+    thinkingModeToggle.addEventListener('change', e => {
+      localStorage.setItem('enableThinkingMode', e.target.checked);
+      console.log('Thinking mode ' + (e.target.checked ? 'enabled' : 'disabled'));
+      
+      // Show notification about change
+      import('./ui/notificationManager.js').then(module => {
+        module.showNotification(
+          `Thinking mode ${e.target.checked ? 'enabled' : 'disabled'}. This affects DeepSeek models only.`,
+          'info',
+          3000
+        );
+      });
     });
   }
 }
@@ -513,14 +548,18 @@ function initModelSelector() {
   });
   observer.observe(modelSelect, { childList: true });
 
-  // Delay loading default models
-  setTimeout(() => {
-    if (modelSelect.options.length === 0) {
-      import('./models.js').then(module => {
-        const { modelManager } = module;
-        modelManager.ensureLocalModelConfigs();
+  // Load default models
+  import('./models.js').then(module => {
+    const { modelManager } = module;
+    // Make sure the local model configs are created first before trying to use them
+    modelManager.ensureLocalModelConfigs();
+    console.log("Local model configs initialized:", Object.keys(modelManager.modelConfigs));
+    
+    // Add with a slight delay to ensure model configs are fully processed
+    setTimeout(() => {
+      if (modelSelect.options.length === 0) {
         const models = modelManager.modelConfigs;
-        if (Object.keys(models).length > 0 && modelSelect.options.length === 0) {
+        if (Object.keys(models).length > 0) {
           modelSelect.innerHTML = '';
           for (const [id, config] of Object.entries(models)) {
             const option = document.createElement('option');
@@ -530,6 +569,8 @@ function initModelSelector() {
             }`;
             modelSelect.appendChild(option);
           }
+          
+          // Default to DeepSeek-R1 if available, otherwise fall back to o1
           if (models['DeepSeek-R1']) {
             modelSelect.value = 'DeepSeek-R1';
             modelManager.updateModelSpecificUI('DeepSeek-R1');
@@ -538,39 +579,56 @@ function initModelSelector() {
             modelManager.updateModelSpecificUI('o1');
           }
         }
-      });
-    }
-  }, 2000);
+      }
+    }, 500);
+  });
 
-  // Asynchronously initialize the model manager
-  import('./models.js')
-    .then(module => {
-      const { modelManager } = module;
-      modelManager
-        .initialize()
-        .then(() => {
-          if (modelSelect && modelSelect.options.length === 0) {
-            const defaultModels = [
-              {
-                id: 'o1',
-                description: 'Advanced reasoning model for complex tasks',
-              },
-              {
-                id: 'DeepSeek-R1',
-                description: 'Model that supports chain-of-thought reasoning',
-              },
-            ];
-            defaultModels.forEach(model => {
-              const option = document.createElement('option');
-              option.value = model.id;
-              option.textContent = `${model.id} (${model.description})`;
-              modelSelect.appendChild(option);
-            });
-          }
-        })
-        .catch(err => console.error('Error initializing ModelManager:', err));
-    })
-    .catch(err => console.error('Failed to load models.js:', err));
+  // Asynchronously initialize the model manager (after ensuring models exist)
+  setTimeout(() => {
+    import('./models.js')
+      .then(module => {
+        const { modelManager } = module;
+        // Make sure configs are populated
+        if (Object.keys(modelManager.modelConfigs).length === 0) {
+          console.log("Re-ensuring model configs before initialize");
+          modelManager.ensureLocalModelConfigs();
+        }
+        
+        // Then initialize
+        modelManager
+          .initialize()
+          .then(() => {
+            console.log("Model manager initialized with models:", Object.keys(modelManager.modelConfigs));
+            
+            // Ensure we still have models in the dropdown
+            if (modelSelect && modelSelect.options.length === 0) {
+              const defaultModels = [
+                {
+                  id: 'o1',
+                  description: 'Advanced reasoning model for complex tasks',
+                },
+                {
+                  id: 'DeepSeek-R1',
+                  description: 'Model that supports chain-of-thought reasoning',
+                },
+              ];
+              defaultModels.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.id;
+                option.textContent = `${model.id} (${model.description})`;
+                modelSelect.appendChild(option);
+              });
+            }
+            
+            // Explicitly initialize model management UI
+            modelManager.initModelManagement();
+            // Force refresh the models list
+            modelManager.refreshModelsList();
+          })
+          .catch(err => console.error('Error initializing ModelManager:', err));
+      })
+      .catch(err => console.error('Failed to load models.js:', err));
+  }, 1000);
 }
 
 /* ------------------------------------------------------------------
@@ -586,23 +644,8 @@ function initMobileUI() {
   initPullToRefresh();
   setupMobileStatsToggle();
   setupMobileFontControls();
-  initMobileSidebar();
+  // Mobile sidebar handling is now in sidebarManager.js
   // Additional mobile logic if needed
-}
-
-/**
- * Hides the mobile sidebar on desktop
- */
-function hideMobileSidebar() {
-  const sidebar = document.getElementById('sidebar');
-  const overlay = document.getElementById('sidebar-overlay');
-  if (sidebar) {
-    sidebar.classList.add('translate-x-full');
-    sidebar.classList.remove('translate-x-0');
-  }
-  if (overlay) {
-    overlay.classList.add('hidden');
-  }
 }
 
 /**
@@ -767,25 +810,7 @@ function setupMobileFontControls() {
   }
 }
 
-/**
- * Stub if you need special sidebar behavior for mobile
- */
-function initMobileSidebar() {
-  const toggleButton = document.getElementById('sidebar-toggle');
-  const sidebar = document.getElementById('sidebar');
-  const overlay = document.getElementById('sidebar-overlay');
-  if (!toggleButton || !sidebar) return;
-
-  toggleButton.addEventListener('click', () => {
-    // "isClosed" is easier to reason about:
-    const isClosed = sidebar.classList.contains('translate-x-full');
-    // If it is closed, remove 'translate-x-full'; if open, re-add it.
-    sidebar.classList.toggle('translate-x-full', !isClosed);
-    sidebar.classList.toggle('translate-x-0', isClosed);
-    if (overlay) overlay.classList.toggle('hidden', !isClosed);
-    toggleButton.setAttribute('aria-expanded', String(isClosed));
-  });
-}
+// Mobile sidebar functionality moved to sidebarManager.js
 
 /* ------------------------------------------------------------------
                   SHARED FONT-SIZE ADJUSTMENT LOGIC
@@ -849,6 +874,22 @@ export function syncMobileStats(stats) {
   if (mobileTokensPerSecond) {
     mobileTokensPerSecond.textContent = `${(stats.tokensPerSecond || 0).toFixed(1)} t/s`;
   }
+}
+
+/**
+ * Initialize config form event handlers
+ */
+function initConfigHandlers() {
+  // Import the config module and call setupConfigEventHandlers
+  import('./config.js')
+    .then(module => {
+      if (typeof module.setupConfigEventHandlers === 'function') {
+        module.setupConfigEventHandlers();
+      } else {
+        console.error('setupConfigEventHandlers function not found in config.js');
+      }
+    })
+    .catch(err => console.error('Failed to load config module:', err));
 }
 
 /**

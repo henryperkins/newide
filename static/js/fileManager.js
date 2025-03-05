@@ -401,6 +401,14 @@ export class FileManager {
   }
   
   /**
+   * Get IDs of currently uploaded files for sending to the API
+   * @returns {string[]} Array of file IDs
+   */
+  getFileIds() {
+    return this.files.map(f => f.id);
+  }
+  
+  /**
    * Check if Azure Search is enabled
    * @returns {boolean} True if Azure Search is enabled
    */

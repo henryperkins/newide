@@ -743,26 +743,45 @@ async def generate_stream_chunks(
         nonlocal full_content
         max_retries = 3
         retry_count = 0
-        retry_delay = 2
+        retry_delay = 5  # Increased initial retry delay
+        timeout_msg_sent = False
 
         while retry_count <= max_retries:
             try:
+                # Send a message to client that we're starting a request
+                if retry_count > 0:
+                    yield ("data: " + json.dumps({
+                        "choices": [{
+                            "delta": {
+                                "content": (f"\n\n[Attempting connection to DeepSeek, try {retry_count}/{max_retries}...]")
+                            }
+                        }]
+                    }) + "\n\n")
+                    # Give the frontend time to display the message
+                    await asyncio.sleep(0.5)
+                
                 if isinstance(client, ChatCompletionsClient):
+                    # Set a longer timeout for DeepSeek models
                     stream_response = client.complete(
                         messages=messages_list,
                         max_tokens=max_tokens,
-                        stream=True
+                        stream=True,
+                        timeout=120  # 2 minute timeout
                     )
                 elif isinstance(client, AzureOpenAI):
                     stream_response = client.chat.completions.create(
                         model=model_name,
                         messages=messages_list,
                         max_completion_tokens=max_tokens,
-                        stream=True
+                        stream=True,
+                        timeout=120  # 2 minute timeout
                     )
                 else:
                     raise ValueError("Unsupported DeepSeek client type")
 
+                # Reset timeout message flag when we get a successful connection
+                timeout_msg_sent = False
+                
                 for partial in stream_response:
                     if hasattr(partial, "choices") and partial.choices:
                         choice = partial.choices[0]
@@ -771,7 +790,8 @@ async def generate_stream_chunks(
                         yield ("data: " + json.dumps(
                             {"choices": [{"delta": {"content": content}}]}
                         ) + "\n\n")
-                break
+                break  # Success - exit retry loop
+                
             except HttpResponseError as hrex:
                 # Only handle known HTTP errors
                 retry_count += 1
@@ -785,34 +805,42 @@ async def generate_stream_chunks(
                     yield ("data: " + json.dumps({
                         "error": {
                             "code": hrex.status_code,
-                            "message": "Temporary server error. Retrying..."
+                            "message": f"Temporary server error. Retrying in {retry_delay} seconds..."
                         }
                     }) + "\n\n")
-                    await asyncio.sleep(retry_delay * 2)
-                    retry_delay *= 2
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 1.5  # More gradual backoff
                     continue
                 raise HTTPException(
                     status_code=hrex.status_code,
                     detail="DeepSeek streaming failed."
                 ) from hrex
+                
             except Exception as exc:
                 retry_count += 1
                 exc_str = str(exc).lower()
+                
                 if "timeout" in exc_str and retry_count <= max_retries:
                     logger.warning(
                         "Timeout in DeepSeek streaming, retry %d/%d",
                         retry_count,
                         max_retries
                     )
-                    yield ("data: " + json.dumps({
-                        "choices": [{
-                            "delta": {
-                                "content": (f"[Timeout, retry {retry_count}/{max_retries}]")
-                            }
-                        }]}
-                    ) + "\n\n")
+                    
+                    # Only send timeout message once to avoid cluttering the response
+                    if not timeout_msg_sent:
+                        yield ("data: " + json.dumps({
+                            "choices": [{
+                                "delta": {
+                                    "content": (f"\n\n[DeepSeek connection timed out. Retrying in {retry_delay} seconds...]")
+                                }
+                            }]
+                        }) + "\n\n")
+                        timeout_msg_sent = True
+                    
                     await asyncio.sleep(retry_delay)
-                    retry_delay *= 2
+                    retry_delay *= 1.5  # More gradual backoff
+                    continue
                 else:
                     error_payload = {
                         "error": {
@@ -845,14 +873,14 @@ async def generate_stream_chunks(
             if temperature is not None:
                 extra_kwargs["temperature"] = temperature
 
-        stream = await client.chat.completions.create(
+        stream = client.chat.completions.create(
             model=model_name,
             messages=messages_list,
             stream=True,
             **extra_kwargs
         )
 
-        async for chunk in stream:
+        for chunk in stream:
             resp_data = {
                 "id": f"chatcmpl-{uuid.uuid4()}",
                 "object": "chat.completion.chunk",

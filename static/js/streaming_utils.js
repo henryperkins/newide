@@ -103,17 +103,45 @@ export function removeStreamingProgressIndicator() {
 export function handleStreamingError(error, showNotification, parentContainer) {
   console.error('[streaming_utils] handleStreamingError:', error);
 
-  if (parentContainer) {
+  // Only add the error notice if we don't already have a streaming-error-note
+  if (parentContainer && !parentContainer.querySelector('.streaming-error-note')) {
     const errorNotice = document.createElement('div');
-    errorNotice.className = 'py-2 px-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm rounded mt-2';
-    errorNotice.textContent = '⚠️ The response was interrupted. The content above may be incomplete.';
+    
+    // Check if this is a DeepSeek service unavailability error
+    const errorMessage = error?.message?.toLowerCase() || '';
+    const isServiceUnavailable = (
+      errorMessage.includes('no healthy upstream') || 
+      errorMessage.includes('failed dependency') ||
+      errorMessage.includes('deepseek service')
+    );
+    
+    errorNotice.className = 'streaming-error-note py-2 px-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm rounded mt-2';
+    
+    if (isServiceUnavailable) {
+      errorNotice.textContent = '⚠️ The AI service is temporarily unavailable. Please try again later or switch to a different model.';
+    } else {
+      errorNotice.textContent = '⚠️ The response was interrupted. The content above may be incomplete.';
+    }
+    
     parentContainer.appendChild(errorNotice);
   }
 
   if (typeof showNotification === 'function') {
-    const userFriendlyMessage = !navigator.onLine
-      ? 'Network connection lost.'
-      : error.message || 'An unexpected error occurred.';
-    showNotification(userFriendlyMessage, 'error');
+    if (!navigator.onLine) {
+      showNotification('Network connection lost.', 'error');
+    } else {
+      const errorMessage = error?.message || 'An unexpected error occurred.';
+      const isDeepSeekError = errorMessage.toLowerCase().includes('deepseek') || 
+                             errorMessage.toLowerCase().includes('no healthy upstream') ||
+                             errorMessage.toLowerCase().includes('failed dependency');
+      
+      if (isDeepSeekError) {
+        // Don't show another notification since streaming.js already handles this with buttons
+        // The error notice in the message is sufficient
+        return;
+      }
+      
+      showNotification(errorMessage, 'error');
+    }
   }
 }

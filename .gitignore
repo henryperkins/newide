@@ -6,6 +6,9 @@ certs/
 .env
 .env.local
 .env.*
+.env.development.local
+.env.test.local
+.env.production.local
 secrets/
 
 # Python
@@ -34,32 +37,84 @@ wheels/
 venv/
 env/
 
+# JavaScript/Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.pnp/
+.pnp.js
+package-lock.json
+yarn.lock
+coverage/
+web_modules/
+
+# Frontend build artifacts
+/static/dist/
+/static/build/
+.parcel-cache/
+.webpack/
+.next/
+out/
+.cache/
+
 # Testing/coverage
 .coverage
 .coverage.*
 htmlcov/
 .pytest_cache/
 .mypy_cache/
+.jest/
+.nycrc
+.cypress/
+cypress/screenshots/
+cypress/videos/
 
 # IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-*
+.project
+.classpath
+.settings/
+.history/
 
 # Logs/diagnostics
 *.log
 logs/
 metrics/
+debug.log
 
 # Local development
 .cache
 .ipynb_checkpoints
-
-# OS/Editor
+.eslintcache
+.stylelintcache
 .DS_Store
-*.sublime-*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.directory
 
 # Build/Deployment
 dist/
 build/
+.vercel
+.netlify
+.serverless/
+.fusebox/
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+*.swp

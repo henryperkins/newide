@@ -21,6 +21,9 @@ export default class StatsDisplay {
         console.error(`StatsDisplay container not found: #${containerId}`);
         return;
       }
+      
+      // Initialize the stats toggle functionality
+      this.initStatsToggle();
   
       // Define default values for prompt/completion/reasoning tokens
       const usage = {
@@ -140,24 +143,45 @@ export default class StatsDisplay {
       }
     }
   
+    initStatsToggle() {
+      // Set up the mobile stats toggle functionality
+      const statsToggle = document.getElementById('mobile-stats-toggle');
+      const statsPanel = document.getElementById('mobile-stats-panel');
+      
+      if (statsToggle && statsPanel) {
+        console.log('StatsDisplay: Setting up mobile stats toggle');
+        
+        statsToggle.addEventListener('click', function() {
+          console.log('Stats toggle clicked from StatsDisplay');
+          statsPanel.classList.toggle('hidden');
+        });
+      }
+    }
+    
     render() {
       if (!this.container) return;
   
-      this.container.querySelector('#latency-value').textContent =
-        `${this.stats.latency}ms`;
+      // Render latency - only update if value is defined and not 0
+      if (this.stats.latency) {
+        this.container.querySelector('#latency-value').textContent =
+          `${this.stats.latency}ms`;
+      }
 
+      // Handle optional chunk count and partial tokens (if elements exist)
       const chunkEl = this.container.querySelector('#chunks-value');
       const partialTokensEl = this.container.querySelector('#partial-tokens-value');
-      if (chunkEl) chunkEl.textContent = this.stats.chunkCount;
-      if (partialTokensEl) partialTokensEl.textContent = this.stats.partialTokens;
+      if (chunkEl && this.stats.chunkCount !== undefined) chunkEl.textContent = this.stats.chunkCount;
+      if (partialTokensEl && this.stats.partialTokens !== undefined) partialTokensEl.textContent = this.stats.partialTokens;
   
       // Show tokensPerSecond as one decimal place, e.g. "12.3 t/s"
       const tpsEl = this.container.querySelector('#tokens-value');
-      const tps = this.stats.tokensPerSecond;
+      const tps = this.stats.tokensPerSecond || 0;
       tpsEl.textContent = `${tps.toFixed(1)} t/s`;
 
+      // Add color coding for token speed
       if (tps > 100) {
         tpsEl.classList.add('text-red-500');
+        tpsEl.classList.remove('text-yellow-500');
       } else if (tps > 50) {
         tpsEl.classList.add('text-yellow-500');
         tpsEl.classList.remove('text-red-500');
@@ -165,26 +189,45 @@ export default class StatsDisplay {
         tpsEl.classList.remove('text-red-500', 'text-yellow-500');
       }
   
-      this.container.querySelector('#connections-value').textContent =
-        this.stats.activeConnections;
+      // Update active connections (only if value exists)
+      if (this.stats.activeConnections !== undefined) {
+        this.container.querySelector('#connections-value').textContent =
+          this.stats.activeConnections;
+      }
 
-      this.container.querySelector('#time-to-response').textContent =
-        `${(this.stats.timeToResponse || 0).toFixed(0)}ms`;
-      this.container.querySelector('#time-between-tokens').textContent =
-        `${(this.stats.timeBetweenTokens || 0).toFixed(0)}ms`;
+      // Update timing metrics (only if values exist)
+      if (this.stats.timeToResponse !== undefined) {
+        this.container.querySelector('#time-to-response').textContent =
+          `${(this.stats.timeToResponse || 0).toFixed(0)}ms`;
+      }
+      if (this.stats.timeBetweenTokens !== undefined) {
+        this.container.querySelector('#time-between-tokens').textContent =
+          `${(this.stats.timeBetweenTokens || 0).toFixed(0)}ms`;
+      }
 
+      // Always update token counts, even if 0
       this.container.querySelector('#prompt-tokens-value').textContent =
-        new Intl.NumberFormat().format(this.stats.promptTokens);
+        new Intl.NumberFormat().format(this.stats.promptTokens || 0);
       this.container.querySelector('#completion-tokens-value').textContent =
-        new Intl.NumberFormat().format(this.stats.completionTokens);
+        new Intl.NumberFormat().format(this.stats.completionTokens || 0);
       this.container.querySelector('#reasoning-tokens-value').textContent =
-        new Intl.NumberFormat().format(this.stats.reasoningTokens);
+        new Intl.NumberFormat().format(this.stats.reasoningTokens || 0);
   
+      // Calculate and display total tokens
+      const totalTokens = this.stats.totalTokens || 
+        (this.stats.promptTokens || 0) + (this.stats.completionTokens || 0);
+      
       this.container.querySelector('#total-tokens-value').textContent =
         new Intl.NumberFormat('en', { 
-          notation: this.stats.totalTokens > 999999 ? 'compact' : 'standard',
+          notation: totalTokens > 999999 ? 'compact' : 'standard',
           maximumFractionDigits: 1 
-        }).format(this.stats.totalTokens);
+        }).format(totalTokens);
+        
+      // Update cached tokens if that element exists
+      const cachedTokensEl = this.container.querySelector('#cached-tokens-value');
+      if (cachedTokensEl && this.stats.cachedTokens !== undefined) {
+        cachedTokensEl.textContent = new Intl.NumberFormat().format(this.stats.cachedTokens);
+      }
     }
   
     triggerAnimations() {
@@ -220,4 +263,3 @@ export default class StatsDisplay {
       }
     }
   }
-

@@ -124,17 +124,6 @@ function initConfigUI(config) {
   updateModelSelectUI(config.selectedModel);
 }
 
-function setupConfigEventHandlers() {
-  const reasoningSlider = document.getElementById('reasoning-effort-slider');
-  if (reasoningSlider) reasoningSlider.addEventListener('input', handleReasoningSliderChange);
-  const developerConfigInput = document.getElementById('developer-config');
-  if (developerConfigInput) developerConfigInput.addEventListener('change', handleDeveloperConfigChange);
-  const streamingToggle = document.getElementById('enable-streaming');
-  if (streamingToggle) streamingToggle.addEventListener('change', handleStreamingToggleChange);
-  const modelSelect = document.getElementById('model-select');
-  if (modelSelect) modelSelect.addEventListener('change', handleModelSelectChange);
-}
-
 function handleReasoningSliderChange(e) {
   const value = parseInt(e.target.value, 10);
   const effortLevel = REASONING_EFFORT.fromSlider(value);
@@ -176,18 +165,39 @@ function handleStreamingToggleChange(e) {
 async function handleModelSelectChange(e) {
   const modelId = e.target.value;
   try {
+    console.log("Handling model select change to:", modelId);
+    
+    // Check if the model config exists in modelManager before switching
+    if (!modelManager.modelConfigs[modelId]) {
+      console.log(`Model ${modelId} not in modelManager configs, forcing re-initialization`);
+      // Force a re-initialization of local model configs
+      modelManager.ensureLocalModelConfigs();
+      
+      // Log available models after re-initialization
+      console.log("Available models after re-initialization:", Object.keys(modelManager.modelConfigs));
+      
+      // If still not available, show error
+      if (!modelManager.modelConfigs[modelId]) {
+        console.error(`Model ${modelId} still not available after re-initialization`);
+        showNotification(`Cannot switch to ${modelId} - model configuration not available`, 'error');
+        e.target.value = cachedConfig.selectedModel || 'DeepSeek-R1';
+        return;
+      }
+    }
+    
     const success = await modelManager.switchModel(modelId);
     if (success) {
       updateConfig({ selectedModel: modelId });
       updateModelSpecificUI(modelId);
     } else {
-      e.target.value = cachedConfig.selectedModel;
+      console.warn(`Switch model returned failure for ${modelId}`);
+      e.target.value = cachedConfig.selectedModel || 'DeepSeek-R1';
       showNotification('Failed to switch model', 'error');
     }
   } catch (error) {
     console.error('Error switching model:', error);
     showNotification('Error switching model', 'error');
-    e.target.value = cachedConfig.selectedModel;
+    e.target.value = cachedConfig.selectedModel || 'DeepSeek-R1';
   }
 }
 
@@ -447,6 +457,29 @@ export async function getModelAPIConfig(modelName) {
     supportsVision: false,
     requiresReasoningEffort: modelName.toLowerCase().startsWith('o')
   };
+}
+
+export function setupConfigEventHandlers() {
+  const reasoningSlider = document.getElementById('reasoning-effort-slider');
+  if (reasoningSlider) reasoningSlider.addEventListener('input', handleReasoningSliderChange);
+  
+  const developerConfigInput = document.getElementById('developer-config');
+  if (developerConfigInput) developerConfigInput.addEventListener('change', handleDeveloperConfigChange);
+  
+  const streamingToggle = document.getElementById('enable-streaming');
+  if (streamingToggle) streamingToggle.addEventListener('change', handleStreamingToggleChange);
+  
+  const modelSelect = document.getElementById('model-select');
+  if (modelSelect) modelSelect.addEventListener('change', handleModelSelectChange);
+  
+  // Get the current configuration and initialize the UI
+  getCurrentConfig().then(config => {
+    if (config) {
+      initConfigUI(config);
+    }
+  });
+  
+  console.log('Config event handlers initialized');
 }
 
 export {

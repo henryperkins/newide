@@ -49,9 +49,8 @@
     <script>
       // Force the UI controls to work by directly attaching event handlers
       window.addEventListener('DOMContentLoaded', () => {
-        // Sidebar toggle - handled by initMobileSidebar() in init.js
-        // Removing direct handler to prevent duplicate event listeners
-        console.log("Sidebar toggle will be handled by initMobileSidebar()");
+        // Sidebar toggle is now handled by sidebarManager.js
+        console.log("Sidebar functionality now handled by sidebarManager.js");
         
         // Theme toggle
         document.getElementById('theme-toggle')?.addEventListener('click', function() {
@@ -112,16 +111,6 @@
               activeContent.setAttribute('aria-hidden', 'false');
             }
           });
-        });
-        
-        // Close button for sidebar
-        document.getElementById('close-sidebar')?.addEventListener('click', function() {
-          console.log("Direct close sidebar button clicked");
-          const sidebar = document.getElementById('sidebar');
-          const overlay = document.getElementById('sidebar-overlay');
-          
-          if (sidebar) sidebar.classList.add('translate-x-full');
-          if (overlay) overlay.classList.add('hidden');
         });
         
         // Font size control
@@ -293,19 +282,21 @@
 
                 <!-- Input Area -->
                 <div class="border-t border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-800 safe-area-inset-bottom">
-                    <!-- "Load Older Messages" button (initially hidden) -->
+                    <!-- Conversation Management Buttons -->
                     <div class="flex justify-center items-center gap-2 py-2 px-4">
-                        <button id="load-older-btn" class="btn btn-secondary hidden">
+                        <button id="load-older-btn" class="btn btn-secondary">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12" />
                             </svg>
                             Load Older Messages
                         </button>
-                        <button id="save-older-btn" class="btn btn-icon btn-secondary hidden" aria-label="Save older messages" title="Save conversation">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <button id="save-older-btn" class="btn btn-secondary" aria-label="Save conversation" title="Save conversation">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
+                            Save Conversation
                         </button>
+                        <!-- Clear and New conversation buttons will be added by init.js -->
                     </div>
                     
                     <!-- Input and Send -->
@@ -343,8 +334,8 @@
                     <div class="token-usage" id="token-usage">
                       <div id="token-stats" class="space-y-2">
                         <div id="token-usage-compact" class="active">
-                          <button id="toggle-token-details" class="token-usage-toggle">
-                        <div class="token-summary" id="token-usage-toggle">
+                          <!-- Fixed button structure and ID for token usage toggle -->
+                          <div class="token-summary" id="token-usage-toggle">
                             <div class="flex items-center space-x-4">
                                 <div class="token-label">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -528,13 +519,29 @@
                                 See responses as they're generated (not available for all models)
                             </p>
                         </div>
+                        
+                        <div class="space-y-2">
+                            <div class="flex items-center space-x-2">
+                                <input 
+                                    type="checkbox" 
+                                    id="enable-thinking-mode"
+                                    class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded"
+                                > 
+                                <label for="enable-thinking-mode" class="text-sm text-dark-700 dark:text-dark-300">
+                                    Enable Thinking Mode
+                                </label>
+                            </div>
+                            <p class="text-xs text-dark-500 dark:text-dark-400 ml-6">
+                                Shows chain-of-thought reasoning (may slow down DeepSeek responses)
+                            </p>
+                        </div>
                     </div>
                     
                     <!-- Files Tab -->
                     <div id="files-content" class="p-4 space-y-4 hidden" role="tabpanel" aria-labelledby="files-tab" aria-hidden="true">
                         <div class="flex justify-between items-center p-3 bg-dark-100 dark:bg-dark-700 rounded-lg">
-                            <button class="btn btn-secondary flex items-center text-sm font-medium touch-target">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <button class="upload-button btn btn-secondary flex items-center text-sm font-medium touch-target">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 folder-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                                 </svg>
                                 Upload Files

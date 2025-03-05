@@ -10,14 +10,9 @@ export function initThemeSwitcher() {
   // Set initial theme based on saved preference or system preference
   setInitialTheme();
 
-  // Listen for theme toggle clicks
-  const themeToggle = document.getElementById('theme-toggle');
-  if (themeToggle) {
-    themeToggle.addEventListener('click', toggleTheme);
-    console.log('Theme toggle listener added');
-  } else {
-    console.warn('Theme toggle button not found in DOM');
-  }
+  // Theme toggle now handled by ui-fix.js
+  // This initialization is still needed for other theme-related setup
+  console.log('Theme initialization complete. Event handling via ui-fix.js');
 }
 
 /**

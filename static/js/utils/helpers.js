@@ -64,14 +64,36 @@ export function updateTokenUsage(usage) {
     
     console.log("Updating token usage display with:", usage);
     
-    // Also update any statsDisplay instance if available
+    // Calculate total tokens if not provided
+    if (!usage.total_tokens && usage.prompt_tokens !== undefined && usage.completion_tokens !== undefined) {
+        usage.total_tokens = usage.prompt_tokens + usage.completion_tokens;
+    }
+    
+    // Extract reasoning tokens if available
+    const reasoningTokensForStats = usage.completion_tokens_details?.reasoning_tokens || 0;
+    const cachedTokens = usage.prompt_tokens_details?.cached_tokens || 0;
+    
+    // Prepare the data for stats display
+    const statsData = {
+        promptTokens: usage.prompt_tokens || 0,
+        completionTokens: usage.completion_tokens || 0,
+        reasoningTokens: reasoningTokensForStats,
+        cachedTokens: cachedTokens,
+        totalTokens: usage.total_tokens || 0,
+        // Include latency and tokens per second if provided
+        latency: usage.latency,
+        tokensPerSecond: usage.tokens_per_second
+    };
+    
+    // Update stats display if available
     if (window.statsDisplay) {
-        window.statsDisplay.updateStats({
-            promptTokens: usage.prompt_tokens || 0,
-            completionTokens: usage.completion_tokens || 0,
-            reasoningTokens: usage.completion_tokens_details?.reasoning_tokens || 0,
-            totalTokens: usage.total_tokens || 0
-        });
+        console.log("Updating statsDisplay with:", statsData);
+        window.statsDisplay.updateStats(statsData);
+    }
+    
+    // Also update mobile stats if that function is available
+    if (typeof syncMobileStats === 'function') {
+        syncMobileStats(statsData);
     }
 
     const tokenUsage = document.querySelector('.token-usage-compact');
@@ -117,14 +139,14 @@ export function updateTokenUsage(usage) {
     setText('vision-tokens', usage.vision_tokens || 0);
 
     // Handle reasoning tokens if available
-    const reasoningTokens = usage.completion_tokens_details?.reasoning_tokens || 0;
-    if (reasoningTokens > 0) {
-        const baseCompletionTokens = usage.completion_tokens - reasoningTokens;
-        setText('reasoning-tokens', reasoningTokens);
+    const reasoningTokensForDisplay = usage.completion_tokens_details?.reasoning_tokens || 0;
+    if (reasoningTokensForDisplay > 0) {
+        const baseCompletionTokens = usage.completion_tokens - reasoningTokensForDisplay;
+        setText('reasoning-tokens', reasoningTokensForDisplay);
         setText('base-completion-tokens', baseCompletionTokens);
         
         // Calculate and display percentage
-        const reasoningPercent = ((reasoningTokens / usage.completion_tokens) * 100).toFixed(1);
+        const reasoningPercent = ((reasoningTokensForDisplay / usage.completion_tokens) * 100).toFixed(1);
         const reasoningContainer = document.getElementById('reasoning-tokens')?.parentElement;
         if (reasoningContainer) {
             // Remove existing breakdown if any

@@ -49,7 +49,7 @@ export function handleApplicationError(error, context = 'application') {
 
 export async function handleMessageError(error) {
   console.error('[handleMessageError]', error);
-  removeTypingIndicator();
+  // removeTypingIndicator();  // Removed to rely on state-managed logic
   
   // Check if this error has already been processed (to prevent duplicates)
   if (error.hasBeenProcessed) {
@@ -315,6 +315,7 @@ export function removeTypingIndicator() {
       typingState = { active: false, element: null, timeoutId: null, animationFrame: null };
     }, 300);
   }
+  return true; // Return a value to indicate successful cleanup
 }
 
 export function enableInteractiveElement(elementId, clickHandler) {
