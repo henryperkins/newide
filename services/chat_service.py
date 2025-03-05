@@ -96,16 +96,23 @@ class TokenManager:
 def prepare_model_parameters(
     chat_message: ChatMessage, model_name: str, is_deepseek: bool, is_o_series: bool
 ) -> Dict[str, Any]:
-    """
-    Prepare parameters for model calls based on model type.
-    """
-    messages = chat_message.messages or [{"role": "user", "content": chat_message.message}]
+    messages = chat_message.messages or [
+        {"role": "user", "content": chat_message.message}
+    ]
     params = {"messages": messages}
 
     if is_deepseek:
-        params["max_tokens"] = chat_message.max_completion_tokens or config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+        params["max_tokens"] = (
+            chat_message.max_completion_tokens or config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+        )
+        params["temperature"] = (
+            chat_message.temperature or config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
+        )  # Add temperature
     elif is_o_series:
-        params["max_completion_tokens"] = chat_message.max_completion_tokens or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
+        params["max_completion_tokens"] = (
+            chat_message.max_completion_tokens
+            or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
+        )
     else:
         params["temperature"] = chat_message.temperature or 0.7
         params["max_completion_tokens"] = chat_message.max_completion_tokens or 1000
@@ -424,7 +431,8 @@ async def process_chat_message(
                 messages=params["messages"],  # type: ignore
                 temperature=params.get("temperature", 0.7),  # type: ignore
                 max_completion_tokens=params.get("max_completion_tokens", 1000),  # type: ignore
-                reasoning_effort=params.get("reasoning_effort", "medium"),  # type: ignore
+                # Removed reasoning_effort for DeepSeek models:
+                # No longer passing reasoning_effort in the call for DeepSeek-R1
             )
             content = response.choices[0].message.content if response.choices else ""
             usage_raw = getattr(response, "usage", None)
@@ -478,6 +486,7 @@ async def process_chat_message(
         logger.critical(f"Handled unexpected error gracefully. {err['detail']}")
         return err
 
+    processing_time = perf_counter() - start_time
     full_content = content
     formatted_content = full_content
 
@@ -510,6 +519,7 @@ async def process_chat_message(
             }
         ],
         "usage": usage_data,
+        "processing_time_seconds": processing_time,  # Add processing time to help diagnose issues
     }
 
 

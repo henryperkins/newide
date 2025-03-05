@@ -1,6 +1,6 @@
 // statsDisplay.js
 
-export default class StatsDisplay {
+export class StatsDisplay {
     constructor(containerId = 'performance-stats') {
       this.stats = {
         latency: 0,

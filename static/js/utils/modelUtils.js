@@ -23,7 +23,7 @@ export function generateDefaultModelConfig(modelId, modelApiConfig = {}) {
         : "Generic AI model",
     azure_endpoint: modelApiConfig.endpoint || "https://o1models.openai.azure.com",
     api_version: modelApiConfig.apiVersion || "2025-01-01-preview",
-    max_tokens: modelApiConfig.maxTokens || 32000,
+    max_tokens: modelApiConfig.maxTokens || 64000,
     max_completion_tokens: modelApiConfig.maxCompletionTokens || 4096,
     supports_temperature: modelApiConfig.supportsTemperature || false,
     supports_streaming: modelApiConfig.supportsStreaming || false,
@@ -61,7 +61,7 @@ export const KNOWN_MODELS = [
     modelApiConfig: {
       endpoint: "https://o1models.openai.azure.com",
       apiVersion: "2025-01-01-preview",
-      maxTokens: 32000,
+      maxTokens: 64000,
       supportsTemperature: false,
       supportsStreaming: false,
       requiresReasoningEffort: true,
@@ -75,7 +75,7 @@ export const KNOWN_MODELS = [
     modelApiConfig: {
       endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
       apiVersion: "2024-05-01-preview",
-      maxTokens: 32000,
+      maxTokens: 64000,
       supportsTemperature: true,
       supportsStreaming: true,
       baseTimeout: 180.0,

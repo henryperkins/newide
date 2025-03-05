@@ -24,7 +24,10 @@ POSTGRES_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTG
 # Get Azure endpoints and credentials
 AZURE_INFERENCE_ENDPOINT = os.getenv("AZURE_INFERENCE_ENDPOINT")
 AZURE_INFERENCE_CREDENTIAL = os.getenv("AZURE_INFERENCE_CREDENTIAL")
-AZURE_INFERENCE_API_VERSION = os.getenv("AZURE_INFERENCE_API_VERSION", "2024-05-01-preview")
+AZURE_INFERENCE_API_VERSION = os.getenv(
+    "AZURE_INFERENCE_API_VERSION", "2024-05-01-preview"
+)
+
 
 async def fix_deepseek_model():
     """Fix DeepSeek-R1 model configuration in the database"""
@@ -41,7 +44,7 @@ async def fix_deepseek_model():
             text("SELECT value FROM app_configurations WHERE key = 'model_configs'")
         )
         row = result.fetchone()
-        
+
         if row:
             # If model_configs exists, update it
             # The value might already be a dict or a JSON string
@@ -50,24 +53,24 @@ async def fix_deepseek_model():
                 model_configs = json.loads(value)
             else:
                 model_configs = value
-            
+
             # Update or add DeepSeek-R1 configuration
             model_configs["DeepSeek-R1"] = {
                 "name": "DeepSeek-R1",
                 "description": "Model that supports chain-of-thought reasoning with <think> tags",
                 "azure_endpoint": AZURE_INFERENCE_ENDPOINT,
                 "api_version": AZURE_INFERENCE_API_VERSION,
-                "max_tokens": 32000,
+                "max_tokens": 64000,
                 "supports_streaming": True,
                 "supports_temperature": True,
                 "base_timeout": 120.0,
                 "max_timeout": 300.0,
                 "token_factor": 0.05,
             }
-            
+
             # Convert to JSON for storage
             model_configs_json = json.dumps(model_configs)
-            
+
             # Update the model_configs in the database
             await session.execute(
                 text(
@@ -87,7 +90,7 @@ async def fix_deepseek_model():
                     "description": "Model that supports chain-of-thought reasoning with <think> tags",
                     "azure_endpoint": AZURE_INFERENCE_ENDPOINT,
                     "api_version": AZURE_INFERENCE_API_VERSION,
-                    "max_tokens": 32000,
+                    "max_tokens": 64000,
                     "supports_streaming": True,
                     "supports_temperature": True,
                     "base_timeout": 120.0,
@@ -95,10 +98,10 @@ async def fix_deepseek_model():
                     "token_factor": 0.05,
                 }
             }
-            
+
             # Convert to JSON for storage
             model_configs_json = json.dumps(model_configs)
-            
+
             # Insert the model_configs into the database
             await session.execute(
                 text(

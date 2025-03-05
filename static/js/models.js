@@ -599,7 +599,7 @@ class ModelManager {
             const o1Default = {
                 endpoint: "https://o1models.openai.azure.com",
                 apiVersion: "2025-01-01-preview",
-                maxTokens: 32000,
+                maxTokens: 64000,
                 supportsTemperature: false,
                 supportsStreaming: false,
                 requiresReasoningEffort: true

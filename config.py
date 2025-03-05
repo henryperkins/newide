@@ -40,15 +40,17 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: Optional[str] = os.getenv("POSTGRES_PASSWORD")
     POSTGRES_DB: Optional[str] = os.getenv("POSTGRES_DB")
     POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", "5432"))
-    
+
     MAX_FILE_SIZE: int = int(os.getenv("MAX_FILE_SIZE", "536870912"))  # 512MB
     WARNING_FILE_SIZE: int = int(os.getenv("WARNING_FILE_SIZE", "268435456"))
     MAX_FILE_SIZE_HUMAN: Optional[str] = os.getenv("MAX_FILE_SIZE_HUMAN", "512MB")
-    
+
     AZURE_INFERENCE_ENDPOINT: Optional[str] = os.getenv(
         "AZURE_INFERENCE_ENDPOINT", "https://DeepSeek-R1D2.eastus2.models.ai.azure.com"
     )
-    AZURE_INFERENCE_CREDENTIAL: Optional[str] = os.getenv("AZURE_INFERENCE_CREDENTIAL", "M6Dbj2dcZ1Eb2If33ecVZ5jXK3yvVlOx")
+    AZURE_INFERENCE_CREDENTIAL: Optional[str] = os.getenv(
+        "AZURE_INFERENCE_CREDENTIAL", "M6Dbj2dcZ1Eb2If33ecVZ5jXK3yvVlOx"
+    )
     KEY_VAULT_URI: Optional[str] = os.getenv("AZURE_KEY_VAULT_URI")
     AZURE_INFERENCE_DEPLOYMENT: Optional[str] = os.getenv(
         "AZURE_INFERENCE_DEPLOYMENT", "your-actual-deployment-name"
@@ -56,12 +58,10 @@ class Settings(BaseSettings):
     AZURE_INFERENCE_API_VERSION: Optional[str] = os.getenv(
         "AZURE_INFERENCE_API_VERSION", "2024-05-01-preview"
     )
-    
+
     AZURE_OPENAI_ENDPOINT: Optional[str] = os.getenv("AZURE_OPENAI_ENDPOINT")
     AZURE_OPENAI_API_KEY: Optional[str] = os.getenv("AZURE_OPENAI_API_KEY")
-    AZURE_OPENAI_DEPLOYMENT_NAME: str = os.getenv(
-        "AZURE_OPENAI_DEPLOYMENT_NAME", "o1"
-    )
+    AZURE_OPENAI_DEPLOYMENT_NAME: str = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "o1")
     AZURE_OPENAI_API_VERSION: str = os.getenv(
         "AZURE_OPENAI_API_VERSION", "2025-01-01-preview"
     )
@@ -128,12 +128,14 @@ def validate_azure_credentials():
         "AZURE_OPENAI_ENDPOINT": "Azure OpenAI endpoint",
         "AZURE_OPENAI_API_KEY": "Azure OpenAI API key",
         "AZURE_INFERENCE_ENDPOINT": "Azure Inference endpoint",
-        "AZURE_INFERENCE_CREDENTIAL": "Azure Inference credential"
+        "AZURE_INFERENCE_CREDENTIAL": "Azure Inference credential",
     }
-    
+
     missing = [name for name, desc in required_env_vars.items() if not os.getenv(name)]
     if missing:
-        raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+        raise ValueError(
+            f"Missing required environment variables: {', '.join(missing)}"
+        )
 
 
 # Move the function definition BEFORE the calls at line 127-128
@@ -184,7 +186,7 @@ AZURE_OPENAI_API_VERSION = settings.AZURE_OPENAI_API_VERSION
 O_SERIES_API_VERSION = "2025-01-01-preview"
 DEEPSEEK_API_VERSION = "2024-05-01-preview"
 O_SERIES_BASE_TIMEOUT = 120  # Longer timeout for complex reasoning
-DEEPSEEK_DEFAULT_MAX_TOKENS = 32000
+DEEPSEEK_DEFAULT_MAX_TOKENS = 64000
 
 # DeepSeek-R1 specific settings with proper fallbacks
 DEEPSEEK_R1_DEFAULT_TEMPERATURE = 0.7  # DeepSeek-R1 supports temperature parameter
@@ -197,7 +199,7 @@ AZURE_INFERENCE_ENDPOINT = os.getenv("AZURE_INFERENCE_ENDPOINT", "")
 
 # o-series specific settings (o1, o3-mini)
 O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS = (
-    5000  # o-series uses max_completion_tokens instead of max_tokens
+    100000  # o-series uses max_completion_tokens instead of max_tokens
 )
 O_SERIES_DEFAULT_REASONING_EFFORT = "medium"  # Can be "low", "medium", or "high"
 O_SERIES_INPUT_TOKEN_LIMIT = 200000  # Input token limit for o-series models
@@ -291,6 +293,7 @@ AZURE_EMBEDDING_DEPLOYMENT = os.getenv(
 )
 AZURE_EMBEDDING_DIMENSION = int(os.getenv("AZURE_EMBEDDING_DIMENSION", "1536"))
 
+
 def get_azure_search_index_schema(index_name: str) -> dict:
     """
     Build a schema dict for Azure AI Search index creation.
@@ -299,70 +302,54 @@ def get_azure_search_index_schema(index_name: str) -> dict:
     return {
         "name": index_name,
         "fields": [
-            {
-                "name": "id",
-                "type": "Edm.String",
-                "key": True,
-                "filterable": True
-            },
+            {"name": "id", "type": "Edm.String", "key": True, "filterable": True},
             {
                 "name": "filename",
                 "type": "Edm.String",
                 "searchable": True,
                 "filterable": True,
-                "sortable": True
+                "sortable": True,
             },
             {
                 "name": "content",
                 "type": "Edm.String",
                 "searchable": True,
-                "analyzer": "standard.lucene"
+                "analyzer": "standard.lucene",
             },
             {
                 "name": "chunk_content",
                 "type": "Edm.String",
                 "searchable": True,
-                "analyzer": "standard.lucene"
+                "analyzer": "standard.lucene",
             },
             {
                 "name": "filepath",
                 "type": "Edm.String",
                 "searchable": True,
-                "filterable": True
+                "filterable": True,
             },
-            {
-                "name": "file_type",
-                "type": "Edm.String",
-                "filterable": True
-            },
-            {
-                "name": "session_id",
-                "type": "Edm.String",
-                "filterable": True
-            },
+            {"name": "file_type", "type": "Edm.String", "filterable": True},
+            {"name": "session_id", "type": "Edm.String", "filterable": True},
             {
                 "name": "chunk_id",
                 "type": "Edm.Int32",
                 "filterable": True,
-                "sortable": True
+                "sortable": True,
             },
-            {
-                "name": "chunk_total",
-                "type": "Edm.Int32"
-            },
+            {"name": "chunk_total", "type": "Edm.Int32"},
             {
                 "name": "content_vector",
                 "type": "Collection(Edm.Single)",
                 "searchable": True,
                 "dimensions": AZURE_EMBEDDING_DIMENSION,
-                "vectorSearchConfiguration": "vectorConfig"
+                "vectorSearchConfiguration": "vectorConfig",
             },
             {
                 "name": "last_updated",
                 "type": "Edm.DateTimeOffset",
                 "filterable": True,
-                "sortable": True
-            }
+                "sortable": True,
+            },
         ],
         "vectorSearch": {
             "algorithmConfigurations": [
@@ -373,8 +360,8 @@ def get_azure_search_index_schema(index_name: str) -> dict:
                         "m": 4,
                         "efConstruction": 400,
                         "efSearch": 500,
-                        "metric": "cosine"
-                    }
+                        "metric": "cosine",
+                    },
                 }
             ]
         },
@@ -385,14 +372,14 @@ def get_azure_search_index_schema(index_name: str) -> dict:
                     "prioritizedFields": {
                         "contentFields": [
                             {"fieldName": "content"},
-                            {"fieldName": "chunk_content"}
+                            {"fieldName": "chunk_content"},
                         ],
                         "titleField": {"fieldName": "filename"},
-                        "urlField": {"fieldName": "filepath"}
-                    }
+                        "urlField": {"fieldName": "filepath"},
+                    },
                 }
             ]
-        }
+        },
     }
 
 

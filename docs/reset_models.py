@@ -41,7 +41,7 @@ async def reset_models_config():
                 "description": "Model that supports chain-of-thought reasoning with <think> tags",
                 "azure_endpoint": AZURE_INFERENCE_ENDPOINT,
                 "api_version": AZURE_INFERENCE_API_VERSION,
-                "max_tokens": 32000,
+                "max_tokens": 64000,
                 "supports_streaming": True,
                 "supports_temperature": True,
                 "base_timeout": 120.0,

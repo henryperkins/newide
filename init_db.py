@@ -391,7 +391,7 @@ async def init_database():
                 "base_timeout": 120.0,
                 "max_timeout": 300.0,
                 "token_factor": 0.05,
-                "api_version": os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
+                "api_version": os.getenv("AZURE_OPENAI_API_VERSION", "2025-02-01-preview"),
                 "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT", ""),
                 "api_key": "",  # Never store API keys in database
                 "model_type": "o-series",
@@ -400,7 +400,7 @@ async def init_database():
             "DeepSeek-R1": {
                 "name": "DeepSeek-R1",  # This is the model name passed to the API
                 "description": "DeepSeek-R1 model that supports chain-of-thought reasoning",
-                "max_tokens": 32000,
+                "max_tokens": 64000,
                 "supports_streaming": True,
                 "supports_temperature": True,
                 "base_timeout": 120.0,

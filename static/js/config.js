@@ -219,7 +219,7 @@ export async function updateModelSpecificUI(modelName) {
     // Update reasoning controls visibility
     const reasoningControls = document.getElementById('reasoning-controls');
     if (reasoningControls) {
-      reasoningControls.classList.toggle('hidden', !isOSeries);
+      reasoningControls.classList.toggle('hidden', !isOSeries || isDeepSeek);
     }
     
     // Update thinking controls visibility (for DeepSeek models)

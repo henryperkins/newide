@@ -147,7 +147,12 @@ export async function loadConversationFromDb() {
       chatHistory.appendChild(conversationControls);
     }
 
-    // Append DB messages in chronological order
+    // Sort messages by timestamp, then append in chronological order
+    data.messages.sort((a, b) => {
+      const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return timeA - timeB;
+    });
     data.messages.forEach(m => {
       if (m.role === 'user') {
         renderUserMessage(m.content, true, true);
@@ -437,13 +442,9 @@ export function renderAssistantMessage(content, skipScroll = false, skipStore = 
 }
 
 function createAssistantMessageElement(content) {
-  const currentModel = window.modelManager?.getCurrentModelId()
-    || document.getElementById('model-select')?.value
-    || 'unknown';
-
-  // Construct a valid string for the cacheKey
+  // Use a single cache key for all models to avoid losing old messages when switching models:
   const snippet = content.substring(0, 40).replace(/\`/g, '').replace(/[\r\n]/g, ' ');
-  const cacheKey = `assistant-${currentModel}-${snippet}`; // Model-specific cache key
+  const cacheKey = `assistant-${snippet}`;
 
   if (messageCache.has(cacheKey)) {
     return messageCache.get(cacheKey).cloneNode(true);
@@ -464,9 +465,7 @@ function createAssistantMessageElement(content) {
 
   el.innerHTML = `
     ${lazy}
-    <div class="font-mono text-xs text-gray-400/80 dark:text-gray-500 mt-2 transition-opacity opacity-70 hover:opacity-100">
-      Model: ${currentModel}
-    </div>
+    <!-- Removed model reference to avoid currentModel error -->
   `;
 
   messageCache.set(cacheKey, el.cloneNode(true));
@@ -631,7 +630,7 @@ async function deleteConversation() {
         const sessionId = await getSessionId();
         if (sessionId) {
           // Also delete from DB
-          await fetch('/api/chat/conversations/delete', {
+          await fetch('/api/chat/conversations/clear', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ session_id: sessionId })

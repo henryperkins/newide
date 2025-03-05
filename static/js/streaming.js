@@ -33,10 +33,10 @@ let tokenCount = 0;
 
 // --- Constants ---
 const RENDER_INTERVAL_MS = 50;
-const BASE_CONNECTION_TIMEOUT_MS = 30000; // 30 seconds (reduced from 2 minutes)
-const MAX_CONNECTION_TIMEOUT_MS = 120000; // 2 minutes (reduced from 8 minutes)
+const BASE_CONNECTION_TIMEOUT_MS = 60000; // Increased from 30000 to 60 seconds
+const MAX_CONNECTION_TIMEOUT_MS = 180000; // Increased from 120000 to 180 seconds
 const MAX_RETRY_ATTEMPTS = 3;
-const CONNECTION_CHECK_INTERVAL_MS = 5000; // 5 seconds (reduced from 15 seconds)
+const CONNECTION_CHECK_INTERVAL_MS = 5000; // 5 seconds
 
 /**
  * Calculates tokens per second based on usage data and streaming duration
@@ -62,21 +62,31 @@ function calculateConnectionTimeout(modelName, messageLength) {
   let timeout = BASE_CONNECTION_TIMEOUT_MS;
   const normalizedModelName = modelName ? modelName.toLowerCase() : '';
   
+  // Add debug logging to help troubleshoot timeout issues
+  console.log(`[calculateConnectionTimeout] Starting with base timeout: ${timeout}ms`);
+  
   // Reasonable timeout multipliers for different model types
   if (normalizedModelName.indexOf('o1') !== -1 || normalizedModelName.indexOf('o3') !== -1) {
-    timeout *= 2.0; // Reduced from 3.5
+    timeout *= 2.5; // Increased from 2.0
+    console.log(`[calculateConnectionTimeout] O-series model detected, timeout now: ${timeout}ms`);
   } else if (normalizedModelName.indexOf('claude') !== -1) {
-    timeout *= 1.5; // Reduced from 2.5
+    timeout *= 2.0; // Increased from 1.5
+    console.log(`[calculateConnectionTimeout] Claude model detected, timeout now: ${timeout}ms`);
   } else if (normalizedModelName.indexOf('deepseek') !== -1) {
-    timeout *= 1.5; // Reduced from 3.0
+    timeout *= 2.0; // Increased from 1.5
+    console.log(`[calculateConnectionTimeout] DeepSeek model detected, timeout now: ${timeout}ms`);
   }
   
   // More reasonable scaling based on message length
   if (messageLength > 1000) {
-    timeout *= 1 + (messageLength / 10000); // Reduced scaling factor
+    const lengthFactor = 1 + (messageLength / 10000);
+    timeout *= lengthFactor;
+    console.log(`[calculateConnectionTimeout] Applied message length factor: ${lengthFactor}, timeout now: ${timeout}ms`);
   }
   
-  return Math.min(timeout, MAX_CONNECTION_TIMEOUT_MS);
+  const finalTimeout = Math.min(timeout, MAX_CONNECTION_TIMEOUT_MS);
+  console.log(`[calculateConnectionTimeout] Final timeout: ${finalTimeout}ms`);
+  return finalTimeout;
 }
 
 /**
@@ -151,14 +161,12 @@ export function streamChatResponse(
     params.append('model', validModelName);
     params.append('message', messageContent || '');
     
-    // Per Microsoft documentation: Always include reasoning_effort for o1 models
-    // https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/reasoning
     if (validModelName.indexOf('o1') !== -1 || validModelName.indexOf('o3') !== -1) {
       // Always ensure reasoning_effort is set for o1 models
       params.append('reasoning_effort', reasoningEffort || 'medium');
       console.log(`[streamChatResponse] Using o1 model with reasoning_effort=${reasoningEffort || 'medium'}`);
-    } else if (reasoningEffort) {
-      // For non-o1 models, include it if provided but it might be ignored by the backend
+    } else if (reasoningEffort && validModelName.indexOf('deepseek') === -1) {
+      // For non-o1 and non-deepseek models, include it if provided but it might be ignored by the backend
       params.append('reasoning_effort', reasoningEffort);
     }
     
@@ -301,7 +309,42 @@ export function streamChatResponse(
       // Create error object with additional properties
       const error = new Error(errorMsg);
       error.code = errorCode;
-      error.recoverable = !isServerUnavailable; // Don't retry service unavailable errors immediately
+      error.recoverable = !isServerUnavailable;
+      error.isTimeout = isTimeout;
+      
+      // For timeout errors, try a single auto-retry with increased timeout
+      if (isTimeout && !error.retried) {
+        error.retried = true;
+        console.log('[streamChatResponse] Automatically retrying after timeout...');
+        
+        // Wait a moment before retrying
+        await new Promise(r => setTimeout(r, 1000));
+        
+        try {
+          // Try again with the same parameters but longer timeout
+          const currentModelName = document.getElementById('model-select')?.value || 'DeepSeek-R1';
+          window.serverCalculatedTimeout = (BASE_CONNECTION_TIMEOUT_MS * 3); // Force a much longer timeout
+          
+          // Re-attempt the streaming with original parameters
+          await streamChatResponse(
+            messageContent,
+            sessionId,
+            modelName,
+            devConfigToUse,
+            reasoningEffort,
+            null, // New signal
+            fileIds,
+            useFileSearch
+          );
+          
+          return; // If successful, don't show error
+        } catch (retryError) {
+          console.error('[streamChatResponse] Retry after timeout also failed:', retryError);
+          // Continue to error handling
+        } finally {
+          window.serverCalculatedTimeout = undefined; // Clear the override
+        }
+      }
       
       handleStreamingError(error);
       
@@ -388,6 +431,15 @@ export function streamChatResponse(
             modelName: validModelName,
             usage: completionData.usage
           });
+          
+          // Update the stats display with the final usage data
+          if (completionData.usage) {
+          import('./ui/statsDisplay.js').then(({ updateStatsDisplay }) => {
+            updateStatsDisplay(completionData.usage);
+          }).catch(error => {
+            console.error('Failed to load stats display module:', error);
+          });
+          }
         }
         forceRender();
         eventSource.close();

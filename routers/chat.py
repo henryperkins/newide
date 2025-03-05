@@ -264,6 +264,17 @@ async def clear_db_conversation(
         # Validate UUID
         session_uuid = uuid.UUID(session_id)
 
+        # Check ownership
+        results = await db.execute(select(Conversation).where(Conversation.session_id == session_uuid))
+        conversation_msgs = results.scalars().all()
+        if not conversation_msgs:
+            return {"status": "cleared"}  # No messages found for that session
+
+        for msg in conversation_msgs:
+            # If the message has a user_id and it's not the current user's, raise an error
+            if msg.user_id and msg.user_id != current_user.id:
+                raise HTTPException(status_code=403, detail="User does not own this conversation session_id.")
+
         # Delete conversation rows
         await db.execute(delete(Conversation).where(Conversation.session_id == session_uuid))
         await db.commit()

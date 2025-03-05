@@ -6,16 +6,17 @@ from fastapi import HTTPException
 
 Base = declarative_base()
 
+
 # -------------------------------------------------------------------------
 # Sessions
 # -------------------------------------------------------------------------
 class Session(Base):
     __tablename__ = "sessions"
     __table_args__ = (
-        Index('ix_sessions_created_at', 'created_at'),
-        Index('ix_sessions_expires_at', 'expires_at'),
+        Index("ix_sessions_created_at", "created_at"),
+        Index("ix_sessions_expires_at", "expires_at"),
     )
-    
+
     id = Column(PGUUID, primary_key=True)
     created_at = Column(DateTime(timezone=True), server_default=text("NOW()"))
     last_activity = Column(DateTime(timezone=True), server_default=text("NOW()"))
@@ -25,7 +26,7 @@ class Session(Base):
     # Rate limiting columns
     request_count = Column(Integer, default=0, nullable=False)
     last_request = Column(DateTime(timezone=True), server_default=text("NOW()"))
-    
+
     def check_rate_limit(self):
         """Check if session exceeds rate limit (10 requests/minute)"""
         if self.request_count >= 10:
@@ -34,7 +35,10 @@ class Session(Base):
             one_minute_ago = now - timedelta(minutes=1)
 
             # Force timezone-aware comparison
-            if self.last_request is not None and self.last_request.astimezone(timezone.utc) > one_minute_ago:
+            if (
+                self.last_request is not None
+                and self.last_request.astimezone(timezone.utc) > one_minute_ago
+            ):
                 reset_time = self.last_request + timedelta(minutes=1)
                 seconds_remaining = int((reset_time - now).total_seconds())
 
@@ -43,24 +47,28 @@ class Session(Base):
                     detail={
                         "error": "rate_limit_exceeded",
                         "message": "Rate limit exceeded: 10 requests per minute",
-                        "retry_after": seconds_remaining
+                        "retry_after": seconds_remaining,
                     },
-                    headers={"Retry-After": str(seconds_remaining)}
+                    headers={"Retry-After": str(seconds_remaining)},
                 )
-        
+
         # Update rate limit counters
         now = datetime.now(timezone.utc)
         one_minute_ago = now - timedelta(minutes=1)
-        
-        if self.last_request and self.last_request.astimezone(timezone.utc) < one_minute_ago:
+
+        if (
+            self.last_request
+            and self.last_request.astimezone(timezone.utc) < one_minute_ago
+        ):
             # Reset counter if more than a minute has passed
             self.request_count = 1
         else:
             # Increment counter
             self.request_count += 1
-            
+
         self.last_request = now
         return True
+
 
 # -------------------------------------------------------------------------
 # User Authentication
