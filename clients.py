@@ -6,7 +6,7 @@ from typing import Dict, Optional, Any, Union, List
 from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from openai import AzureOpenAI
+from openai import AzureOpenAI, AsyncAzureOpenAI
 from azure.ai.inference import ChatCompletionsClient
 from azure.core.credentials import AzureKeyCredential
 
