@@ -98,52 +98,6 @@ async def clean_orphaned_db_elements(confirm: bool = True) -> None:
                 old_format_flag;
         """))
         logger.info("Completed orphaned database element cleanup")
-        # Get ORM table definitions
-        orm_tables = Base.metadata.tables
-        
-        # Get existing tables from the database
-        db_tables = set(await conn.run_sync(lambda sync_conn: sync_conn.dialect.get_table_names(sync_conn)))
-        
-        # Check for missing tables
-        for table_name in orm_tables:
-            if table_name not in db_tables:
-                inconsistencies.append(f"Table '{table_name}' is missing from the database")
-        
-        # Check columns in existing tables
-        for table_name in orm_tables:
-            if table_name not in db_tables:
-                continue
-            
-            # Get ORM columns
-            orm_table = orm_tables[table_name]
-            orm_columns = {col.name: col for col in orm_table.columns}
-            
-            # Get database columns
-            db_columns = await conn.run_sync(
-                lambda sync_conn: {
-                    col["name"]: col for col in inspect(sync_conn).get_columns(table_name)
-                }
-            )
-            
-            # Check for missing columns
-            for col_name in orm_columns:
-                if col_name not in db_columns:
-                    inconsistencies.append(f"Column '{col_name}' in table '{table_name}' is missing from the database")
-            
-            # Check column properties (type, nullability, etc.)
-            for col_name, orm_col in orm_columns.items():
-                if col_name in db_columns:
-                    db_col = db_columns[col_name]
-                    
-                    # Check nullability
-                    if orm_col.nullable != db_col["nullable"]:
-                        inconsistencies.append(
-                            f"Column '{col_name}' in table '{table_name}' has different nullability: "
-                            f"ORM={orm_col.nullable}, DB={db_col['nullable']}"
-                        )
-    
-    # Return results
-    return len(inconsistencies) == 0, inconsistencies
 
 def ensure_migrations_dir_exists() -> None:
     """
