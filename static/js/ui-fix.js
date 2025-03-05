@@ -4,30 +4,12 @@
 document.addEventListener('DOMContentLoaded', function() {
   console.log('UI-fix.js loaded - applying direct button handlers');
   
-  // 1. Make the cogwheel (sidebar toggle) button work
-  const sidebarToggle = document.getElementById('sidebar-toggle');
+  // 1. Sidebar toggle is handled by initMobileSidebar() in init.js
+  // Removing duplicate event listener to prevent toggle issues
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
   
-  if (sidebarToggle && sidebar) {
-    sidebarToggle.addEventListener('click', function() {
-      console.log('Sidebar toggle clicked');
-      const isClosed = sidebar.classList.contains('translate-x-full');
-      
-      // Toggle sidebar visibility
-      if (isClosed) {
-        sidebar.classList.remove('translate-x-full');
-        sidebar.classList.add('translate-x-0');
-        sidebarToggle.setAttribute('aria-expanded', 'true');
-        if (overlay) overlay.classList.remove('hidden');
-      } else {
-        sidebar.classList.add('translate-x-full');
-        sidebar.classList.remove('translate-x-0');
-        sidebarToggle.setAttribute('aria-expanded', 'false');
-        if (overlay) overlay.classList.add('hidden');
-      }
-    });
-  }
+  console.log('Sidebar toggle will be handled by initMobileSidebar() in init.js');
   
   // Also make the close button work in the sidebar
   const closeButton = document.getElementById('close-sidebar');
