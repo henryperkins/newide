@@ -3,6 +3,55 @@ import { fetchWithErrorHandling, createCache, eventBus } from './utils/helpers.j
 import { getModelAPIConfig, updateConfig } from './config.js';
 import { getSessionId } from './session.js';
 
+/**
+ * Generates a default model configuration with consistent defaults
+ * @param {string} modelId - The model identifier
+ * @param {Object} modelApiConfig - API configuration parameters
+ * @returns {Object} Default model configuration
+ */
+function generateDefaultModelConfig(modelId, modelApiConfig) {
+  modelId = modelId.trim();
+  const isOSeries = modelId.toLowerCase().startsWith('o1') || modelId.toLowerCase().startsWith('o3');
+  const isDeepSeek = modelId.toLowerCase().includes('deepseek');
+  
+  // Base configuration that applies to all models
+  const config = {
+    name: modelId,
+    description: isOSeries 
+      ? "Advanced reasoning model" 
+      : isDeepSeek 
+        ? "Model with chain-of-thought reasoning capabilities"
+        : "Generic AI model",
+    azure_endpoint: modelApiConfig.endpoint || "https://o1models.openai.azure.com",
+    api_version: modelApiConfig.apiVersion || "2025-01-01-preview",
+    max_tokens: modelApiConfig.maxTokens || 32000,
+    max_completion_tokens: modelApiConfig.maxCompletionTokens || 4096,
+    supports_temperature: modelApiConfig.supportsTemperature || false,
+    supports_streaming: modelApiConfig.supportsStreaming || false,
+    supports_vision: modelApiConfig.supportsVision || false,
+    requires_reasoning_effort: modelApiConfig.requiresReasoningEffort || isOSeries,
+    base_timeout: modelApiConfig.baseTimeout || 120.0,
+    max_timeout: modelApiConfig.maxTimeout || 300.0,
+    token_factor: modelApiConfig.tokenFactor || 0.05,
+    model_type: isOSeries 
+      ? "o-series" 
+      : isDeepSeek 
+        ? "deepseek" 
+        : "standard"
+  };
+  
+  // Add model-specific configurations
+  if (isDeepSeek) {
+    config.enable_thinking = true;
+  }
+  
+  if (isOSeries) {
+    config.reasoning_effort = modelApiConfig.reasoningEffort || "medium";
+  }
+  
+  return config;
+}
+
 const DEFAULT_MODELS = {
     "o1": {
         name: "o1",
@@ -558,16 +607,27 @@ class ModelManager {
         }
         try {
             this.pendingModelActions[modelId] = 'create';
+            // If modelConfig is incomplete, fill in missing values with defaults
+            const defaultConfig = generateDefaultModelConfig(modelId, {
+                endpoint: modelConfig.azure_endpoint,
+                apiVersion: modelConfig.api_version,
+                maxTokens: modelConfig.max_tokens,
+                supportsStreaming: modelConfig.supports_streaming,
+                supportsTemperature: modelConfig.supports_temperature,
+                supportsVision: modelConfig.supports_vision
+            });
+            
             const completeConfig = {
+                ...defaultConfig,
                 ...modelConfig,
                 name: modelConfig.name || modelId,
-                max_tokens: Number(modelConfig.max_tokens || 32000),
-                supports_streaming: Boolean(modelConfig.supports_streaming),
-                supports_temperature: Boolean(modelConfig.supports_temperature),
-                supports_vision: Boolean(modelConfig.supports_vision || false),
-                base_timeout: Number(modelConfig.base_timeout || 120.0),
-                max_timeout: Number(modelConfig.max_timeout || 300.0),
-                token_factor: Number(modelConfig.token_factor || 0.05)
+                max_tokens: Number(modelConfig.max_tokens || defaultConfig.max_tokens),
+                supports_streaming: Boolean(modelConfig.supports_streaming !== undefined ? modelConfig.supports_streaming : defaultConfig.supports_streaming),
+                supports_temperature: Boolean(modelConfig.supports_temperature !== undefined ? modelConfig.supports_temperature : defaultConfig.supports_temperature),
+                supports_vision: Boolean(modelConfig.supports_vision !== undefined ? modelConfig.supports_vision : defaultConfig.supports_vision),
+                base_timeout: Number(modelConfig.base_timeout || defaultConfig.base_timeout),
+                max_timeout: Number(modelConfig.max_timeout || defaultConfig.max_timeout),
+                token_factor: Number(modelConfig.token_factor || defaultConfig.token_factor)
             };
             const response = await fetch(`${window.location.origin}/api/config/models/${modelId}`, {
                 method: 'POST',
@@ -621,62 +681,8 @@ class ModelManager {
     }
 
     async createDefaultModelConfig(modelId) {
-        modelId = modelId.trim().toLowerCase();
         const modelApiConfig = await getModelAPIConfig(modelId);
-        if (modelId.startsWith('o1') || modelId.startsWith('o3')) {
-            return {
-                name: modelId,
-                description: modelId.startsWith('o1') ? "Advanced reasoning model" : "High-performance reasoning model",
-                azure_endpoint: modelApiConfig.endpoint,
-                api_version: modelApiConfig.apiVersion,
-                max_tokens: modelApiConfig.maxTokens,
-                max_completion_tokens: modelApiConfig.maxCompletionTokens,
-                supports_temperature: modelApiConfig.supportsTemperature,
-                supports_streaming: modelApiConfig.supportsStreaming,
-                supports_vision: modelApiConfig.supportsVision,
-                requires_reasoning_effort: modelApiConfig.requiresReasoningEffort,
-                reasoning_effort: modelApiConfig.reasoningEffort,
-                base_timeout: modelApiConfig.baseTimeout,
-                max_timeout: modelApiConfig.maxTimeout,
-                token_factor: modelApiConfig.tokenFactor,
-                model_type: "o-series"
-            };
-        }
-        if (modelId.includes('deepseek')) {
-            return {
-                name: modelId,
-                description: "Model with chain-of-thought reasoning capabilities",
-                azure_endpoint: modelApiConfig.endpoint,
-                api_version: modelApiConfig.apiVersion,
-                max_tokens: modelApiConfig.maxTokens,
-                max_completion_tokens: modelApiConfig.maxCompletionTokens,
-                supports_temperature: modelApiConfig.supportsTemperature,
-                supports_streaming: modelApiConfig.supportsStreaming,
-                supports_vision: modelApiConfig.supportsVision,
-                requires_reasoning_effort: modelApiConfig.requiresReasoningEffort,
-                enable_thinking: true,
-                base_timeout: modelApiConfig.baseTimeout,
-                max_timeout: modelApiConfig.maxTimeout,
-                token_factor: modelApiConfig.tokenFactor,
-                model_type: "deepseek"
-            };
-        }
-        return {
-            name: modelId,
-            description: "Generic AI model",
-            azure_endpoint: modelApiConfig.endpoint,
-            api_version: modelApiConfig.apiVersion,
-            max_tokens: modelApiConfig.maxTokens,
-            max_completion_tokens: modelApiConfig.maxCompletionTokens,
-            supports_temperature: modelApiConfig.supportsTemperature,
-            supports_streaming: modelApiConfig.supportsStreaming,
-            supports_vision: modelApiConfig.supportsVision,
-            requires_reasoning_effort: modelApiConfig.requiresReasoningEffort,
-            base_timeout: modelApiConfig.baseTimeout,
-            max_timeout: modelApiConfig.maxTimeout,
-            token_factor: modelApiConfig.tokenFactor,
-            model_type: "standard"
-        };
+        return generateDefaultModelConfig(modelId, modelApiConfig);
     }
 
     getModelIds() {
@@ -763,4 +769,4 @@ class ModelManager {
 }
 
 export const modelManager = new ModelManager();
-export { DEFAULT_MODELS };
+export { DEFAULT_MODELS, generateDefaultModelConfig };
