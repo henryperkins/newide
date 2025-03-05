@@ -49,23 +49,9 @@
     <script>
       // Force the UI controls to work by directly attaching event handlers
       window.addEventListener('DOMContentLoaded', () => {
-        // Sidebar toggle
-        document.getElementById('sidebar-toggle')?.addEventListener('click', function() {
-          const sidebar = document.getElementById('sidebar');
-          const overlay = document.getElementById('sidebar-overlay');
-          const isHidden = sidebar.classList.contains('translate-x-full');
-          
-          console.log("Direct sidebar toggle clicked, currently hidden:", isHidden);
-          
-          // Toggle sidebar visibility
-          if (isHidden) {
-            sidebar.classList.remove('translate-x-full');
-            overlay?.classList.remove('hidden');
-          } else {
-            sidebar.classList.add('translate-x-full');
-            overlay?.classList.add('hidden');
-          }
-        });
+        // Sidebar toggle - handled by initMobileSidebar() in init.js
+        // Removing direct handler to prevent duplicate event listeners
+        console.log("Sidebar toggle will be handled by initMobileSidebar()");
         
         // Theme toggle
         document.getElementById('theme-toggle')?.addEventListener('click', function() {
