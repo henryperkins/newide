@@ -244,10 +244,6 @@ function initUserInput() {
 
   // Autosize the user input
   if (userInput && sendButton) {
-    userInput.addEventListener('input', function () {
-      this.style.height = 'auto';
-      this.style.height = Math.min(this.scrollHeight, 150) + 'px';
-    });
     setTimeout(() => userInput.focus(), 100);
   }
 }
@@ -714,10 +710,10 @@ function initPullToRefresh() {
       const pullDistance = currentY - startY;
       if (pullDistance > 0 && chatHistory.scrollTop <= 0) {
         e.preventDefault();
-        chatHistory.style.transform = `translateY(${Math.min(
+        chatHistory.style.setProperty('--pull-distance', `${Math.min(
           pullDistance / 2,
           threshold
-        )}px)`;
+        )}px`);
         if (!indicator) {
           indicator = document.createElement('div');
           indicator.className =

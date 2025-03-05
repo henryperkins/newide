@@ -516,6 +516,16 @@
    Utilities Layer
    ========================================================================= */
 @layer utilities {
+  .auto-resize-textarea {
+    @apply resize-none overflow-hidden;
+    max-height: 9.375rem;
+  }
+
+  .pull-down {
+    transition: transform 250ms;
+    transform: translateY(var(--pull-distance, 0));
+  }
+
   /* Enhance touch targets for mobile */
   .touch-action-manipulation {
     touch-action: manipulation;
