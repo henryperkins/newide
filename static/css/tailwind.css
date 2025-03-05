@@ -179,6 +179,19 @@
   .fade-enter {
     @apply opacity-0;
   }
+
+  /* Conversation button styles */
+  .conversation-button {
+    /* Default size for larger screens */
+    @apply px-4 py-2;
+  }
+
+  @media (max-width: 640px) {
+    .conversation-button {
+      /* Reduced size on mobile */
+      @apply px-2 py-1 text-sm;
+    }
+  }
   .fade-enter-active {
     @apply opacity-100 transition-opacity duration-300;
   }
