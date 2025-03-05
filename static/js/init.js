@@ -736,7 +736,7 @@ function initPullToRefresh() {
       if (!isPulling) return;
       const currentY = e.changedTouches[0].clientY;
       const pullDistance = currentY - startY;
-      chatHistory.style.transform = '';
+      chatHistory.style.removeProperty('--pull-distance');
       if (pullDistance > threshold && chatHistory.scrollTop <= 0) {
         if (indicator) indicator.textContent = 'Loading...';
         loadOlderMessages();
