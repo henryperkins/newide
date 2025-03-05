@@ -777,12 +777,13 @@ function initMobileSidebar() {
   if (!toggleButton || !sidebar) return;
 
   toggleButton.addEventListener('click', () => {
-    const isOpen = !sidebar.classList.contains('translate-x-full');
-    // If open, close. If closed, open.
-    sidebar.classList.toggle('translate-x-full', !isOpen);
-    sidebar.classList.toggle('translate-x-0', isOpen);
-    if (overlay) overlay.classList.toggle('hidden', !isOpen);
-    toggleButton.setAttribute('aria-expanded', String(isOpen));
+    // "isClosed" is easier to reason about:
+    const isClosed = sidebar.classList.contains('translate-x-full');
+    // If it is closed, remove 'translate-x-full'; if open, re-add it.
+    sidebar.classList.toggle('translate-x-full', !isClosed);
+    sidebar.classList.toggle('translate-x-0', isClosed);
+    if (overlay) overlay.classList.toggle('hidden', !isClosed);
+    toggleButton.setAttribute('aria-expanded', String(isClosed));
   });
 }
 
