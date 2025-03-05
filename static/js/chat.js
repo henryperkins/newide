@@ -2,7 +2,6 @@ import {
   showNotification,
   handleMessageError,
   showTypingIndicator,
-  removeTypingIndicator,
   showConfirmDialog
 } from './ui/notificationManager.js';
 import {
@@ -27,10 +26,26 @@ let currentController = null;
 let messageQueue = [];
 let isStreamingSupported = true;
 
+// Track if we should auto-scroll for new messages
+let shouldAutoScroll = true; 
+// Keep last scroll position to detect if user has scrolled up
+let lastScrollTop = 0;
+
 document.addEventListener('DOMContentLoaded', () => {
   initChatInterface();
   window.sendMessage = sendMessage;
   window.renderAssistantMessage = renderAssistantMessage;
+  
+  // Set up scroll tracking to determine if auto-scroll should happen
+  const chatHistory = document.getElementById('chat-history');
+  if (chatHistory) {
+    chatHistory.addEventListener('scroll', () => {
+      // Check if user is at the bottom of the chat
+      const isAtBottom = chatHistory.scrollTop + chatHistory.clientHeight >= chatHistory.scrollHeight - 50;
+      shouldAutoScroll = isAtBottom;
+      lastScrollTop = chatHistory.scrollTop;
+    });
+  }
 });
 
 function initChatInterface() {
@@ -127,25 +142,10 @@ function initChatInterface() {
     }
   }
 
+  // These clicks are now handled by ui-fix.js
   document.addEventListener('click', e => {
-    if (e.target.closest('#theme-toggle')) {
-      document.documentElement.classList.toggle('dark');
-      localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
-      return;
-    }
-    if (e.target.closest('#mobile-stats-toggle') || e.target.closest('#performance-stats')) {
-      const panel = document.getElementById('mobile-stats-panel');
-      if (panel) panel.classList.toggle('hidden');
-      return;
-    }
-    if (e.target.closest('#mobile-font-up')) {
-      adjustFontSize(1);
-      return;
-    }
-    if (e.target.closest('#mobile-font-down')) {
-      adjustFontSize(-1);
-      return;
-    }
+    // Theme toggle, font size, and stats panel toggles moved to ui-fix.js
+    // Keeping this listener for any other click handlers that might be added later
   });
 
   userInput?.addEventListener('keydown', e => {
@@ -155,15 +155,11 @@ function initChatInterface() {
     }
   });
 
-  const tokenUsageToggle = document.getElementById('token-usage-toggle');
+  // Token usage toggle now handled by ui-fix.js
   const tokenDetails = document.getElementById('token-details');
   const tokenChevron = document.getElementById('token-chevron');
-  if (tokenUsageToggle && tokenDetails && tokenChevron) {
-    tokenUsageToggle.addEventListener('click', () => {
-      tokenDetails.classList.toggle('hidden');
-      tokenChevron.classList.toggle('rotate-180');
-      localStorage.setItem('tokenDetailsVisible', !tokenDetails.classList.contains('hidden'));
-    });
+  if (tokenDetails && tokenChevron) {
+    // Just set the initial state based on localStorage
     const tokenDetailsVisible = localStorage.getItem('tokenDetailsVisible') === 'true';
     if (tokenDetailsVisible) {
       tokenDetails.classList.remove('hidden');
@@ -200,103 +196,70 @@ function initChatInterface() {
   });
 }
 
-export async function sendMessage() {
-  const userInput = document.getElementById('user-input');
-  console.log('[sendMessage] Invoked with userInput:', userInput?.value);
-  if (!userInput) return;
-  const messageContent = userInput.value.trim();
-  if (!messageContent || isProcessing) return;
+// Process message queue to handle one request at a time
+async function processMessageQueue() {
+  if (messageQueue.length === 0 || isProcessing) return;
+  
+  // Get the first message in the queue
+  const messageData = messageQueue[0];
+  
   try {
+    isProcessing = true;
+    
     if (currentController) {
       currentController.abort();
       currentController = null;
     }
-    isProcessing = true;
-    setLastUserMessage(messageContent);
+    
     const sendButton = document.getElementById('send-button');
     if (sendButton) {
       sendButton.disabled = true;
       sendButton.innerHTML = '<span class="animate-spin inline-block mr-2">&#8635;</span>';
     }
-    userInput.value = '';
-    userInput.style.height = 'auto';
+    
     let currentSessionId = await getSessionId();
     if (!currentSessionId) {
       showNotification('Could not retrieve a valid session ID. Please refresh.', 'error');
       return;
     }
-    // Immediately store user message in local queue
-    storeChatMessage('user', messageContent);  // Moved before rendering to ensure correct ordering
-
-    renderUserMessage(messageContent);
-    const modelSelect = document.getElementById('model-select');
-    let modelName = 'DeepSeek-R1';  // This is the model name, not the deployment name which is in the URL
-    if (modelSelect) modelName = modelSelect.value;
     
-    // Handle o1hp as an alias for o1
-    let actualModelName = modelName.toLowerCase() === 'o1hp' ? 'o1' : modelName;
-    if (modelName.toLowerCase() === 'o1hp') {
-        console.log('[sendMessage] Using o1 as fallback for o1hp');
-    } else if (modelName.toLowerCase() === 'DeepSeek-R1') {
-        console.log('[sendMessage] Setting actualModelName to "DeepSeek-R1" for DeepSeek-R1');
-        actualModelName = 'DeepSeek-R1';
-    }
-
-    // Adjust developer config based on model
-    let devConfigToUse = developerConfig;
-    if (actualModelName.toLowerCase().startsWith('o1')) {
-        devConfigToUse = "Formatting re-enabled - use markdown code blocks\n" + developerConfig;
-    }
+    // Store user message in database
+    storeChatMessage('user', messageData.content);
     
-    const modelConfig = await getModelConfig(actualModelName);
-    isStreamingSupported = modelConfig?.supports_streaming || false;
-    const useStreaming = streamingEnabled && isStreamingSupported;
-    showTypingIndicator();
-    const controller = new AbortController();
-    currentController = controller;
-    const timeoutMs = calculateTimeout(messageContent, actualModelName, reasoningEffort);
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-      console.warn(`Request timed out after ${timeoutMs}ms`);
-    }, timeoutMs);
-    try {
-      if (useStreaming) {
-        await import('./streaming.js').then(module => {
-          return module.streamChatResponse(
-            messageContent,
-            currentSessionId,
-            actualModelName,
-            devConfigToUse, // Use the modified version
-            reasoningEffort,
-            controller.signal
-          );
-        });
-      } else {
-        const response = await fetchChatResponse(
-          messageContent,
-          currentSessionId,
-          actualModelName,
-          devConfigToUse, // Use the modified version
-          reasoningEffort,
-          controller.signal
-        );
-        const assistantMessage = response.choices[0].message.content;
-        renderAssistantMessage(assistantMessage);
-        if (response.usage) updateTokenUsage(response.usage);
-      }
-    } catch (error) {
-      if (error.name !== 'AbortError' || !controller.signal.aborted) {
-        await handleMessageError(error);
-      }
-    } finally {
-      clearTimeout(timeoutId);
-      currentController = null;
-    }
+    // Render user message
+    renderUserMessage(messageData.content);
+    
+    await getChatResponse(messageData.content, currentSessionId);
+    
   } catch (error) {
-    console.error('Error in sendMessage:', error);
-    showNotification('Failed to send message', 'error');
+    console.error('Error processing message:', error);
+    showNotification('Failed to process message', 'error');
+    
+    // Show retry button for failed messages
+    const chatHistory = document.getElementById('chat-history');
+    if (chatHistory) {
+      const errorEl = document.createElement('div');
+      errorEl.className = 'message system-message error-message';
+      errorEl.innerHTML = `
+        <p>Message failed to send. The server may be experiencing issues.</p>
+        <button class="retry-button btn btn-sm btn-primary mt-2">Retry</button>
+      `;
+      chatHistory.appendChild(errorEl);
+      
+      const retryBtn = errorEl.querySelector('.retry-button');
+      retryBtn.addEventListener('click', () => {
+        errorEl.remove();
+        // Re-add the message to the front of the queue
+        messageQueue.unshift(messageData);
+        processMessageQueue();
+      });
+    }
   } finally {
+    // Remove this message from the queue
+    messageQueue.shift();
+    
     isProcessing = false;
+    
     const btn = document.getElementById('send-button');
     if (btn) {
       btn.disabled = false;
@@ -306,7 +269,113 @@ export async function sendMessage() {
         </svg>
       `;
     }
-    userInput.focus();
+    
+    // Process any remaining messages in the queue
+    if (messageQueue.length > 0) {
+      processMessageQueue();
+    }
+  }
+}
+
+// Unified function to handle chat responses (streaming or non-streaming)
+async function getChatResponse(messageContent, sessionId) {
+  const modelSelect = document.getElementById('model-select');
+  let modelName = 'DeepSeek-R1';
+  if (modelSelect) modelName = modelSelect.value;
+  
+  // Handle o1hp as an alias for o1
+  let actualModelName = modelName.toLowerCase() === 'o1hp' ? 'o1' : modelName;
+  if (modelName.toLowerCase() === 'o1hp') {
+    console.log('[getChatResponse] Using o1 as fallback for o1hp');
+  } else if (modelName.toLowerCase() === 'DeepSeek-R1') {
+    console.log('[getChatResponse] Setting actualModelName to "DeepSeek-R1" for DeepSeek-R1');
+    actualModelName = 'DeepSeek-R1';
+  }
+
+  // Adjust developer config based on model
+  let devConfigToUse = developerConfig;
+  if (actualModelName.toLowerCase().startsWith('o1')) {
+    devConfigToUse = "Formatting re-enabled - use markdown code blocks\n" + developerConfig;
+  }
+  
+  const modelConfig = await getModelConfig(actualModelName);
+  isStreamingSupported = modelConfig?.supports_streaming || false;
+  const useStreaming = streamingEnabled && isStreamingSupported;
+  
+  // Show typing indicator
+  showTypingIndicator();
+  
+  // Setup abort controller for timeout handling
+  const controller = new AbortController();
+  currentController = controller;
+  const timeoutMs = calculateTimeout(messageContent, actualModelName, reasoningEffort);
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+    console.warn(`Request timed out after ${timeoutMs}ms`);
+  }, timeoutMs);
+  
+  try {
+    if (useStreaming) {
+      await import('./streaming.js').then(module => {
+        return module.streamChatResponse(
+          messageContent,
+          sessionId,
+          actualModelName,
+          devConfigToUse,
+          reasoningEffort,
+          controller.signal
+        );
+      });
+    } else {
+      const response = await fetchChatResponse(
+        messageContent,
+        sessionId,
+        actualModelName,
+        devConfigToUse,
+        reasoningEffort,
+        controller.signal
+      );
+      const assistantMessage = response.choices[0].message.content;
+      renderAssistantMessage(assistantMessage);
+      
+      // Clean up the typing indicator using notificationManager
+      import('./ui/notificationManager.js').then(module => {
+        module.removeTypingIndicator();
+      });
+      
+      if (response.usage) updateTokenUsage(response.usage);
+    }
+  } catch (error) {
+    if (error.name !== 'AbortError' || !controller.signal.aborted) {
+      await handleMessageError(error);
+    }
+  } finally {
+    clearTimeout(timeoutId);
+    currentController = null;
+  }
+}
+
+export async function sendMessage() {
+  const userInput = document.getElementById('user-input');
+  console.log('[sendMessage] Invoked with userInput:', userInput?.value);
+  if (!userInput) return;
+  const messageContent = userInput.value.trim();
+  if (!messageContent) return;
+  
+  // Add message to queue
+  messageQueue.push({
+    content: messageContent,
+    timestamp: Date.now()
+  });
+  
+  // Clear input
+  userInput.value = '';
+  userInput.style.height = 'auto';
+  setLastUserMessage(messageContent);
+  
+  // Process the queue if not already processing
+  if (!isProcessing) {
+    processMessageQueue();
   }
 }
 
@@ -467,9 +536,14 @@ function renderUserMessage(content) {
   el.setAttribute('aria-live', 'polite');
   el.innerHTML = sanitizeHTML(content).replace(/\n/g, '<br>');
   chatHistory.appendChild(el);
-  setTimeout(() => {
-    el.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, 100);
+  
+  // Only auto-scroll if user was at the bottom before this message
+  if (shouldAutoScroll) {
+    setTimeout(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 100);
+  }
+  
   storeChatMessage('user', content);
 }
 
@@ -501,9 +575,14 @@ export function renderAssistantMessage(content, isThinking = false) {
   chatHistory.appendChild(el);
   highlightCode(el);
   deepSeekProcessor.initializeExistingBlocks();
-  setTimeout(() => {
-    el.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, 100);
+  
+  // Only auto-scroll if user was at the bottom before this message
+  if (shouldAutoScroll) {
+    setTimeout(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 100);
+  }
+  
   if (!isThinking) storeChatMessage('assistant', content);
 }
 
