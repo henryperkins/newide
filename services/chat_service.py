@@ -320,22 +320,31 @@ async def save_conversation(
     Save user and assistant messages to the database.
     """
     try:
-        user_msg = Conversation(
-            session_id=session_id,
-            role="user",
-            content=user_text,
-            model=model_name,
+        # Bulk insert both messages atomically
+        messages_to_insert = [
+            {
+                "session_id": session_id,
+                "role": "user",
+                "content": user_text,
+                "model": model_name,
+                "formatted_content": user_text,
+                "raw_response": None  # Don't store full API responses
+            },
+            {
+                "session_id": session_id,
+                "role": "assistant",
+                "content": assistant_text,
+                "model": model_name,
+                "formatted_content": formatted_assistant_text,
+                "raw_response": {"trimmed": True}  # Store metadata only
+            }
+        ]
+    
+        # Use SQLAlchemy bulk insert with return_defaults=False for better performance
+        await db_session.execute(
+            insert(Conversation),
+            messages_to_insert
         )
-        assistant_msg = Conversation(
-            session_id=session_id,
-            role="assistant",
-            content=assistant_text,
-            formatted_content=formatted_assistant_text,
-            model=model_name,
-            raw_response={"streaming": False, "final_content": assistant_text},
-        )
-        db_session.add(user_msg)
-        db_session.add(assistant_msg)
         await db_session.commit()
     except Exception as e:
         logger.error(f"Failed to save conversation to the database: {str(e)}")

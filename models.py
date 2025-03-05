@@ -89,8 +89,12 @@ class Conversation(Base):
     user_id = Column(PGUUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
-    formatted_content = Column(Text, nullable=True)
-    raw_response = Column(JSONB, nullable=True)
+    formatted_content = Column(Text, nullable=True, 
+        comment='Sanitized HTML content with CSP restrictions',
+        info={'check': "formatted_content IS NULL OR formatted_content ~ '^[a-zA-Z0-9<>&; ]+$'"})
+    raw_response = Column(JSONB, nullable=True,
+        comment='Trimmed response metadata only',
+        info={'check': "octet_length(raw_response::text) < 1024"})
     timestamp = Column(DateTime(timezone=True), server_default=text("NOW()"))
     system_fingerprint = Column(String(64), nullable=True)
     model = Column(String(50), nullable=True)

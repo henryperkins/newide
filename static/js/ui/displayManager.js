@@ -381,7 +381,8 @@ export function renderAssistantMessage(content, skipScroll = false, skipStore = 
 }
 
 function createAssistantMessageElement(content) {
-  const cacheKey = `assistant-${content}`;
+  const currentModel = window.modelManager?.getCurrentModelId() || 'unknown';
+  const cacheKey = `assistant-${currentModel}-${content.substring(0, 40)}`; // Model-specific cache key
   if (messageCache.has(cacheKey)) return messageCache.get(cacheKey).cloneNode(true);
 
   const currentModel = window.modelManager?.getCurrentModelId() || document.getElementById('model-select')?.value || 'Unknown';
@@ -483,12 +484,8 @@ function storeChatMessage(role, content) {
     return;
   }
   try {
-    const storageKey = `conversation_${sessionId}`;
-    let conv = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    conv.push({ role, content, timestamp: new Date().toISOString() });
-    if (conv.length > 100) conv = conv.slice(-100);
-    localStorage.setItem(storageKey, JSON.stringify(conv));
-  } catch {}
+    // Session storage only for transient UI state
+    sessionStorage.setItem('pending_message', JSON.stringify({ role, content }));
   try {
     fetch(`/api/chat/conversations/store`, {
       method: 'POST',
