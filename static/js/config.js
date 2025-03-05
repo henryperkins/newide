@@ -1,6 +1,6 @@
 import { showNotification } from './ui/notificationManager.js';
 import { eventBus } from './utils/helpers.js';
-import { modelManager, generateDefaultModelConfig } from './models.js';
+import { modelManager } from './models.js';
 
 const DEFAULT_CONFIG = {
   reasoningEffort: "medium",

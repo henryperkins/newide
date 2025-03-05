@@ -18,7 +18,7 @@ function generateDefaultModelConfig(modelId, modelApiConfig) {
   const config = {
     name: modelId,
     description: isOSeries 
-      ? "Advanced reasoning model" 
+      ? "Advanced reasoning model with high-quality outputs" 
       : isDeepSeek 
         ? "Model with chain-of-thought reasoning capabilities"
         : "Generic AI model",
@@ -30,9 +30,9 @@ function generateDefaultModelConfig(modelId, modelApiConfig) {
     supports_streaming: modelApiConfig.supportsStreaming || false,
     supports_vision: modelApiConfig.supportsVision || false,
     requires_reasoning_effort: modelApiConfig.requiresReasoningEffort || isOSeries,
-    base_timeout: modelApiConfig.baseTimeout || 120.0,
-    max_timeout: modelApiConfig.maxTimeout || 300.0,
-    token_factor: modelApiConfig.tokenFactor || 0.05,
+    base_timeout: modelApiConfig.baseTimeout || (isOSeries ? 180.0 : 120.0),
+    max_timeout: modelApiConfig.maxTimeout || (isOSeries ? 600.0 : 300.0),
+    token_factor: modelApiConfig.tokenFactor || (isOSeries ? 0.1 : 0.05),
     model_type: isOSeries 
       ? "o-series" 
       : isDeepSeek 
@@ -43,6 +43,7 @@ function generateDefaultModelConfig(modelId, modelApiConfig) {
   // Add model-specific configurations
   if (isDeepSeek) {
     config.enable_thinking = true;
+    config.display_reasoning_tokens = true;
   }
   
   if (isOSeries) {
@@ -52,37 +53,6 @@ function generateDefaultModelConfig(modelId, modelApiConfig) {
   return config;
 }
 
-const DEFAULT_MODELS = {
-    "o1": {
-        name: "o1",
-        description: "Advanced reasoning model with high-quality outputs",
-        azure_endpoint: "https://o1models.openai.azure.com",
-        api_version: "2025-01-01-preview",
-        max_tokens: 32000,
-        supports_temperature: false,
-        supports_streaming: false,
-        requires_reasoning_effort: true,
-        base_timeout: 180.0,
-        max_timeout: 600.0,
-        token_factor: 0.1,
-        model_type: "o-series"
-    },
-        "DeepSeek-R1": {
-            name: "DeepSeek-R1",
-            description: "Model with chain-of-thought reasoning capabilities",
-            azure_endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
-            api_version: "2024-05-01-preview",
-            max_tokens: 32000,
-            supports_temperature: true,
-            supports_streaming: true,
-            enable_thinking: true,
-            base_timeout: 180.0,
-            max_timeout: 600.0,
-            token_factor: 0.1,
-            model_type: "deepseek",
-            display_reasoning_tokens: true
-        }
-};
 
 class ModelManager {
     constructor() {
@@ -581,18 +551,49 @@ class ModelManager {
     }
 
     ensureLocalModelConfigs() {
-        for (const [modelId, config] of Object.entries(DEFAULT_MODELS)) {
+        const knownModels = [
+            {
+                id: "o1",
+                modelApiConfig: {
+                    endpoint: "https://o1models.openai.azure.com",
+                    apiVersion: "2025-01-01-preview",
+                    maxTokens: 32000,
+                    supportsTemperature: false,
+                    supportsStreaming: false,
+                    requiresReasoningEffort: true,
+                    baseTimeout: 180.0,
+                    maxTimeout: 600.0,
+                    tokenFactor: 0.1
+                }
+            },
+            {
+                id: "DeepSeek-R1",
+                modelApiConfig: {
+                    endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
+                    apiVersion: "2024-05-01-preview",
+                    maxTokens: 32000,
+                    supportsTemperature: true,
+                    supportsStreaming: true,
+                    baseTimeout: 180.0,
+                    maxTimeout: 600.0,
+                    tokenFactor: 0.1
+                }
+            }
+        ];
+
+        for (const { id, modelApiConfig } of knownModels) {
             const existingModel = Object.keys(this.modelConfigs).find(
-                k => k.toLowerCase() === modelId.toLowerCase()
+                k => k.toLowerCase() === id.toLowerCase()
             );
 
             if (!existingModel) {
-                this.modelConfigs[modelId] = config;
-                this.createModelOnServer(modelId, config).catch(err =>
-                    console.warn(`Failed to create ${modelId} on server: ${err.message}`)
+                const newConfig = generateDefaultModelConfig(id, modelApiConfig);
+                this.modelConfigs[id] = newConfig;
+                this.createModelOnServer(id, newConfig).catch(err =>
+                    console.warn(`Failed to create ${id} on server: ${err.message}`)
                 );
-            } else if (existingModel !== modelId) {
-                this.modelConfigs[modelId] = this.modelConfigs[existingModel];
+            } else if (existingModel !== id) {
+                this.modelConfigs[id] = this.modelConfigs[existingModel];
                 delete this.modelConfigs[existingModel];
             }
         }
@@ -769,4 +770,4 @@ class ModelManager {
 }
 
 export const modelManager = new ModelManager();
-export { DEFAULT_MODELS, generateDefaultModelConfig };
+export { generateDefaultModelConfig };
