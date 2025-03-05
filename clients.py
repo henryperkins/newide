@@ -397,7 +397,12 @@ async def get_model_client_dependency(model_name: Optional[str] = None) -> Dict[
             )
             return {"client": client, "model_name": model_name}
         
-        client = await get_model_client(model_name)
+        # Use async client for Azure OpenAI
+        client = AsyncAzureOpenAI(
+            api_key=config.AZURE_OPENAI_API_KEY,
+            api_version=config.AZURE_OPENAI_API_VERSION,
+            azure_endpoint=config.AZURE_OPENAI_ENDPOINT
+        )
         return {"client": client, "model_name": model_name or config.AZURE_OPENAI_DEPLOYMENT_NAME}
     except Exception as e:
         logger.error(f"Error in get_model_client_dependency: {str(e)}")

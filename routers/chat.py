@@ -845,7 +845,7 @@ async def generate_stream_chunks(
             if temperature is not None:
                 extra_kwargs["temperature"] = temperature
 
-        stream = client.chat.completions.create(
+        stream = await client.chat.completions.create(
             model=model_name,
             messages=messages_list,
             stream=True,
