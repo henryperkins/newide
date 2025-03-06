@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', initApplication);
 /**
  * Main initialization entry point
  */
-function initApplication() {
+async function initApplication() {
   console.log('Initializing application...');
 
   // 1. Initialize theme switcher
