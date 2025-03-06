@@ -18,7 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # -------------------------------------------------------------------------
 from database import get_db_session
 from routers.security import get_current_user
+import logging
 from logging_config import logger
+from dompurify import clean as dompurify_clean
+from fastapi import Request
 from utils import (
     count_tokens,
     handle_client_error,
@@ -636,21 +639,20 @@ async def create_chat_completion(
         raise exc
     except Exception as exc:
         await db.rollback()
-        if hasattr(exc, "status_code") and exc.status_code == 400 and hasattr(exc, "response"):
+        if hasattr(exc, "response"):
             try:
-                response_data = exc.response.json()
-                if "content_filter_results" in response_data:
+                error_data = exc.response.json()
+                if "content_filter_results" in error_data:
                     raise HTTPException(
                         status_code=400,
                         detail={
                             "error": "content_filtered",
-                            "message": "Response blocked by content safety system",
-                            "filter_results": response_data["content_filter_results"]
+                            "filter_results": error_data["content_filter_results"]
                         }
-                    )
-            except json.JSONDecodeError:
-                pass  # If we can't parse JSON, fall through to generic error
-        raise HTTPException(status_code=500, detail=str(exc))
+                    ) from exc
+            except (json.JSONDecodeError, AttributeError):
+                pass
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 # -------------------------------------------------------------------------
@@ -683,8 +685,8 @@ async def chat_sse(
         # Retrieve model client
         client_wrapper = await get_model_client_dependency(model)
         client = client_wrapper["client"]
-        if not client:
-            raise ValueError("Client is None; cannot proceed with streaming")
+        if not client or not client_wrapper.get("supports_streaming", False):
+            raise HTTPException(400, "Model doesn't support streaming")
 
         # Return the streaming response
         return StreamingResponse(
@@ -723,21 +725,33 @@ async def generate_stream_chunks(
     """
     full_content = ""
     try:
-        # Example: yield partial tokens in chunks
-        yield sse_json({"choices": [{"delta": {"content": "Thinking..."}}]})
-        await asyncio.sleep(1.0)
+        # Actual streaming implementation
+        enable_thinking = "true" if "deepseek" in model_name.lower() else "false"
+        
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[{"role": "user", "content": message}],
+            stream=True,
+            headers={
+                "x-ms-thinking-format": "html" if enable_thinking else "none",
+                "x-ms-streaming-version": "2024-05-01-preview"
+            }
+        )
 
-        partial_text = "Hello from the streaming model."
-        full_content += partial_text
-        yield sse_json({"choices": [{"delta": {"content": partial_text}}]})
-        await asyncio.sleep(1.0)
+        async for chunk in response:
+            content = chunk.choices[0].delta.content or ""
+            full_content += content
+            
+            # Process thinking blocks in real-time
+            if "deepseek" in model_name.lower():
+                processed = expand_chain_of_thought(content, request)
+                yield sse_json({"choices": [{"delta": {"content": processed}}]})
+            else:
+                yield sse_json({"choices": [{"delta": {"content": content}]}])
 
-        # Final chunk with a stop reason and usage
-        usage_block = {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25}
-        yield sse_json({"choices": [{"finish_reason": "stop"}], "usage": usage_block})
-
-        # SSE "complete" event
-        yield "event: complete\\ndata: {}\\n\\n"
+        # Final chunk with stop reason
+        yield sse_json({"choices": [{"finish_reason": "stop"}]})
+        yield "event: complete\ndata: {}\n\n"
 
         # If we want to store the final messages in DB:
         user_msg = Conversation(
@@ -779,6 +793,6 @@ async def generate_stream_chunks(
 
 def sse_json(data: Dict[str, Any]) -> str:
     """
-    Utility function to format SSE data lines as JSON: "data: {...}\\n\\n"
+    Utility function to format SSE data lines as JSON: "data: {...}\n\n"
     """
-    return "data: " + json.dumps(data) + "\\n\\n"
+    return "data: " + json.dumps(data) + "\n\n"
