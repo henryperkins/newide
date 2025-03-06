@@ -1,44 +1,43 @@
+"""
+Routers for chat endpoints, providing storage, retrieval, and streaming completions.
+"""
+
 import uuid
 import json
 import re
 import time
 import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 from uuid import UUID
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, insert, delete, update, func
+from pydantic import BaseModel
+from sqlalchemy import select, insert, delete, update, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# Internal modules (adjust as needed)
-from database import get_db_session
-from routers.security import get_current_user
-import logging
+# Local modules
 from logging_config import logger
-
-from bleach import clean as bleach_clean
-from utils import (
-    count_tokens,
-    handle_client_error,
-    is_o_series_model,
-    is_deepseek_model,
-)
+from database import get_db_session
 from clients import get_model_client_dependency
-from services.model_stats_service import ModelStatsService
-from services.chat_service import save_conversation
-from services.config_service import ConfigService, get_config_service
-
-# Models & Schemas (from your own code)
-from models import Session, User, Conversation
 from pydantic_models import (
     CreateChatCompletionRequest,
-    ChatMessage,
     ChatCompletionResponse,
-    ChatCompletionUsage,
     ChatCompletionChoice,
+    ChatCompletionUsage,
     ErrorResponse,
+)
+from models import Conversation, Session, User
+from routers.security import get_current_user
+from services.config_service import ConfigService, get_config_service
+from services.chat_service import save_conversation
+from services.model_stats_service import ModelStatsService
+from utils import (
+    handle_client_error,
+    count_tokens,
+    is_o_series_model,
+    is_deepseek_model,
 )
 
 router = APIRouter(prefix="/chat")
@@ -47,7 +46,7 @@ router = APIRouter(prefix="/chat")
 MAX_SSE_CONNECTIONS = 10
 SSE_SEMAPHORE = asyncio.Semaphore(MAX_SSE_CONNECTIONS)
 
-# Defaults for your DeepSeek or O-series models, if relevant
+# Defaults for your DeepSeek or O-series models
 DEEPSEEK_R1_DEFAULT_MAX_TOKENS = 131072  # 128k context window
 DEEPSEEK_R1_DEFAULT_TEMPERATURE = 0.0
 O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS = 40000
@@ -58,20 +57,35 @@ O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS = 40000
 # -------------------------------------------------------------------------
 def expand_chain_of_thought(full_content: str, request: Request) -> str:
     """
-    Replaces <think>...</think> blocks with a hidden HTML expansion
-    for chain-of-thought style content. Uses CSP nonce and DOMPurify.
+       Replaces <details style="margin: 0.5rem 0 1.5rem; padding: 0.75rem; border: 1px solid var(--background-modifier-border); border-radius: 4px; background-color: var(--background-secondary)">
+               <summary style="cursor: pointer; color: var(--text-muted); font-size: 0.8em; margin-bottom: 0.5rem; user-select: none">Thought for a second</summary>
+               <div class="text-muted" style="margin-top: 0.75rem; padding: 0.75rem; border-radius: 4px; background-color: var(--background-primary)">...</div>
+             </details>
+
+    blocks with a hidden HTML expansion
+       for chain-of-thought style content. Uses CSP nonce and DOMPurify.
     """
     if not full_content:
         return full_content
 
     from bs4 import BeautifulSoup
+    from bleach import clean as bleach_clean
 
     soup = BeautifulSoup(full_content, "html.parser")
     think_blocks = soup.find_all("think")
 
     for block in think_blocks:
         block_html = str(block)
-        sanitized_html = bleach_clean(block_html, tags=['think', 'div', 'button', 'span', 'pre'], attributes={'div': ['class', 'nonce'], 'button': ['class', 'aria-expanded'], 'span': ['class'], 'pre': ['class']})
+        sanitized_html = bleach_clean(
+            block_html,
+            tags=["think", "div", "button", "span", "pre"],
+            attributes={
+                "div": ["class", "nonce"],
+                "button": ["class", "aria-expanded"],
+                "span": ["class"],
+                "pre": ["class"],
+            },
+        )
         nonce = request.state.nonce
         thinking_html = f"""
 <div class="thinking-process" nonce="{nonce}">
@@ -87,7 +101,16 @@ def expand_chain_of_thought(full_content: str, request: Request) -> str:
         """
         block.replace_with(BeautifulSoup(thinking_html, "html.parser"))
 
-    final_html = bleach_clean(str(soup), tags=['div', 'button', 'span', 'pre'], attributes={'div': ['class', 'nonce'], 'button': ['class', 'aria-expanded'], 'span': ['class'], 'pre': ['class']})
+    final_html = bleach_clean(
+        str(soup),
+        tags=["div", "button", "span", "pre"],
+        attributes={
+            "div": ["class", "nonce"],
+            "button": ["class", "aria-expanded"],
+            "span": ["class"],
+            "pre": ["class"],
+        },
+    )
     return final_html
 
 
@@ -256,6 +279,7 @@ async def get_conversation_messages(
         raise
     except Exception as exc:
         import traceback
+
         traceback.print_exc()
         logger.exception(f"SSE error in chat_sse: {exc}")
         raise HTTPException(status_code=500, detail=f"SSE error: {exc}")
@@ -369,9 +393,10 @@ async def pin_conversation(
         return {"status": "success", "pinned": pinned_val}
     except Exception as exc:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=str(exc))
-        await db.rollback()
         logger.exception(f"Error updating pin status: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @router.post("/conversations/{conversation_id}/archive")
 async def archive_conversation(
     conversation_id: UUID,
@@ -379,7 +404,9 @@ async def archive_conversation(
     db: AsyncSession = Depends(get_db_session),
     current_user: Optional[User] = Depends(get_current_user),
 ):
-    """Archive or unarchive a conversation. Body must have {"archived": bool}."""
+    """
+    Archive or unarchive a conversation. Body must have {"archived": bool}.
+    """
     try:
         data = await request.json()
         archived = data.get("archived", True)
@@ -397,62 +424,82 @@ async def archive_conversation(
         await db.rollback()
         logger.error(f"Error archiving conversation: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-    """
-    Archive or unarchive a conversation. Body must have {"archived": bool}.
-    """
 
 
-
-@router.get("/conversations")ase_query = base_query.where(
-async def list_conversations(                (Conversation.title.ilike(pattern))
-    offset: int = Query(0, ge=0),ern))
+@router.get("/conversations")
+async def list_conversations(
+    offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     pinned: Optional[bool] = Query(None),
-    archived: Optional[bool] = Query(None),tion)
-    search: Optional[str] = Query(None),        count_stmt = select(func.count(func.distinct(Conversation.session_id)))
-    db: AsyncSession = Depends(get_db_session),db.execute(count_stmt)
+    archived: Optional[bool] = Query(None),
+    search: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db_session),
     current_user: Optional[User] = Depends(get_current_user),
 ):
     """
     Lists distinct conversations by session_id, with optional pinned, archived, or search filters.
+    Returns pagination info plus summary info about each conversation.
     """
     try:
+        # Base query: gather info per session_id
         base_query = (
             select(
                 Conversation.session_id,
                 func.bool_or(Conversation.pinned).label("pinned"),
                 func.bool_or(Conversation.archived).label("archived"),
-                func.max(Conversation.timestamp).label("updated_at"),            updated_at = row.updated_at
-                func.count(Conversation.id).label("message_count"),ge_count
-                func.max(Conversation.title).label("title"),_val = row.title or "Untitled Conversation"
+                func.max(Conversation.timestamp).label("updated_at"),
+                func.count(Conversation.id).label("message_count"),
+                func.max(Conversation.title).label("title"),
             )
             .group_by(Conversation.session_id)
             .order_by(func.max(Conversation.timestamp).desc())
         )
 
+        # Filter pinned
         if pinned is not None:
-            base_query = base_query.having(func.bool_or(Conversation.pinned) == pinned)   "archived": archived_val,
-       "updated_at": updated_at.isoformat() if updated_at else None,
-        if archived is not None:                    "message_count": msg_count,
-            base_query = base_query.having(func.bool_or(Conversation.archived) == archived)}
+            base_query = base_query.having(func.bool_or(Conversation.pinned) == pinned)
 
-        if search:
-            pattern = f"%{search}%"
-            base_query = base_query.where(: conversations,
-                (Conversation.title.ilike(pattern))
-                | (Conversation.content.ilike(pattern))   "offset": offset,
+        # Filter archived
+        if archived is not None:
+            base_query = base_query.having(
+                func.bool_or(Conversation.archived) == archived
             )
 
-        # Count distinct sessions (for pagination)        }
-        count_stmt = select(func.count(func.distinct(Conversation.session_id)))    except Exception as exc:
-        total_res = await db.execute(count_stmt)ode=500, detail=str(exc))
+        # Filter search across title/content
+        if search:
+            pattern = f"%{search}%"
+            base_query = base_query.where(
+                (Conversation.title.ilike(pattern))
+                | (Conversation.content.ilike(pattern))
+            )
+
+        # For counting total distinct sessions (with same filters)
+        count_query = select(
+            func.count(func.distinct(Conversation.session_id))
+        ).select_from(Conversation)
+
+        if search:
+            count_query = count_query.where(
+                (Conversation.title.ilike(pattern))
+                | (Conversation.content.ilike(pattern))
+            )
+        if pinned is not None:
+            count_query = count_query.having(
+                func.bool_or(Conversation.pinned) == pinned
+            )
+        if archived is not None:
+            count_query = count_query.having(
+                func.bool_or(Conversation.archived) == archived
+            )
+
+        total_res = await db.execute(count_query)
         total_count = total_res.scalar() or 0
 
         # Apply pagination
         base_query = base_query.offset(offset).limit(limit)
-        rows = (await db.execute(base_query)).all()  request: Request,
+        rows = (await db.execute(base_query)).all()
 
-        conversations = []ent_user: Optional[User] = Depends(get_current_user),
+        conversations = []
         for row in rows:
             sess_id = row.session_id
             pinned_val = row.pinned
@@ -461,34 +508,39 @@ async def list_conversations(                (Conversation.title.ilike(pattern))
             msg_count = row.message_count
             title_val = row.title or "Untitled Conversation"
 
-            conversations.append({
-                "id": str(sess_id),
+            conversations.append(
+                {
+                    "id": str(sess_id),
                     "title": title_val,
                     "pinned": pinned_val,
-                    "archived": archived_val,        result = await db.execute(stmt)
-                    "updated_at": updated_at.isoformat() if updated_at else None,r_one_or_none():
-                    "message_count": msg_count,atus_code=404, detail="Session not found")
+                    "archived": archived_val,
+                    "updated_at": updated_at.isoformat() if updated_at else None,
+                    "message_count": msg_count,
                 }
-            )tion(
-on_id,
-        return {er else None,
-            "conversations": conversations,   role=role,
-            "total_count": total_count,=content,
-            "offset": offset,etime.now(timezone.utc),
-            "limit": limit,        )
+            )
+
+        return {
+            "conversations": conversations,
+            "total_count": total_count,
+            "offset": offset,
+            "limit": limit,
             "has_more": offset + limit < total_count,
         }
     except Exception as exc:
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(exc))
 
-        await db.rollback()
+
 @router.post("/conversations/store")
 async def store_conversation(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
-    current_user: Optional[User] = Depends(get_current_user),-----------------------------------------------------------
+    current_user: Optional[User] = Depends(get_current_user),
 ):
-    """Store conversation data from client (user or system messages)."""----------------------------------
+    """
+    Store conversation data from client (user or system messages).
+    Body must include {"session_id", "role", "content"}.
+    """
     try:
         data = await request.json()
         session_id = data.get("session_id")
@@ -496,266 +548,236 @@ async def store_conversation(
         content = data.get("content")
 
         if not all([session_id, role, content]):
-            raise HTTPException(status_code=400, detail="Missing required fields")tes a non-streaming chat completion, returning an Azure-like JSON.
- you'd integrate O-series or DeepSeek calls.
+            raise HTTPException(status_code=400, detail="Missing required fields")
+
         # Validate session
-        stmt = select(Session).where(Session.id == session_id)    try:
+        stmt = select(Session).where(Session.id == session_id)
         result = await db.execute(stmt)
-        if not result.scalar_one_or_none():            raise HTTPException(status_code=400, detail="Missing 'messages' field")
+        if not result.scalar_one_or_none():
             raise HTTPException(status_code=404, detail="Session not found")
 
         msg = Conversation(
-            session_id=session_id,        # Acquire the model client
-            user_id=current_user.id if current_user else None,ient_dependency(model_name)
-            role=role,rapper["client"]
+            session_id=session_id,
+            user_id=current_user.id if current_user else None,
+            role=role,
             content=content,
-            timestamp=datetime.now(timezone.utc),ion
+            timestamp=datetime.now(timezone.utc),
         )
-        db.add(msg)id.uuid4()}",
-        await db.commit()hat.completion",
-ted": int(time.time()),
-        return {"status": "success", "message_id": msg.id},
+        db.add(msg)
+        await db.commit()
+        return {"status": "success", "message_id": msg.id}
     except Exception as e:
         await db.rollback()
-        logger.error(f"Error storing conversation: {str(e)}")   "index": 0,
-        raise HTTPException(status_code=500, detail=str(e))      "message": {"role": "assistant", "content": "Hello from the AI."},
+        logger.error(f"Error storing conversation: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-       }
-# -------------------------------------------------------------------------            ],
-# Non-Streaming Chat Completion "total_tokens": 30},
+
+# -------------------------------------------------------------------------
+# Non-Streaming Chat Completion
 # -------------------------------------------------------------------------
 @router.post("")
 async def create_chat_completion(
     request: CreateChatCompletionRequest,
     db: AsyncSession = Depends(get_db_session),
     current_user: Optional[User] = Depends(get_current_user),
-):rsation(
-    """quest.session_id),
-    Creates a non-streaming chat completion, returning an Azure-like JSON.ser.id if current_user else None,
-    This is a stub showing where you'd integrate O-series or DeepSeek calls.   role="user",
+):
+    """
+    Creates a non-streaming chat completion, returning an Azure-like JSON.
+    Demonstrates the integration point for O-series or DeepSeek calls.
     """
     try:
         if not request.messages:
-            raise HTTPException(status_code=400, detail="Missing 'messages' field")n(
-equest.session_id),
+            raise HTTPException(status_code=400, detail="Missing 'messages' field")
+
         model_name = request.model or "o1"
-   content=assistant_text,
-        # Acquire the model client
-        client_wrapper = await get_model_client_dependency(model_name){"streaming": False, "token_usage": response_data["usage"]},
-        client = client_wrapper["client"]        )
-, assistant_msg])
-        # Mocked response for demonstration        await db.commit()
+        client_wrapper = await get_model_client_dependency(model_name)
+        client = client_wrapper["client"]
+
+        # Mocked response for demonstration
         response_data = {
-            "id": f"chatcmpl-{uuid.uuid4()}",sponse_data
+            "id": f"chatcmpl-{uuid.uuid4()}",
             "object": "chat.completion",
-            "created": int(time.time()), exc:
-            "model": model_name,e exc
+            "created": int(time.time()),
+            "model": model_name,
             "choices": [
                 {
                     "index": 0,
-                    "message": {"role": "assistant", "content": "Hello from the AI."},e.json()
-                    "finish_reason": "stop",er_results" in error_data:
+                    "message": {"role": "assistant", "content": "Hello from the AI."},
+                    "finish_reason": "stop",
                 }
             ],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},tail={
-        }rror": "content_filtered",
-content_filter_results"],
-        # Store user & assistant messages in the conversation table    },
+            "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+        }
+
+        # Store user & assistant messages in the conversation table
         user_text = request.messages[-1]["content"]
-        assistant_text = response_data["choices"][0]["message"]["content"]        except (AttributeError, json.JSONDecodeError):
-            pass
+        assistant_text = response_data["choices"][0]["message"]["content"]
+
         user_msg = Conversation(
             session_id=UUID(request.session_id),
             user_id=current_user.id if current_user else None,
-            role="user",--------------------------------------------------------
-            content=user_text,point
-            model=model_name,------------------------------------------------------
+            role="user",
+            content=user_text,
+            model=model_name,
         )
-        assistant_msg = Conversation(sse(
-            session_id=UUID(request.session_id),est,
+        assistant_msg = Conversation(
+            session_id=UUID(request.session_id),
             role="assistant",
             content=assistant_text,
             model=model_name,
-            raw_response={"streaming": False, "token_usage": response_data["usage"]},  developer_config: Optional[str] = None,
-        )soning_effort: str = "medium",
+            raw_response={"streaming": False, "token_usage": response_data["usage"]},
+        )
         db.add_all([user_msg, assistant_msg])
         await db.commit()
 
-        return response_dataat responses from your model.
- an in-memory concurrency limiter (SSE_SEMAPHORE).
+        return response_data
     except HTTPException as exc:
         raise exc
     except Exception as exc:
         await db.rollback()
-        try:Session).where(Session.id == session_id)
-            error_data = exc.response.json()
-            if "content_filter_results" in error_data:        session_db = sess_res.scalar_one_or_none()
-                raise HTTPException(
-                    status_code=400,not found")
-                    detail={
-                        "error": "content_filtered",
-                        "filter_results": error_data["content_filter_results"],
-                    },        client = client_wrapper["client"]
-                ) from excpper.get("supports_streaming", False):
-        except (AttributeError, json.JSONDecodeError):tatus_code=400, detail="Model doesn't support streaming")
-            pass
-        raise HTTPException(status_code=500, detail=str(exc)) from excesponse
-(
-s(
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 # -------------------------------------------------------------------------
-# Streaming SSE Endpointe=message,
+# Streaming SSE Endpoint
 # -------------------------------------------------------------------------
 @router.get("/sse")
 async def chat_sse(
-    request: Request,  session_id=session_id,
-    session_id: UUID,config,
-    model: str,       client=client,
+    request: Request,
+    session_id: UUID,
+    model: str,
     message: str,
     developer_config: Optional[str] = None,
     reasoning_effort: str = "medium",
     db: AsyncSession = Depends(get_db_session),
-):        raise HTTPException(status_code=500, detail=str(exc))
-    """    finally:
+):
+    """
     SSE endpoint for streaming chat responses from your model.
     Uses an in-memory concurrency limiter (SSE_SEMAPHORE).
     """
-    await SSE_SEMAPHORE.acquire()tream_chunks(
+    await SSE_SEMAPHORE.acquire()
     try:
         # Validate session
         sel_stmt = select(Session).where(Session.id == session_id)
         sess_res = await db.execute(sel_stmt)
-        session_db = sess_res.scalar_one_or_none()sion,
-        if not session_db:  session_id: UUID,
-            raise HTTPException(status_code=404, detail="Session not found")eloper_config: Optional[str],
+        session_db = sess_res.scalar_one_or_none()
+        if not session_db:
+            raise HTTPException(status_code=404, detail="Session not found")
 
         # Retrieve model client
         client_wrapper = await get_model_client_dependency(model)
-        client = client_wrapper["client"]ielding SSE data chunks from your streaming model.
-        if not client or not client_wrapper.get("supports_streaming", False):al streaming code to Azure/DeepSeek/etc.
-            raise HTTPException(status_code=400, detail="Model doesn't support streaming")    """
-_content = ""
-        # Return the streaming response
+        client = client_wrapper["client"]
+        if not client or not client_wrapper.get("supports_streaming", False):
+            raise HTTPException(
+                status_code=400, detail="Model doesn't support streaming"
+            )
+
         return StreamingResponse(
             generate_stream_chunks(
                 request=request,
                 message=message,
-                model_name=model,        if developer_config:
-                reasoning_effort=reasoning_effort,ntent": developer_config})
-                db=db,e": "user", "content": message})
+                model_name=model,
+                reasoning_effort=reasoning_effort,
+                db=db,
                 session_id=session_id,
                 developer_config=developer_config,
-                client=client,del_name,
+                client=client,
             ),
-            media_type="text/event-stream",0.7,        # add or derive from user config
+            media_type="text/event-stream",
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))ream=True,
-    finally:   headers={
-        SSE_SEMAPHORE.release()                "x-ms-streaming-version": "2024-05-01-preview",
-},
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        SSE_SEMAPHORE.release()
+
 
 async def generate_stream_chunks(
     request: Request,
-    message: str,            async for chunk in response:
+    message: str,
     model_name: str,
-    reasoning_effort: str,content
+    reasoning_effort: str,
     db: AsyncSession,
-    session_id: UUID,= expand_chain_of_thought(content, request)
+    session_id: UUID,
     developer_config: Optional[str],
     client: Any,
-):delta": {
+):
     """
     Async generator yielding SSE data chunks from your streaming model.
-    Replace this stub with your actual streaming code to Azure/DeepSeek/etc.
+    Replace this stub with actual code to stream from O-series/DeepSeek/etc.
     """
     full_content = ""
-    usage_block: Dict[str, Any] = {}usage": {
-      "completion_tokens": len(processed_content.split()),
-    try:ning_tokens": len(re.findall(r"", processed_content))
-        # Determine if chain-of-thought expansion is needed
+    usage_block: Dict[str, Any] = {}
+
+    try:
+        # Build messages
         messages = []
         if developer_config:
             messages.append({"role": "system", "content": developer_config})
-        messages.append({"role": "user", "content": message})            traceback.print_exc()
-or: {e}")
-        response = client.chat.completions.create(iled: {e}")
+        messages.append({"role": "user", "content": message})
+
+        # Here you'd call your client's streaming method
+        # For demonstration, yield placeholder SSE chunks
+        for i in range(3):
+            chunk_text = f"Streaming chunk {i+1} for model {model_name}\n"
+            full_content += chunk_text
+            yield sse_json(
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "role": "assistant",
+                                "content": chunk_text,
+                            }
+                        }
+                    ],
+                    "model": model_name,
+                    "usage": {
+                        "completion_tokens": len(chunk_text.split()),
+                        "reasoning_tokens": 0,
+                    },
+                }
+            )
+            await asyncio.sleep(0.5)
+
+        # Final chunk with a "stop" reason
+        yield sse_json({"choices": [{"finish_reason": "stop"}]})
+        yield "event: complete\ndata: done\n\n"
+
+        # Now store usage, message, etc. in DB
+        prompt_tokens = count_tokens(message, model_name)
+        completion_tokens = count_tokens(full_content, model_name)
+        total_tokens = prompt_tokens + completion_tokens
+
+        usage_data = {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+        }
+        stats_service = ModelStatsService(db)
+        await stats_service.record_usage(
             model=model_name,
-            messages=messages,        # Final chunk with stop reason
-            temperature=0.7,        # add or derive from user configp"}]})
-            top_p=1,data: done\n\n"
-            max_tokens=131072,      # or smaller if needed
-            stream=True,ssistant messages in DB if desired
-            headers={ion(
-                "x-ms-streaming-version": "2024-05-01-preview",n_id,
-            },   role="user",
+            session_id=session_id,
+            usage=usage_data,
         )
 
-        try:
-            async for chunk in response:ion(
-                content = chunk.choices[0].delta.content or ""n_id,
-                full_content += contentt",
+        # Save conversation
+        await save_conversation(
+            db_session=db,
+            session_id=session_id,
+            model_name=model_name,
+            user_text=message,
+            assistant_text=full_content,
+            formatted_assistant_text=full_content,
+            raw_response=None,
+        )
 
-                processed_content = expand_chain_of_thought(content, request)
-                yield sse_json({
-                    "choices": [{  "streaming": True,
-                        "delta": {       "final_content": full_content,
-                            "content": processed_content,
-                            "role": "assistant"
-                        }        )
-                    }],stant_msg])
-                    "model": model_name,db.commit()
-                    "usage": {
-                        "completion_tokens": len(processed_content.split()),lledError:
-                        "reasoning_tokens": len(re.findall(r"", processed_content))
-                    }
-                })
-        except Exception as e:        traceback.print_exc()
-            import traceback        logger.exception(f"SSE error in generate_stream_chunks: {exc}")
-            traceback.print_exc()0, detail=f"SSE failed: {exc}")
-            logger.exception(f"SSE error: {e}")
-            raise HTTPException(status_code=500, detail=f"SSE failed: {e}")
-Dict[str, Any]) -> str:
-        # Final chunk with stop reason
-        yield sse_json({"choices": [{"finish_reason": "stop"}]})
-        yield "event: complete\ndata: done\n\n"    data: {...}\n\n
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    except Exception as exc:
+        logger.exception(f"SSE error in generate_stream_chunks: {exc}")
+        raise HTTPException(status_code=500, detail=f"SSE failed: {exc}")
 
 
 def sse_json(data: Dict[str, Any]) -> str:
-    """Format SSE data lines as: data: {...}\n\n"""
+    """
+    Format SSE data lines as: data: {...}\n\n
+    """
     return "data: " + json.dumps(data) + "\n\n"
