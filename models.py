@@ -102,6 +102,8 @@ class Conversation(Base):
         info={'check': "formatted_content IS NULL OR formatted_content ~ '^[a-zA-Z0-9<>&; ]+$'"})
     pinned = Column(Boolean, default=False, nullable=False)
     archived = Column(Boolean, default=False, nullable=False)
+    title = Column(String(200), default=None, nullable=True)
+    
     raw_response = Column(JSONB, nullable=True,
         comment='Trimmed response metadata only',
         info={'check': "octet_length(raw_response::text) < 1024"})
