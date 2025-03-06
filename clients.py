@@ -453,14 +453,18 @@ async def get_model_client_dependency(
             if not config.AZURE_INFERENCE_CREDENTIAL:
                 raise ValueError("AZURE_INFERENCE_CREDENTIAL is missing")
 
+            # Construct endpoint EXACTLY as per documentation
+            endpoint = f"{config.AZURE_INFERENCE_ENDPOINT.rstrip('/')}/v1/chat/completions"
+            
             client = ChatCompletionsClient(
-                endpoint=config.AZURE_INFERENCE_ENDPOINT,
+                endpoint=endpoint,
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+                api_version="2024-05-01-preview",  # Sets ?api-version=2024-05-01-preview
                 headers={
                     "x-ms-thinking-format": "html",
-                    "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
-                    "x-ms-user-agent": "azure-ai-inference/1.0.0"
+                    "x-ms-streaming-version": "2024-05-01-preview",
+                    "x-ms-user-agent": "azure-ai-inference/1.0.0",
+                    "api-key": config.AZURE_INFERENCE_CREDENTIAL
                 },
                 connection_timeout=120.0,
                 read_timeout=120.0,
@@ -474,19 +478,19 @@ async def get_model_client_dependency(
         # Handle DeepSeek client configuration
         if is_deepseek_model(model_name):
             # Validate endpoint format
-            endpoint = config.AZURE_INFERENCE_ENDPOINT
-            if not endpoint.endswith("/openai/deployments/DeepSeek-R1"):
-                endpoint = f"{config.AZURE_INFERENCE_ENDPOINT.rstrip('/')}/openai/deployments/DeepSeek-R1"
+            # Construct endpoint EXACTLY as per documentation
+            endpoint = f"{config.AZURE_INFERENCE_ENDPOINT.rstrip('/')}/v1/chat/completions"
                 
             # Properly initialize DeepSeek client
             client = ChatCompletionsClient(
                 endpoint=endpoint,
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+                api_version="2024-05-01-preview",  # Sets ?api-version=2024-05-01-preview
                 headers={
                     "x-ms-thinking-format": "html",
-                    "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
-                    "x-ms-user-agent": "azure-ai-inference/1.0.0"
+                    "x-ms-streaming-version": "2024-05-01-preview",
+                    "x-ms-user-agent": "azure-ai-inference/1.0.0",
+                    "api-key": config.AZURE_INFERENCE_CREDENTIAL
                 }
             )
             return {
