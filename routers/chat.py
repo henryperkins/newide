@@ -701,23 +701,20 @@ async def generate_stream_chunks(
                 content = chunk.choices[0].delta.content or ""
                 full_content += content
 
-                if enable_thinking == "true":
-                    processed_content = expand_chain_of_thought(content, request)
-                    yield sse_json({
-                        "choices": [{
-                            "delta": {
-                                "content": processed_content,
-                                "role": "assistant"
-                            }
-                        }],
-                        "model": model_name,
-                        "usage": {
-                            "completion_tokens": len(processed_content.split()),
-                            "reasoning_tokens": len(re.findall(r"", processed_content))
+                processed_content = expand_chain_of_thought(content, request)
+                yield sse_json({
+                    "choices": [{
+                        "delta": {
+                            "content": processed_content,
+                            "role": "assistant"
                         }
-                    })
-                else:
-                    yield sse_json({"choices": [{"delta": {"content": content}}]})
+                    }],
+                    "model": model_name,
+                    "usage": {
+                        "completion_tokens": len(processed_content.split()),
+                        "reasoning_tokens": len(re.findall(r"", processed_content))
+                    }
+                })
         except Exception as e:
             import traceback
             traceback.print_exc()
