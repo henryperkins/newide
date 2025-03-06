@@ -738,20 +738,25 @@ async def generate_stream_chunks(
             messages.append({"role": "system", "content": developer_config})
         messages.append({"role": "user", "content": message})
 
-        # Get the correct client with DeepSeek headers
+        # Validate DeepSeek credentials first
+        if config.is_deepseek_model(model_name):
+            if not config.AZURE_INFERENCE_CREDENTIAL:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Missing DeepSeek API credentials - check AZURE_INFERENCE_CREDENTIAL environment variable"
+                )
+
+        # Get properly configured client
         client_wrapper = await get_model_client_dependency(model_name)
         client = client_wrapper["client"]
 
-        # DeepSeek-specific streaming call
-        stream_response = client.complete(
+        # DeepSeek-specific streaming call with required parameters
+        stream_response = client.chat.completions.create(
+            model=model_name,
             messages=messages,
             temperature=0.0,
             max_tokens=config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
-            stream=True,
-            headers={
-                "x-ms-thinking-format": "html",
-                "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION
-            }
+            stream=True
         )
         
         async for chunk in stream_response:
