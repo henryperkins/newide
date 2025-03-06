@@ -372,8 +372,13 @@ async def pin_conversation(
         raise HTTPException(status_code=500, detail=str(exc))
         await db.rollback()
         logger.exception(f"Error updating pin status: {exc}")
-@router.post("/conversations/{conversation_id}/archive")exc))
+@router.post("/conversations/{conversation_id}/archive")
 async def archive_conversation(
+    conversation_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[User] = Depends(get_current_user),
+):
 
 @router.post("/conversations/{conversation_id}/archive")
 async def archive_conversation(
