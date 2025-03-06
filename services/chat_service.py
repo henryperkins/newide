@@ -456,17 +456,8 @@ async def process_chat_message(
         else:
             # Using the openai.AzureOpenAI client
             # Add DeepSeek-specific streaming headers
-            headers = {
-                "x-ms-thinking-format": "html",
-                "x-ms-streaming-version": "2024-05-01-preview"
-            } if is_deepseek else {}
-
-            response = azure_client.chat.completions.with_options(
-                headers={
-                    "x-ms-thinking-format": "html",
-                    "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION
-                }
-            ).create(
+            # For DeepSeek models, use ChatCompletionsClient directly
+            response = azure_client.complete(
                 model=model_name,
                 messages=params["messages"],  # type: ignore
                 temperature=params.get("temperature", 0.7),  # type: ignore
