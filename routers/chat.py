@@ -523,16 +523,15 @@ async def list_conversations(                (Conversation.title.ilike(pattern))
 
         conversations = []ent_user: Optional[User] = Depends(get_current_user),
         for row in rows:
-            sess_id = row.session_id(user or system messages)."""
+            sess_id = row.session_id
             pinned_val = row.pinned
             archived_val = row.archived
-            updated_at = row.updated_at        session_id = data.get("session_id")
+            updated_at = row.updated_at
             msg_count = row.message_count
             title_val = row.title or "Untitled Conversation"
 
             conversations.append({
-                "detail": "Missing required fields",
-                    "id": str(sess_id),
+                "id": str(sess_id),
                     "title": title_val,
                     "pinned": pinned_val,
                     "archived": archived_val,        result = await db.execute(stmt)
