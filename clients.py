@@ -223,6 +223,7 @@ class ClientPool:
                 api_version=model_config["api_version"],
                 default_headers={
                     "reasoning-effort": model_config.get("reasoning_effort", "medium"),
+                    "x-ms-json-response": "true",
                     "Formatting": "re-enabled"
                 },
                 max_retries=config.O_SERIES_MAX_RETRIES,

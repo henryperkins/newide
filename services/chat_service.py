@@ -107,12 +107,14 @@ def prepare_model_parameters(
         )
         params["temperature"] = (
             chat_message.temperature or config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
-        )  # Add temperature
+        )
     elif is_o_series:
         params["max_completion_tokens"] = (
             chat_message.max_completion_tokens
             or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
         )
+        params["reasoning_effort"] = chat_message.reasoning_effort or "medium"
+        params.pop("temperature", None)
     else:
         # DeepSeek recommends temperature 0.0 for best results
         params["temperature"] = chat_message.temperature or (0.0 if is_deepseek else 0.7)

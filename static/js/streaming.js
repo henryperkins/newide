@@ -162,8 +162,8 @@ export function streamChatResponse(
     params.append('message', messageContent || '');
     
     if (validModelName.indexOf('o1') !== -1 || validModelName.indexOf('o3') !== -1) {
-      // Always ensure reasoning_effort is set for o1 models
       params.append('reasoning_effort', reasoningEffort || 'medium');
+      params.append('response_format', 'json_schema');
       console.log(`[streamChatResponse] Using o1 model with reasoning_effort=${reasoningEffort || 'medium'}`);
     } else if (reasoningEffort && validModelName.indexOf('deepseek') === -1) {
       // For non-o1 and non-deepseek models, include it if provided but it might be ignored by the backend
