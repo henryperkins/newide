@@ -256,7 +256,7 @@ MODEL_API_VERSIONS: Dict[str, str] = {
     "o3-mini": "2025-01-01-preview",
     "o1-preview": "2025-01-01-preview",
     "o1-mini": "2025-01-01-preview",
-    "deepseek-r1": "2024-05-01-preview",  # Serverless API version
+    "DeepSeek-R1": "2024-05-01-preview",  # Serverless API version
     "default": "2024-05-01-preview",
 }
 
@@ -430,7 +430,9 @@ def get_azure_credential(model_name: str = None) -> Union[str, AzureKeyCredentia
         credential = os.getenv("AZURE_INFERENCE_CREDENTIAL")
         if not credential:
             if "no healthy upstream" in str(e):
-                raise ValueError("DeepSeek service unavailable - no healthy upstream") from e
+                raise ValueError(
+                    "DeepSeek service unavailable - no healthy upstream"
+                ) from e
             raise ValueError(f"AZURE_INFERENCE_CREDENTIAL required for DeepSeek models")
         return AzureKeyCredential(credential)
     else:
