@@ -49,7 +49,7 @@ function initChatInterface() {
         charCount.textContent = count;
         userInput.style.height = 'auto';
         userInput.style.height = Math.min(userInput.scrollHeight, 200) + 'px';
-        if (count > 4000) charCount.classList.add('text-warning-500');
+        if (count > 120000) charCount.classList.add('text-warning-500');
         else charCount.classList.remove('text-warning-500');
       }, 100)
     );

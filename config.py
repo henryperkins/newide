@@ -189,7 +189,7 @@ O_SERIES_BASE_TIMEOUT = 120  # Longer timeout for complex reasoning
 DEEPSEEK_DEFAULT_MAX_TOKENS = 64000
 
 # DeepSeek-R1 specific settings with proper fallbacks
-DEEPSEEK_R1_DEFAULT_TEMPERATURE = 0.7  # DeepSeek-R1 supports temperature parameter
+DEEPSEEK_R1_DEFAULT_TEMPERATURE = 0.0  # Recommended temperature for DeepSeek-R1
 DEEPSEEK_R1_DEFAULT_MAX_TOKENS = DEEPSEEK_DEFAULT_MAX_TOKENS
 DEEPSEEK_R1_DEFAULT_API_VERSION = DEEPSEEK_API_VERSION
 AZURE_INFERENCE_API_VERSION = os.getenv(
@@ -429,6 +429,8 @@ def get_azure_credential(model_name: str = None) -> Union[str, AzureKeyCredentia
     if is_deepseek_model(model_name):
         credential = os.getenv("AZURE_INFERENCE_CREDENTIAL")
         if not credential:
+            if "no healthy upstream" in str(e):
+                raise ValueError("DeepSeek service unavailable - no healthy upstream") from e
             raise ValueError(f"AZURE_INFERENCE_CREDENTIAL required for DeepSeek models")
         return AzureKeyCredential(credential)
     else:

@@ -99,7 +99,10 @@ def prepare_model_parameters(
     messages = chat_message.messages or [
         {"role": "user", "content": chat_message.message}
     ]
-    params = {"messages": messages}
+    params = {
+        "messages": messages,
+        "api_version": config.DEEPSEEK_R1_DEFAULT_API_VERSION
+    }
 
     if is_o_series:
         # Enforce JSON schema for O-series
@@ -456,9 +459,13 @@ async def process_chat_message(
                 "x-ms-streaming-version": "2024-05-01-preview"
             } if is_deepseek else {}
 
-            response = azure_client.chat.completions.create(
+            response = azure_client.chat.completions.with_options(
+                headers={
+                    "x-ms-thinking-format": "html",
+                    "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION
+                }
+            ).create(
                 model=model_name,
-                headers=headers,
                 messages=params["messages"],  # type: ignore
                 temperature=params.get("temperature", 0.7),  # type: ignore
                 max_completion_tokens=params.get("max_completion_tokens", 1000),  # type: ignore

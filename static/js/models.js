@@ -603,7 +603,7 @@ class ModelManager {
         
         // Add DeepSeek-R1 if missing (case-insensitive check)
         console.log("Checking for DeepSeek-R1 existence...");
-        const hasDeepSeek = Object.keys(this.modelConfigs).some(k => k.toLowerCase() === 'deepseek-r1');
+        const hasDeepSeek = Object.keys(this.modelConfigs).some(k => k.toLowerCase().includes('deepseek'));
         if (!hasDeepSeek) {
             console.log("Creating DeepSeek-R1 from template");
             const deepseekConfig = generateDefaultModelConfig('DeepSeek-R1', KNOWN_MODELS[1].modelApiConfig);
