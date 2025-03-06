@@ -726,7 +726,7 @@ class ModelManager {
                 token_factor: Number(modelConfig.token_factor || defaultConfig.token_factor)
             };
 
-            const response = await fetch(`${ window.location.origin } /api/config / models / ${ modelId } `, {
+            const response = await fetch(`${window.location.origin}/api/config/models/${encodeURIComponent(modelId)}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
