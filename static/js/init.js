@@ -100,6 +100,9 @@ function initApplication() {
   loadConversationFromDb();
   maybeShowWelcomeMessage();
 
+  // 10. Initialize model manager
+  await modelManager.initialize();
+
   console.log('Application initialization complete');
 }
 
