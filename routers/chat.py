@@ -621,7 +621,20 @@ async def create_chat_completion(
         raise exc
     except Exception as exc:
         await db.rollback()
-        # logger.exception("Error creating chat completion: %s", exc)
+        if hasattr(exc, "status_code") and exc.status_code == 400 and hasattr(exc, "response"):
+            try:
+                response_data = exc.response.json()
+                if "content_filter_results" in response_data:
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error": "content_filtered",
+                            "message": "Response blocked by content safety system",
+                            "filter_results": response_data["content_filter_results"]
+                        }
+                    )
+            except json.JSONDecodeError:
+                pass  # If we can't parse JSON, fall through to generic error
         raise HTTPException(status_code=500, detail=str(exc))
 
 
