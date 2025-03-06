@@ -72,7 +72,7 @@ app.include_router(model_stats_router)  # Already has prefix="/api/model-stats"
 app.include_router(auth_router, prefix="/auth")
 
 # Mount static files at '/static' instead
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static", headers={"Cache-Control": "no-cache, max-age=0"})
 
 
 # Serve the index file on the root path

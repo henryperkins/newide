@@ -46,29 +46,27 @@ class ConfigService:
         description: Optional[str] = None,
         is_secret: bool = False,
     ) -> bool:
-        """Set configuration value"""
+        """Set configuration value using upsert"""
         try:
-            # Check if the key already exists
-            existing_config = await self.get_config(key)
-            if existing_config is not None:
-                # Update existing config
-                await self.db.execute(
-                    update(AppConfiguration)
-                    .where(AppConfiguration.key == key)
-                    .values(value=value, description=description, is_secret=is_secret)
-                )
-                logger.info(f"Updated config for key '{key}'")
-            else:
-                # Insert new config
-                new_config = AppConfiguration(
+            # Use upsert operation
+            await self.db.execute(
+                insert(AppConfiguration)
+                .values(
                     key=key,
                     value=value,
                     description=description,
-                    is_secret=is_secret,
+                    is_secret=is_secret
                 )
-                self.db.add(new_config)
-                logger.info(f"Inserted config for key '{key}'")
-
+                .on_conflict_do_update(
+                    index_elements=['key'],
+                    set_={
+                        'value': value,
+                        'description': description,
+                        'is_secret': is_secret,
+                        'updated_at': func.now()
+                    }
+                )
+            )
             await self.db.commit()
             return True
         except Exception as e:

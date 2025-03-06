@@ -566,6 +566,11 @@ class ModelManager {
         
         // Process remaining known models
         for (const { id, modelApiConfig } of KNOWN_MODELS) {
+            // Skip if already exists
+            if (this.modelConfigs[id]) {
+                console.log(`Model ${id} already exists, skipping creation`);
+                continue;
+            }
             // Skip o1 as we already explicitly handled it above
             if (id.toLowerCase() === 'o1') continue;
             

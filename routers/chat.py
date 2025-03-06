@@ -502,6 +502,46 @@ async def list_conversations(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@router.post("/conversations/store")
+async def store_conversation(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    """Store conversation data from client"""
+    try:
+        data = await request.json()
+        session_id = data.get("session_id")
+        role = data.get("role")
+        content = data.get("content")
+        
+        if not all([session_id, role, content]):
+            raise HTTPException(status_code=400, detail="Missing required fields")
+            
+        # Validate session exists
+        stmt = select(Session).where(Session.id == session_id)
+        result = await db.execute(stmt)
+        if not result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Session not found")
+            
+        # Store the message
+        msg = Conversation(
+            session_id=session_id,
+            user_id=current_user.id if current_user else None,
+            role=role,
+            content=content,
+            timestamp=datetime.now(timezone.utc),
+        )
+        db.add(msg)
+        await db.commit()
+        
+        return {"status": "success", "message_id": msg.id}
+        
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error storing conversation: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # -------------------------------------------------------------------------
 # Non-Streaming Chat Completion
 # -------------------------------------------------------------------------

@@ -124,7 +124,7 @@ async def get_all_configs(
 
 
 class ModelConfigModel(BaseModel):
-    name: str = Field(..., min_length=3, pattern=r"^[a-zA-Z0-9-_]+$")
+    name: str = Field(..., min_length=1, pattern=r"^[a-zA-Z0-9-_]+$")  # Allow short names like "o1"
     max_tokens: int = Field(..., gt=0, le=200000)
     supports_streaming: Optional[bool] = False
     supports_temperature: Optional[bool] = False
@@ -252,6 +252,11 @@ async def create_model(
     model: Optional[Dict[str, Any]] = None,
     db_session: AsyncSession = Depends(get_db_session),
 ):
+    if len(model_id) < 2:
+        raise HTTPException(
+            status_code=422,
+            detail="Model ID must be at least 2 characters"
+        )
     """Create a new model configuration"""
     try:
         # Check for model aliases
