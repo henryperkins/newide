@@ -487,10 +487,18 @@ async def process_chat_message(
                 if "reasoning_tokens" not in usage_data:
                     usage_data["reasoning_tokens"] = len(thinking_text.split())
     except HttpResponseError as e:
+        # Handle DeepSeek-specific errors
+        if "no healthy upstream" in str(e).lower():
+            raise ValueError("DeepSeek service unavailable") from e
+            
         status_code = e.status_code if hasattr(e, "status_code") else 500
         err_code = getattr(e.error, "code", "Unknown") if getattr(e, "error", None) else "Unknown"
         err_message = getattr(e, "message", str(e))
         err_reason = getattr(e, "reason", "Unknown")
+        
+        # Special handling for DeepSeek's thinking format requirements
+        if "x-ms-thinking-format" in err_message:
+            err_message += " - Required for chain-of-thought responses"
         
         # Handle Azure Content Safety filtering
         if hasattr(e, 'response') and 'content_filter_results' in e.response.json():

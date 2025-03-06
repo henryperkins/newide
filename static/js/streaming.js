@@ -608,8 +608,11 @@ async function attemptErrorRecovery(messageContent, error) {
  * Wrapper around processDataChunk to update local streaming state.
  */
 function processDataChunkWrapper(data) {
+  // Handle DeepSeek-specific thinking blocks and HTML formatting
+  const processedData = deepSeekProcessor.preprocessChunk(data);
+  
   const result = deepSeekProcessor.processChunkAndUpdateBuffers(
-    data,
+    processedData,
     chunkBuffer,
     mainTextBuffer,
     thinkingTextBuffer,
