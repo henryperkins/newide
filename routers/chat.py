@@ -1,11 +1,9 @@
-# chat.py
-
 import uuid
 import json
 import re
 import time
 import asyncio
-from typing import Optional, Dict, Any, Union, List
+from typing import Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -14,9 +12,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select, insert, delete, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# -------------------------------------------------------------------------
 # Internal modules (adjust as needed)
-# -------------------------------------------------------------------------
 from database import get_db_session
 from routers.security import get_current_user
 import logging
@@ -34,9 +30,7 @@ from services.model_stats_service import ModelStatsService
 from services.chat_service import save_conversation
 from services.config_service import ConfigService, get_config_service
 
-# -------------------------------------------------------------------------
 # Models & Schemas (from your own code)
-# -------------------------------------------------------------------------
 from models import Session, User, Conversation
 from pydantic_models import (
     CreateChatCompletionRequest,
@@ -47,9 +41,6 @@ from pydantic_models import (
     ErrorResponse,
 )
 
-# -------------------------------------------------------------------------
-# Constants & Configuration
-# -------------------------------------------------------------------------
 router = APIRouter(prefix="/chat")
 
 # Concurrency settings for SSE
@@ -63,16 +54,11 @@ O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS = 40000
 
 
 # -------------------------------------------------------------------------
-# Helper: Expand <details style="margin: 0.5rem 0 1.5rem; padding: 0.75rem; border: 1px solid var(--background-modifier-border); border-radius: 4px; background-color: var(--background-secondary)">
-            <summary style="cursor: pointer; color: var(--text-muted); font-size: 0.8em; margin-bottom: 0.5rem; user-select: none">Thought for a second</summary>
-            <div class="text-muted" style="margin-top: 0.75rem; padding: 0.75rem; border-radius: 4px; background-color: var(--background-primary)">blocks into HTML
+# Helper: Expand chain-of-thought blocks in HTML
 # -------------------------------------------------------------------------
 def expand_chain_of_thought(full_content: str, request: Request) -> str:
     """
-    Replaces <think>...</div>
-          </details>
-
- blocks with a hidden HTML expansion
+    Replaces <think>...</think> blocks with a hidden HTML expansion
     for chain-of-thought style content. Uses CSP nonce and DOMPurify.
     """
     if not full_content:
@@ -99,10 +85,8 @@ def expand_chain_of_thought(full_content: str, request: Request) -> str:
     </div>
 </div>
         """
-        # Replace the "<think>" block with sanitized HTML
         block.replace_with(BeautifulSoup(thinking_html, "html.parser"))
 
-    # Final pass to sanitize the entire result
     final_html = dompurify_clean(str(soup))
     return final_html
 
@@ -606,7 +590,6 @@ async def create_chat_completion(
         raise exc
     except Exception as exc:
         await db.rollback()
-        # Optionally parse cloud error
         try:
             error_data = exc.response.json()
             if "content_filter_results" in error_data:
@@ -639,7 +622,6 @@ async def chat_sse(
     SSE endpoint for streaming chat responses from your model.
     Uses an in-memory concurrency limiter (SSE_SEMAPHORE).
     """
-    # Acquire concurrency slot
     await SSE_SEMAPHORE.acquire()
     try:
         # Validate session
@@ -690,14 +672,12 @@ async def generate_stream_chunks(
     Replace this stub with your actual streaming code to Azure/DeepSeek/etc.
     """
     full_content = ""
-    # If you track usage data, initialize a usage block:
     usage_block: Dict[str, Any] = {}
 
     try:
         # Determine if chain-of-thought expansion is needed
         enable_thinking = "true" if "deepseek" in model_name.lower() else "false"
 
-        # Example streaming call - actual parameters depend on your model
         response = client.chat.completions.create(
             model=model_name,
             messages=[{"role": "user", "content": message}],
@@ -745,10 +725,8 @@ async def generate_stream_chunks(
         await db.commit()
 
     except asyncio.CancelledError:
-        # Typically occurs if client disconnects
         return
     except Exception as exc:
-        # Return an SSE formatted error message
         error_payload = {
             "error": {
                 "message": "Streaming error occurred",
