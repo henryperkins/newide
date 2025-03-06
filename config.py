@@ -230,11 +230,13 @@ def is_o_series_model(model_name: str) -> bool:
 
 
 # Validate DeepSeek endpoint format
-if AZURE_INFERENCE_ENDPOINT and "/v1/chat/completions" not in AZURE_INFERENCE_ENDPOINT:
-    raise ValueError(
-        "AZURE_INFERENCE_ENDPOINT must include /v1/chat/completions path\n"
-        "Example: https://your-resource.region.inference.ai.azure.com/v1/chat/completions"
-    )
+if AZURE_INFERENCE_ENDPOINT:
+    endpoint = AZURE_INFERENCE_ENDPOINT.rstrip('/')
+    if not endpoint.endswith("/v1/chat/completions"):
+        raise ValueError(
+            "AZURE_INFERENCE_ENDPOINT must end with /v1/chat/completions path\n"
+            "Example: https://your-resource.region.inference.ai.azure.com/v1/chat/completions"
+        )
 
 O_SERIES_BASE_TIMEOUT = settings.O_SERIES_BASE_TIMEOUT
 O_SERIES_MAX_TIMEOUT = settings.O_SERIES_MAX_TIMEOUT

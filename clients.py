@@ -224,14 +224,14 @@ class ClientPool:
             return ChatCompletionsClient(
                 endpoint=endpoint,
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                api_version="2024-05-01-preview",  # Hardcoded as required
+                api_version="2024-05-01-preview",
                 headers={
                     "x-ms-thinking-format": "html",
                     "x-ms-streaming-version": "2024-05-01-preview",
-                    "x-ms-user-agent": "azure-ai-inference/1.0.0",
-                    "api-key": config.AZURE_INFERENCE_CREDENTIAL
+                    "api-key": config.AZURE_INFERENCE_CREDENTIAL,
+                    "Content-Type": "application/json",
+                    "User-Agent": "DeepSeek-Client/1.0.0"
                 },
-                # Timeouts adjusted for DeepSeek's larger context window
                 connection_timeout=30.0,
                 read_timeout=120.0
             )
