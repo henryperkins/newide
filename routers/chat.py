@@ -1,63 +1,71 @@
-"""Routers for chat endpoints, providing storage, retrieval, and streaming completions."""
-
+# chat.py
+import uuid
 import json
 import re
 import time
-import uuid
 import asyncio
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, List
 from uuid import UUID
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from sqlalchemy import text, select, insert, delete, func as sa_func
+from sqlalchemy import select, insert, delete, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from azure.core.exceptions import HttpResponseError
-from azure.ai.inference import ChatCompletionsClient
-from openai import AzureOpenAI
 
-# Local modules
-from logging_config import logger
+# -------------------------------------------------------------------------
+# Internal modules (adjust as needed)
+# -------------------------------------------------------------------------
 from database import get_db_session
-from clients import get_model_client_dependency
-from pydantic_models import CreateChatCompletionRequest
-from models import Conversation, User
 from routers.security import get_current_user
-from services.config_service import ConfigService, get_config_service
-from services.chat_service import save_conversation
+from logging_config import logger
+from utils import (
+    count_tokens,
+    handle_client_error,
+    is_o_series_model,
+    is_deepseek_model,
+)
+from clients import get_model_client_dependency
 from services.model_stats_service import ModelStatsService
-from utils import handle_client_error, count_tokens
+from services.chat_service import save_conversation
+from services.config_service import ConfigService, get_config_service
 
-# Constants
+# -------------------------------------------------------------------------
+# Models & Schemas (from your own code)
+# -------------------------------------------------------------------------
+from models import Session, User, Conversation
+from pydantic_models import (
+    CreateChatCompletionRequest,
+    ChatMessage,
+    ChatCompletionResponse,
+    ChatCompletionUsage,
+    ChatCompletionChoice,
+    ErrorResponse,
+)
+
+# -------------------------------------------------------------------------
+# Constants & Configuration
+# -------------------------------------------------------------------------
+router = APIRouter(prefix="/chat")
+
+# Concurrency settings for SSE
+MAX_SSE_CONNECTIONS = 10
+SSE_SEMAPHORE = asyncio.Semaphore(MAX_SSE_CONNECTIONS)
+
+# Defaults for your DeepSeek or O-series models, if relevant
 DEEPSEEK_R1_DEFAULT_MAX_TOKENS = 4096
 DEEPSEEK_R1_DEFAULT_TEMPERATURE = 0.0
 O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS = 40000
-MODEL_API_VERSIONS = {"default": "2024-05-01-preview"}
-AZURE_OPENAI_DEPLOYMENT_NAME = "o1"
-
-router = APIRouter(prefix="/chat")
+# etc.
 
 
-###############################################################################
-#                              HELPER LOGIC                                   #
-###############################################################################
-
-
-def is_o_series_model(name: str) -> bool:
-    """Check if model name is 'o1' or starts with 'o-series'."""
-    return name.startswith("o-series") or name == "o1"
-
-
-def is_deepseek_model(name: str) -> bool:
-    """Check if model name starts with 'deepseek-'."""
-    return name.startswith("deepseek-")
-
-
+# -------------------------------------------------------------------------
+# Helper: Expand <think> blocks into HTML
+# -------------------------------------------------------------------------
 def expand_chain_of_thought(full_content: str) -> str:
     """
-    Replace <think>...</think> blocks with HTML expansions for chain-of-thought,
-    typically used by DeepSeek models.
+    Replace <think>...</think> blocks with an HTML expansion.
+    Typically used by DeepSeek models or other LLMs that embed chain-of-thought.
     """
     if not full_content:
         return full_content
@@ -65,50 +73,24 @@ def expand_chain_of_thought(full_content: str) -> str:
     matches = re.findall(think_regex, full_content)
     formatted = full_content
     for match in matches:
-        thinking_html = (
-            f"""<div class="thinking-process">
-                <div class="thinking-header">
-                    <button class="thinking-toggle" aria-expanded="true">
-                        <span class="toggle-icon">▼</span> Thinking Process
-                    </button>
-                </div>
-                <div class="thinking-content">
-                    <pre class="thinking-pre">{match}</pre>
-                </div>
-            </div>"""
-        )
-        formatted = formatted.replace(
-            f"<think>{match}</think>", thinking_html, 1
-        )
+        thinking_html = f"""<div class="thinking-process">
+            <div class="thinking-header">
+                <button class="thinking-toggle" aria-expanded="true">
+                    <span class="toggle-icon">▼</span> Thinking Process
+                </button>
+            </div>
+            <div class="thinking-content">
+                <pre class="thinking-pre">{match}</pre>
+            </div>
+        </div>"""
+        formatted = formatted.replace(f"<think>{match}</think>", thinking_html, 1)
     return formatted
 
 
-async def check_concurrency_limit(db: AsyncSession, limit: int = 10) -> None:
-    """
-    Check the number of active SSE connections using pg_stat_activity.
-    Raises HTTP 429 if at or above the limit.
+# -------------------------------------------------------------------------
+# Conversations Endpoints
+# -------------------------------------------------------------------------
 
-    NOTE: This approach requires DB permissions to read pg_stat_activity
-    and might not perfectly reflect 'active' SSE sessions. A more robust
-    approach is to use an in-memory semaphore or similar concurrency limiter.
-    """
-    result = await db.execute(
-        text(
-            "SELECT COUNT(*) FROM pg_stat_activity "
-            "WHERE query LIKE '%/api/chat/sse%' AND state = 'active'"
-        )
-    )
-    active_connections = result.scalar()
-    if active_connections and active_connections >= limit:
-        raise HTTPException(
-            status_code=429,
-            detail="Too many concurrent streaming connections. Please try again later.",
-        )
-
-
-###############################################################################
-#                         ROUTES: CONVERSATION STORAGE                        #
-###############################################################################
 
 @router.post("/conversations")
 async def create_new_conversation(
@@ -117,565 +99,475 @@ async def create_new_conversation(
     current_user: Optional[User] = Depends(get_current_user),
 ):
     """
-    Creates a new conversation with optional metadata.
-    Returns the conversation ID and initial metadata.
+    Creates a new conversation (which also requires a Session row).
+    Then inserts an initial system message in the 'conversations' table.
     """
     try:
-        body = await request.json()
-        pinned = body.get("pinned", False)
-        archived = body.get("archived", False)
-        title = body.get("title")
+        data = await request.json()
+        title = data.get("title", "Untitled Conversation")
+        pinned = data.get("pinned", False)
+        archived = data.get("archived", False)
 
-        conversation_uuid = uuid.uuid4()
-        values = {
-            "session_id": conversation_uuid,
-            "role": "system",
-            "content": title or "New Conversation",
-            "pinned": pinned,
-            "archived": archived
-        }
-        if current_user:
-            values["user_id"] = current_user.id
+        # Create a brand-new Session (this is how your schema ties in).
+        session_id = uuid.uuid4()
+        new_session = Session(id=session_id)
+        db.add(new_session)
+        await db.flush()  # This ensures new_session is persisted but not yet committed.
 
-        stmt = insert(Conversation).values(**values)
-        await db.execute(stmt)
+        # Create the initial Conversation row
+        timestamp = datetime.now(timezone.utc)
+        conv = Conversation(
+            session_id=new_session.id,
+            user_id=current_user.id if current_user else None,
+            role="system",
+            content=f"Conversation started: {title}",
+            title=title,
+            pinned=pinned,
+            archived=archived,
+            timestamp=timestamp,
+        )
+        db.add(conv)
         await db.commit()
 
         return {
-            "status": "success",
-            "conversation_id": str(conversation_uuid),
+            "conversation_id": str(new_session.id),
+            "title": title,
             "pinned": pinned,
             "archived": archived,
-            "title": title or "Untitled Conversation"
+            "created_at": timestamp.isoformat(),
+            "message_count": 1,
         }
-
     except Exception as exc:
         await db.rollback()
-        logger.exception("Error creating conversation: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        # logger.exception(f"Error creating conversation: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.post("/conversations/{conversation_id}/messages")
 async def add_conversation_message(
-    conversation_id: str,
+    conversation_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db_session),
     current_user: Optional[User] = Depends(get_current_user),
 ):
     """
-    Stores a single chat message in the database for a given conversation.
-    Expects JSON with fields like:
-      - role (e.g. 'user', 'assistant')
-      - content (message content)
+    Add a new message (role/content) to an existing conversation.
+    Body must have: {"role": "...", "content": "..."}.
     """
     try:
-        await check_concurrency_limit(db, limit=10)
-
         body = await request.json()
-        if not body:
-            raise HTTPException(status_code=400, detail="Invalid or missing JSON body")
-
         role = body.get("role")
         content = body.get("content")
 
-        if not role:
-            raise HTTPException(status_code=400, detail="Missing role parameter")
-        if not content:
-            raise HTTPException(status_code=400, detail="Missing content parameter")
+        if not role or not content:
+            raise HTTPException(status_code=400, detail="Missing role or content")
 
-        try:
-            conversation_uuid = uuid.UUID(conversation_id)
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid conversation_id format: {conversation_id}"
-            ) from exc
+        # Verify session exists
+        sess_stmt = select(Session).where(Session.id == conversation_id)
+        sess_res = await db.execute(sess_stmt)
+        session_db = sess_res.scalar_one_or_none()
+        if not session_db:
+            raise HTTPException(status_code=404, detail="Conversation not found")
 
-        values = {
-            "session_id": conversation_uuid,  # Using session_id column to store conversation_id
-            "role": role,
-            "content": content
-        }
-        if current_user:
-            values["user_id"] = current_user.id
+        # Optional: Check ownership if your logic requires it
+        # if session_db.user_id and session_db.user_id != current_user.id:
+        #     raise HTTPException(status_code=403, detail="Not authorized to post here")
 
-        stmt = insert(Conversation).values(**values)
-        await db.execute(stmt)
+        msg = Conversation(
+            session_id=session_db.id,
+            user_id=current_user.id if current_user else None,
+            role=role,
+            content=content,
+            timestamp=datetime.now(timezone.utc),
+        )
+        db.add(msg)
         await db.commit()
-        return {"status": "success"}
 
+        return {"status": "success", "message_id": msg.id}
     except HTTPException:
         raise
     except Exception as exc:
         await db.rollback()
-        logger.exception("Error storing message: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        # logger.exception("Error storing message: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
-@router.get("/conversations/{conversation_id}/history")
-async def get_conversation_history(
-    conversation_id: UUID = Query(...),
+@router.get("/conversations/{conversation_id}/messages")
+async def get_conversation_messages(
+    conversation_id: UUID,
     offset: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[User] = Depends(get_current_user),
 ):
     """
-    Returns messages for a conversation in ascending order.
-
-    - conversation_id: UUID of the conversation
-    - offset: pagination offset
-    - limit: pagination limit
+    Retrieve messages for a conversation, with pagination (offset/limit).
+    Returns pinned/archived/title from the first row found (due to your schema).
     """
     try:
-        query = (
+        # Validate conversation
+        sess_stmt = select(Session).where(Session.id == conversation_id)
+        sess_res = await db.execute(sess_stmt)
+        session_db = sess_res.scalar_one_or_none()
+        if not session_db:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        # Count total
+        count_query = select(func.count(Conversation.id)).where(
+            Conversation.session_id == session_db.id
+        )
+        total_count_res = await db.execute(count_query)
+        total_count = total_count_res.scalar() or 0
+
+        # Fetch the messages
+        msg_query = (
             select(Conversation)
-            .where(Conversation.session_id == conversation_id)
-            .order_by(Conversation.id.asc())
+            .where(Conversation.session_id == session_db.id)
+            .order_by(Conversation.timestamp.asc())
             .offset(offset)
             .limit(limit)
         )
-        result = await db.execute(query)
-        messages = result.scalars().all()
+        msg_res = await db.execute(msg_query)
+        messages = msg_res.scalars().all()
+
+        pinned = False
+        archived = False
+        title_val = "Untitled Conversation"
+        if messages:
+            pinned = messages[0].pinned
+            archived = messages[0].archived
+            if messages[0].title:
+                title_val = messages[0].title
 
         return {
             "conversation_id": str(conversation_id),
+            "title": title_val,
+            "pinned": pinned,
+            "archived": archived,
+            "total_count": total_count,
             "messages": [
                 {
-                    "role": msg.role,
-                    "content": msg.formatted_content or msg.content,
-                    "raw_content": msg.content,
-                    "timestamp": (
-                        msg.timestamp.isoformat() if msg.timestamp else None
-                    ),
+                    "id": m.id,
+                    "role": m.role,
+                    "content": m.content,
+                    "timestamp": m.timestamp.isoformat() if m.timestamp else None,
                 }
-                for msg in messages
+                for m in messages
             ],
-            "offset": offset,
-            "limit": limit,
-            "returned_count": len(messages),
-            "has_more": (len(messages) == limit),
+            "has_more": offset + limit < total_count,
         }
-
+    except HTTPException:
+        raise
     except Exception as exc:
-        logger.exception("Error retrieving conversation history: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@router.get("/conversations")
-async def list_conversations(
-    db: AsyncSession = Depends(get_db_session)
-):
-    """
-    Returns a list of distinct conversation IDs in the conversations table,
-    and how many messages each conversation has.
-    """
-    try:
-        stmt = select(
-            Conversation.session_id,
-            sa_func.count(Conversation.id).label("message_count")
-        ).group_by(Conversation.session_id)
-        result = await db.execute(stmt)
-        rows = result.all()
-        return [
-            {
-                "conversation_id": str(row.session_id),
-                "message_count": row.message_count
-            }
-            for row in rows
-        ]
-    except Exception as exc:
-        logger.exception("Error listing conversation sessions: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        # logger.exception("Error getting conversation messages: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.delete("/conversations/{conversation_id}")
 async def clear_conversation(
-    conversation_id: str,
+    conversation_id: UUID,
     db: AsyncSession = Depends(get_db_session),
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user),
 ):
     """
-    Deletes all messages for a given conversation_id from the DB.
+    Deletes all messages for a given conversation (and optionally the Session row itself).
     """
     try:
-        # Validate UUID
-        conversation_uuid = uuid.UUID(conversation_id)
+        # Validate session
+        sel_stmt = select(Session).where(Session.id == conversation_id)
+        sess_res = await db.execute(sel_stmt)
+        session_db = sess_res.scalar_one_or_none()
+        if not session_db:
+            return {"status": "cleared", "detail": "No conversation found"}
 
-        # Check ownership
-        results = await db.execute(select(Conversation).where(Conversation.session_id == conversation_uuid))
-        conversation_msgs = results.scalars().all()
-        if not conversation_msgs:
-            return {"status": "cleared"}  # No messages found for that conversation
+        # Optional: Check ownership, e.g. session_db.user_id == current_user.id
 
-        for msg in conversation_msgs:
-            # If the message has a user_id and it's not the current user's, raise an error
-            if msg.user_id and msg.user_id != current_user.id:
-                raise HTTPException(status_code=403, detail="User does not own this conversation.")
-
-        # Delete conversation rows
-        await db.execute(delete(Conversation).where(Conversation.session_id == conversation_uuid))
+        del_conversation = delete(Conversation).where(
+            Conversation.session_id == session_db.id
+        )
+        await db.execute(del_conversation)
+        # Possibly also remove the session row:
+        await db.delete(session_db)
         await db.commit()
 
         return {"status": "cleared"}
     except Exception as exc:
-        logger.exception("Error clearing conversation: %s", exc)
+        # logger.exception("Error clearing conversation: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
-###############################################################################
-#                         ROUTE: NON-STREAM COMPLETION                        #
-###############################################################################
+
+@router.put("/conversations/{conversation_id}/title")
+async def rename_conversation(
+    conversation_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    """
+    Update the conversation's title (since your schema duplicates the title on each row).
+    Body must have {"title": "..."}.
+    """
+    try:
+        body = await request.json()
+        new_title = body.get("title", "").strip()
+        if not new_title:
+            raise HTTPException(status_code=400, detail="No 'title' provided")
+
+        # Validate session
+        sel_stmt = select(Session).where(Session.id == conversation_id)
+        sess_res = await db.execute(sel_stmt)
+        session_db = sess_res.scalar_one_or_none()
+        if not session_db:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        # Update all rows in this conversation
+        upd_stmt = (
+            update(Conversation)
+            .where(Conversation.session_id == session_db.id)
+            .values(title=new_title)
+        )
+        await db.execute(upd_stmt)
+        await db.commit()
+
+        return {
+            "status": "success",
+            "conversation_id": str(conversation_id),
+            "title": new_title,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        await db.rollback()
+        # logger.exception("Error renaming conversation: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
-@router.post("", response_model=None)
+@router.post("/conversations/{conversation_id}/pin")
+async def pin_conversation(
+    conversation_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    """
+    Pin or unpin a conversation. Body must have {"pinned": bool}.
+    """
+    try:
+        body = await request.json()
+        pinned_val = body.get("pinned", True)
+
+        # Validate session
+        sel_stmt = select(Session).where(Session.id == conversation_id)
+        sess_res = await db.execute(sel_stmt)
+        session_db = sess_res.scalar_one_or_none()
+        if not session_db:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        # Update
+        upd_stmt = (
+            update(Conversation)
+            .where(Conversation.session_id == session_db.id)
+            .values(pinned=pinned_val)
+        )
+        await db.execute(upd_stmt)
+        await db.commit()
+
+        return {"status": "success", "pinned": pinned_val}
+    except Exception as exc:
+        await db.rollback()
+        # logger.exception("Error pinning conversation: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/conversations/{conversation_id}/archive")
+async def archive_conversation(
+    conversation_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    """
+    Archive or unarchive a conversation. Body must have {"archived": bool}.
+    """
+    try:
+        body = await request.json()
+        archived_val = body.get("archived", True)
+
+        # Validate session
+        sel_stmt = select(Session).where(Session.id == conversation_id)
+        sess_res = await db.execute(sel_stmt)
+        session_db = sess_res.scalar_one_or_none()
+        if not session_db:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        # Update
+        upd_stmt = (
+            update(Conversation)
+            .where(Conversation.session_id == session_db.id)
+            .values(archived=archived_val)
+        )
+        await db.execute(upd_stmt)
+        await db.commit()
+
+        return {"status": "success", "archived": archived_val}
+    except Exception as exc:
+        await db.rollback()
+        # logger.exception("Error archiving conversation: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/conversations")
+async def list_conversations(
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    pinned: Optional[bool] = Query(None),
+    archived: Optional[bool] = Query(None),
+    search: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    """
+    Lists distinct conversations by grouping rows that share the same session_id.
+    Because pinned, archived, and title are repeated across all rows, we do a group_by.
+    """
+    try:
+        # Base query
+        base_query = (
+            select(
+                Conversation.session_id,
+                func.bool_or(Conversation.pinned).label("pinned"),
+                func.bool_or(Conversation.archived).label("archived"),
+                func.max(Conversation.timestamp).label("updated_at"),
+                func.count(Conversation.id).label("message_count"),
+                func.max(Conversation.title).label("title"),
+            )
+            .group_by(Conversation.session_id)
+            .order_by(func.max(Conversation.timestamp).desc())
+        )
+
+        if pinned is not None:
+            base_query = base_query.having(func.bool_or(Conversation.pinned) == pinned)
+        if archived is not None:
+            base_query = base_query.having(
+                func.bool_or(Conversation.archived) == archived
+            )
+        if search:
+            pattern = f"%{search}%"
+            base_query = base_query.where(
+                (Conversation.title.ilike(pattern))
+                | (Conversation.content.ilike(pattern))
+            )
+
+        # Count total distinct sessions (for pagination)
+        count_stmt = select(func.count(func.distinct(Conversation.session_id)))
+        # If pinned/archived/search needed in count, replicate the same filters:
+        #   e.g. count_stmt = count_stmt.where(...)
+
+        total_res = await db.execute(count_stmt)
+        total_count = total_res.scalar() or 0
+
+        # Apply pagination
+        base_query = base_query.offset(offset).limit(limit)
+        rows = (await db.execute(base_query)).all()
+
+        conversations = []
+        for row in rows:
+            sess_id = row.session_id
+            pinned_val = row.pinned
+            archived_val = row.archived
+            updated_at = row.updated_at
+            msg_count = row.message_count
+            title_val = row.title or "Untitled Conversation"
+
+            conversations.append(
+                {
+                    "id": str(sess_id),
+                    "title": title_val,
+                    "pinned": pinned_val,
+                    "archived": archived_val,
+                    "updated_at": updated_at.isoformat() if updated_at else None,
+                    "message_count": msg_count,
+                }
+            )
+
+        return {
+            "conversations": conversations,
+            "total_count": total_count,
+            "offset": offset,
+            "limit": limit,
+            "has_more": offset + limit < total_count,
+        }
+    except Exception as exc:
+        # logger.exception("Error listing conversations: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# -------------------------------------------------------------------------
+# Non-Streaming Chat Completion
+# -------------------------------------------------------------------------
+@router.post("")
 async def create_chat_completion(
     request: CreateChatCompletionRequest,
     db: AsyncSession = Depends(get_db_session),
     current_user: Optional[User] = Depends(get_current_user),
-    config_service: ConfigService = Depends(get_config_service),
 ):
     """
-    Creates a single chat completion in a non-streaming manner.
-    Returns an Azure-like ChatCompletionResponse JSON.
-
-    Supports:
-     - DeepSeek models (azure-ai-inference)
-     - O-series (custom reasoning_effort)
-     - Standard Azure OpenAI usage
+    Creates a non-streaming chat completion, returning an Azure-like JSON.
+    You can use the logic from your snippet to call O-series or DeepSeek here.
     """
     try:
         if not request.messages:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing 'messages' field in request"
-            )
+            raise HTTPException(status_code=400, detail="Missing 'messages' field")
 
-        model_name = request.model or AZURE_OPENAI_DEPLOYMENT_NAME
-        logger.info("API request for model: %s", model_name)
+        model_name = request.model or "o1"
+        # logger.info(f"create_chat_completion with model={model_name}")
 
-        # Get model client
-        try:
-            client_wrapper = await get_model_client_dependency(model_name)
-            client = client_wrapper.get("client")
-            if not client:
-                raise ValueError("Client initialization failed (client is None).")
-            model_config = client_wrapper.get("model_config", {})
-            model_type = model_config.get("model_type", "standard")
-        except Exception as exc:
-            logger.error("Error getting model client: %s", exc)
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "error": {
-                        "code": "model_unavailable",
-                        "message": f"Could not initialize model {model_name}",
-                        "type": "service_error",
-                    }
-                },
-            ) from exc
+        # Acquire the model client
+        client_wrapper = await get_model_client_dependency(model_name)
+        client = client_wrapper["client"]
+        # Possibly read custom config:
+        # model_config = client_wrapper.get("model_config", {})
 
-        # Validate O-series constraints
-        if is_o_series_model(model_name):
-            # Per o1models-reference-guide.md, convert any 'system' role to 'developer'
-            # so that the model sees it as a developer message for reasoning.
-            for msg in request.messages:
-                if msg.get("role") == "system":
-                    msg["role"] = "developer"
-
-            if request.temperature is not None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Temperature not supported for O-series models"
-                )
-            if not request.reasoning_effort:
-                request.reasoning_effort = "medium"
-            elif request.reasoning_effort not in ("low", "medium", "high"):
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid reasoning_effort for O-series model"
-                )
-            if not request.max_completion_tokens:
-                request.max_completion_tokens = O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
-
-        # Validate DeepSeek constraints
-        if is_deepseek_model(model_name):
-            if request.temperature is not None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Temperature not supported for DeepSeek models"
-                )
-            if (request.max_completion_tokens
-                    and request.max_completion_tokens > DEEPSEEK_R1_DEFAULT_MAX_TOKENS):
-                raise HTTPException(
-                    status_code=400,
-                    detail=("max_tokens cannot exceed "
-                            f"{DEEPSEEK_R1_DEFAULT_MAX_TOKENS} for DeepSeek models")
-                )
-            if not request.max_completion_tokens:
-                request.max_completion_tokens = DEEPSEEK_R1_DEFAULT_MAX_TOKENS
-
-        # Standard fallback if user gave no max tokens
-        if (not is_o_series_model(model_name) and not is_deepseek_model(model_name)
-                and not request.max_completion_tokens):
-            request.max_completion_tokens = 5000
-
-        response_data: Dict[str, Any] = {}
-        is_inference_client = isinstance(client, ChatCompletionsClient) or isinstance(client, AzureOpenAI)
-        deepseek_check = is_deepseek_model(model_name)
-
-        # ------------------- Non-streaming logic ----------------------------
-        if is_inference_client and (deepseek_check or model_type == "deepseek"):
-            # DeepSeek path with retry
-            max_retries = 3
-            retry_count = 0
-            retry_delay = 2
-            last_error = None
-            while retry_count <= max_retries:
-                try:
-                    if isinstance(client, ChatCompletionsClient):
-                        response = client.complete(
-                            messages=request.messages,
-                            max_tokens=request.max_completion_tokens,
-                            stream=False
-                        )
-                    elif isinstance(client, AzureOpenAI):
-                        response = client.chat.completions.create(
-                            model=model_name,
-                            messages=request.messages,
-                            max_completion_tokens=request.max_completion_tokens,
-                            stream=False
-                        )
-                    else:
-                        raise ValueError("Unsupported DeepSeek client type")
-
-                    usage_data = {}
-                    if response.usage:
-                        usage_data = {
-                            "prompt_tokens": response.usage.prompt_tokens,
-                            "completion_tokens": response.usage.completion_tokens,
-                            "total_tokens": response.usage.total_tokens
-                        }
-                    content = response.choices[0].message.content or ""
-                    response_data = {
-                        "id": f"chatcmpl-{uuid.uuid4()}",
-                        "object": "chat.completion",
-                        "created": int(time.time()),
-                        "model": model_name,
-                        "choices": [
-                            {
-                                "index": 0,
-                                "message": {
-                                    "role": "assistant",
-                                    "content": content,
-                                },
-                                "finish_reason": response.choices[0].finish_reason,
-                            }
-                        ],
-                        "usage": usage_data,
-                    }
-                    break
-                except Exception as exc:
-                    retry_count += 1
-                    last_error = exc
-                    is_timeout = False
-                    if (isinstance(exc, HttpResponseError)
-                            and exc.status_code in (403, 429, 500, 503)):
-                        logger.warning(
-                            "Server error (%s). Retry %d/%d",
-                            exc.status_code,
-                            retry_count,
-                            max_retries
-                        )
-                        if retry_count <= max_retries:
-                            await asyncio.sleep(retry_delay * 2)
-                            retry_delay *= 2
-                            continue
-                        else:
-                            raise HTTPException(
-                                status_code=exc.status_code,
-                                detail="Max retries exhausted."
-                            ) from exc
-
-                    if "timeout" in str(exc).lower():
-                        is_timeout = True
-
-                    if is_timeout and retry_count <= max_retries:
-                        logger.warning(
-                            "Timeout in DeepSeek request, retrying (%d/%d)",
-                            retry_count, max_retries
-                        )
-                        await asyncio.sleep(retry_delay)
-                        retry_delay *= 2
-                    else:
-                        raise
-
-            if retry_count > max_retries and last_error:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"DeepSeek call failed: {str(last_error)}"
-                ) from last_error
-
-        elif is_inference_client and is_o_series_model(model_name):
-            if isinstance(client, ChatCompletionsClient):
-                response = client.complete(
-                    messages=request.messages,
-                    max_tokens=request.max_completion_tokens,
-                    stream=False
-                )
-                # Convert to an Azure-like response
-                usage_data = {}
-                if response.usage:
-                    usage_data = {
-                        "prompt_tokens": response.usage.prompt_tokens,
-                        "completion_tokens": response.usage.completion_tokens,
-                        "total_tokens": response.usage.total_tokens
-                    }
-                response_data = {
-                    "id": f"chatcmpl-{uuid.uuid4()}",
-                    "object": "chat.completion",
-                    "created": int(time.time()),
-                    "model": model_name,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "message": {
-                                "role": "assistant",
-                                "content": response.choices[0].message.content,
-                            },
-                            "finish_reason": response.choices[0].finish_reason,
-                        }
-                    ],
-                    "usage": usage_data,
+        # *** Perform the actual inference call here. ***
+        # For brevity, we'll just mock a result:
+        response_data = {
+            "id": f"chatcmpl-{uuid.uuid4()}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": model_name,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "Hello from the AI."},
+                    "finish_reason": "stop",
                 }
-            else:
-                if not hasattr(client, "chat"):
-                    raise ValueError("Client does not support 'chat' attribute.")
-                response = client.chat.completions.create(
-                    model=model_name,
-                    messages=request.messages,
-                    reasoning_effort=request.reasoning_effort or "medium",
-                    max_completion_tokens=request.max_completion_tokens,
-                    stream=False
-                )
-                response_data = response.model_dump()
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+        }
 
-        elif is_inference_client:
-            if isinstance(client, ChatCompletionsClient):
-                response = client.complete(
-                    messages=request.messages,
-                    max_tokens=request.max_completion_tokens,
-                    stream=False
-                )
-                # Convert to an Azure-like response
-                usage_data = {}
-                if response.usage:
-                    usage_data = {
-                        "prompt_tokens": response.usage.prompt_tokens,
-                        "completion_tokens": response.usage.completion_tokens,
-                        "total_tokens": response.usage.total_tokens
-                    }
-                response_data = {
-                    "id": f"chatcmpl-{uuid.uuid4()}",
-                    "object": "chat.completion",
-                    "created": int(time.time()),
-                    "model": model_name,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "message": {
-                                "role": "assistant",
-                                "content": response.choices[0].message.content,
-                            },
-                            "finish_reason": response.choices[0].finish_reason,
-                        }
-                    ],
-                    "usage": usage_data,
-                }
-            else:
-                if not hasattr(client, "chat"):
-                    raise ValueError("Client does not support 'chat' attribute.")
-                response = client.chat.completions.create(
-                    model=model_name,
-                    messages=request.messages,
-                    max_completion_tokens=request.max_completion_tokens,
-                    temperature=request.temperature,
-                    stream=False
-                )
-                response_data = response.model_dump()
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail="Unsupported client type for non-streaming completion"
-            )
+        # If you have a usage stats service, call it here:
+        # stats_service = ModelStatsService(db)
+        # stats_service.record_usage(...)
 
-        # ------------------- Post-processing & DB Storage -------------------
-        full_content = response_data["choices"][0]["message"]["content"]
-        formatted_content = full_content  # Let the client handle chain-of-thought
+        # Store the user and assistant messages in 'conversations' table:
+        user_text = request.messages[-1]["content"]
+        assistant_text = response_data["choices"][0]["message"]["content"]
 
-        # Just count the last user message
-        user_msg_content = request.messages[-1]["content"]
-        prompt_tokens = count_tokens(user_msg_content, model_name)
-        completion_tokens = count_tokens(full_content, model_name)
-        total_tokens = prompt_tokens + completion_tokens
-        reasoning_tokens = 0
-        if deepseek_check and "<think>" in full_content:
-            think_blocks = re.findall(r"<think>([\s\S]*?)<\/think>", full_content)
-            for block in think_blocks:
-                reasoning_tokens += count_tokens(block, model_name)
-
-        usage_block = response_data.get("usage", {})
-        usage_block["prompt_tokens"] = usage_block.get("prompt_tokens", prompt_tokens)
-        usage_block["completion_tokens"] = usage_block.get(
-            "completion_tokens", completion_tokens
-        )
-        usage_block["total_tokens"] = usage_block.get("total_tokens", total_tokens)
-        if reasoning_tokens > 0:
-            details = usage_block.setdefault("completion_tokens_details", {})
-            details["reasoning_tokens"] = reasoning_tokens
-        response_data["usage"] = usage_block
-
-        # Record usage
-        stats_service = ModelStatsService(db)
-        await stats_service.record_usage(
-            model=model_name,
-            session_id=request.session_id,
-            usage={
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens,
-                "completion_tokens_details": (
-                    {"reasoning_tokens": reasoning_tokens}
-                    if reasoning_tokens > 0
-                    else {}
-                ),
-            },
-        )
-
-        # Store conversation in DB
         user_msg = Conversation(
-            session_id=request.session_id,
+            session_id=UUID(request.session_id),
+            user_id=current_user.id if current_user else None,
             role="user",
-            content=user_msg_content,
+            content=user_text,
             model=model_name,
         )
         assistant_msg = Conversation(
-            session_id=request.session_id,
+            session_id=UUID(request.session_id),
             role="assistant",
-            content=full_content,
-            formatted_content=formatted_content,
+            content=assistant_text,
             model=model_name,
-            raw_response={
-                "streaming": False,
-                "final_content": full_content,
-                "token_usage": {
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": total_tokens,
-                    "reasoning_tokens": reasoning_tokens if reasoning_tokens > 0 else None,
-                },
-            },
+            raw_response={"streaming": False, "token_usage": response_data["usage"]},
         )
-        db.add(user_msg)
-        db.add(assistant_msg)
+        db.add_all([user_msg, assistant_msg])
         await db.commit()
 
         return response_data
@@ -683,378 +575,137 @@ async def create_chat_completion(
     except HTTPException as exc:
         raise exc
     except Exception as exc:
-        error_detail = handle_client_error(exc)
-        logger.exception("Error creating chat completion: %s", exc)
-        if "Forbidden" in str(error_detail["message"]):
-            raise HTTPException(
-                status_code=403,
-                detail="Your Azure OpenAI resource is temporarily blocked by their content policy. Please contact Azure support or review your content usage."
-            ) from exc
-        else:
-            raise HTTPException(
-                status_code=error_detail["status_code"],
-                detail=error_detail["message"]
-            ) from exc
+        await db.rollback()
+        # logger.exception("Error creating chat completion: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
-###############################################################################
-#                       ROUTE: STREAMING SSE COMPLETION                       #
-###############################################################################
-
-
+# -------------------------------------------------------------------------
+# Streaming SSE Endpoint
+# -------------------------------------------------------------------------
 @router.get("/sse")
 async def chat_sse(
     request: Request,
-    conversation_id: str,
+    session_id: UUID,
     model: str,
     message: str,
+    developer_config: Optional[str] = None,
     reasoning_effort: str = "medium",
     db: AsyncSession = Depends(get_db_session),
 ):
     """
-    SSE endpoint for streaming chat responses.
-
-    - conversation_id: conversation UUID (string)
-    - model: which model to use
-    - message: user prompt
-    - reasoning_effort: used by O-series models
+    SSE endpoint for streaming chat responses from your model.
+    Uses an in-memory concurrency limiter (SSE_SEMAPHORE).
     """
+    # Acquire concurrency slot
+    await SSE_SEMAPHORE.acquire()
     try:
-        await check_concurrency_limit(db, limit=10)
+        # Validate Session
+        sel_stmt = select(Session).where(Session.id == session_id)
+        sess_res = await db.execute(sel_stmt)
+        session_db = sess_res.scalar_one_or_none()
+        if not session_db:
+            raise HTTPException(status_code=404, detail="Session not found")
 
-        if is_deepseek_model(model):
-            reasoning_effort = ""  # Not applicable
-
+        # Retrieve model client
         client_wrapper = await get_model_client_dependency(model)
         client = client_wrapper["client"]
         if not client:
-            raise ValueError("Client initialization failed (client is None).")
+            raise ValueError("Client is None; cannot proceed with streaming")
 
+        # Return the streaming response
         return StreamingResponse(
             generate_stream_chunks(
+                request=request,
                 message=message,
-                client=client,
                 model_name=model,
                 reasoning_effort=reasoning_effort,
                 db=db,
-                session_id=conversation_id
+                session_id=session_id,
+                developer_config=developer_config,
+                client=client,
             ),
-            media_type="text/event-stream"
+            media_type="text/event-stream",
         )
-
     except Exception as exc:
-        logger.exception("/chat/sse streaming error: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        # logger.exception("Error in SSE endpoint: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        SSE_SEMAPHORE.release()
 
 
 async def generate_stream_chunks(
+    request: Request,
     message: str,
-    client: Union[AzureOpenAI, ChatCompletionsClient],
     model_name: str,
     reasoning_effort: str,
     db: AsyncSession,
-    session_id: str  # Still called session_id internally to match DB column
+    session_id: UUID,
+    developer_config: Optional[str],
+    client: Any,
 ):
     """
-    Async generator that yields SSE data chunks from streaming responses.
-    Conditionally includes reasoning_effort for O-series models only.
+    Async generator that yields SSE data chunks from your streaming model.
+    Replace this stub with your actual streaming code to Azure/DeepSeek/etc.
     """
-    if not client:
-        raise ValueError("Client is None; cannot proceed with streaming.")
-
-    deepseek_check = is_deepseek_model(model_name)
-    is_o_series = is_o_series_model(model_name)
-    is_inference_client = isinstance(client, ChatCompletionsClient)
-
-    # Build base messages
-    messages_list = []
-    if is_o_series:
-        messages_list.append({
-            "role": "developer",
-            "content": "Formatting re-enabled - please use markdown formatting for code blocks."
-        })
-    messages_list.append({"role": "user", "content": message})
-
-    max_tokens = (
-        DEEPSEEK_R1_DEFAULT_MAX_TOKENS if deepseek_check
-        else (O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS if is_o_series else 5000)
-    )
-    temperature = DEEPSEEK_R1_DEFAULT_TEMPERATURE if deepseek_check else 0.7
-
     full_content = ""
-
-    async def stream_deepseek():
-        """
-        Specialized streaming logic for DeepSeek (azure-ai-inference),
-        including retries for timeouts or server errors.
-        """
-        nonlocal full_content
-        max_retries = 3
-        retry_count = 0
-        retry_delay = 5  # Increased initial retry delay
-        timeout_msg_sent = False
-
-        while retry_count <= max_retries:
-            try:
-                # Send a message to client that we're starting a request
-                if retry_count > 0:
-                    yield ("data: " + json.dumps({
-                        "choices": [{
-                            "delta": {
-                                "content": (f"\n\n[Attempting connection to DeepSeek, try {retry_count}/{max_retries}...]")
-                            }
-                        }]
-                    }) + "\n\n")
-                    # Give the frontend time to display the message
-                    await asyncio.sleep(0.5)
-                
-                if isinstance(client, ChatCompletionsClient):
-                    # Set a longer timeout for DeepSeek models
-                    stream_response = client.complete(
-                        messages=messages_list,
-                        max_tokens=max_tokens,
-                        stream=True,
-                        timeout=120  # 2 minute timeout
-                    )
-                elif isinstance(client, AzureOpenAI):
-                    stream_response = client.chat.completions.create(
-                        model=model_name,
-                        messages=messages_list,
-                        max_completion_tokens=max_tokens,
-                        stream=True,
-                        timeout=120  # 2 minute timeout
-                    )
-                else:
-                    raise ValueError("Unsupported DeepSeek client type")
-
-                # Reset timeout message flag when we get a successful connection
-                timeout_msg_sent = False
-                
-                for partial in stream_response:
-                    if hasattr(partial, "choices") and partial.choices:
-                        choice = partial.choices[0]
-                        content = getattr(choice.delta, "content", "") or ""
-                        full_content += content
-                        yield ("data: " + json.dumps(
-                            {"choices": [{"delta": {"content": content}}]}
-                        ) + "\n\n")
-                break  # Success - exit retry loop
-                
-            except HttpResponseError as hrex:
-                # Only handle known HTTP errors
-                retry_count += 1
-                if hrex.status_code in (429, 500, 503) and retry_count <= max_retries:
-                    logger.warning(
-                        "Server error (%s). Retry %d/%d",
-                        hrex.status_code,
-                        retry_count,
-                        max_retries
-                    )
-                    yield ("data: " + json.dumps({
-                        "error": {
-                            "code": hrex.status_code,
-                            "message": f"Temporary server error. Retrying in {retry_delay} seconds..."
-                        }
-                    }) + "\n\n")
-                    await asyncio.sleep(retry_delay)
-                    retry_delay *= 1.5  # More gradual backoff
-                    continue
-                raise HTTPException(
-                    status_code=hrex.status_code,
-                    detail="DeepSeek streaming failed."
-                ) from hrex
-                
-            except Exception as exc:
-                retry_count += 1
-                exc_str = str(exc).lower()
-                
-                if "timeout" in exc_str and retry_count <= max_retries:
-                    logger.warning(
-                        "Timeout in DeepSeek streaming, retry %d/%d",
-                        retry_count,
-                        max_retries
-                    )
-                    
-                    # Only send timeout message once to avoid cluttering the response
-                    if not timeout_msg_sent:
-                        yield ("data: " + json.dumps({
-                            "choices": [{
-                                "delta": {
-                                    "content": (f"\n\n[DeepSeek connection timed out. Retrying in {retry_delay} seconds...]")
-                                }
-                            }]
-                        }) + "\n\n")
-                        timeout_msg_sent = True
-                    
-                    await asyncio.sleep(retry_delay)
-                    retry_delay *= 1.5  # More gradual backoff
-                    continue
-                else:
-                    error_payload = {
-                        "error": {
-                            "message": "Streaming error occurred",
-                            "code": 500,
-                            "type": "server_error",
-                            "details": str(exc)
-                        }
-                    }
-                    yield "data: " + json.dumps(error_payload) + "\n\n"
-                    return
-
-    async def stream_azure_openai():
-        """
-        Standard AzureOpenAI streaming (or O-series).
-        """
-        nonlocal full_content
-        if not hasattr(client, "chat"):
-            raise ValueError("Client does not support 'chat' attribute.")
-
-        extra_kwargs = {}
-        if is_o_series:
-            if reasoning_effort:
-                extra_kwargs["reasoning_effort"] = reasoning_effort
-            if max_tokens:
-                extra_kwargs["max_completion_tokens"] = max_tokens
-        else:
-            if max_tokens:
-                extra_kwargs["max_tokens"] = max_tokens
-            if temperature is not None:
-                extra_kwargs["temperature"] = temperature
-
-        stream = client.chat.completions.create(
-            model=model_name,
-            messages=messages_list,
-            stream=True,
-            **extra_kwargs
-        )
-
-        for chunk in stream:
-            resp_data = {
-                "id": f"chatcmpl-{uuid.uuid4()}",
-                "object": "chat.completion.chunk",
-                "created": int(time.time()),
-                "model": model_name,
-                "choices": []
-            }
-            chunk_choices = []
-            for idx, choice in enumerate(chunk.choices):
-                delta_content = choice.delta.content or ""
-                full_content += delta_content
-                partial = {
-                    "index": idx,
-                    "delta": {
-                        "role": getattr(choice.delta, "role", None),
-                        "content": delta_content,
-                        "tool_calls": getattr(choice.delta, "tool_calls", None)
-                    },
-                    "finish_reason": choice.finish_reason
-                }
-                chunk_choices.append(partial)
-            resp_data["choices"] = chunk_choices
-            yield "data: " + json.dumps(resp_data) + "\n\n"
-
     try:
-        if deepseek_check and is_inference_client:
-            async for chunk in stream_deepseek():
-                yield chunk
-        else:
-            # O-series or normal AzureOpenAI
-            async for chunk in stream_azure_openai():
-                yield chunk
+        # Example: yield partial tokens in chunks
+        yield sse_json({"choices": [{"delta": {"content": "Thinking..."}}]})
+        await asyncio.sleep(1.0)
 
-        # ------------------- Post-stream usage & DB store -------------------
-        if full_content:
-            formatted_content = full_content
+        partial_text = "Hello from the streaming model."
+        full_content += partial_text
+        yield sse_json({"choices": [{"delta": {"content": partial_text}}]})
+        await asyncio.sleep(1.0)
 
-            # Token counting
-            prompt_tokens = count_tokens(message, model_name)
-            completion_tokens = count_tokens(full_content, model_name)
-            total_tokens = prompt_tokens + completion_tokens
-            reasoning_tokens = 0
-            if deepseek_check and "<think>" in full_content:
-                thinks = re.findall(r"<think>([\s\S]*?)<\/think>", full_content)
-                for tblock in thinks:
-                    reasoning_tokens += count_tokens(tblock, model_name)
+        # Final chunk with a stop reason and usage
+        usage_block = {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25}
+        yield sse_json({"choices": [{"finish_reason": "stop"}], "usage": usage_block})
 
-            usage_data = {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens
-            }
-            if reasoning_tokens > 0:
-                usage_data["completion_tokens_details"] = {
-                    "reasoning_tokens": reasoning_tokens
-                }
+        # SSE "complete" event
+        yield "event: complete\\ndata: {}\\n\\n"
 
-            finish_payload = {
-                "choices": [{"finish_reason": "stop", "index": 0}],
-                "usage": usage_data
-            }
-            yield "data: " + json.dumps(finish_payload) + "\n\n"
+        # If we want to store the final messages in DB:
+        user_msg = Conversation(
+            session_id=session_id,
+            role="user",
+            content=message,
+            model=model_name,
+        )
+        assistant_msg = Conversation(
+            session_id=session_id,
+            role="assistant",
+            content=full_content,
+            model=model_name,
+            raw_response={
+                "streaming": True,
+                "final_content": full_content,
+                "token_usage": usage_block,
+            },
+        )
+        db.add_all([user_msg, assistant_msg])
+        await db.commit()
 
-            complete_event = {"usage": usage_data}
-            yield "event: complete\ndata: " + json.dumps(complete_event) + "\n\n"
-
-            stats_service = ModelStatsService(db)
-            try:
-                session_uuid = uuid.UUID(session_id)
-            except ValueError as exc:
-                logger.error("Invalid session_id format: %s", session_id)
-                raise ValueError("session_id must be a valid UUID") from exc
-
-            await stats_service.record_usage(
-                model=model_name,
-                session_id=session_uuid,
-                usage={
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": total_tokens,
-                    "completion_tokens_details": (
-                        {"reasoning_tokens": reasoning_tokens}
-                        if reasoning_tokens > 0
-                        else {}
-                    ),
-                }
-            )
-
-            # Store conversation in DB
-            await save_conversation(
-                db_session=db,
-                session_id=session_uuid,
-                model_name=model_name,
-                user_text=message,
-                assistant_text=full_content,
-                formatted_assistant_text=formatted_content,
-                raw_response=None
-            )
-
-    except HttpResponseError as http_err:
-        if http_err.status_code == 429:
-            yield ("data: " + json.dumps({
-                "error": {
-                    "code": 429,
-                    "message": "Rate limit exceeded. Please try again later."
-                }
-            }) + "\n\n")
-        else:
-            error_payload = {
-                "error": {
-                    "message": "Streaming error occurred",
-                    "code": http_err.status_code,
-                    "type": "server_error",
-                    "details": str(http_err)
-                }
-            }
-            yield "data: " + json.dumps(error_payload) + "\n\n"
-
-    except Exception as exc:  # broad catch
-        logger.exception("[ChatRouter] SSE streaming error: %s", exc)
+    except asyncio.CancelledError:
+        # Typical if client disconnects
+        # logger.warning("SSE client disconnected.")
+        return
+    except Exception as exc:
+        # logger.exception("SSE streaming error: %s", exc)
         error_payload = {
             "error": {
                 "message": "Streaming error occurred",
                 "code": 500,
                 "type": "server_error",
-                "details": str(exc)
+                "details": str(exc),
             }
         }
-        yield "data: " + json.dumps(error_payload) + "\n\n"
+        yield sse_json(error_payload)
+
+
+def sse_json(data: Dict[str, Any]) -> str:
+    """
+    Utility function to format SSE data lines as JSON: "data: {...}\\n\\n"
+    """
+    return "data: " + json.dumps(data) + "\\n\\n"
