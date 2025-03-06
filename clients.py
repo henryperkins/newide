@@ -415,6 +415,10 @@ async def get_model_client_dependency(model_name: Optional[str] = None) -> Dict[
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
                 model="DeepSeek-R1",  # Fixed model name
                 api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+                headers={
+                    "x-ms-thinking-format": "html",
+                    "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION
+                },
                 connection_timeout=120.0,
                 read_timeout=120.0
             )
