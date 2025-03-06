@@ -19,7 +19,7 @@ class ModelRegistry:
     # Standard model templates with required parameters
     MODEL_TEMPLATES = {
         "deepseek": {
-            "name": "DeepSeek-R1",
+            "name": "deepseek-r1",  # Lowercase for consistency
             "description": "Model that supports chain-of-thought reasoning with <think> tags",
             "enable_thinking": True,
             "thinking_tags": ["think", "/think"],
@@ -207,7 +207,7 @@ class ClientPool:
             return ChatCompletionsClient(
                 endpoint=model_config["azure_endpoint"],
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                model="DeepSeek-R1",  # Fixed model name
+                model=model_id.lower(),  # Use normalized name
                 api_version=model_config["api_version"],
                 connection_timeout=120.0,
                 read_timeout=120.0,

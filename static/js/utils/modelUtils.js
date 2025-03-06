@@ -73,7 +73,7 @@ export const KNOWN_MODELS = [
     }
   },
   {
-    id: "DeepSeek-R1",
+    id: "deepseek-r1",  // Lowercase ID
     modelApiConfig: {
       endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
       apiVersion: "2024-05-01-preview",
