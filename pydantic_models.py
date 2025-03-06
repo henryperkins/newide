@@ -58,15 +58,15 @@ class ChatMessage(BaseModel):
         if (
             is_deepseek_model(model_name)
             and self.max_tokens
-            and self.max_tokens > 64000
+            and self.max_tokens > 32000
         ):
-            raise ValueError("DeepSeek models have max 64000 completion tokens")
+            raise ValueError("DeepSeek models have max 32000 completion tokens")
         if (
             is_deepseek_model(model_name)
             and self.max_completion_tokens
-            and self.max_completion_tokens > 64000
+            and self.max_completion_tokens > 32000
         ):
-            raise ValueError("DeepSeek models have max 64000 completion tokens")
+            raise ValueError("DeepSeek models have max 32000 completion tokens")
 
         return self
 
