@@ -255,7 +255,10 @@ async def get_conversation_messages(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        import traceback
+        traceback.print_exc()
+        logger.exception(f"SSE error in chat_sse: {exc}")
+        raise HTTPException(status_code=500, detail=f"SSE error: {exc}")
 
 
 @router.delete("/conversations/{conversation_id}")
@@ -744,15 +747,10 @@ async def generate_stream_chunks(
     except asyncio.CancelledError:
         return
     except Exception as exc:
-        error_payload = {
-            "error": {
-                "message": "Streaming error occurred",
-                "code": 500,
-                "type": "server_error",
-                "details": str(exc),
-            }
-        }
-        yield sse_json(error_payload)
+        import traceback
+        traceback.print_exc()
+        logger.exception(f"SSE error in generate_stream_chunks: {exc}")
+        raise HTTPException(status_code=500, detail=f"SSE failed: {exc}")
 
 
 def sse_json(data: Dict[str, Any]) -> str:
