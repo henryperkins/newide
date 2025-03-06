@@ -713,8 +713,8 @@ async function cleanupStreaming(modelName) {
     animationFrameId = null;
   }
   try {
-    // Direct import for reliability
-    import { removeTypingIndicator } from './ui/notificationManager.js';
+    // CORRECTED: Use dynamic import() instead of static import
+    const { removeTypingIndicator } = await import('./ui/notificationManager.js');
     removeTypingIndicator();
     removeStreamingProgressIndicator();
   } finally {
