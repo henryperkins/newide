@@ -18,7 +18,7 @@ from routers.security import get_current_user
 import logging
 from logging_config import logger
 
-from dompurify import clean as dompurify_clean
+from py_dompurify import clean as dompurify_clean
 from utils import (
     count_tokens,
     handle_client_error,
