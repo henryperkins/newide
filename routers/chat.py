@@ -379,6 +379,9 @@ async def archive_conversation(
     db: AsyncSession = Depends(get_db_session),
     current_user: Optional[User] = Depends(get_current_user),
 ):
+    """
+    Archive or unarchive a conversation. Body must have {"archived": bool}.
+    """
 
 @router.post("/conversations/{conversation_id}/archive")
 async def archive_conversation(
@@ -461,9 +464,9 @@ async def list_conversations(                (Conversation.title.ilike(pattern))
     db: AsyncSession = Depends(get_db_session),db.execute(count_stmt)
     current_user: Optional[User] = Depends(get_current_user),
 ):
-    """        # Apply pagination
-    Lists distinct conversations by session_id, with optional pinned, archived, or search filters.query.offset(offset).limit(limit)
-    """.execute(base_query)).all()
+    """    
+    Lists distinct conversations by session_id, with optional pinned, archived, or search filters.
+    """
     try:
         base_query = (
             select(
@@ -509,7 +512,7 @@ async def list_conversations(                (Conversation.title.ilike(pattern))
             msg_count = row.message_count
             title_val = row.title or "Untitled Conversation"
 
-            conversations.append(n_id, role, content]):
+            conversations.append({
                 {ng required fields")
                     "id": str(sess_id),
                     "title": title_val,
@@ -531,7 +534,7 @@ on_id,
         raise HTTPException(status_code=500, detail=str(exc))
 
         await db.rollback()
-@router.post("/conversations/store")        logger.error(f"Error storing conversation: {str(e)}")
+@router.post("/conversations/store")
 async def store_conversation(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
@@ -540,8 +543,8 @@ async def store_conversation(
     """Store conversation data from client (user or system messages)."""----------------------------------
     try:
         data = await request.json()
-        session_id = data.get("session_id")  request: CreateChatCompletionRequest,
-        role = data.get("role") AsyncSession = Depends(get_db_session),
+        session_id = data.get("session_id")
+        role = data.get("role")
         content = data.get("content")
 
         if not all([session_id, role, content]):
@@ -713,8 +716,8 @@ async def generate_stream_chunks(
     developer_config: Optional[str],
     client: Any,
 ):delta": {
-    """     "content": processed_content,
-    Async generator yielding SSE data chunks from your streaming model.istant"
+    """
+    Async generator yielding SSE data chunks from your streaming model.
     Replace this stub with your actual streaming code to Azure/DeepSeek/etc.
     """
     full_content = ""
@@ -805,5 +808,7 @@ Dict[str, Any]) -> str:
 
 
 
-    return "data: " + json.dumps(data) + "\n\n"    """    data: {...}\n\n    Utility to format SSE data lines as:    """def sse_json(data: Dict[str, Any]) -> str:        raise HTTPException(status_code=500, detail=f"SSE failed: {exc}")        logger.exception(f"SSE error in generate_stream_chunks: {exc}")        traceback.print_exc()        import traceback    except Exception as exc:        return    except asyncio.CancelledError:        await db.commit()        db.add_all([user_msg, assistant_msg])        )            },                "token_usage": usage_block,                "final_content": full_content,                "streaming": True,            raw_response={            model=model_name,            content=full_content,            role="assistant",            session_id=session_id,        assistant_msg = Conversation(        )            model=model_name,            content=message,            role="user",            session_id=session_id,        user_msg = Conversation(        # Store user & assistant messages in DB if desired    """
+def sse_json(data: Dict[str, Any]) -> str:
+    """Format SSE data lines as: data: {...}\n\n"""
+    return "data: " + json.dumps(data) + "\n\n"
     return "data: " + json.dumps(data) + "\n\n"
