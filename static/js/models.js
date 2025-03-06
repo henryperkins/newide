@@ -601,13 +601,14 @@ class ModelManager {
         // Final verification
         console.log("After ensuring configs - models available:", Object.keys(this.modelConfigs));
         
-        // Add DeepSeek-R1 if missing
+        // Add DeepSeek-R1 if missing (case-insensitive check)
         console.log("Checking for DeepSeek-R1 existence...");
-        if (!this.modelConfigs['deepseek-r1']) {
+        const hasDeepSeek = Object.keys(this.modelConfigs).some(k => k.toLowerCase() === 'deepseek-r1');
+        if (!hasDeepSeek) {
             console.log("Creating DeepSeek-R1 from template");
-            const deepseekConfig = generateDefaultModelConfig('deepseek-r1', KNOWN_MODELS[1].modelApiConfig);
-            this.modelConfigs['deepseek-r1'] = deepseekConfig;
-            this.createModelOnServer('deepseek-r1', deepseekConfig)
+            const deepseekConfig = generateDefaultModelConfig('DeepSeek-R1', KNOWN_MODELS[1].modelApiConfig);
+            this.modelConfigs['DeepSeek-R1'] = deepseekConfig;
+            this.createModelOnServer('DeepSeek-R1', deepseekConfig)
                 .catch(err => console.error('DeepSeek creation failed:', err));
         }
 

@@ -618,7 +618,7 @@ async function getModelConfig(modelName) {
     console.warn(`Could not fetch model config for ${modelName}, status: ${response.status}`);
     if (response.status === 400) console.error(`Bad request: check model name and API.`);
     else if (response.status === 404) console.error(`Model ${modelName} not found in config.`);
-    if (modelName.toLowerCase() === 'DeepSeek-R1' || modelName.toLowerCase() === 'DeepSeek-R1d2')
+    if (modelName.toLowerCase() === 'deepseek-r1')
       return { name: 'DeepSeek-R1', supports_streaming: true, supports_temperature: true, api_version: '2024-05-01-preview' };
     if (modelName.toLowerCase().startsWith('o1'))
       return { name: modelName, supports_streaming: false, supports_temperature: false, api_version: '2025-01-01-preview' };
