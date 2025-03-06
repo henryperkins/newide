@@ -121,8 +121,10 @@ def prepare_model_parameters(
             }
 
     if is_deepseek:
-        params["max_tokens"] = (
-            chat_message.max_completion_tokens or config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+        # Enforce DeepSeek-R1 token limits
+        params["max_tokens"] = min(
+            chat_message.max_completion_tokens or config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
+            131072  # Max context size
         )
         params["temperature"] = (
             chat_message.temperature if chat_message.temperature is not None 

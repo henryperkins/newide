@@ -609,8 +609,8 @@ async function attemptErrorRecovery(messageContent, error) {
  */
 function processDataChunkWrapper(data) {
   // Handle DeepSeek-specific thinking blocks and HTML formatting
+  // Handle partial thinking blocks across chunk boundaries
   const processedData = deepSeekProcessor.preprocessChunk(data);
-  
   const result = deepSeekProcessor.processChunkAndUpdateBuffers(
     processedData,
     chunkBuffer,
@@ -618,6 +618,11 @@ function processDataChunkWrapper(data) {
     thinkingTextBuffer,
     isThinking
   );
+  
+  // If we're in a thinking block, store partial content
+  if (result.isThinking) {
+    this.thinkingBuffer = result.thinkingTextBuffer;
+  }
   mainTextBuffer = result.mainTextBuffer;
   thinkingTextBuffer = result.thinkingTextBuffer;
   chunkBuffer = result.chunkBuffer;
@@ -671,9 +676,14 @@ function renderBufferedContent() {
       thinkingTextBuffer
     );
 
-    const separated = deepSeekProcessor.separateContentBuffers(mainTextBuffer, thinkingTextBuffer);
+    // Get both content buffers with proper boundary handling
+    const separated = deepSeekProcessor.separateContentBuffers(
+      mainTextBuffer, 
+      thinkingTextBuffer || this.thinkingBuffer
+    );
     const mainContent = separated.mainContent;
     const thinkingContent = separated.thinkingContent;
+    this.thinkingBuffer = thinkingContent; // Preserve partial thinking blocks
 
     // Update main content
     if (mainContent) {

@@ -608,4 +608,5 @@ async def debug_models(db_session: AsyncSession = Depends(get_db_session)):
             "traceback": traceback.format_exc()
         }
 def is_deepseek_model(name: str) -> bool:
-    return name.lower() == "deepseek-r1"  # Case-insensitive check
+    """Check if model is DeepSeek-R1 with case-insensitive comparison"""
+    return name.strip().lower() == "deepseek-r1"
