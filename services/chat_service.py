@@ -96,6 +96,12 @@ class TokenManager:
 def prepare_model_parameters(
     chat_message: ChatMessage, model_name: str, is_deepseek: bool, is_o_series: bool
 ) -> Dict[str, Any]:
+    # Validate parameters against model requirements
+    if is_deepseek and chat_message.temperature not in (None, 0.0):
+        raise ValueError("DeepSeek models require temperature=0.0")
+        
+    if is_o_series and chat_message.temperature is not None:
+        raise ValueError("O-series models do not support temperature parameter")
     messages = chat_message.messages or [
         {"role": "user", "content": chat_message.message}
     ]

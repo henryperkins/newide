@@ -657,12 +657,27 @@ async def chat_sse(
             "x-ms-thinking-format": "html",
             "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION
         }
-        for header, value in required_headers.items():
-            if request.headers.get(header) != value:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Missing or invalid DeepSeek header: {header} must be {value}"
-                )
+        missing_headers = []
+        invalid_headers = []
+        
+        for header, expected_value in required_headers.items():
+            actual_value = request.headers.get(header)
+            if not actual_value:
+                missing_headers.append(header)
+            elif actual_value != expected_value:
+                invalid_headers.append(f"{header} (expected {expected_value}, got {actual_value})")
+        
+        if missing_headers or invalid_headers:
+            error_details = []
+            if missing_headers:
+                error_details.append(f"Missing headers: {', '.join(missing_headers)}")
+            if invalid_headers:
+                error_details.append(f"Invalid headers: {', '.join(invalid_headers)}")
+            
+            raise HTTPException(
+                status_code=400,
+                detail=f"DeepSeek header validation failed: {'; '.join(error_details)}"
+            )
             
     await SSE_SEMAPHORE.acquire()
     try:

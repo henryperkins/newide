@@ -159,15 +159,21 @@ export function streamChatResponse(
     // Build query parameters
     const params = new URLSearchParams();
     let finalModelName = modelName;
+    const isOSeries = validModelName.indexOf('o1') !== -1 || validModelName.indexOf('o3') !== -1;
+    
     if (finalModelName.trim().toLowerCase() === 'DeepSeek-R1') {
       finalModelName = 'DeepSeek-R1';
+      params.append('temperature', '0.0'); // Enforce temperature=0 for DeepSeek
     }
+    
     params.append('model', finalModelName);
     params.append('message', messageContent || '');
 
-    if (validModelName.indexOf('o1') !== -1 || validModelName.indexOf('o3') !== -1) {
+    if (isOSeries) {
       params.append('reasoning_effort', reasoningEffort || 'medium');
       params.append('response_format', 'json_schema');
+      params.append('max_completion_tokens', '100000'); // Enforce O-series token limit
+      params.delete('temperature'); // Remove temperature for O-series
       console.log(`[streamChatResponse] Using o1 model with reasoning_effort=${reasoningEffort || 'medium'}`);
     } else if (reasoningEffort && validModelName.indexOf('deepseek') === -1) {
       // For non-o1 and non-deepseek models, include it if provided but it might be ignored by the backend

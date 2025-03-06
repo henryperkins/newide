@@ -62,7 +62,7 @@ export const KNOWN_MODELS = [
     id: "o1",
     modelApiConfig: {
       endpoint: "https://o1models.openai.azure.com",
-      apiVersion: "2025-01-01-preview",
+      apiVersion: "2024-12-01-preview", // Match documented API version
       maxTokens: 64000,
       supportsTemperature: false,
       supportsStreaming: false,
