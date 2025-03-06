@@ -123,17 +123,37 @@ function setupIntersectionObserver() {
 
 export async function loadConversationFromDb() {
   let maybeSession = getSessionId();
-  const sessionId = maybeSession instanceof Promise ? await maybeSession : maybeSession;
-  if (!sessionId) return;
+  const conversationId = maybeSession instanceof Promise ? await maybeSession : maybeSession;
+  if (!conversationId) {
+    console.error("No conversation ID available");
+    return;
+  }
 
   try {
-    const res = await fetch(`/api/chat/conversations/history?session_id=${sessionId}&offset=0&limit=100`);
+    // Updated endpoint path to match new structure
+    const res = await fetch(`/api/chat/conversations/${conversationId}/messages?offset=0&limit=100`);
     if (!res.ok) {
       console.error('Failed to fetch conversation from DB:', res.statusText);
       showNotification('Failed to load conversation from DB', 'error');
       return;
     }
-    const data = await res.json();
+
+    // Debugging
+    console.log('API response status:', res.status);
+
+    // Try to get the response text first for debugging
+    const responseText = await res.text();
+    console.log('Raw API response:', responseText);
+
+    // Parse the JSON
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (jsonError) {
+      console.error('Failed to parse JSON response:', jsonError);
+      showNotification('Invalid response format from server', 'error');
+      return;
+    }
 
     const chatHistory = document.getElementById('chat-history');
     if (!chatHistory) return;
@@ -148,81 +168,98 @@ export async function loadConversationFromDb() {
     }
 
     // Sort messages by timestamp, then append in chronological order
-    data.messages.sort((a, b) => {
-      const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-      const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-      return timeA - timeB;
-    });
-    data.messages.forEach(m => {
-      if (m.role === 'user') {
-        renderUserMessage(m.content, true, true);
-      } else if (m.role === 'assistant') {
-        renderAssistantMessage(m.content, true, true);
+    if (data.messages && Array.isArray(data.messages)) {
+      data.messages.sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime();
+        const timeB = new Date(b.timestamp).getTime();
+        return timeA - timeB; // Ascending order (oldest first)
+      });
+
+      for (const m of data.messages) {
+        const messageElement = m.role === 'user'
+          ? createUserMessageElement(m.content)
+          : createAssistantMessageElement(m.content);
+
+        chatHistory.appendChild(messageElement);
       }
-    });
+    } else {
+      console.warn('No messages found in the response', data);
+    }
+
+    // If there's a title, update page title or conversation header
+    if (data.title) {
+      updateConversationTitle(data.title);
+    }
+
+    // Auto-scroll to bottom after loading conversation
+    setTimeout(() => {
+      chatHistory.scrollTo({
+        top: chatHistory.scrollHeight,
+        behavior: 'auto'
+      });
+    }, 100);
   } catch (e) {
     console.error('Error loading conversation from DB:', e);
     showNotification('Failed to load conversation from DB', 'error');
   }
 }
+  export async function loadOlderMessages() {
+    if (isLoadingPrevious || !hasMoreMessages) return;
 
-export async function loadOlderMessages() {
-  if (isLoadingPrevious || !hasMoreMessages) return;
-  const sessionIdMaybe = getSessionId();
-  const sessionId = sessionIdMaybe instanceof Promise ? await sessionIdMaybe : sessionIdMaybe;
-  if (!sessionId) return;
+    const sessionIdMaybe = getSessionId();
+    const conversationId = sessionIdMaybe instanceof Promise ? await sessionIdMaybe : sessionIdMaybe;
+    if (!conversationId) return;
 
-  try {
-    isLoadingPrevious = true;
-    const loadBtn = document.getElementById('load-older-btn');
-    if (loadBtn) {
-      loadBtn.disabled = true;
-      loadBtn.innerHTML = '<span class="animate-spin inline-block mr-2">&#8635;</span> Loading...';
-    }
+    try {
+      isLoadingPrevious = true;
+      const loadBtn = document.getElementById('load-older-btn');
+      if (loadBtn) {
+        loadBtn.classList.add('loading');
+        loadBtn.setAttribute('disabled', 'true');
+      }
 
-    const chatHistory = document.getElementById('chat-history');
-    if (!chatHistory) {
-      console.error("Chat history container not found.");
-      return;
-    }
+      const chatHistory = document.getElementById('chat-history');
+      if (!chatHistory) {
+        throw new Error('Chat history container not found');
+      }
 
-    // Determine how many messages are currently rendered (excluding system messages).
-    const rendered = chatHistory.querySelectorAll('.message:not(.system-message)').length;
-    // We'll fetch the next 50 older messages from DB.
-    const fetchLimit = 50;
-    const api = `/api/chat/conversations/history?session_id=${sessionId}&offset=${rendered}&limit=${fetchLimit}`;
-    const res = await fetch(api);
-    if (!res.ok) {
-      console.error('Failed to fetch older messages from DB:', res.statusText);
-      showNotification('Failed to load older messages from DB', 'error');
-      return;
-    }
-    const data = await res.json();
-
-    if (!data || !data.messages?.length) {
-      // No more messages
-      hasMoreMessages = false;
-      updateLoadMoreButton(0);
-    } else {
-      // Save scroll position
-      const scrollHeightBefore = chatHistory.scrollHeight;
+      // Remember current scroll position and height
       const scrollPositionBefore = chatHistory.scrollTop;
+      const scrollHeightBefore = chatHistory.scrollHeight;
+
+      // Get currently rendered messages count (excluding system messages)
+      const rendered = chatHistory.querySelectorAll('.message:not(.system-message)').length;
+      const fetchLimit = 50; // Load 50 older messages
+      // Updated endpoint path
+      const api = `/api/chat/conversations/${conversationId}/messages?offset=${rendered}&limit=${fetchLimit}`;
+
+      const res = await fetch(api);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch older messages: ${res.statusText}`);
+      }
+
+      const data = await res.json();
+      if (!data || !data.messages || !data.messages.length) {
+        hasMoreMessages = false;
+        updateLoadMoreButton(0);
+        return;
+      }
 
       // Create a document fragment to batch DOM operations
       const fragment = document.createDocumentFragment();
-      
-      // Sort messages by timestamp to ensure correct order
+
+      // Sort messages by timestamp
       data.messages.sort((a, b) => {
-        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        const timeA = new Date(a.timestamp).getTime();
+        const timeB = new Date(b.timestamp).getTime();
         return timeA - timeB; // Ascending order (oldest first)
       });
-      
+
       for (const m of data.messages) {
         const messageElement = m.role === 'user'
           ? createUserMessageElement(m.content)
           : createAssistantMessageElement(m.content);
-          
+
         fragment.appendChild(messageElement);
       }
 
@@ -232,7 +269,11 @@ export async function loadOlderMessages() {
       } else {
         chatHistory.appendChild(fragment);
       }
-      
+
+      // Update hasMoreMessages based on number of messages received
+      hasMoreMessages = data.has_more || data.messages.length >= fetchLimit;
+      updateLoadMoreButton(data.total_count ? data.total_count - rendered - data.messages.length : 0);
+
       // Setup observers for lazy-loaded content
       chatHistory.querySelectorAll('.message:not(.observed)').forEach(el => {
         if (messageObserver && el.classList.contains('assistant-message')) {
@@ -246,23 +287,18 @@ export async function loadOlderMessages() {
         const heightDiff = chatHistory.scrollHeight - scrollHeightBefore;
         chatHistory.scrollTop = scrollPositionBefore + heightDiff;
       });
-
-      // If we got fewer than fetchLimit messages, we might have reached the end.
-      hasMoreMessages = data.has_more;
-      if (!hasMoreMessages) updateLoadMoreButton(0);
-      else updateLoadMoreButton(); // We'll let the existing logic figure out how many remain
-    }
-  } catch (error) {
-    console.error('Error loading older messages from DB:', error);
-    showNotification('Error loading older messages', 'error');
-  } finally {
-    isLoadingPrevious = false;
-    const loadButton = document.getElementById('load-older-btn');
-    if (loadButton) {
-      loadButton.disabled = false;
+    } catch (error) {
+      console.error('Error loading older messages:', error);
+      showNotification('Failed to load older messages', 'error');
+    } finally {
+      isLoadingPrevious = false;
+      const loadBtn = document.getElementById('load-older-btn');
+      if (loadBtn) {
+        loadBtn.classList.remove('loading');
+        loadBtn.removeAttribute('disabled');
+      }
     }
   }
-}
 
 async function saveConversation() {
   const sessionIdMaybe = getSessionId();
@@ -519,52 +555,57 @@ const pruneOldMessages = debounce(() => {
 
 let clientVersion = Date.now();
 
-async function storeChatMessage(role, content) {
-  const versionedContent = {
-    content,
-    clientVersion: clientVersion++,
-    timestamp: new Date().toISOString()
-  };
-  
-  try {
-    // Get session ID, handling both Promise and direct value
-    const sessionIdMaybe = getSessionId();
-    const sessionId = sessionIdMaybe instanceof Promise ? await sessionIdMaybe : sessionIdMaybe;
-    
-    if (!sessionId) {
-      console.error('No valid session ID found — cannot store message.');
-      return;
-    }
-    
-    if (!role || !content) {
-      console.error('Missing role or content — cannot store message.');
-      return;
-    }
-    
-    // Session storage only for transient UI state
-    sessionStorage.setItem('pending_message', JSON.stringify({ role, content }));
-    
-    // Use window.location.origin to ensure we're using the correct base URL
-    const apiUrl = `${window.location.origin}/api/chat/conversations/${sessionId}/messages`;
-    
+  async function storeChatMessage(role, content) {
     try {
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, content })
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Failed to store message: ${response.status} - ${errorText}`);
+      // Get conversation ID, handling both Promise and direct value
+      const sessionIdMaybe = getSessionId();
+      const conversationId = sessionIdMaybe instanceof Promise ? await sessionIdMaybe : sessionIdMaybe;
+
+      if (!conversationId) {
+        console.error('No valid conversation ID found — cannot store message.');
+        return;
       }
-    } catch (err) {
-      console.warn('Network error storing message:', err);
+
+      if (!role || !content) {
+        console.error('Missing role or content — cannot store message.');
+        return;
+      }
+
+      // Use window.location.origin to ensure we're using the correct base URL
+      const apiUrl = `${window.location.origin}/api/chat/conversations/${conversationId}/messages`;
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role, content })
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          console.error('[storeChatMessage] Server error:', response.status, text);
+          throw new Error(`Server returned ${response.status}: ${text}`);
+        }
+
+        console.log('[storeChatMessage] Message stored successfully');
+      } catch (err) {
+        console.warn('Failed to store message in backend:', err);
+      }
+    } catch (error) {
+      console.error('Error in storeChatMessage:', error);
     }
-  } catch (error) {
-    console.error('Error in storeChatMessage:', error);
   }
-}
+
+  function updateConversationTitle(title) {
+    // Update the title in the UI if there's an appropriate element
+    const titleElement = document.getElementById('conversation-title');
+    if (titleElement) {
+      titleElement.textContent = title;
+    }
+
+    // Could also update document title
+    document.title = `${title} - Azure OpenAI Chat`;
+  }
 
 function showWelcomeMessageIfNeeded() {
   const sessionId = getSessionId();
@@ -621,66 +662,79 @@ function openFileInSidebar(filename) {
   }, 500);
 }
 
-async function deleteConversation() {
-  showConfirmDialog(
-    'Delete Conversation',
-    'Are you sure you want to delete the current conversation? This action cannot be undone.',
-    async () => {
-      try {
-        const sessionId = await getSessionId();
-        if (sessionId) {
-          // Also delete from DB
-          await fetch('/api/chat/conversations/clear', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: sessionId })
-          });
-        }
+  async function deleteConversation() {
+    showConfirmDialog(
+      'Delete Conversation',
+      'Are you sure you want to delete the current conversation? This action cannot be undone.',
+      async () => {
+        try {
+          const sessionId = await getSessionId();
+          if (sessionId) {
+            // Updated endpoint path
+            await fetch(`/api/chat/conversations/${sessionId}`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
 
-        // Now remove from DOM
-        const chatHistory = document.getElementById('chat-history');
-        if (chatHistory) {
-          const systemMessages = [];
-          chatHistory.querySelectorAll('.system-message').forEach(el => systemMessages.push(el.cloneNode(true)));
-          chatHistory.innerHTML = '';
-          systemMessages.forEach(el => chatHistory.appendChild(el));
-        }
-        messageCache.clear();
-        hasMoreMessages = false;
-        updateLoadMoreButton(0);
+          // Now remove from DOM
+          const chatHistory = document.getElementById('chat-history');
+          if (chatHistory) {
+            const systemMessages = [];
+            chatHistory.querySelectorAll('.system-message').forEach(el => systemMessages.push(el.cloneNode(true)));
+            chatHistory.innerHTML = '';
+            systemMessages.forEach(el => chatHistory.appendChild(el));
+          }
+          messageCache.clear();
+          hasMoreMessages = false;
+          updateLoadMoreButton(0);
 
-        // Hide save button when conversation is deleted
-        const saveBtn = document.getElementById('save-older-btn');
-        if (saveBtn) {
-          saveBtn.classList.add('hidden');
-        }
+          // Create a new conversation
+          await createNewConversation();
 
-        showNotification('Conversation deleted', 'success');
-      } catch (err) {
-        console.error('Error deleting conversation:', err);
-        showNotification('Failed to delete conversation', 'error');
+          showNotification('Conversation deleted', 'success');
+        } catch (error) {
+          console.error('Failed to delete conversation:', error);
+          showNotification('Failed to delete conversation', 'error');
+        }
       }
-    }
-  );
-}
+    );
+  }
 
 /**
  * Creates a new conversation session, clearing the chat
  */
-export function createNewConversation() {
-  const newSessionId = crypto.randomUUID?.() || (Date.now().toString(36) + Math.random().toString(36).slice(2));
+export async function createNewConversation(pinned = false, archived = false, title = "Untitled Conversation") {
+    try {
+        const response = await fetch("/api/chat/conversations", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pinned, archived, title })
+        });
 
-  const chatHistory = document.getElementById('chat-history');
-  if (chatHistory) {
-    const systemMessages = [...chatHistory.querySelectorAll('.system-message')].map(el => el.cloneNode(true));
-    const controls = chatHistory.querySelector('.conversation-controls');
-    chatHistory.innerHTML = '';
-    systemMessages.forEach(msg => chatHistory.appendChild(msg));
-    if (controls) chatHistory.appendChild(controls);
-  }
-  showWelcomeMessageIfNeeded();
+        if (!response.ok) {
+            throw new Error(`Failed to create conversation: ${response.status} - ${await response.text()}`);
+        }
 
-  showNotification('New conversation created', 'success');
+        const data = await response.json();
+        const newConversationId = data.conversation_id;
+
+        // Clear the chat and re-initialize
+        const chatHistory = document.getElementById('chat-history');
+        if (chatHistory) {
+            const systemMessages = [...chatHistory.querySelectorAll('.system-message')].map(el => el.cloneNode(true));
+            const controls = chatHistory.querySelector('.conversation-controls');
+            chatHistory.innerHTML = '';
+            systemMessages.forEach(msg => chatHistory.appendChild(msg));
+            if (controls) chatHistory.appendChild(controls);
+        }
+
+        showWelcomeMessageIfNeeded();
+        showNotification(`New conversation created (ID: ${newConversationId})`, 'success');
+    } catch (err) {
+        console.error("Error creating new conversation:", err);
+        showNotification("Failed to create new conversation", "error");
+    }
 }
 
 export {

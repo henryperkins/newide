@@ -117,7 +117,6 @@ def validate_streaming(model_id: str) -> bool:
     return False
 
 
-
 def count_tokens(content, model: Optional[str] = None) -> int:
     """
     Count tokens for either text or vision-based content.
@@ -167,6 +166,16 @@ def count_vision_tokens(items: List[Dict], model: Optional[str] = None) -> int:
                 token_count += 85
 
     return token_count
+
+
+def is_o_series_model(name: str) -> bool:
+    """Returns True if model name is recognized as O-series (o1, o2, etc)."""
+    return name.lower().startswith("o-series") or "o1" in name.lower()
+
+
+def is_deepseek_model(name: str) -> bool:
+    """Returns True if model name is recognized as a DeepSeek model."""
+    return name.lower().startswith("deepseek-")
 
 
 def calculate_model_timeout(messages, model_name, reasoning_effort="medium"):

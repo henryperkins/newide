@@ -468,6 +468,33 @@
   .sidebar {
     @apply shadow-xl md:shadow-none;
   }
+
+  /* Conversation sidebar styles */
+  .conversation-item {
+    transition: background-color 0.2s ease;
+  }
+
+  .conversation-item:hover .conversation-actions {
+    opacity: 1;
+  }
+
+  .conversation-actions {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  @media (max-width: 768px) {
+    .conversation-actions {
+      opacity: 1;
+    }
+  }
+
+  /* Fix conversation sidebar toggle button mobile styles */
+  #conversations-toggle {
+    @apply flex items-center justify-center;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
 }
 
 /* Additional component styles */

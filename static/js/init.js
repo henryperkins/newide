@@ -5,7 +5,7 @@ import { initTabSystem } from './ui/tabManager.js';
 import { initSidebar } from './ui/sidebarManager.js';
 import { configureMarkdown } from './ui/markdownParser.js';
 import { loadConversationFromDb, loadOlderMessages } from './ui/displayManager.js';
-import StatsDisplay from './ui/statsDisplay.js';
+import { StatsDisplay } from './ui/statsDisplay.js';
 import fileManager from './fileManager.js';
 
 // Configure DOMPurify
@@ -54,25 +54,34 @@ function initApplication() {
     console.error('Failed to initialize sidebar:', err);
   }
 
-  // 4. Initialize existing thinking blocks
+  // 4. Initialize conversation manager (for sidebar)
+  try {
+    import('./ui/conversationManager.js').then(module => {
+      module.initConversationManager();
+    }).catch(err => console.error('Failed to load conversationManager:', err));
+  } catch (err) {
+    console.error('Failed to initialize conversation manager:', err);
+  }
+
+  // 5. Initialize existing thinking blocks
   try {
     deepSeekProcessor.initializeExistingBlocks();
   } catch (err) {
     console.error('Failed to initialize thinking blocks:', err);
   }
 
-  // 5. Initialize stats display
+  // 6. Initialize stats display
   try {
     window.statsDisplay = new StatsDisplay('performance-stats');
   } catch (err) {
     console.error('Failed to initialize stats display:', err);
   }
 
-  // 6. Initialize mobile or desktop features
+  // 7. Initialize mobile or desktop features
   // Always run initMobileUI even on desktop so that all interactive elements have listeners
   initMobileUI();
 
-  // 7. Additional UI init
+  // 8. Additional UI init
   initPerformanceStats();
   configureMarkdown();
   initChatInterface();
@@ -87,7 +96,7 @@ function initApplication() {
   initModelSelector();
   initConfigHandlers();
 
-  // 8. Load conversation from local storage, show welcome message if needed
+  // 9. Load conversation from local storage, show welcome message if needed
   loadConversationFromDb();
   maybeShowWelcomeMessage();
 
@@ -312,7 +321,7 @@ function initConversationControls() {
     // Remove any existing click handlers to prevent duplicates
     loadOlderBtn.replaceWith(loadOlderBtn.cloneNode(true));
     const newLoadOlderBtn = document.getElementById('load-older-btn');
-    
+
     newLoadOlderBtn.addEventListener('click', async () => {
       console.log('Load Older Messages clicked');
       try {
@@ -326,7 +335,7 @@ function initConversationControls() {
         console.error('Failed to load older messages:', err);
       }
     });
-    
+
     // Make sure it's visible
     newLoadOlderBtn.classList.remove('hidden');
   } else {
@@ -338,7 +347,7 @@ function initConversationControls() {
     // Remove any existing click handlers to prevent duplicates
     saveOlderBtn.replaceWith(saveOlderBtn.cloneNode(true));
     const newSaveOlderBtn = document.getElementById('save-older-btn');
-    
+
     newSaveOlderBtn.addEventListener('click', async () => {
       console.log('Save Conversation clicked');
       try {
@@ -352,7 +361,7 @@ function initConversationControls() {
         console.error('Failed to save conversation:', err);
       }
     });
-    
+
     // Make sure it's visible
     newSaveOlderBtn.classList.remove('hidden');
   } else {
@@ -385,7 +394,7 @@ function addConversationManagementButtons() {
       Clear Conversation
     `;
     btnContainer.appendChild(clearConvoBtn);
-    
+
     clearConvoBtn.addEventListener('click', async () => {
       console.log('Clear Conversation clicked');
       try {
@@ -411,7 +420,7 @@ function addConversationManagementButtons() {
       New Conversation
     `;
     btnContainer.appendChild(newConvoBtn);
-    
+
     newConvoBtn.addEventListener('click', async () => {
       console.log('New Conversation clicked');
       try {
@@ -449,12 +458,12 @@ function initThinkingModeToggle() {
     // Check if previously enabled
     const thinkingModeEnabled = localStorage.getItem('enableThinkingMode') === 'true';
     thinkingModeToggle.checked = thinkingModeEnabled;
-    
+
     // Set up event listener to save preference
     thinkingModeToggle.addEventListener('change', e => {
       localStorage.setItem('enableThinkingMode', e.target.checked);
       console.log('Thinking mode ' + (e.target.checked ? 'enabled' : 'disabled'));
-      
+
       // Show notification about change
       import('./ui/notificationManager.js').then(module => {
         module.showNotification(
@@ -550,7 +559,7 @@ function initModelSelector() {
     // Make sure the local model configs are created first before trying to use them
     modelManager.ensureLocalModelConfigs();
     console.log("Local model configs initialized:", Object.keys(modelManager.modelConfigs));
-    
+
     // Add with a slight delay to ensure model configs are fully processed
     setTimeout(() => {
       if (modelSelect.options.length === 0) {
@@ -560,12 +569,11 @@ function initModelSelector() {
           for (const [id, config] of Object.entries(models)) {
             const option = document.createElement('option');
             option.value = id;
-            option.textContent = `${id}${
-              config.description ? ` (${config.description})` : ''
-            }`;
+            option.textContent = `${id}${config.description ? ` (${config.description})` : ''
+              }`;
             modelSelect.appendChild(option);
           }
-          
+
           // Default to DeepSeek-R1 if available, otherwise fall back to o1
           if (models['DeepSeek-R1']) {
             modelSelect.value = 'DeepSeek-R1';
@@ -589,13 +597,13 @@ function initModelSelector() {
           console.log("Re-ensuring model configs before initialize");
           modelManager.ensureLocalModelConfigs();
         }
-        
+
         // Then initialize
         modelManager
           .initialize()
           .then(() => {
             console.log("Model manager initialized with models:", Object.keys(modelManager.modelConfigs));
-            
+
             // Ensure we still have models in the dropdown
             if (modelSelect && modelSelect.options.length === 0) {
               const defaultModels = [
@@ -615,7 +623,7 @@ function initModelSelector() {
                 modelSelect.appendChild(option);
               });
             }
-            
+
             // Explicitly initialize model management UI
             modelManager.initModelManagement();
             // Force refresh the models list
