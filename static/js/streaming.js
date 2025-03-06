@@ -1,6 +1,4 @@
-// streaming.js
-// Remove references to ensureThinkingContainer/finalizeThinkingContainer from streaming_utils
-// and use deepSeekProcessor.renderThinkingContainer instead.
+// Updated streaming.js with fixed object extension issues
 
 import { getSessionId } from './session.js';
 import { updateTokenUsage, fetchWithRetry, retry, eventBus } from './utils/helpers.js';
@@ -33,8 +31,8 @@ let tokenCount = 0;
 
 // --- Constants ---
 const RENDER_INTERVAL_MS = 50;
-const BASE_CONNECTION_TIMEOUT_MS = 60000; // Increased from 30000 to 60 seconds
-const MAX_CONNECTION_TIMEOUT_MS = 180000; // Increased from 120000 to 180 seconds
+const BASE_CONNECTION_TIMEOUT_MS = 60000; // 60 seconds
+const MAX_CONNECTION_TIMEOUT_MS = 180000; // 3 minutes
 const MAX_RETRY_ATTEMPTS = 3;
 const CONNECTION_CHECK_INTERVAL_MS = 5000; // 5 seconds
 
@@ -194,16 +192,24 @@ export function streamChatResponse(
     // For DeepSeek models, only enable thinking mode for specific user preference
     const thinkingModeEnabled = localStorage.getItem('enableThinkingMode') === 'true';
 
-    const apiUrl = window.location.origin + '/api/chat/sse?session_id=' + encodeURIComponent(sessionId);
+    const apiUrl = `${window.location.origin}/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
     const fullUrl = apiUrl + '&' + params.toString();
 
     try {
+      // Prepare headers with specific DeepSeek requirements
+      const headers = {};
+
+      // DeepSeek-R1 requires specific headers
+      if (isDeepSeek) {
+        headers["x-ms-thinking-format"] = "html";
+        headers["x-ms-streaming-version"] = "2024-05-01-preview";
+        console.log("[streamChatResponse] Adding DeepSeek-R1 required headers");
+      }
+
       // Use fetch API with proper headers
       const response = await fetch(fullUrl, {
-        headers: {
-          "x-ms-thinking-format": "html",
-          "x-ms-streaming-version": "2024-05-01-preview"
-        }
+        headers: headers,
+        signal: signal
       });
 
       if (!response.ok || !response.body) {
@@ -213,38 +219,30 @@ export function streamChatResponse(
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
 
-      // Create EventSource-like interface for our fetch stream
-      const eventSource = {
-        readyState: 1, // OPEN
-        close: () => {
-          this.readyState = 2; // CLOSED
-          if (reader) reader.cancel();
-        },
-        target: document.createElement('div'), // For custom attributes
-        addEventListener: (event, handler) => {
-          this._eventHandlers = this._eventHandlers || {};
-          this._eventHandlers[event] = handler;
-        },
-        _eventHandlers: {}
-      };
+      // Create a simplified event handling mechanism without object extensions
+      let onMessageCallback = null;
+      let onErrorCallback = null;
+      let onCompleteCallback = null;
+
+      // Internal state for timeout detection
+      let isStreamActive = true;
 
       const connectionTimeoutMs = calculateConnectionTimeout(validModelName, messageContent.length);
       console.log('Setting connection timeout to ' + connectionTimeoutMs + 'ms for ' + validModelName);
 
       // Set initial connection timeout
       connectionTimeoutId = setTimeout(() => {
-        if (eventSource.readyState !== 2) { // Not CLOSED
+        if (isStreamActive) {
           console.warn('Connection timed out after ' + connectionTimeoutMs + 'ms');
-          // Mark event source for timeout detection
-          if (eventSource.target) eventSource.target.setAttribute('data-timeout', 'true');
-          eventSource.close();
+          isStreamActive = false;
           handleStreamingError(new Error('Connection timeout'));
+          if (reader) reader.cancel();
         }
       }, connectionTimeoutMs);
 
       // Periodic connection check
       connectionCheckIntervalId = setInterval(() => {
-        if (eventSource.readyState === 2) { // CLOSED
+        if (!isStreamActive) {
           clearInterval(connectionCheckIntervalId);
         }
       }, CONNECTION_CHECK_INTERVAL_MS);
@@ -254,7 +252,8 @@ export function streamChatResponse(
         signal.addEventListener('abort', () => {
           clearTimeout(connectionTimeoutId);
           clearInterval(connectionCheckIntervalId);
-          eventSource.close();
+          isStreamActive = false;
+          if (reader) reader.cancel();
         }, { once: true });
       }
 
@@ -264,7 +263,14 @@ export function streamChatResponse(
           const { value, done } = await reader.read();
 
           if (done) {
-            eventSource.close();
+            isStreamActive = false;
+            clearTimeout(connectionTimeoutId);
+            clearInterval(connectionCheckIntervalId);
+
+            if (onCompleteCallback) {
+              onCompleteCallback({ data: '{}' });
+            }
+
             await cleanupStreaming(finalModelName);
             resolve(true);
             return;
@@ -280,8 +286,8 @@ export function streamChatResponse(
               const data = line.slice(5).trim();
 
               if (data === 'done') {
-                if (eventSource._eventHandlers['complete']) {
-                  eventSource._eventHandlers['complete']({ data: '{}' });
+                if (onCompleteCallback) {
+                  onCompleteCallback({ data: '{}' });
                 }
                 continue;
               }
@@ -292,22 +298,24 @@ export function streamChatResponse(
                 // Reset connection timeout on each message
                 clearTimeout(connectionTimeoutId);
                 connectionTimeoutId = setTimeout(() => {
-                  if (eventSource.readyState !== 2) {
+                  if (isStreamActive) {
                     console.warn('Stream stalled after ' + (connectionTimeoutMs * 1.5) + 'ms');
-                    eventSource.close();
+                    isStreamActive = false;
                     handleStreamingError(new Error('Stream stalled'));
+                    if (reader) reader.cancel();
                   }
                 }, connectionTimeoutMs * 1.5);
 
-                // Emulate message event
-                const messageEvent = { data };
-                eventSource.onmessage(messageEvent);
+                // Call message callback if registered
+                if (onMessageCallback) {
+                  onMessageCallback({ data });
+                }
               } catch (err) {
                 console.error('Error parsing SSE data:', err);
               }
             } else if (line.startsWith('event: complete')) {
-              if (eventSource._eventHandlers['complete']) {
-                eventSource._eventHandlers['complete']({ data: '{}' });
+              if (onCompleteCallback) {
+                onCompleteCallback({ data: '{}' });
               }
             }
           }
@@ -319,36 +327,14 @@ export function streamChatResponse(
           if (error.name !== 'AbortError') {
             handleStreamingError(error);
           }
-          eventSource.close();
+          isStreamActive = false;
         }
       };
 
-      // Handle EventSource-like events
-      eventSource.onopen = () => {
-        clearTimeout(connectionTimeoutId);
-        connectionTimeoutId = setTimeout(() => {
-          if (eventSource.readyState !== 2) {
-            console.warn('Stream stalled after ' + (connectionTimeoutMs * 1.5) + 'ms');
-            // Mark event source for timeout detection
-            if (eventSource.target) eventSource.target.setAttribute('data-timeout', 'true');
-            eventSource.close();
-            handleStreamingError(new Error('Stream stalled'));
-          }
-        }, connectionTimeoutMs * 1.5);
-        eventBus.publish('streamingStarted', { modelName: validModelName });
-      };
-
-      eventSource.onmessage = (e) => {
+      // Handle message events
+      onMessageCallback = (e) => {
         try {
           console.log('Received SSE chunk from server');
-          clearTimeout(connectionTimeoutId);
-          connectionTimeoutId = setTimeout(() => {
-            if (eventSource.readyState !== 2) {
-              console.warn('Stream stalled after ' + (connectionTimeoutMs * 1.5) + 'ms');
-              eventSource.close();
-              handleStreamingError(new Error('Stream stalled'));
-            }
-          }, connectionTimeoutMs * 1.5);
 
           const data = JSON.parse(e.data);
           // Avoid optional chaining
@@ -367,90 +353,16 @@ export function streamChatResponse(
         }
       };
 
-      // Start processing
-      eventSource.onopen();
-      processChunk();
-
-      // Near line 256
-      let isTimeout = false;
-
-      eventSource.onerror = async (e) => {
+      // Handle error events
+      onErrorCallback = async (e) => {
         if (signal && signal.aborted) return;
         clearTimeout(connectionTimeoutId);
         clearInterval(connectionCheckIntervalId);
-        eventSource.close();
-
-        // Try to get more detailed error information
-        let errorMsg = 'Connection failed (EventSource closed)';
-        let errorCode = 0;
-        let isServerUnavailable = false;
-
-        // Determine if this was a timeout error based on the error message
-        isTimeout = errorMsg.includes('timeout') ||
-          errorMsg.includes('timed out') ||
-          e?.target?.hasAttribute?.('data-timeout') === true;
-
-        // Check for specific error conditions
-        if (e && e.status) {
-          errorMsg = 'Connection failed with status: ' + e.status;
-          errorCode = e.status;
-        }
-
-        // Check if it's the common "no healthy upstream" DeepSeek error
-        try {
-          const responseText = e?.target?.responseText;
-          if (responseText && responseText.includes('no healthy upstream')) {
-            errorMsg = 'DeepSeek service is currently unavailable (no healthy upstream)';
-            isServerUnavailable = true;
-            console.warn('[DeepSeek Error] No healthy upstream detected.');
-          } else if (responseText && responseText.includes('Failed Dependency')) {
-            errorMsg = 'DeepSeek service dependency failure';
-            isServerUnavailable = true;
-            console.warn('[DeepSeek Error] Failed Dependency detected.');
-          }
-        } catch (err) {
-          // Ignore error parsing response text
-          console.debug('Could not parse error response text:', err);
-        }
+        isStreamActive = false;
 
         // Create error object with additional properties
-        const error = new Error(errorMsg);
-        error.code = errorCode;
-        error.recoverable = !isServerUnavailable;
-        error.isTimeout = isTimeout;  // Now properly defined
-
-        // For timeout errors, try a single auto-retry with increased timeout
-        if (isTimeout && !error.retried) {
-          error.retried = true;
-          console.log('[streamChatResponse] Automatically retrying after timeout...');
-
-          // Wait a moment before retrying
-          await new Promise(r => setTimeout(r, 1000));
-
-          try {
-            // Try again with the same parameters but longer timeout
-            const currentModelName = document.getElementById('model-select')?.value || 'DeepSeek-R1';
-            window.serverCalculatedTimeout = (BASE_CONNECTION_TIMEOUT_MS * 3); // Force a much longer timeout
-
-            // Re-attempt the streaming with original parameters
-            await streamChatResponse(
-              messageContent,
-              sessionId,
-              modelName,
-              reasoningEffort,
-              null, // New signal
-              fileIds,
-              useFileSearch
-            );
-
-            return; // If successful, don't show error
-          } catch (retryError) {
-            console.error('[streamChatResponse] Retry after timeout also failed:', retryError);
-            // Continue to error handling
-          } finally {
-            window.serverCalculatedTimeout = undefined; // Clear the override
-          }
-        }
+        const error = new Error('Connection failed (EventSource closed)');
+        error.recoverable = true;
 
         handleStreamingError(error);
 
@@ -467,102 +379,80 @@ export function streamChatResponse(
           return;
         }
 
-        // Handle content safety filtering
-        if (errorCode === 400 && error.message.includes('content_filtered')) {
-          showNotification(
-            'Response blocked by content safety system',
-            'error',
-            5000
-          );
-        } else if (isServerUnavailable) {
-          // Special handling for DeepSeek service unavailability
-          showNotification(
-            'AI service is temporarily unavailable. Please try again later or switch models.',
-            'error',
-            0,
-            [
-              {
-                label: 'Switch Model',
-                onClick: () => {
-                  const modelSelect = document.getElementById('model-select');
-                  if (modelSelect) {
-                    modelSelect.focus();
-                    showNotification('Please select a different model', 'info', 3000);
-                  }
-                }
-              },
-              {
-                label: 'Retry Anyway',
-                onClick: () => attemptErrorRecovery(messageContent, error)
-              }
-            ]
-          );
-        } else {
-          // Regular connection failure
-          showNotification(
-            'Connection failed. Would you like to retry?',
-            'error',
-            0,
-            [
-              {
-                label: 'Retry',
-                onClick: () => attemptErrorRecovery(messageContent, error)
-              }
-            ]
-          );
-        }
+        // Regular connection failure
+        showNotification(
+          'Connection failed. Would you like to retry?',
+          'error',
+          0,
+          [
+            {
+              label: 'Retry',
+              onClick: () => attemptErrorRecovery(messageContent, error)
+            }
+          ]
+        );
       };
 
-      // "complete" event
-      eventSource.addEventListener('complete', async (e) => {
+      // Handle complete events
+      onCompleteCallback = async (e) => {
         try {
           clearTimeout(connectionTimeoutId);
           clearInterval(connectionCheckIntervalId);
-          if (e.data) {
-            const completionData = JSON.parse(e.data);
-            if (completionData.usage) {
-              console.log('Received token usage data:', completionData.usage);
+          isStreamActive = false;
 
-              // Enhance the token usage data with any timing metrics
-              const enhancedUsage = {
-                ...completionData.usage,
-                // Include streaming performance metrics if available
-                latency: (performance.now() - streamStartTime).toFixed(0),
-                tokens_per_second: calculateTokensPerSecond(completionData.usage)
-              };
+          if (e.data && e.data !== 'done') {
+            try {
+              const completionData = JSON.parse(e.data);
+              if (completionData.usage) {
+                console.log('Received token usage data:', completionData.usage);
 
-              console.log('Enhanced token usage with timing metrics:', enhancedUsage);
-              updateTokenUsage(enhancedUsage);
+                // Enhance the token usage data with any timing metrics
+                const enhancedUsage = {
+                  ...completionData.usage,
+                  // Include streaming performance metrics if available
+                  latency: (performance.now() - streamStartTime).toFixed(0),
+                  tokens_per_second: calculateTokensPerSecond(completionData.usage)
+                };
 
-              // Store in token usage history
-              if (!window.tokenUsageHistory) {
-                window.tokenUsageHistory = {};
+                console.log('Enhanced token usage with timing metrics:', enhancedUsage);
+                updateTokenUsage(enhancedUsage);
+
+                // Store in token usage history
+                if (!window.tokenUsageHistory) {
+                  window.tokenUsageHistory = {};
+                }
+                window.tokenUsageHistory[validModelName] = enhancedUsage;
               }
-              window.tokenUsageHistory[validModelName] = enhancedUsage;
-            }
-            eventBus.publish('streamingCompleted', {
-              modelName: validModelName,
-              usage: completionData.usage
-            });
-
-            // Update the stats display with the final usage data
-            if (completionData.usage) {
-              import('./ui/statsDisplay.js').then(({ updateStatsDisplay }) => {
-                updateStatsDisplay(completionData.usage);
-              }).catch(error => {
-                console.error('Failed to load stats display module:', error);
+              eventBus.publish('streamingCompleted', {
+                modelName: validModelName,
+                usage: completionData.usage
               });
+
+              // Update the stats display with the final usage data
+              if (completionData.usage) {
+                import('./ui/statsDisplay.js').then(({ updateStatsDisplay }) => {
+                  updateStatsDisplay(completionData.usage);
+                }).catch(error => {
+                  console.error('Failed to load stats display module:', error);
+                });
+              }
+            } catch (err) {
+              console.warn('Error parsing completion data:', err);
             }
           }
+
           forceRender();
-          eventSource.close();
         } catch (err) {
           console.error('[streamChatResponse] Error handling completion:', err);
         } finally {
-          await cleanupStreaming(validModelName);
+          await cleanupStreaming(finalModelName);
           resolve(true);
         }
-      });
+      };
+
+      // Start the event stream processing
+      eventBus.publish('streamingStarted', { modelName: validModelName });
+      processChunk();
     } catch (error) {
       console.error('[streamChatResponse] Setup error:', error);
       handleStreamingError(error);
@@ -722,8 +612,9 @@ async function attemptErrorRecovery(messageContent, error) {
  */
 function processDataChunkWrapper(data) {
   // Handle DeepSeek-specific thinking blocks and HTML formatting
-  // Handle partial thinking blocks across chunk boundaries
-  const processedData = deepSeekProcessor.preprocessChunk(data);
+  const processedData = deepSeekProcessor.preprocessChunk ?
+    deepSeekProcessor.preprocessChunk(data) : data;
+
   const result = deepSeekProcessor.processChunkAndUpdateBuffers(
     processedData,
     chunkBuffer,
@@ -732,17 +623,15 @@ function processDataChunkWrapper(data) {
     isThinking
   );
 
-  // If we're in a thinking block, store partial content
-  if (result.isThinking) {
-    this.thinkingBuffer = result.thinkingTextBuffer;
-  }
-  mainTextBuffer = result.mainTextBuffer;
-  thinkingTextBuffer = result.thinkingTextBuffer;
-  chunkBuffer = result.chunkBuffer;
-  isThinking = result.isThinking;
+  // Store the result (Fix for thinkingBuffer issue)
+  mainTextBuffer = result.mainTextBuffer || '';
+  thinkingTextBuffer = result.thinkingTextBuffer || '';
+  chunkBuffer = result.chunkBuffer || '';
+  isThinking = result.isThinking || false;
 
   if (isThinking && thinkingTextBuffer) {
     const container = ensureMessageContainer();
+    messageContainer = container; // Ensure messageContainer is updated
     thinkingContainer = deepSeekProcessor.renderThinkingContainer(container, thinkingTextBuffer);
   }
 }
@@ -757,6 +646,7 @@ function scheduleRender() {
     }
     animationFrameId = requestAnimationFrame(() => {
       renderBufferedContent();
+      messageContainer = ensureMessageContainer(); // Ensure we always have a container
       showStreamingProgressIndicator(messageContainer);
       lastRenderTimestamp = Date.now();
       animationFrameId = null;
@@ -783,20 +673,25 @@ function renderBufferedContent() {
   try {
     messageContainer = ensureMessageContainer();
 
-    // Instead of ensureThinkingContainer, we rely on deepSeekProcessor.renderThinkingContainer
-    thinkingContainer = deepSeekProcessor.renderThinkingContainer(
-      messageContainer,
-      thinkingTextBuffer
-    );
+    // Use safe defaults for thinking content
+    const thinkBuffer = thinkingTextBuffer || '';
+
+    // Properly handle chain-of-thought container
+    if (thinkBuffer) {
+      thinkingContainer = deepSeekProcessor.renderThinkingContainer(
+        messageContainer,
+        thinkBuffer
+      );
+    }
 
     // Get both content buffers with proper boundary handling
     const separated = deepSeekProcessor.separateContentBuffers(
-      mainTextBuffer,
-      thinkingTextBuffer || this.thinkingBuffer
+      mainTextBuffer || '',
+      thinkBuffer
     );
-    const mainContent = separated.mainContent;
-    const thinkingContent = separated.thinkingContent;
-    this.thinkingBuffer = thinkingContent; // Preserve partial thinking blocks
+
+    const mainContent = separated.mainContent || '';
+    const thinkingContent = separated.thinkingContent || '';
 
     // Update main content
     if (mainContent) {
@@ -807,10 +702,12 @@ function renderBufferedContent() {
       });
     }
 
-    // Update chain-of-thought
-    if (thinkingContent) {
-      deepSeekProcessor.renderThinkingContainer(thinkingContainer, thinkingContent);
-      // Don't scroll the thinking container separately, let the main scroll happen once
+    // Update chain-of-thought if available
+    if (thinkingContent && thinkingContainer) {
+      deepSeekProcessor.renderThinkingContainer(
+        thinkingContainer,
+        thinkingContent
+      );
     }
   } catch (err) {
     console.error('[renderBufferedContent] Error:', err);
@@ -861,7 +758,6 @@ async function cleanupStreaming(modelName) {
 
 /**
  * Determines the reasoning effort setting from a UI slider.
- * (Note: This is kept for backward compatibility but is no longer sent to the API.)
  * @returns {string} 'low', 'medium', or 'high'
  */
 function getReasoningEffortSetting() {

@@ -425,6 +425,9 @@ async def init_client_pool(db_session: Optional[AsyncSession] = None):
     await get_client_pool(db_session)
 
 
+# Fix in the get_model_client_dependency function for DeepSeek-R1 client configuration
+
+
 async def get_model_client_dependency(
     model_name: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -444,7 +447,7 @@ async def get_model_client_dependency(
         if config.is_deepseek_model(model_name):
             model_type = "deepseek"
         elif config.is_o_series_model(model_name):
-            model_type = "o_series"
+            model_type = "o-series"
 
         # Build model config
         model_config = {
@@ -453,6 +456,7 @@ async def get_model_client_dependency(
             "supports_temperature": not config.is_o_series_model(model_name),
         }
 
+        # Special handling for DeepSeek models
         if config.is_deepseek_model(model_name):
             # Validate required DeepSeek configuration
             if not config.AZURE_INFERENCE_ENDPOINT:
@@ -460,52 +464,35 @@ async def get_model_client_dependency(
             if not config.AZURE_INFERENCE_CREDENTIAL:
                 raise ValueError("AZURE_INFERENCE_CREDENTIAL is missing")
 
-            # Construct endpoint EXACTLY as per documentation
-            endpoint = f"{config.AZURE_INFERENCE_ENDPOINT.rstrip('/')}/v1/chat/completions"
-            
+            # Check if endpoint has expected format
+            endpoint_base = config.AZURE_INFERENCE_ENDPOINT.rstrip("/")
+
+            # The key issue:
+            # The endpoint should NOT include /v1/chat/completions - this is getting added by routers/chat.py
+            # Removing this extra path to fix the 500 error
+            if "/v1/chat/completions" in endpoint_base:
+                endpoint_base = endpoint_base.replace("/v1/chat/completions", "")
+                logger.warning(
+                    f"Removing /v1/chat/completions from endpoint: {endpoint_base}"
+                )
+
+            # Create the ChatCompletionsClient with correct parameters
             client = ChatCompletionsClient(
-                endpoint=endpoint,
+                endpoint=endpoint_base,
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                api_version="2024-05-01-preview",  # Sets ?api-version=2024-05-01-preview
+                api_version="2024-05-01-preview",
                 headers={
                     "x-ms-thinking-format": "html",
                     "x-ms-streaming-version": "2024-05-01-preview",
-                    "x-ms-user-agent": "azure-ai-inference/1.0.0",
-                    "api-key": config.AZURE_INFERENCE_CREDENTIAL
                 },
-                connection_timeout=120.0,
-                read_timeout=120.0,
             )
+
             return {
                 "client": client,
-                "model_name": model_name,
+                "model_name": "DeepSeek-R1",  # Using correct casing
                 "model_config": model_config,
             }
 
-        # Handle DeepSeek client configuration
-        if config.is_deepseek_model(model_name):
-            # Validate endpoint format
-            # Construct endpoint EXACTLY as per documentation
-            endpoint = f"{config.AZURE_INFERENCE_ENDPOINT.rstrip('/')}/v1/chat/completions"
-                
-            # Properly initialize DeepSeek client
-            client = ChatCompletionsClient(
-                endpoint=endpoint,
-                credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                api_version="2024-05-01-preview",  # Sets ?api-version=2024-05-01-preview
-                headers={
-                    "x-ms-thinking-format": "html",
-                    "x-ms-streaming-version": "2024-05-01-preview",
-                    "x-ms-user-agent": "azure-ai-inference/1.0.0",
-                    "api-key": config.AZURE_INFERENCE_CREDENTIAL
-                }
-            )
-            return {
-                "client": client,
-                "model_name": "DeepSeek-R1",  # Must match exactly
-                "model_config": {"supports_streaming": True}
-            }
-            
         # Handle O-series and other models
         client = AzureOpenAI(
             api_key=config.AZURE_OPENAI_API_KEY,

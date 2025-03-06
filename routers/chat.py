@@ -651,6 +651,13 @@ async def chat_sse(
     reasoning_effort: str = "medium",
     db: AsyncSession = Depends(get_db_session),
 ):
+    """
+    Stream chat completions using Server-Sent Events (SSE).
+    """
+    # Add detailed logging to help debug issues
+    logger.info(f"Starting SSE streaming for model: {model}, session: {session_id}")
+    logger.info(f"Request headers: {dict(request.headers)}")
+
     # Validate DeepSeek required headers and API version
     if is_deepseek_model(model):
         required_headers = {
@@ -661,14 +668,18 @@ async def chat_sse(
         for header, expected_value in required_headers.items():
             actual_value = request.headers.get(header)
             if not actual_value:
+                error_msg = f"Missing required header: {header} for DeepSeek-R1"
+                logger.error(error_msg)
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Missing required header: {header} for DeepSeek-R1",
+                    detail=error_msg,
                 )
             if actual_value != expected_value:
+                error_msg = f"Invalid {header} value. Expected {expected_value} got {actual_value}"
+                logger.error(error_msg)
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Invalid {header} value. Expected {expected_value} got {actual_value}",
+                    detail=error_msg,
                 )
 
     await SSE_SEMAPHORE.acquire()
@@ -681,13 +692,37 @@ async def chat_sse(
             raise HTTPException(status_code=404, detail="Session not found")
 
         # Retrieve model client
-        client_wrapper = await get_model_client_dependency(model)
-        client = client_wrapper["client"]
-        if not client or not client_wrapper.get("supports_streaming", False):
+        try:
+            client_wrapper = await get_model_client_dependency(model)
+
+            # Check if client was successfully created
+            if client_wrapper.get("error"):
+                error_msg = client_wrapper.get("error")
+                logger.error(f"Error creating client for {model}: {error_msg}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Error initializing model client: {error_msg}",
+                )
+
+            client = client_wrapper.get("client")
+            if not client:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to initialize client for model: {model}",
+                )
+
+            supports_streaming = client_wrapper.get("supports_streaming", True)
+            if not supports_streaming:
+                raise HTTPException(
+                    status_code=400, detail="Model doesn't support streaming"
+                )
+        except Exception as e:
+            logger.exception(f"Error getting model client for {model}")
             raise HTTPException(
-                status_code=400, detail="Model doesn't support streaming"
+                status_code=500, detail=f"Error retrieving model client: {str(e)}"
             )
 
+        logger.info(f"Starting streaming response with model: {model}")
         return StreamingResponse(
             generate_stream_chunks(
                 request=request,
@@ -701,6 +736,9 @@ async def chat_sse(
             media_type="text/event-stream",
         )
     except Exception as exc:
+        logger.exception(f"Error in chat_sse: {str(exc)}")
+        if isinstance(exc, HTTPException):
+            raise exc
         raise HTTPException(status_code=500, detail=str(exc))
     finally:
         SSE_SEMAPHORE.release()
@@ -716,8 +754,8 @@ async def generate_stream_chunks(
     client: Any,
 ):
     """
-    Async generator yielding SSE data chunks from your streaming model.
-    Replace this stub with actual code to stream from O-series/DeepSeek/etc.
+    Async generator yielding SSE data chunks from streaming model responses.
+    Fixed to handle both DeepSeek-R1 and O1 streaming properly.
     """
     full_content = ""
     usage_block: Dict[str, Any] = {}
@@ -726,53 +764,31 @@ async def generate_stream_chunks(
         # Build messages with user message only
         messages = [{"role": "user", "content": message}]
 
-        # Validate DeepSeek credentials and endpoint format
-        if is_deepseek_model(model_name):
-            expected_path = "/v1/chat/completions"
-            if not client.endpoint.endswith(expected_path):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"DeepSeek endpoint must end with {expected_path}",
-                )
-            if not config.AZURE_INFERENCE_CREDENTIAL:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Missing DeepSeek API credentials - check AZURE_INFERENCE_CREDENTIAL environment variable",
-                )
+        # Identify model types
+        is_deepseek = is_deepseek_model(model_name)
+        is_o_series = is_o_series_model(model_name)
 
-        # Get properly configured client
-        client_wrapper = await get_model_client_dependency(model_name)
-        client = client_wrapper["client"]
-
-        # Log request details for debugging
-        logger.debug(f"Attempting connection to: {client.endpoint}")
-        logger.debug(f"Using API version: {client.api_version}")
+        # Log client information
+        client_info = f"Type: {type(client).__name__}"
+        logger.info(f"Client info: {client_info}")
 
         # Prepare request parameters based on model type
         params = {}
-        if is_deepseek_model(model_name):
-            # DeepSeek-R1 specific parameters
+        if is_deepseek:
             params = {
                 "messages": messages,
-                "temperature": 0.0,  # Required to be 0.0 for DeepSeek
+                "temperature": 0.0,  # Required for DeepSeek
                 "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
                 "stream": True,
-                "headers": {
-                    "x-ms-thinking-format": "html",
-                    "x-ms-streaming-version": "2024-05-01-preview",
-                },
             }
-        elif is_o_series_model(model_name):
-            # o1 or o3 model specific parameters
+        elif is_o_series:
             params = {
                 "messages": messages,
                 "max_completion_tokens": config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
                 "stream": True,
                 "reasoning_effort": reasoning_effort,
             }
-            # O-series models don't support temperature
         else:
-            # Default parameters for other models
             params = {
                 "messages": messages,
                 "temperature": 0.7,
@@ -780,40 +796,122 @@ async def generate_stream_chunks(
                 "stream": True,
             }
 
-        # Make streaming request with validated parameters
-        stream_response = client.chat.completions.create(**params)
+        # Create streaming request based on client type
+        try:
+            # Handle differences in client APIs
+            if hasattr(client, "chat") and hasattr(client.chat, "completions"):
+                # OpenAI-style client (for O1 models)
+                logger.info(f"Using OpenAI-style client with model: {model_name}")
 
-        async for chunk in stream_response:
-            # Process each chunk from the stream
-            chunk_content = chunk.choices[0].delta.content or ""
-            full_content += chunk_content
-
-            # Handle thinking blocks
-            if "<think>" in chunk_content:
-                yield sse_json(
-                    {
-                        "choices": [
-                            {"delta": {"content": chunk_content}, "finish_reason": None}
-                        ],
-                        "model": model_name,
-                        "thinking_block": True,
-                    }
+                # For OpenAI client, create the streaming response
+                stream_response = client.chat.completions.create(
+                    model=model_name, **params
                 )
+
+                # OpenAI client returns a Stream object that must be iterated synchronously
+                for chunk in stream_response:
+                    # Extract content from chunk
+                    chunk_content = ""
+                    if hasattr(chunk, "choices") and chunk.choices:
+                        delta = chunk.choices[0].delta
+                        if hasattr(delta, "content") and delta.content is not None:
+                            chunk_content = delta.content
+
+                    # Add to full content
+                    full_content += chunk_content
+
+                    # Handle thinking blocks
+                    if "<think>" in chunk_content:
+                        yield sse_json(
+                            {
+                                "choices": [
+                                    {
+                                        "delta": {"content": chunk_content},
+                                        "finish_reason": None,
+                                    }
+                                ],
+                                "model": model_name,
+                                "thinking_block": True,
+                            }
+                        )
+                    else:
+                        yield sse_json(
+                            {
+                                "choices": [
+                                    {
+                                        "delta": {"content": chunk_content},
+                                        "finish_reason": None,
+                                    }
+                                ],
+                                "model": model_name,
+                            }
+                        )
+
+                    # Use asyncio.sleep to allow other tasks to run
+                    await asyncio.sleep(0)
+
             else:
-                yield sse_json(
-                    {
-                        "choices": [
-                            {"delta": {"content": chunk_content}, "finish_reason": None}
-                        ],
-                        "model": model_name,
-                    }
+                # Azure AI Inference ChatCompletionsClient (for DeepSeek models)
+                logger.info(f"Using ChatCompletionsClient with model: {model_name}")
+
+                # For ChatCompletionsClient, create the streaming response
+                stream_response = client.complete(
+                    messages=messages,
+                    temperature=0.0 if is_deepseek else params.get("temperature", 0.7),
+                    max_tokens=params.get("max_tokens", 4096),
+                    stream=True,
                 )
+
+                # Iterate directly over the response (NOT response.chunks)
+                async for chunk in stream_response:
+                    # Extract content from chunk
+                    chunk_content = ""
+                    if hasattr(chunk, "choices") and chunk.choices:
+                        choice = chunk.choices[0]
+                        if hasattr(choice, "delta") and hasattr(
+                            choice.delta, "content"
+                        ):
+                            chunk_content = choice.delta.content or ""
+
+                    # Add to full content
+                    full_content += chunk_content
+
+                    # Handle thinking blocks
+                    if "<think>" in chunk_content:
+                        yield sse_json(
+                            {
+                                "choices": [
+                                    {
+                                        "delta": {"content": chunk_content},
+                                        "finish_reason": None,
+                                    }
+                                ],
+                                "model": model_name,
+                                "thinking_block": True,
+                            }
+                        )
+                    else:
+                        yield sse_json(
+                            {
+                                "choices": [
+                                    {
+                                        "delta": {"content": chunk_content},
+                                        "finish_reason": None,
+                                    }
+                                ],
+                                "model": model_name,
+                            }
+                        )
+        except Exception as e:
+            logger.exception(f"Error during streaming process: {str(e)}")
+            yield sse_json({"error": str(e)})
+            return
 
         # Final chunk with a "stop" reason
         yield sse_json({"choices": [{"finish_reason": "stop"}]})
         yield "event: complete\ndata: done\n\n"
 
-        # Now store usage, message, etc. in DB
+        # Record usage statistics
         prompt_tokens = count_tokens(message, model_name)
         completion_tokens = count_tokens(full_content, model_name)
         total_tokens = prompt_tokens + completion_tokens
@@ -823,6 +921,11 @@ async def generate_stream_chunks(
             "completion_tokens": completion_tokens,
             "total_tokens": total_tokens,
         }
+
+        # Log successful completion
+        logger.info(f"Successfully completed streaming response for {model_name}")
+
+        # Record usage and save conversation
         stats_service = ModelStatsService(db)
         await stats_service.record_usage(
             model=model_name,
@@ -830,7 +933,6 @@ async def generate_stream_chunks(
             usage=usage_data,
         )
 
-        # Save conversation
         await save_conversation(
             db_session=db,
             session_id=session_id,
@@ -842,8 +944,8 @@ async def generate_stream_chunks(
         )
 
     except Exception as exc:
-        logger.exception(f"SSE error in generate_stream_chunks: {exc}")
-        raise HTTPException(status_code=500, detail=f"SSE failed: {exc}")
+        logger.exception(f"Error in generate_stream_chunks: {exc}")
+        yield sse_json({"error": str(exc)})
 
 
 def sse_json(data: Dict[str, Any]) -> str:
