@@ -18,7 +18,7 @@ from routers.security import get_current_user
 import logging
 from logging_config import logger
 
-from dompurify import clean as dompurify_clean  # Package is installed as python-dompurify
+from bleach import clean as bleach_clean
 from utils import (
     count_tokens,
     handle_client_error,
@@ -71,7 +71,7 @@ def expand_chain_of_thought(full_content: str, request: Request) -> str:
 
     for block in think_blocks:
         block_html = str(block)
-        sanitized_html = dompurify_clean(block_html)
+        sanitized_html = bleach_clean(block_html, tags=['think', 'div', 'button', 'span', 'pre'], attributes={'div': ['class', 'nonce'], 'button': ['class', 'aria-expanded'], 'span': ['class'], 'pre': ['class']})
         nonce = request.state.nonce
         thinking_html = f"""
 <div class="thinking-process" nonce="{nonce}">
@@ -87,7 +87,7 @@ def expand_chain_of_thought(full_content: str, request: Request) -> str:
         """
         block.replace_with(BeautifulSoup(thinking_html, "html.parser"))
 
-    final_html = dompurify_clean(str(soup))
+    final_html = bleach_clean(str(soup), tags=['div', 'button', 'span', 'pre'], attributes={'div': ['class', 'nonce'], 'button': ['class', 'aria-expanded'], 'span': ['class'], 'pre': ['class']})
     return final_html
 
 
