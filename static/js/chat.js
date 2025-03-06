@@ -244,22 +244,22 @@ export async function sendMessage() {
     const modelSelect = document.getElementById('model-select');
     let modelName = 'DeepSeek-R1';  // This is the model name, not the deployment name which is in the URL
     if (modelSelect) modelName = modelSelect.value;
-    
+
     // Handle o1hp as an alias for o1
     let actualModelName = modelName.toLowerCase() === 'o1hp' ? 'o1' : modelName;
     if (modelName.toLowerCase() === 'o1hp') {
-        console.log('[sendMessage] Using o1 as fallback for o1hp');
+      console.log('[sendMessage] Using o1 as fallback for o1hp');
     } else if (modelName.toLowerCase() === 'DeepSeek-R1') {
-        console.log('[sendMessage] Setting actualModelName to "DeepSeek-R1" for DeepSeek-R1');
-        actualModelName = 'DeepSeek-R1';
+      console.log('[sendMessage] Setting actualModelName to "DeepSeek-R1" for DeepSeek-R1');
+      actualModelName = 'DeepSeek-R1';
     }
 
     // Adjust developer config based on model
     let devConfigToUse = developerConfig;
     if (actualModelName.toLowerCase().startsWith('o1')) {
-        devConfigToUse = "Formatting re-enabled - use markdown code blocks\n" + developerConfig;
+      devConfigToUse = "Formatting re-enabled - use markdown code blocks\n" + developerConfig;
     }
-    
+
     const modelConfig = await getModelConfig(actualModelName);
     isStreamingSupported = modelConfig?.supports_streaming || false;
     const useStreaming = streamingEnabled && isStreamingSupported;
@@ -357,7 +357,7 @@ async function fetchChatResponse(
     try {
       const apiUrl = `${window.location.origin}/api/chat`;
       const messages = [];
-      
+
       // Use the appropriate role based on model type
       if (devConfig) {
         if (modelName.toLowerCase().startsWith('o1')) {
@@ -367,12 +367,12 @@ async function fetchChatResponse(
           messages.push({ role: 'system', content: devConfig });
         }
       }
-      
+
       messages.push({ role: 'user', content: messageContent });
-      
+
       // Determine if this is an O-series model
       const isOSeriesModel = modelName.toLowerCase().startsWith('o1') || modelName.toLowerCase().startsWith('o3');
-      
+
       // Adjust parameters based on model type
       const payload = {
         session_id: sessionId,
@@ -380,26 +380,26 @@ async function fetchChatResponse(
         messages,
         reasoning_effort: effort
       };
-      
+
       // Use the appropriate parameter name based on model type
       if (isOSeriesModel) {
         payload.max_completion_tokens = 5000;
       } else {
         payload.max_tokens = 5000;
       }
-      
+
       // Only add temperature for non-o1 models
       if (!isOSeriesModel) {
         payload.temperature = 0.7;
       }
-      
+
       console.log('[fetchChatResponse] Sending payload:', payload);
-      
+
       // Add a retry mechanism for handling API errors
       let retries = 0;
       const maxApiRetries = 2;
       let response;
-      
+
       while (retries <= maxApiRetries) {
         try {
           response = await fetch(apiUrl, {
@@ -408,9 +408,9 @@ async function fetchChatResponse(
             body: JSON.stringify(payload),
             signal
           });
-          
+
           if (response.ok) break; // Success, exit retry loop
-          
+
           // For 500 errors, we'll retry
           if (response.status === 500) {
             // For 500 errors, try to get more detailed error information
@@ -428,12 +428,12 @@ async function fetchChatResponse(
             await new Promise(r => setTimeout(r, 2000 * retries));
             continue;
           }
-          
+
           break; // For other status codes, don't retry
         } catch (err) {
           // Network errors, retry
           if (err.name === 'TypeError' && err.message.includes('network') && retries < maxApiRetries) {
-            console.warn(`Network error, retrying (${retries+1}/${maxApiRetries})...`);
+            console.warn(`Network error, retrying (${retries + 1}/${maxApiRetries})...`);
             retries++;
             await new Promise(r => setTimeout(r, 2000 * retries));
             continue;
@@ -447,7 +447,7 @@ async function fetchChatResponse(
           const secs = retryAfter ? parseInt(retryAfter, 10) : 5;
           if (retryCount < maxRetries) {
             console.warn(`Rate limited (429). Retrying in ${secs}s...`);
-            showNotification(`Rate limited. Retrying in ${secs}s... (${retryCount+1}/${maxRetries})`,'warning',secs*1000);
+            showNotification(`Rate limited. Retrying in ${secs}s... (${retryCount + 1}/${maxRetries})`, 'warning', secs * 1000);
             await new Promise(r => setTimeout(r, secs * 1000));
             retryCount++;
             continue;
@@ -455,7 +455,7 @@ async function fetchChatResponse(
         }
         throw new Error(`API error: ${response.status} ${response.statusText}`);
       }
-        console.log('[fetchChatResponse] Received successful response, status:', response.status);
+      console.log('[fetchChatResponse] Received successful response, status:', response.status);
       return await response.json();
     } catch (error) {
       lastError = error;
@@ -488,21 +488,21 @@ function renderUserMessage(content) {
 export function renderAssistantMessage(content, isThinking = false) {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return;
-  
+
   const currentModel = document.getElementById('model-select')?.value || window.modelManager?.getCurrentModelId() || 'Unknown';
-  
+
   const el = document.createElement('div');
   el.className = `message assistant-message ${isThinking ? 'thinking-message' : ''}`;
   el.setAttribute('role', 'log');
   el.setAttribute('aria-live', 'polite');
-  
+
   if (content.includes('<think>')) {
     content = deepSeekProcessor.replaceThinkingBlocks(content);
   }
-  
+
   const markdown = renderMarkdown(content);
   const processedContent = processCodeBlocks(markdown);
-  
+
   // Add model name display with Tailwind classes
   el.innerHTML = `
     ${processedContent}
@@ -510,7 +510,7 @@ export function renderAssistantMessage(content, isThinking = false) {
       Model: ${currentModel}
     </div>
   `;
-  
+
   chatHistory.appendChild(el);
   highlightCode(el);
   setTimeout(() => {
@@ -536,29 +536,30 @@ async function storeChatMessage(role, content) {
       role,
       content: content.substring(0, 50) + (content.length > 50 ? '...' : '')
     });
-    
+
     try {
+      // Changed endpoint to match router implementation
       const response = await fetchWithRetry(
-        `${window.location.origin}/api/chat/conversations/store`,
+        `${window.location.origin}/api/chat/conversations/${currentSessionId}/messages`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: currentSessionId, role, content })
+          body: JSON.stringify({ role, content })
         },
         3
       );
-      
+
       if (!response.ok) {
         const text = await response.text();
         console.error('[storeChatMessage] Server error:', response.status, text);
         throw new Error(`Server returned ${response.status}: ${text}`);
       }
-      
+
       console.log('[storeChatMessage] Message stored successfully');
     } catch (err) {
       console.warn('Failed to store message in backend:', err);
     }
-    
+
     // Also store in localStorage as backup
     try {
       const key = `conversation_${currentSessionId}`;
@@ -581,12 +582,12 @@ async function fetchWithRetry(url, options = {}, maxRetries = 3) {
       const response = await fetch(url, options);
       if (response.ok || (response.status >= 400 && response.status < 500)) return response;
       if (response.status >= 500) {
-        console.warn(`Server error (${response.status}), retrying... (${retries+1}/${maxRetries})`);
+        console.warn(`Server error (${response.status}), retrying... (${retries + 1}/${maxRetries})`);
       } else {
         return response;
       }
     } catch (error) {
-      console.warn(`Network error, retrying... (${retries+1}/${maxRetries})`, error);
+      console.warn(`Network error, retrying... (${retries + 1}/${maxRetries})`, error);
     }
     const delay = Math.min(1000 * Math.pow(2, retries) * (0.9 + Math.random() * 0.2), 10000);
     await new Promise(r => setTimeout(r, delay));
@@ -629,8 +630,8 @@ async function getModelConfig(modelName) {
 }
 
 function adjustFontSize(direction) {
-  const sizes = ['text-sm','text-base','text-lg','text-xl'];
-  
+  const sizes = ['text-sm', 'text-base', 'text-lg', 'text-xl'];
+
   // Handle reset case (direction === 0)
   if (direction === 0) {
     document.documentElement.classList.remove(...sizes);
@@ -639,7 +640,7 @@ function adjustFontSize(direction) {
     showNotification('Font size reset to default', 'info', 2000);
     return;
   }
-  
+
   let currentIndex = sizes.findIndex(sz => document.documentElement.classList.contains(sz));
   if (currentIndex === -1) currentIndex = 1; // Default to text-base (index 1)
   const newIndex = Math.min(Math.max(currentIndex + direction, 0), sizes.length - 1);
