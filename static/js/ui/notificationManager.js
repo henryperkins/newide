@@ -300,23 +300,23 @@ export function showTypingIndicator() {
       message.setAttribute('aria-live', 'polite');
       indicator.querySelector('.flex').appendChild(message);
     }
-  }, INDICATOR_TIMEOUT),
-    animationFrame: requestAnimationFrame(() => {
-      try {
-        const chatHistory = document.getElementById('chat-history');
-        if (chatHistory?.isConnected) {
-          chatHistory.appendChild(indicator);
-          requestAnimationFrame(() => {
-            indicator.classList.replace('opacity-0', 'opacity-100');
-          });
-          // Sync with chat history aria-live region
-          chatHistory.setAttribute('aria-busy', 'true');
-        }
-      } catch (error) {
-        console.error('Error appending typing indicator:', error);
+  }, INDICATOR_TIMEOUT);
+  
+  currentState.animationFrame = requestAnimationFrame(() => {
+    try {
+      const chatHistory = document.getElementById('chat-history');
+      if (chatHistory?.isConnected) {
+        chatHistory.appendChild(indicator);
+        requestAnimationFrame(() => {
+          indicator.classList.replace('opacity-0', 'opacity-100');
+        });
+        // Sync with chat history aria-live region
+        chatHistory.setAttribute('aria-busy', 'true');
       }
-    })
-  };
+    } catch (error) {
+      console.error('Error appending typing indicator:', error);
+    }
+  });
 }
 
 export function removeTypingIndicator() {
