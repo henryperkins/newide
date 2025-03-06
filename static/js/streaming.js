@@ -184,12 +184,6 @@ export function streamChatResponse(
 
     // For DeepSeek models, only enable thinking mode for specific user preference
     const thinkingModeEnabled = localStorage.getItem('enableThinkingMode') === 'true';
-    if (validModelName.indexOf('deepseek') !== -1 && thinkingModeEnabled) {
-      params.append('enable_thinking', 'true');
-      console.log('DeepSeek model with thinking mode enabled');
-    } else {
-      console.log('Thinking mode not enabled for model:', validModelName);
-    }
 
     const apiUrl = window.location.origin + '/api/chat/sse?session_id=' + encodeURIComponent(sessionId);
     if (typeof devConfigToUse === 'string' && devConfigToUse.trim()) {
