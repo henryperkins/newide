@@ -9,13 +9,15 @@ import { loadConversationFromDb, loadOlderMessages } from './ui/displayManager.j
 import { StatsDisplay } from './ui/statsDisplay.js';
 import fileManager from './fileManager.js';
 import { showNotification } from './ui/notificationManager.js';
-import { getSessionId } from './session.js';
+import { getSessionId, createNewConversation } from './session.js';
 
 // Configure DOMPurify
-DOMPurify.setConfig({
-  ADD_TAGS: ['div', 'pre'],
-  ADD_ATTR: ['class', 'aria-expanded'],
-});
+if (typeof DOMPurify !== 'undefined') {
+  DOMPurify.setConfig({
+    ADD_TAGS: ['div', 'pre'],
+    ADD_ATTR: ['class', 'aria-expanded'],
+  });
+}
 
 // Disable service worker registration
 if ('serviceWorker' in navigator) {
@@ -36,23 +38,16 @@ document.addEventListener('DOMContentLoaded', initApplication);
  */
 async function ensureValidSession() {
   try {
-    // Import the getSessionId function
-    const sessionModule = await import('./session.js');
-    if (!sessionModule || !sessionModule.getSessionId) {
-      console.error('Session module not loaded properly');
-      throw new Error('Failed to load session module');
-    }
-
     // Get or create a session ID - this function handles validation internally
     // and will create a new session if the existing one is invalid
-    const sessionId = await sessionModule.getSessionId();
+    const sessionId = await getSessionId();
 
     if (!sessionId) {
       console.warn('Failed to get a valid session ID');
 
       // Try one more time with a fresh session
       sessionStorage.removeItem('sessionId');
-      const newSessionId = await sessionModule.createNewConversation('New Conversation');
+      const newSessionId = await createNewConversation('New Conversation');
 
       if (!newSessionId) {
         // Show error notification but don't throw to allow the app to continue
@@ -87,6 +82,7 @@ async function ensureValidSession() {
     return null;
   }
 }
+
 /**
  * Show fallback UI when initialization fails
  */
@@ -119,16 +115,19 @@ async function initApplication() {
   console.log('Initializing application...');
 
   try {
+    // Fix UI layout issues immediately
+    fixLayoutIssues();
+
     // 1. Initialize theme switcher
     initThemeSwitcher();
 
     // 2. Initialize session FIRST before other components
     await ensureValidSession();
 
-    // 3. Initialize tab system
+    // 3. Initialize tab system with proper handling
     initTabSystem();
 
-    // 4. Initialize sidebar
+    // 4. Initialize sidebar with corrected mobile/desktop behavior
     initSidebar();
 
     // 5. Initialize conversation manager (for sidebar)
@@ -168,11 +167,112 @@ async function initApplication() {
     // 11. Initialize model manager
     await modelManager.initialize();
 
+    // 12. Set up window resize event listener for responsive UI
+    setupResizeHandler();
+
     console.log('Application initialization complete');
   } catch (error) {
     console.error('Initialization error:', error);
     showFallbackUI(error);
   }
+}
+
+/**
+ * Fix layout issues by directly manipulating the DOM
+ * This runs before any other initialization to ensure proper rendering
+ */
+function fixLayoutIssues() {
+  console.log('Applying layout fixes...');
+
+  // 1. Fix sidebar positioning
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar) {
+    // Remove any transforms from HTML
+    sidebar.classList.remove('translate-x-full', 'md:translate-x-0', 'translate-x-0');
+
+    // Apply correct positioning and width
+    const isMobile = window.innerWidth < 768;
+
+    // Set fixed position with correct dimensions
+    sidebar.style.position = 'fixed';
+    sidebar.style.top = '64px';
+    sidebar.style.bottom = '0';
+    sidebar.style.right = '0';
+    sidebar.style.zIndex = '50';
+    sidebar.style.width = isMobile ? '100%' : '384px';
+    sidebar.style.transform = 'translateX(100%)';
+  }
+
+  // 2. Fix tab panels display
+  document.querySelectorAll('[role="tabpanel"]').forEach(panel => {
+    panel.style.position = 'relative';
+    panel.style.width = '100%';
+    panel.style.height = 'auto';
+
+    // Make sure active panel is visible, others are hidden
+    const tabId = panel.id;
+    const button = document.querySelector(`[data-target-tab="${tabId}"]`);
+    if (button && button.getAttribute('aria-selected') === 'true') {
+      panel.classList.remove('hidden');
+      panel.setAttribute('aria-hidden', 'false');
+    } else {
+      panel.classList.add('hidden');
+      panel.setAttribute('aria-hidden', 'true');
+    }
+  });
+
+  // 3. Fix overlay pointer events
+  const overlay = document.getElementById('sidebar-overlay');
+  if (overlay) {
+    overlay.style.pointerEvents = 'auto';
+  }
+}
+
+/**
+ * Set up a window resize event handler to maintain proper layout
+ */
+function setupResizeHandler() {
+  const handleResize = debounce(() => {
+    const isMobile = window.innerWidth < 768;
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    const chatContainer = document.getElementById('chat-container');
+
+    if (sidebar) {
+      // Update sidebar dimensions based on viewport
+      sidebar.style.width = isMobile ? '100%' : '384px';
+
+      // Check if sidebar is open and update layout accordingly
+      const isOpen = sidebar.classList.contains('sidebar-open');
+      if (isOpen) {
+        if (!isMobile && chatContainer) {
+          chatContainer.classList.add('sidebar-open');
+        } else if (chatContainer) {
+          chatContainer.classList.remove('sidebar-open');
+        }
+
+        if (overlay) {
+          overlay.classList.toggle('hidden', !isMobile);
+        }
+      }
+    }
+
+    // Re-apply tab panel fixes in case they were lost
+    document.querySelectorAll('[role="tabpanel"]').forEach(panel => {
+      if (panel.id) {
+        const button = document.querySelector(`[data-target-tab="${panel.id}"]`);
+        const shouldBeVisible = button && button.getAttribute('aria-selected') === 'true';
+        panel.classList.toggle('hidden', !shouldBeVisible);
+        panel.setAttribute('aria-hidden', String(!shouldBeVisible));
+
+        // Ensure proper positioning
+        panel.style.position = 'relative';
+        panel.style.width = '100%';
+      }
+    });
+  }, 250);
+
+  window.addEventListener('resize', handleResize);
 }
 
 /* ------------------------------------------------------------------
@@ -263,53 +363,71 @@ function initUserInput() {
     window.dispatchEvent(new CustomEvent('send-message'));
   };
 
-  const saveConvoBtn = document.getElementById('save-convo-btn');
-  const clearConvoBtn = document.getElementById('clear-convo-btn');
-  const convoList = document.getElementById('conversation-list');
-  const loadOlderBtn = document.getElementById('load-older-btn');
-
-  // Save conversation
+  // Handle save conversation button
+  const saveConvoBtn = document.getElementById('save-older-btn');
   if (saveConvoBtn) {
-    saveConvoBtn.addEventListener('click', () => {
-      // Use the DB-based saveConversation from displayManager
-      import('./ui/displayManager.js')
-        .then(module => {
-          const { saveConversation } = module;
-          saveConversation();
-        })
-        .catch(err => console.error('Failed to load displayManager:', err));
+    safeAddEventListener(saveConvoBtn, 'click', async () => {
+      try {
+        const module = await import('./ui/displayManager.js');
+        if (typeof module.saveConversation === 'function') {
+          module.saveConversation();
+        } else {
+          console.error('saveConversation function not found');
+        }
+      } catch (err) {
+        console.error('Failed to save conversation:', err);
+      }
     });
   }
 
-  // Clear conversation
+  // Handle clear conversation button
+  const clearConvoBtn = document.getElementById('clear-convo-btn');
   if (clearConvoBtn) {
-    clearConvoBtn.addEventListener('click', () => {
-      // Call the DB-based clearConversation from displayManager
-      import('./ui/displayManager.js')
-        .then(module => {
-          const { deleteConversation } = module;
-          deleteConversation();
-        })
-        .catch(err => console.error('Failed to load displayManager:', err));
+    safeAddEventListener(clearConvoBtn, 'click', async () => {
+      try {
+        const module = await import('./ui/displayManager.js');
+        if (typeof module.deleteConversation === 'function') {
+          module.deleteConversation();
+        } else {
+          console.error('deleteConversation function not found');
+        }
+      } catch (err) {
+        console.error('Failed to clear conversation:', err);
+      }
     });
   }
 
-  // The local "conversation list" is not needed for DB-based approach.
-  // Hide or remove the conversation dropdown logic.
-  if (convoList) {
-    convoList.classList.add('hidden');
+  // Handle new conversation button
+  const newConvoBtn = document.getElementById('new-convo-btn');
+  if (newConvoBtn) {
+    safeAddEventListener(newConvoBtn, 'click', async () => {
+      try {
+        const module = await import('./ui/displayManager.js');
+        if (typeof module.createNewConversation === 'function') {
+          module.createNewConversation();
+        } else {
+          console.error('createNewConversation function not found');
+        }
+      } catch (err) {
+        console.error('Failed to create new conversation:', err);
+      }
+    });
   }
 
-  // Load older messages
+  // Handle load older messages button
+  const loadOlderBtn = document.getElementById('load-older-btn');
   if (loadOlderBtn) {
-    loadOlderBtn.addEventListener('click', () => {
-      // Use the DB-based loadOlderMessages
-      import('./ui/displayManager.js')
-        .then(module => {
-          const { loadOlderMessages } = module;
-          loadOlderMessages();
-        })
-        .catch(err => console.error('Failed to load displayManager:', err));
+    safeAddEventListener(loadOlderBtn, 'click', async () => {
+      try {
+        const module = await import('./ui/displayManager.js');
+        if (typeof module.loadOlderMessages === 'function') {
+          module.loadOlderMessages();
+        } else {
+          console.error('loadOlderMessages function not found');
+        }
+      } catch (err) {
+        console.error('Failed to load older messages:', err);
+      }
     });
   }
 
@@ -326,27 +444,39 @@ function initUserInput() {
   // Autosize the user input
   if (userInput && sendButton) {
     setTimeout(() => userInput.focus(), 100);
-  }
-}
 
-/**
- * Refreshes the <select> of saved conversations
- */
-function refreshConversationList() {
-  const convoList = document.getElementById('conversation-list');
-  if (!convoList) return;
+    // Add event listener for user input
+    userInput.addEventListener('input', () => {
+      const charCount = document.getElementById('char-count');
+      if (charCount) {
+        charCount.textContent = userInput.value.length;
+      }
 
-  convoList.innerHTML = '<option value="">-- Select --</option>';
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k.startsWith('conversation_')) {
-      const option = document.createElement('option');
-      option.value = k;
-      option.textContent = k
-        .replace('conversation_', '')
-        .replace(/_/g, ' ');
-      convoList.appendChild(option);
-    }
+      // Auto-resize the textarea
+      userInput.style.height = 'auto';
+      userInput.style.height = Math.min(userInput.scrollHeight, 200) + 'px';
+    });
+
+    // Add event listener for send button
+    sendButton.addEventListener('click', () => {
+      if (typeof sendMessage === 'function') {
+        sendMessage();
+      } else if (typeof window.sendMessage === 'function') {
+        window.sendMessage();
+      }
+    });
+
+    // Add event listener for Enter key
+    userInput.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (typeof sendMessage === 'function') {
+          sendMessage();
+        } else if (typeof window.sendMessage === 'function') {
+          window.sendMessage();
+        }
+      }
+    });
   }
 }
 
@@ -354,27 +484,26 @@ function refreshConversationList() {
  * Open a file in the sidebar
  */
 function openFileInSidebar(filename) {
-  const toggleButton = document.querySelector(
-    '[aria-controls="config-content files-content"]'
-  );
-  if (toggleButton) toggleButton.click();
-
+  const sidebarToggle = document.getElementById('sidebar-toggle');
+  if (sidebarToggle) {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar?.classList.contains('translate-x-full') || !sidebar?.classList.contains('sidebar-open')) {
+      sidebarToggle.click();
+    }
+  }
   const filesTab = document.getElementById('files-tab');
   if (filesTab) filesTab.click();
-
-  const fileManagerList = document.querySelector(
-    '.file-drop-area + .space-y-2'
-  );
-  if (!fileManagerList) return;
-
-  const fileItem = [...fileManagerList.children].find(c =>
-    c?.getAttribute('aria-label')?.includes(filename)
-  );
-  if (fileItem) {
-    fileItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    fileItem.classList.add('bg-yellow-50', 'transition-colors');
-    setTimeout(() => fileItem.classList.remove('bg-yellow-50'), 1200);
-  }
+  setTimeout(() => {
+    const filesList = document.querySelectorAll('[aria-label^="File:"]');
+    for (const f of filesList) {
+      if (f.innerText.includes(filename)) {
+        f.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        f.classList.add('bg-blue-100', 'dark:bg-blue-900/30');
+        setTimeout(() => f.classList.remove('bg-blue-100', 'dark:bg-blue-900/30'), 1500);
+        break;
+      }
+    }
+  }, 500);
 }
 
 /**
@@ -383,121 +512,8 @@ function openFileInSidebar(filename) {
 function initConversationControls() {
   console.log('Initializing conversation control buttons...');
 
-  // Get references to existing buttons in index.html
-  const loadOlderBtn = document.getElementById('load-older-btn');
-  const saveOlderBtn = document.getElementById('save-older-btn');
-
-  // Set up event handler for the Load Older Messages button
-  if (loadOlderBtn) {
-    // Use safeAddEventListener instead
-    safeAddEventListener(loadOlderBtn, 'click', async () => {
-      console.log('Load Older Messages clicked');
-      try {
-        const module = await import('./ui/displayManager.js');
-        if (typeof module.loadOlderMessages === 'function') {
-          module.loadOlderMessages();
-        } else {
-          console.error('loadOlderMessages function not found');
-        }
-      } catch (err) {
-        console.error('Failed to load older messages:', err);
-      }
-    });
-
-    // Make sure it's visible
-    loadOlderBtn.classList.remove('hidden');
-  } else {
-    console.warn('Load Older Messages button not found in the DOM');
-  }
-
-  // Set up event handler for the Save Conversation button
-  if (saveOlderBtn) {
-    // Use safeAddEventListener instead
-    safeAddEventListener(saveOlderBtn, 'click', async () => {
-      console.log('Save Conversation clicked');
-      try {
-        const module = await import('./ui/displayManager.js');
-        if (typeof module.saveConversation === 'function') {
-          module.saveConversation();
-        } else {
-          console.error('saveConversation function not found');
-        }
-      } catch (err) {
-        console.error('Failed to save conversation:', err);
-      }
-    });
-
-    // Make sure it's visible
-    saveOlderBtn.classList.remove('hidden');
-  } else {
-    console.warn('Save Conversation button not found in the DOM');
-  }
-
-  // Add clear and new conversation buttons programmatically
-  addConversationManagementButtons();
-}
-
-/**
- * Adds Clear and New Conversation buttons to the UI
- */
-function addConversationManagementButtons() {
-  const btnContainer = document.querySelector('.flex.justify-center.items-center.gap-2.py-2.px-4');
-  if (!btnContainer) {
-    console.warn('Button container not found');
-    return;
-  }
-
-  // Create Clear Conversation button if it doesn't exist
-  if (!document.getElementById('clear-convo-btn')) {
-    const clearConvoBtn = document.createElement('button');
-    clearConvoBtn.id = 'clear-convo-btn';
-    clearConvoBtn.className = 'btn btn-danger conversation-button';
-    clearConvoBtn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v10M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
-      </svg>
-      Clear Conversation
-    `;
-    btnContainer.appendChild(clearConvoBtn);
-
-    clearConvoBtn.addEventListener('click', async () => {
-      console.log('Clear Conversation clicked');
-      try {
-        const module = await import('./ui/displayManager.js');
-        if (typeof module.deleteConversation === 'function') {
-          module.deleteConversation();
-        }
-      } catch (err) {
-        console.error('Failed to clear conversation:', err);
-      }
-    });
-  }
-
-  // Create New Conversation button if it doesn't exist
-  if (!document.getElementById('new-convo-btn')) {
-    const newConvoBtn = document.createElement('button');
-    newConvoBtn.id = 'new-convo-btn';
-    newConvoBtn.className = 'btn btn-primary conversation-button';
-    newConvoBtn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-      </svg>
-      New Conversation
-    `;
-    btnContainer.appendChild(newConvoBtn);
-
-    newConvoBtn.addEventListener('click', async () => {
-      console.log('New Conversation clicked');
-      try {
-        const module = await import('./ui/displayManager.js');
-        if (typeof module.createNewConversation === 'function') {
-          module.createNewConversation();
-        }
-      } catch (err) {
-        console.error('Failed to create new conversation:', err);
-      }
-    });
-  }
+  // Make sure buttons are initialized with proper event handlers
+  // This is already handled in initUserInput
 }
 
 /**
@@ -505,12 +521,30 @@ function addConversationManagementButtons() {
  */
 function initTokenUsageDisplay() {
   const tokenUsage = document.getElementById('token-usage');
-  const toggleButton = document.getElementById('toggle-token-details');
+  const toggleButton = document.getElementById('token-usage-toggle');
+  const tokenDetails = document.getElementById('token-details');
+  const tokenChevron = document.getElementById('token-chevron');
+
   if (tokenUsage && toggleButton) {
-    toggleButton.addEventListener('click', () => {
-      tokenUsage.querySelector('#token-details').classList.toggle('hidden');
-      toggleButton.classList.toggle('active');
+    // Remove any existing event listeners to prevent duplicates
+    safeAddEventListener(toggleButton, 'click', () => {
+      if (tokenDetails) {
+        tokenDetails.classList.toggle('hidden');
+      }
+      if (tokenChevron) {
+        tokenChevron.classList.toggle('rotate-180');
+      }
+      localStorage.setItem('tokenDetailsVisible', !tokenDetails.classList.contains('hidden'));
     });
+
+    // Check for stored preference
+    const tokenDetailsVisible = localStorage.getItem('tokenDetailsVisible') === 'true';
+    if (tokenDetailsVisible && tokenDetails) {
+      tokenDetails.classList.remove('hidden');
+      if (tokenChevron) {
+        tokenChevron.classList.add('rotate-180');
+      }
+    }
   }
 }
 
@@ -525,7 +559,7 @@ function initThinkingModeToggle() {
     thinkingModeToggle.checked = thinkingModeEnabled;
 
     // Set up event listener to save preference
-    thinkingModeToggle.addEventListener('change', e => {
+    safeAddEventListener(thinkingModeToggle, 'change', e => {
       localStorage.setItem('enableThinkingMode', e.target.checked);
       console.log('Thinking mode ' + (e.target.checked ? 'enabled' : 'disabled'));
 
@@ -553,14 +587,10 @@ function registerKeyboardShortcuts() {
     }
     // Esc => close sidebar on mobile
     if (e.key === 'Escape') {
-      const sidebar = document.querySelector('aside');
-      if (sidebar && !sidebar.classList.contains('translate-x-full') && window.innerWidth < 768) {
-        sidebar.classList.add('translate-x-full');
-        sidebar.classList.remove('translate-x-0');
-        const overlay = document.getElementById('sidebar-overlay');
-        if (overlay) overlay.classList.add('hidden');
-        const toggleButton = document.querySelector('[aria-controls="config-content files-content"]');
-        if (toggleButton) toggleButton.setAttribute('aria-expanded', 'false');
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar && sidebar.classList.contains('sidebar-open') && window.innerWidth < 768) {
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        if (sidebarToggle) sidebarToggle.click();
       }
     }
   });
@@ -612,15 +642,10 @@ function initModelSelector() {
   const modelSelect = document.getElementById('model-select');
   if (!modelSelect) return;
 
-  // Watch for future changes if needed
-  const observer = new MutationObserver(() => {
-    // If you want to handle UI changes to the model select, add logic here
-  });
-  observer.observe(modelSelect, { childList: true });
-
   // Load default models
   import('./models.js').then(module => {
     const { modelManager } = module;
+
     // Make sure the local model configs are created first before trying to use them
     modelManager.ensureLocalModelConfigs();
     console.log("Local model configs initialized:", Object.keys(modelManager.modelConfigs));
@@ -634,8 +659,7 @@ function initModelSelector() {
           for (const [id, config] of Object.entries(models)) {
             const option = document.createElement('option');
             option.value = id;
-            option.textContent = `${id}${config.description ? ` (${config.description})` : ''
-              }`;
+            option.textContent = `${id}${config.description ? ` (${config.description})` : ''}`;
             modelSelect.appendChild(option);
           }
 
@@ -652,46 +676,25 @@ function initModelSelector() {
     }, 500);
   });
 
-  // Asynchronously initialize the model manager (after ensuring models exist)
+  // Asynchronously initialize the model manager
   setTimeout(() => {
     import('./models.js')
       .then(module => {
         const { modelManager } = module;
-        // Make sure configs are populated
+        // Ensure model configs exist
         if (Object.keys(modelManager.modelConfigs).length === 0) {
-          console.log("Re-ensuring model configs before initialize");
           modelManager.ensureLocalModelConfigs();
         }
 
-        // Then initialize
-        modelManager
-          .initialize()
+        // Initialize model manager
+        modelManager.initialize()
           .then(() => {
             console.log("Model manager initialized with models:", Object.keys(modelManager.modelConfigs));
 
-            // Ensure we still have models in the dropdown
-            if (modelSelect && modelSelect.options.length === 0) {
-              const defaultModels = [
-                {
-                  id: 'o1',
-                  description: 'Advanced reasoning model for complex tasks',
-                },
-                {
-                  id: 'DeepSeek-R1',
-                  description: 'Model that supports chain-of-thought reasoning',
-                },
-              ];
-              defaultModels.forEach(model => {
-                const option = document.createElement('option');
-                option.value = model.id;
-                option.textContent = `${model.id} (${model.description})`;
-                modelSelect.appendChild(option);
-              });
-            }
-
-            // Explicitly initialize model management UI
+            // Initialize model management UI
             modelManager.initModelManagement();
-            // Force refresh the models list
+
+            // Force refresh models list
             modelManager.refreshModelsList();
           })
           .catch(err => console.error('Error initializing ModelManager:', err));
@@ -713,8 +716,6 @@ function initMobileUI() {
   initPullToRefresh();
   setupMobileStatsToggle();
   setupMobileFontControls();
-  // Mobile sidebar handling is now in sidebarManager.js
-  // Additional mobile logic if needed
 }
 
 /**
@@ -812,7 +813,15 @@ function initPullToRefresh() {
       chatHistory.style.removeProperty('--pull-distance');
       if (pullDistance > threshold && chatHistory.scrollTop <= 0) {
         if (indicator) indicator.textContent = 'Loading...';
-        loadOlderMessages();
+
+        // Load older messages
+        import('./ui/displayManager.js')
+          .then(module => {
+            if (typeof module.loadOlderMessages === 'function') {
+              module.loadOlderMessages();
+            }
+          })
+          .catch(err => console.error('Failed to load displayManager:', err));
       }
       setTimeout(() => {
         if (indicator) {
@@ -834,7 +843,7 @@ function setupMobileStatsToggle() {
   const mobileStatsPanel = document.getElementById('mobile-stats-panel');
   if (!mobileStatsToggle || !mobileStatsPanel) return;
 
-  mobileStatsToggle.addEventListener('click', e => {
+  safeAddEventListener(mobileStatsToggle, 'click', e => {
     e.stopPropagation();
     const hidden = mobileStatsPanel.classList.contains('hidden');
     mobileStatsPanel.classList.toggle('hidden');
@@ -850,6 +859,7 @@ function setupMobileStatsToggle() {
         : 'Settings panel closed';
     }
   });
+
   mobileStatsPanel.setAttribute('aria-hidden', 'true');
   mobileStatsToggle.setAttribute('aria-expanded', 'false');
 }
@@ -860,26 +870,15 @@ function setupMobileStatsToggle() {
 function setupMobileFontControls() {
   const mobileFontUp = document.getElementById('mobile-font-up');
   const mobileFontDown = document.getElementById('mobile-font-down');
-  const fontToggle = document.getElementById('mobile-font-toggle');
-  const mobileStatsPanel = document.getElementById('mobile-stats-panel');
 
   if (mobileFontUp) {
-    mobileFontUp.addEventListener('click', () => adjustFontSize(1));
+    safeAddEventListener(mobileFontUp, 'click', () => adjustFontSize(1));
   }
+
   if (mobileFontDown) {
-    mobileFontDown.addEventListener('click', () => adjustFontSize(-1));
-  }
-  if (fontToggle && mobileStatsPanel) {
-    fontToggle.addEventListener('click', () => {
-      mobileStatsPanel.classList.toggle('hidden');
-      if (!mobileStatsPanel.classList.contains('hidden') && mobileFontUp) {
-        setTimeout(() => mobileFontUp.focus(), 100);
-      }
-    });
+    safeAddEventListener(mobileFontDown, 'click', () => adjustFontSize(-1));
   }
 }
-
-// Mobile sidebar functionality moved to sidebarManager.js
 
 /* ------------------------------------------------------------------
                   SHARED FONT-SIZE ADJUSTMENT LOGIC
@@ -887,10 +886,18 @@ function setupMobileFontControls() {
 
 /**
  * Adjust font size of the document
- * @param {number} direction - 1 to increase, -1 to decrease
+ * @param {number} direction - 1 to increase, -1 to decrease, 0 to reset
  */
 function adjustFontSize(direction) {
   const sizes = ['text-sm', 'text-base', 'text-lg', 'text-xl'];
+
+  // Handle reset
+  if (direction === 0) {
+    document.documentElement.classList.remove(...sizes);
+    document.documentElement.classList.add('text-base');
+    localStorage.removeItem('fontSize');
+    return;
+  }
 
   // Find current size
   let currentIndex = sizes.findIndex(size =>
@@ -913,13 +920,23 @@ function adjustFontSize(direction) {
 function initFontSizeControls() {
   const smallerBtn = document.getElementById('font-size-down');
   const biggerBtn = document.getElementById('font-size-up');
-  if (!smallerBtn || !biggerBtn) return;
+  const resetBtn = document.getElementById('font-size-reset');
 
+  // Apply stored font size
   const storedSize = localStorage.getItem('fontSize') || 'text-base';
   document.documentElement.classList.add(storedSize);
 
-  smallerBtn.addEventListener('click', () => adjustFontSize(-1));
-  biggerBtn.addEventListener('click', () => adjustFontSize(1));
+  if (smallerBtn) {
+    safeAddEventListener(smallerBtn, 'click', () => adjustFontSize(-1));
+  }
+
+  if (biggerBtn) {
+    safeAddEventListener(biggerBtn, 'click', () => adjustFontSize(1));
+  }
+
+  if (resetBtn) {
+    safeAddEventListener(resetBtn, 'dblclick', () => adjustFontSize(0));
+  }
 }
 
 /* ------------------------------------------------------------------
@@ -962,19 +979,6 @@ function initConfigHandlers() {
 }
 
 /**
- * For possible future use from UI
- */
-function initSettingsButton() {
-  const settingsButton = document.getElementById('settings-button');
-  if (!settingsButton) return;
-  settingsButton.addEventListener('click', () => {
-    const settingsPanel = document.getElementById('settings-panel');
-    if (settingsPanel) {
-      settingsPanel.classList.toggle('hidden');
-    }
-  });
-}
-/**
  * Safely add event listener ensuring no duplicates
  * @param {Element} element - DOM element to attach listener to
  * @param {string} eventType - Event type (e.g., 'click')
@@ -1010,4 +1014,21 @@ function safeAddEventListener(element, eventType, handler, options = {}) {
   // Add the event listener
   element.addEventListener(eventType, handler, options);
   return true;
+}
+
+/**
+ * Simple debounce function to prevent excessive function calls
+ * @param {Function} func - The function to debounce
+ * @param {number} wait - Debounce wait time in milliseconds
+ */
+function debounce(func, wait) {
+  let timeout;
+  return function () {
+    const context = this;
+    const args = arguments;
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      func.apply(context, args);
+    }, wait);
+  };
 }

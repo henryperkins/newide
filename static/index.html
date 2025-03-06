@@ -388,7 +388,24 @@
                             </svg>
                             Save Conversation
                         </button>
-                        <!-- Clear and New conversation buttons will be added by init.js -->
+                        <!-- Clear conversation button -->
+                        <button id="clear-convo-btn" class="btn btn-danger conversation-button">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v10M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                            </svg>
+                            Clear Conversation
+                        </button>
+                        <!-- New conversation button -->
+                        <button id="new-convo-btn" class="btn btn-primary conversation-button">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 4v16m8-8H4" />
+                            </svg>
+                            New Conversation
+                        </button>
                     </div>
 
                     <!-- Input and Send -->
@@ -455,7 +472,7 @@
                                                 </svg>
                                                 <span>Prompt</span>
                                             </div>
-                                            <!-- Removed direct textContent manipulation -->
+                                            <span id="prompt-tokens" class="token-value">0</span>
                                         </div>
 
                                         <div>
@@ -502,317 +519,312 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <!-- Sidebar with simplified structure -->
-                    <aside id="sidebar"
-                        class="sidebar fixed inset-y-0 right-0 transform md:static md:translate-x-0 translate-x-full transition-transform duration-300 z-40 flex flex-col bg-white dark:bg-dark-800 border-l border-dark-200 dark:border-dark-700 shadow-xl md:shadow-none">
-                        <!-- Confirmed: ID matches JavaScript -->
-                        <!-- Sidebar Header with close button -->
-                        <div
-                            class="p-4 border-b border-dark-200 dark:border-dark-700 flex justify-between items-center">
-                            <h2 class="text-lg font-semibold">Settings</h2>
-                            <button id="close-sidebar" class="md:hidden btn btn-icon btn-secondary touch-target"
-                                aria-label="Close settings">
-                                <!-- Confirmed: ID matches JavaScript -->
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+            <!-- Fixed sidebar structure without conflicting transforms -->
+            <aside id="sidebar"
+                class="flex flex-col bg-white dark:bg-dark-800 border-l border-dark-200 dark:border-dark-700">
+                <!-- Sidebar Header with close button -->
+                <div class="p-4 border-b border-dark-200 dark:border-dark-700 flex justify-between items-center">
+                    <h2 class="text-lg font-semibold">Settings</h2>
+                    <button id="close-sidebar" class="md:hidden btn btn-icon btn-secondary touch-target"
+                        aria-label="Close settings">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Tab Navigation -->
+                <div class="border-b border-dark-200 dark:border-dark-700">
+                    <nav class="flex" role="tablist" aria-label="Settings tabs">
+                        <button id="config-tab"
+                            class="flex-1 py-3 px-4 text-center text-sm font-medium border-b-2 border-primary-500 text-primary-700 dark:text-primary-300"
+                            role="tab" aria-selected="true" aria-controls="config-content"
+                            data-target-tab="config-content">
+                            Configuration
+                        </button>
+                        <button id="files-tab"
+                            class="flex-1 py-3 px-4 text-center text-sm font-medium border-b-2 border-transparent text-dark-500 hover:text-dark-700 dark:text-dark-400 dark:hover:text-dark-200"
+                            role="tab" aria-selected="false" aria-controls="files-content"
+                            data-target-tab="files-content">
+                            Files
+                        </button>
+                        <button id="models-tab"
+                            class="flex-1 py-3 px-4 text-center text-sm font-medium border-b-2 border-transparent text-dark-500 hover:text-dark-700 dark:text-dark-400 dark:hover:text-dark-200"
+                            role="tab" aria-selected="false" aria-controls="models-content"
+                            data-target-tab="models-content">
+                            Models
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Tab Panels -->
+                <div class="overflow-y-auto flex-1">
+                    <!-- Configuration Tab -->
+                    <div id="config-content" class="p-4 space-y-6" role="tabpanel" aria-labelledby="config-tab">
+                        <div class="space-y-2">
+                            <label for="model-select" class="form-label">AI Model</label>
+                            <select id="model-select" class="form-input">
+                                <option value="DeepSeek-R1">DeepSeek-R1 (Default)</option>
+                                <option value="o1">o1 (Advanced Reasoning)</option>
+                                <!-- Options will be populated by ModelManager -->
+                            </select>
+                            <p class="text-xs text-dark-500 dark:text-dark-400">
+                                Select the AI model you want to chat with
+                            </p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label for="developer-config" class="form-label">
+                                System Message
+                                <span class="text-dark-500 dark:text-dark-400 text-xs ml-1">(Optional)</span>
+                            </label>
+                            <input type="text" id="developer-config"
+                                value="Formatting re-enabled - use markdown code blocks" aria-describedby="config-help"
+                                class="form-input">
+                            <p id="config-help" class="text-xs text-dark-500 dark:text-dark-400">
+                                Customize how the AI responds and formats answers
+                            </p>
+                        </div>
+
+                        <div id="reasoning-controls" class="space-y-2">
+                            <label for="reasoning-effort-slider" class="form-label flex justify-between">
+                                <span>Reasoning Effort</span>
+                                <span id="reasoning-effort-display"
+                                    class="text-primary-600 dark:text-primary-400">Medium</span>
+                            </label>
+                            <div class="relative mt-2">
+                                <input type="range" id="reasoning-effort-slider" min="1" max="3" value="2"
+                                    aria-valuetext="Medium"
+                                    class="w-full h-2 bg-dark-200 dark:bg-dark-700 rounded-full appearance-none cursor-pointer">
+                                <div class="flex justify-between text-xs text-dark-500 dark:text-dark-400 mt-1">
+                                    <span>Low</span>
+                                    <span>Medium</span>
+                                    <span>High</span>
+                                </div>
+                            </div>
+                            <p id="effort-description-text" class="text-xs text-dark-500 dark:text-dark-400">
+                                Medium: Balanced processing time (1-3min) and quality
+                            </p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <div class="flex items-center space-x-2">
+                                <input type="checkbox" id="enable-streaming"
+                                    class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
+                                <label for="enable-streaming" class="text-sm text-dark-700 dark:text-dark-300">
+                                    Enable Streaming
+                                </label>
+                            </div>
+                            <p class="text-xs text-dark-500 dark:text-dark-400 ml-6">
+                                See responses as they're generated (not available for all models)
+                            </p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <div class="flex items-center space-x-2">
+                                <input type="checkbox" id="enable-thinking-mode"
+                                    class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
+                                <label for="enable-thinking-mode" class="text-sm text-dark-700 dark:text-dark-300">
+                                    Enable Thinking Mode
+                                </label>
+                            </div>
+                            <p class="text-xs text-dark-500 dark:text-dark-400 ml-6">
+                                Shows chain-of-thought reasoning (may slow down DeepSeek responses)
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Files Tab -->
+                    <div id="files-content" class="p-4 space-y-4 hidden" role="tabpanel" aria-labelledby="files-tab"
+                        aria-hidden="true">
+                        <div class="flex justify-between items-center p-3 bg-dark-100 dark:bg-dark-700 rounded-lg">
+                            <button
+                                class="upload-button btn btn-secondary flex items-center text-sm font-medium touch-target">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 folder-icon" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                                Upload Files
+                            </button>
+                            <div></div>
+                            <label class="inline-flex items-center cursor-pointer space-x-2">
+                                <input type="checkbox" id="azure-search"
+                                    class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
+                                <span class="text-sm text-dark-700 dark:text-dark-300">Azure Search</span>
+                            </label>
+                            <button class="ml-1 text-dark-500 group relative" aria-label="Learn about Azure Search">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
                                     stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M6 18L18 6M6 6l12 12" />
+                                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
+                                <span
+                                    class="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block group-focus:block bg-dark-800 text-white text-xs p-2 rounded w-60 z-10">
+                                    Azure Search allows deeper analysis of your documents using Azure's search
+                                    capabilities
+                                </span>
                             </button>
                         </div>
 
-                        <!-- Tab Navigation -->
-                        <div class="border-b border-dark-200 dark:border-dark-700">
-                            <nav class="flex" role="tablist" aria-label="Settings tabs">
-                                <button id="config-tab"
-                                    class="flex-1 py-3 px-4 text-center text-sm font-medium border-b-2 border-primary-500 text-primary-700 dark:text-primary-300"
-                                    role="tab" aria-selected="true" aria-controls="config-content"
-                                    data-target-tab="config-content">
-                                    Configuration
-                                </button>
-                                <button id="files-tab"
-                                    class="flex-1 py-3 px-4 text-center text-sm font-medium border-b-2 border-transparent text-dark-500 hover:text-dark-700 dark:text-dark-400 dark:hover:text-dark-200"
-                                    role="tab" aria-selected="false" aria-controls="files-content"
-                                    data-target-tab="files-content">
-                                    Files
-                                </button>
-                                <button id="models-tab"
-                                    class="flex-1 py-3 px-4 text-center text-sm font-medium border-b-2 border-transparent text-dark-500 hover:text-dark-700 dark:text-dark-400 dark:hover:text-dark-200"
-                                    role="tab" aria-selected="false" aria-controls="models-content"
-                                    data-target-tab="models-content">
-                                    Models
-                                </button>
-                            </nav>
+                        <div
+                            class="flex flex-wrap gap-2 p-2 bg-dark-100 dark:bg-dark-700 rounded-lg text-xs text-dark-600 dark:text-dark-400">
+                            <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-dark-500" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Files: <span id="total-files" class="font-mono">0</span>
+                            </div>
+                            <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-dark-500" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                                </svg>
+                                Size: <span id="total-size" class="font-mono">0 B</span>
+                            </div>
+                            <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-dark-500" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                                </svg>
+                                Tokens: <span id="estimated-tokens" class="font-mono">0</span>
+                            </div>
                         </div>
 
-                        <!-- Tab Panels -->
-                        <div class="overflow-y-auto flex-1">
-                            <!-- Configuration Tab -->
-                            <div id="config-content" class="p-4 space-y-6" role="tabpanel" aria-labelledby="config-tab">
-                                <div class="space-y-2">
-                                    <label for="model-select" class="form-label">AI Model</label>
-                                    <select id="model-select" class="form-input">
-                                        <option value="DeepSeek-R1">DeepSeek-R1 (Default)</option>
-                                        <option value="o1">o1 (Advanced Reasoning)</option>
-                                        <!-- Options will be populated by ModelManager -->
-                                    </select>
-                                    <p class="text-xs text-dark-500 dark:text-dark-400">
-                                        Select the AI model you want to chat with
-                                    </p>
-                                </div>
+                        <div id="file-drop-area"
+                            class="border-2 border-dashed border-dark-300 dark:border-dark-600 rounded-lg p-6 text-center flex-1 touch-action-manipulation transition-colors duration-150">
+                            <p class="text-dark-500 dark:text-dark-400 mb-2">No files uploaded.</p>
+                            <p class="text-xs text-dark-400 dark:text-dark-500">Drop files here to add context.</p>
+                        </div>
 
-                                <div class="space-y-2">
-                                    <label for="developer-config" class="form-label">
-                                        System Message
-                                        <span class="text-dark-500 dark:text-dark-400 text-xs ml-1">(Optional)</span>
-                                    </label>
-                                    <input type="text" id="developer-config"
-                                        value="Formatting re-enabled - use markdown code blocks"
-                                        aria-describedby="config-help" class="form-input">
-                                    <p id="config-help" class="text-xs text-dark-500 dark:text-dark-400">
-                                        Customize how the AI responds and formats answers
-                                    </p>
-                                </div>
+                        <input type="file" id="file-input"
+                            accept=".txt,.md,.json,.js,.py,.html,.css,.pdf,.docx,.doc,.csv,.xlsx" multiple
+                            class="hidden">
+                    </div>
 
-                                <div id="reasoning-controls" class="space-y-2">
-                                    <label for="reasoning-effort-slider" class="form-label flex justify-between">
-                                        <span>Reasoning Effort</span>
-                                        <span id="reasoning-effort-display"
-                                            class="text-primary-600 dark:text-primary-400">Medium</span>
-                                    </label>
-                                    <div class="relative mt-2">
-                                        <input type="range" id="reasoning-effort-slider" min="1" max="3" value="2"
-                                            aria-valuetext="Medium"
-                                            class="w-full h-2 bg-dark-200 dark:bg-dark-700 rounded-full appearance-none cursor-pointer">
-                                        <div class="flex justify-between text-xs text-dark-500 dark:text-dark-400 mt-1">
-                                            <span>Low</span>
-                                            <span>Medium</span>
-                                            <span>High</span>
-                                        </div>
-                                    </div>
-                                    <p id="effort-description-text" class="text-xs text-dark-500 dark:text-dark-400">
-                                        Medium: Balanced processing time (1-3min) and quality
-                                    </p>
-                                </div>
+                    <!-- Models Tab -->
+                    <div id="models-content" class="p-4 space-y-4 hidden" role="tabpanel" aria-labelledby="models-tab"
+                        aria-hidden="true">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-lg font-medium">Available Models</h3>
+                            <button id="add-model-btn" class="btn btn-primary touch-target">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add Model
+                            </button>
+                        </div>
 
-                                <div class="space-y-2">
-                                    <div class="flex items-center space-x-2">
-                                        <input type="checkbox" id="enable-streaming"
-                                            class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
-                                        <label for="enable-streaming" class="text-sm text-dark-700 dark:text-dark-300">
-                                            Enable Streaming
-                                        </label>
-                                    </div>
-                                    <p class="text-xs text-dark-500 dark:text-dark-400 ml-6">
-                                        See responses as they're generated (not available for all models)
-                                    </p>
-                                </div>
-
-                                <div class="space-y-2">
-                                    <div class="flex items-center space-x-2">
-                                        <input type="checkbox" id="enable-thinking-mode"
-                                            class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
-                                        <label for="enable-thinking-mode"
-                                            class="text-sm text-dark-700 dark:text-dark-300">
-                                            Enable Thinking Mode
-                                        </label>
-                                    </div>
-                                    <p class="text-xs text-dark-500 dark:text-dark-400 ml-6">
-                                        Shows chain-of-thought reasoning (may slow down DeepSeek responses)
-                                    </p>
-                                </div>
+                        <div id="models-list" class="space-y-2 mt-2">
+                            <!-- Models will be listed here -->
+                            <div class="text-center text-dark-500 dark:text-dark-400 text-sm py-8">
+                                Loading models...
                             </div>
+                        </div>
 
-                            <!-- Files Tab -->
-                            <div id="files-content" class="p-4 space-y-4 hidden" role="tabpanel"
-                                aria-labelledby="files-tab" aria-hidden="true">
+                        <!-- Add/Edit Model Form -->
+                        <div id="model-form-container"
+                            class="fixed inset-0 bg-dark-900 bg-opacity-50 z-50 flex items-center justify-center p-4 hidden">
+                            <div class="bg-white dark:bg-dark-800 rounded-lg shadow-xl w-full max-w-md">
                                 <div
-                                    class="flex justify-between items-center p-3 bg-dark-100 dark:bg-dark-700 rounded-lg">
-                                    <button
-                                        class="upload-button btn btn-secondary flex items-center text-sm font-medium touch-target">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 folder-icon"
-                                            fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                                        </svg>
-                                        Upload Files
-                                    </button>
-                                    <div></div>
-                                    <label class="inline-flex items-center cursor-pointer space-x-2">
-                                        <input type="checkbox" id="azure-search"
-                                            class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
-                                        <span class="text-sm text-dark-700 dark:text-dark-300">Azure Search</span>
-                                    </label>
-                                    <button class="ml-1 text-dark-500 group relative"
-                                        aria-label="Learn about Azure Search">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                    class="flex justify-between items-center p-4 border-b border-dark-200 dark:border-dark-700">
+                                    <h3 id="model-form-title" class="text-lg font-medium">Add New Model</h3>
+                                    <button id="model-form-close"
+                                        class="text-dark-500 hover:text-dark-700 dark:text-dark-400 dark:hover:text-dark-200">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
                                             viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                d="M6 18L18 6M6 6l12 12" />
                                         </svg>
-                                        <span
-                                            class="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block group-focus:block bg-dark-800 text-white text-xs p-2 rounded w-60 z-10">
-                                            Azure Search allows deeper analysis of your documents using Azure's search
-                                            capabilities
-                                        </span>
                                     </button>
                                 </div>
-                            </div>
 
-                            <div
-                                class="flex flex-wrap gap-2 p-2 bg-dark-100 dark:bg-dark-700 rounded-lg text-xs text-dark-600 dark:text-dark-400">
-                                <div class="flex items-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-dark-500"
-                                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                    Files: <span id="total-files" class="font-mono">0</span>
-                                </div>
-                                <div class="flex items-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-dark-500"
-                                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-                                    </svg>
-                                    Size: <span id="total-size" class="font-mono">0 B</span>
-                                </div>
-                                <div class="flex items-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-dark-500"
-                                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                                    </svg>
-                                    Tokens: <span id="estimated-tokens" class="font-mono">0</span>
-                                </div>
-                            </div>
+                                <form id="model-form" class="p-4 space-y-4">
+                                    <input type="hidden" id="model-form-mode" value="add">
+                                    <input type="hidden" id="model-form-id" value="">
 
-                            <div id="file-drop-area"
-                                class="border-2 border-dashed border-dark-300 dark:border-dark-600 rounded-lg p-6 text-center flex-1 touch-action-manipulation transition-colors duration-150">
-                                <p class="text-dark-500 dark:text-dark-400 mb-2">No files uploaded.</p>
-                                <p class="text-xs text-dark-400 dark:text-dark-500">Drop files here to add context.</p>
-                            </div>
-
-                            <input type="file" id="file-input"
-                                accept=".txt,.md,.json,.js,.py,.html,.css,.pdf,.docx,.doc,.csv,.xlsx" multiple
-                                class="hidden">
-                        </div>
-
-                        <!-- Models Tab -->
-                        <div id="models-content" class="p-4 space-y-4 hidden" role="tabpanel"
-                            aria-labelledby="models-tab" aria-hidden="true">
-                            <div class="flex justify-between items-center">
-                                <h3 class="text-lg font-medium">Available Models</h3>
-                                <button id="add-model-btn" class="btn btn-primary touch-target">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M12 4v16m8-8H4" />
-                                    </svg>
-                                    Add Model
-                                </button>
-                            </div>
-
-                            <div id="models-list" class="space-y-2 mt-2">
-                                <!-- Models will be listed here -->
-                                <div class="text-center text-dark-500 dark:text-dark-400 text-sm py-8">
-                                    Loading models...
-                                </div>
-                            </div>
-
-                            <!-- Add/Edit Model Form -->
-                            <div id="model-form-container"
-                                class="fixed inset-0 bg-dark-900 bg-opacity-50 z-50 flex items-center justify-center p-4 hidden">
-                                <div class="bg-white dark:bg-dark-800 rounded-lg shadow-xl w-full max-w-md">
-                                    <div
-                                        class="flex justify-between items-center p-4 border-b border-dark-200 dark:border-dark-700">
-                                        <h3 id="model-form-title" class="text-lg font-medium">Add New Model</h3>
-                                        <button id="model-form-close"
-                                            class="text-dark-500 hover:text-dark-700 dark:text-dark-400 dark:hover:text-dark-200">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
-                                                viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
+                                    <div class="space-y-2">
+                                        <label for="model-name" class="form-label">Model Name/ID</label>
+                                        <input type="text" id="model-name" class="form-input" required>
                                     </div>
 
-                                    <form id="model-form" class="p-4 space-y-4">
-                                        <input type="hidden" id="model-form-mode" value="add">
-                                        <input type="hidden" id="model-form-id" value="">
+                                    <div class="space-y-2">
+                                        <label for="model-description" class="form-label">Description</label>
+                                        <input type="text" id="model-description" class="form-input">
+                                    </div>
 
-                                        <div class="space-y-2">
-                                            <label for="model-name" class="form-label">Model Name/ID</label>
-                                            <input type="text" id="model-name" class="form-input" required>
+                                    <div class="space-y-2">
+                                        <label for="model-endpoint" class="form-label">Azure Endpoint</label>
+                                        <input type="url" id="model-endpoint" class="form-input" required>
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <label for="model-api-version" class="form-label">API Version</label>
+                                        <input type="text" id="model-api-version" class="form-input" required
+                                            value="2025-02-01-preview">
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <label for="model-max-tokens" class="form-label">Max Tokens</label>
+                                        <input type="number" id="model-max-tokens" class="form-input" min="1" step="1"
+                                            value="4096">
+                                    </div>
+
+                                    <div class="flex flex-wrap gap-4">
+                                        <div class="flex items-center">
+                                            <input type="checkbox" id="model-supports-temperature"
+                                                class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
+                                            <label for="model-supports-temperature"
+                                                class="ml-2 text-sm text-dark-700 dark:text-dark-300">
+                                                Supports Temperature
+                                            </label>
                                         </div>
 
-                                        <div class="space-y-2">
-                                            <label for="model-description" class="form-label">Description</label>
-                                            <input type="text" id="model-description" class="form-input">
+                                        <div class="flex items-center">
+                                            <input type="checkbox" id="model-supports-streaming"
+                                                class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
+                                            <label for="model-supports-streaming"
+                                                class="ml-2 text-sm text-dark-700 dark:text-dark-300"></label>
+                                            Supports Streaming
+                                            </label>
                                         </div>
 
-                                        <div class="space-y-2">
-                                            <label for="model-endpoint" class="form-label">Azure Endpoint</label>
-                                            <input type="url" id="model-endpoint" class="form-input" required>
+                                        <div class="flex items-center">
+                                            <input type="checkbox" id="model-supports-vision"
+                                                class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
+                                            <label for="model-supports-vision"
+                                                class="ml-2 text-sm text-dark-700 dark:text-dark-300">
+                                                Supports Vision
+                                            </label>
                                         </div>
+                                    </div>
 
-                                        <div class="space-y-2">
-                                            <label for="model-api-version" class="form-label">API Version</label>
-                                            <input type="text" id="model-api-version" class="form-input" required
-                                                value="2025-02-01-preview">
-                                        </div>
-
-                                        <div class="space-y-2">
-                                            <label for="model-max-tokens" class="form-label">Max Tokens</label>
-                                            <input type="number" id="model-max-tokens" class="form-input" min="1"
-                                                step="1" value="4096">
-                                        </div>
-
-                                        <div class="flex flex-wrap gap-4">
-                                            <div class="flex items-center">
-                                                <input type="checkbox" id="model-supports-temperature"
-                                                    class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
-                                                <label for="model-supports-temperature"
-                                                    class="ml-2 text-sm text-dark-700 dark:text-dark-300">
-                                                    Supports Temperature
-                                                </label>
-                                            </div>
-
-                                            <div class="flex items-center">
-                                                <input type="checkbox" id="model-supports-streaming"
-                                                    class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
-                                                <label for="model-supports-streaming"
-                                                    class="ml-2 text-sm text-dark-700 dark:text-dark-300"></label>
-                                                Supports Streaming
-                                                </label>
-                                            </div>
-
-                                            <div class="flex items-center">
-                                                <input type="checkbox" id="model-supports-vision"
-                                                    class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
-                                                <label for="model-supports-vision"
-                                                    class="ml-2 text-sm text-dark-700 dark:text-dark-300">
-                                                    Supports Vision
-                                                </label>
-                                            </div>
-                                        </div>
-
-                                        <div
-                                            class="flex justify-end space-x-3 pt-4 border-t border-dark-200 dark:border-dark-700">
-                                            <button type="button" id="model-form-cancel"
-                                                class="btn btn-secondary">Cancel</button>
-                                            <button type="submit" class="btn btn-primary">Save</button>
-                                        </div>
-                                    </form>
-                                </div>
+                                    <div
+                                        class="flex justify-end space-x-3 pt-4 border-t border-dark-200 dark:border-dark-700">
+                                        <button type="button" id="model-form-cancel"
+                                            class="btn btn-secondary">Cancel</button>
+                                        <button type="submit" class="btn btn-primary">Save</button>
+                                    </div>
+                                </form>
                             </div>
                         </div>
+                    </div>
                 </div>
-                </aside>
+            </aside>
 
-                <!-- Sidebar Overlay (for mobile) -->
-                <div id="sidebar-overlay" class="hidden"></div>
+            <!-- Sidebar Overlay (for mobile) -->
+            <div id="sidebar-overlay" class="hidden"></div>
         </main>
 
         <!-- Modal System (centralized for all dialogs) -->
@@ -837,6 +849,74 @@
     <script type="module" src="/static/js/streaming.js" defer></script>
     <script src="/static/js/verify-ui.js" defer></script>
     <script src="/static/js/debug-ui.js" defer></script>
+
+    <!-- Emergency Fix Script to ensure proper UI layout -->
+    <script>
+        // Fix sidebar and tab layout issues immediately
+        (function () {
+            // Set proper sidebar width and position based on viewport
+            const fixSidebar = () => {
+                const sidebar = document.getElementById('sidebar');
+                if (!sidebar) return;
+
+                // Remove any transforms from the HTML
+                sidebar.classList.remove('translate-x-full', 'md:translate-x-0', 'translate-x-0');
+
+                // Apply correct positioning and width
+                const isMobile = window.innerWidth < 768;
+                if (isMobile) {
+                    sidebar.style.width = '100%';
+                    sidebar.style.transform = 'translateX(100%)';
+                } else {
+                    sidebar.style.width = '384px';
+                    sidebar.style.transform = 'translateX(100%)';
+                }
+
+                // Make sure sidebar is properly positioned
+                sidebar.style.position = 'fixed';
+                sidebar.style.top = '64px';
+                sidebar.style.bottom = '0';
+                sidebar.style.right = '0';
+                sidebar.style.zIndex = '50';
+            };
+
+            // Fix tab panel display
+            const fixTabPanels = () => {
+                document.querySelectorAll('[role="tabpanel"]').forEach(panel => {
+                    panel.style.position = 'relative';
+                    panel.style.width = '100%';
+                    panel.style.height = 'auto';
+
+                    // Make sure active panel is visible, others are hidden
+                    const tabId = panel.id;
+                    const button = document.querySelector(`[data-target-tab="${tabId}"]`);
+                    if (button && button.getAttribute('aria-selected') === 'true') {
+                        panel.classList.remove('hidden');
+                        panel.setAttribute('aria-hidden', 'false');
+                    } else {
+                        panel.classList.add('hidden');
+                        panel.setAttribute('aria-hidden', 'true');
+                    }
+                });
+            };
+
+            // Execute fixes on load and resize
+            document.addEventListener('DOMContentLoaded', () => {
+                fixSidebar();
+                fixTabPanels();
+                window.addEventListener('resize', () => {
+                    fixSidebar();
+                    fixTabPanels();
+                });
+            });
+
+            // If DOM already loaded, run immediately
+            if (document.readyState !== 'loading') {
+                fixSidebar();
+                fixTabPanels();
+            }
+        })();
+    </script>
 </body>
 
 </html>

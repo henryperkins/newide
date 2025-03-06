@@ -12,9 +12,17 @@
    ========================================================================= */
 @layer base {
   @keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
+    0% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.5;
+    }
+
+    100% {
+      opacity: 1;
+    }
   }
 
   .animate-pulse {
@@ -52,7 +60,8 @@
     --dracula-purple: #bd93f9;
     --dracula-red: #ff5555;
     --dracula-yellow: #f1fa8c;
-    --chat-height: calc(100vh - 64px - 120px); /* Header height & input area */
+    --chat-height: calc(100vh - 64px - 120px);
+    /* Header height & input area */
   }
 
   html {
@@ -62,10 +71,14 @@
     height: 100%;
   }
 
+  body {
+    height: 100%;
+  }
+
   @media (min-width: 768px) {
     body {
-      height: 100%;
-      overflow: hidden; /* Only restrict overflow on larger screens */
+      overflow: hidden;
+      /* Only restrict overflow on larger screens */
     }
   }
 
@@ -90,17 +103,18 @@
     width: 10px;
     height: 10px;
   }
+
   ::-webkit-scrollbar-track {
     @apply bg-dark-100 dark:bg-dark-800 rounded;
   }
+
   ::-webkit-scrollbar-thumb {
     @apply bg-dark-300 dark:bg-dark-600 rounded hover:bg-dark-400 dark:hover:bg-dark-500 transition-colors;
   }
 
   /* Skip link for accessibility */
   .skip-link {
-    @apply absolute left-4 top-4 bg-primary-500 text-white px-4 py-2 rounded-md
-      transform -translate-y-16 focus:translate-y-0 transition-transform z-50;
+    @apply absolute left-4 top-4 bg-primary-500 text-white px-4 py-2 rounded-md transform -translate-y-16 focus:translate-y-0 transition-transform z-50;
   }
 }
 
@@ -108,6 +122,7 @@
    Components Layer (Buttons, Forms, Utility Classes, etc.)
    ========================================================================= */
 @layer components {
+
   /* Main layout components */
   .app-container {
     display: grid;
@@ -131,7 +146,8 @@
     flex-direction: column;
     flex: 1;
     position: relative;
-    z-index: 10; /* Ensure higher than sidebar */
+    z-index: 10;
+    /* Ensure higher than sidebar */
   }
 
   /* Remove overflow: hidden on smaller screens */
@@ -145,22 +161,22 @@
   .loading {
     @apply relative pointer-events-none;
   }
+
   .loading::after {
     content: "";
-    @apply absolute inset-0 bg-dark-500 bg-opacity-25
-      dark:bg-dark-900 dark:bg-opacity-50 flex items-center justify-center rounded;
+    @apply absolute inset-0 bg-dark-500 bg-opacity-25 dark:bg-dark-900 dark:bg-opacity-50 flex items-center justify-center rounded;
   }
 
   /* Code highlighting for <pre> or <code> blocks */
   .hljs {
-    @apply bg-dark-100 dark:bg-dark-800 text-dark-800
-      dark:text-dark-100 p-4 rounded-md overflow-x-auto text-sm font-mono;
+    @apply bg-dark-100 dark:bg-dark-800 text-dark-800 dark:text-dark-100 p-4 rounded-md overflow-x-auto text-sm font-mono;
   }
 
   /* Form error styling */
   .form-error {
     @apply text-error-700 dark:text-error-500 text-sm mt-1 font-medium;
   }
+
   .input-error {
     @apply border-error-500 dark:border-error-700;
   }
@@ -191,18 +207,22 @@
       /* Reduced size on mobile */
       @apply px-2 py-1 text-sm;
     }
+
     .conversation-button.touch-target {
       min-height: auto;
       min-width: auto;
       @apply px-2 py-1 text-sm;
     }
   }
+
   .fade-enter-active {
     @apply opacity-100 transition-opacity duration-300;
   }
+
   .fade-exit {
     @apply opacity-100;
   }
+
   .fade-exit-active {
     @apply opacity-0 transition-opacity duration-300;
   }
@@ -218,7 +238,8 @@
     overflow-y: auto;
     scroll-behavior: smooth;
     padding-bottom: 1rem;
-    overscroll-behavior-y: contain; /* Prevent page scrolling when chat history is scrolled */
+    overscroll-behavior-y: contain;
+    /* Prevent page scrolling when chat history is scrolled */
   }
 
   /* Conversation area enhancements */
@@ -235,7 +256,7 @@
     top: 0;
     z-index: 15;
   }
-  
+
   .dark .conversation-controls {
     background-color: theme('colors.dracula.background');
     border-bottom: 1px solid theme('colors.dracula.comment');
@@ -255,41 +276,41 @@
     color: #4b5563;
     transition: all 0.2s;
   }
-  
+
   .dark .conversation-controls button {
     background-color: #374151;
     border-color: rgba(255, 255, 255, 0.1);
     color: #e5e7eb;
   }
-  
+
   .conversation-controls button:hover {
     background-color: #f3f4f6;
   }
-  
+
   .dark .conversation-controls button:hover {
     background-color: #4b5563;
   }
-  
+
   .conversation-controls button.btn-danger {
     background-color: #fee2e2;
     color: #b91c1c;
     border-color: rgba(185, 28, 28, 0.2);
   }
-  
+
   .dark .conversation-controls button.btn-danger {
     background-color: rgba(248, 113, 113, 0.2);
     color: #fca5a5;
     border-color: rgba(248, 113, 113, 0.3);
   }
-  
+
   .conversation-controls button.btn-danger:hover {
     background-color: #fecaca;
   }
-  
+
   .dark .conversation-controls button.btn-danger:hover {
     background-color: rgba(248, 113, 113, 0.3);
   }
-  
+
   /* Improved dropdown for conversation list */
   .conversation-controls select {
     padding: 0.375rem 0.75rem;
@@ -299,7 +320,7 @@
     background-color: white;
     color: #4b5563;
   }
-  
+
   .dark .conversation-controls select {
     background-color: #374151;
     border-color: rgba(255, 255, 255, 0.1);
@@ -309,14 +330,15 @@
   /* Ensure the send button is always visible */
   .input-area {
     position: relative;
-    z-index: 30; /* Higher than sidebar z-index */
+    z-index: 30;
+    /* Higher than sidebar z-index */
     padding: 1rem;
     padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0));
     background-color: white;
     border-top: 1px solid rgba(0, 0, 0, 0.05);
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
   }
-  
+
   .dark .input-area {
     background-color: theme('colors.dracula.background');
     border-top: 1px solid theme('colors.dracula.comment');
@@ -325,29 +347,35 @@
 
   /* Improved sidebar styling with close button */
   .sidebar {
+    /* Base styles for all viewports */
     position: fixed;
-    top: 64px; /* Match header height */
-    right: 0;
+    top: 64px;
     bottom: 0;
-    width: 320px; /* Reduced sidebar width */
-    z-index: 20; /* Lower than input area but higher than chat container */
-    transform: translateX(100%);
-    transition: transform 0.3s ease-in-out;
+    right: 0;
+    z-index: 50;
     background-color: white;
     border-left: 1px solid rgba(0, 0, 0, 0.1);
+    overflow: hidden;
     display: flex;
     flex-direction: column;
+    transition: transform 300ms ease-out;
+
+    /* Mobile-specific styles */
+    width: 100%;
+    transform: translateX(100%);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   }
-  
+
   .dark .sidebar {
     background-color: theme('colors.dracula.currentLine');
     border-left: 1px solid theme('colors.dracula.comment');
   }
-  
+
+  /* Unified sidebar open state */
   .sidebar.sidebar-open {
     transform: translateX(0);
   }
-  
+
   /* Close button for sidebar */
   .sidebar-close {
     position: absolute;
@@ -365,108 +393,37 @@
     transition: background-color 0.2s;
     z-index: 5;
   }
-  
+
   .sidebar-close:hover {
     background-color: rgba(0, 0, 0, 0.1);
   }
-  
+
   .dark .sidebar-close {
     background-color: theme('colors.dracula.comment');
     color: theme('colors.dracula.foreground');
   }
-  
+
   .dark .sidebar-close:hover {
     background-color: rgba(255, 255, 255, 0.2);
   }
 
-  /* Sidebar positioning and z-index */
-  .sidebar {
-    position: fixed;
-    top: 64px; /* Match header height */
-    right: 0;
-    bottom: 0;
-    width: 384px; /* Fixed sidebar width */
-    z-index: 50; /* Higher than overlay (z-40) to ensure clickability */
-    transform: translateX(100%);
-    transition: transform 0.3s ease-in-out;
-  }
-  
-  .sidebar.sidebar-open {
-    transform: translateX(0);
-  }
-
-  /* Main chat layout adjustments for sidebar */
+  /* Desktop styles for sidebar */
   @media (min-width: 768px) {
-    .main-container {
-      display: flex;
-      flex-grow: 1;
-      height: 100%;
-      position: relative;
-    }
-    
-    .chat-container {
-      flex-grow: 1;
-      width: 100%; /* Ensure chat container takes full width */
-      transition: padding-right 0.3s ease-in-out;
-    }
-    
-    /* Add padding instead of changing width when sidebar is open */
-    .sidebar-open .chat-container {
-      padding-right: 320px; /* Match sidebar width */
-    }
-    
-    /* Keep sidebar fixed on desktop too */
     .sidebar {
-      position: fixed;
-      top: 64px;
-      right: 0;
-      bottom: 0;
-      width: 320px;
-      transform: translateX(100%); /* Start hidden */
-      border-left: 1px solid rgba(0, 0, 0, 0.1);
-      box-shadow: -5px 0 15px rgba(0, 0, 0, 0.05);
+      width: 384px;
+      box-shadow: none;
     }
-    
-    .dark .sidebar {
-      border-left: 1px solid rgba(255, 255, 255, 0.05);
-      box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
-    }
-    
-    .sidebar.sidebar-open {
-      transform: translateX(0); /* Show when open */
-    }
-    
-    /* Show close button on desktop too */
-    .sidebar-close {
-      display: flex;
-    }
-  }
 
-  /* Updated sidebar styles for consistent behavior */
-  .sidebar {
-    @apply fixed top-[64px] bottom-0 right-0 w-full sm:w-[320px] md:w-[384px]
-           bg-white dark:bg-dark-800 border-l border-dark-200 
-           dark:border-dark-700 z-50 transform transition-transform ease-out
-           flex flex-col overflow-hidden;
+    .chat-container.sidebar-open {
+      padding-right: 384px;
+    }
   }
 
   /* Mobile sidebar overlay */
   #sidebar-overlay {
-    @apply fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity
-           duration-300 md:hidden;
-    pointer-events: none; /* Prevent overlay from blocking sidebar interactions */
-  }
-
-  /* Chat container padding adjustment */
-  @media (min-width: 768px) {
-    .chat-container.sidebar-open {
-      @apply pr-[384px]; /* Match sidebar width */
-    }
-  }
-
-  /* Fix shadow on mobile */
-  .sidebar {
-    @apply shadow-xl md:shadow-none;
+    @apply fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300 md:hidden;
+    pointer-events: auto;
+    /* Allow overlay to receive clicks */
   }
 
   /* Conversation sidebar styles */
@@ -518,15 +475,15 @@
     :root {
       --chat-height: calc(100vh - 64px - 100px);
     }
-    
+
     #chat-history {
       padding-bottom: 0.5rem;
     }
-    
+
     .input-area {
       padding: 0.5rem;
     }
-    
+
     .conversation-controls {
       padding: 0.5rem;
     }
@@ -560,14 +517,12 @@
 
   /* Focus ring for non-button interactive elements */
   .focus-ring {
-    @apply focus-visible:ring-2 focus-visible:ring-primary-500
-      focus-visible:ring-offset-1 focus-visible:outline-none;
+    @apply focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none;
   }
 
   /* Custom touch feedback */
   .touch-feedback {
-    @apply active:bg-dark-200 dark:active:bg-dark-700
-      transition-colors duration-150;
+    @apply active:bg-dark-200 dark:active:bg-dark-700 transition-colors duration-150;
   }
 
   /* Hide scrollbar while preserving functionality */
@@ -575,6 +530,7 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
@@ -586,12 +542,14 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+
   .line-clamp-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+
   .line-clamp-3 {
     display: -webkit-box;
     -webkit-line-clamp: 3;

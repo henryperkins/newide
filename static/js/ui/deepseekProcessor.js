@@ -182,26 +182,41 @@ function markdownToHtml(text) {
  * Replaces the old ensureThinkingContainer usage in streaming_utils.
  *
  * @param {HTMLElement} parentContainer - Typically your .assistant-message container
- * @param {string} thinkingText
+ * @param {string} thinkingText - The thinking content to render
+ * @param {Object} options - Options like createNew to force a new container
  * @returns {HTMLElement | null} The thinking container DOM node
  */
-function renderThinkingContainer(parentContainer, thinkingText) {
+function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
   if (!parentContainer) return null;
 
-  // Look for existing container
-  let thinkingContainer = parentContainer.querySelector('.thinking-pre');
-  if (!thinkingContainer) {
-    // If not found, create it
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = createThinkingBlockHTML(thinkingText);
-    parentContainer.appendChild(wrapper.firstElementChild);
-
+  // Look for existing container only if we're not forcing a new one
+  let thinkingContainer = null;
+  if (!options.createNew) {
     thinkingContainer = parentContainer.querySelector('.thinking-pre');
+  }
+
+  if (!thinkingContainer || options.createNew) {
+    // If not found or createNew is true, create a new container
+    const wrapper = document.createElement('div');
+    wrapper.className = 'thinking-safe-wrapper'; // Add a wrapper class
+
+    // Create unique container with timestamp to avoid conflicts
+    const uniqueId = 'thinking-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    wrapper.setAttribute('data-id', uniqueId);
+
+    wrapper.innerHTML = createThinkingBlockHTML(thinkingText);
+    parentContainer.appendChild(wrapper);
+
+    thinkingContainer = wrapper.querySelector('.thinking-pre');
+
     // Initialize toggling
-    const thinkingProcess = parentContainer.querySelector('.thinking-process');
+    const thinkingProcess = wrapper.querySelector('.thinking-process');
     initializeThinkingToggle(thinkingProcess);
+
+    // Return the thinking container element
+    return thinkingContainer;
   } else {
-    // If it exists, just update the text
+    // If it exists and we're not creating new, just update the text
     const sanitizedContent = DOMPurify.sanitize(markdownToHtml(thinkingText));
     thinkingContainer.innerHTML = sanitizedContent;
   }

@@ -1,419 +1,377 @@
-# Azure OpenAI reasoning models
+# Comprehensive Reference Guide for Azure OpenAI o-series Models (o1, o3-mini)
 
-Azure OpenAI `o-series` models are designed to tackle reasoning and problem-solving tasks with increased focus and capability. These models spend more time processing and understanding the user's request, making them exceptionally strong in areas like science, coding, and math compared to previous iterations.
+This guide provides everything you need to effectively use Azure OpenAI "o-series" reasoning models, such as `o1`, `o1-mini`, and `o3-mini`. It consolidates best practices, code examples, and response structure details, ensuring you're prepared to integrate these models into your applications using the latest `api-version` (e.g., `2025-02-01-preview`).
 
-**Key capabilities of the o-series models:**
+---
 
-- Complex Code Generation: Capable of generating algorithms and handling advanced coding tasks to support developers.
-- Advanced Problem Solving: Ideal for comprehensive brainstorming sessions and addressing multifaceted challenges.
-- Complex Document Comparison: Perfect for analyzing contracts, case files, or legal documents to identify subtle differences.
-- Instruction Following and Workflow Management: Particularly effective for managing workflows requiring shorter contexts.
+## 1. Key Features and Best Practices
 
-## Availability
+### 1.1 Model Deployment and Integration
+- **Deployment ID:** Each o-series model (e.g., `o1`) must be deployed with a chosen deployment name (e.g., `my-o1-deployment`). When making API calls, reference this deployment name, not the literal `o1` string.  
+- **API Versions:** Always specify a supported `api-version` when making requests. Examples:  
+  - `2024-12-01-preview`  
+  - `2025-02-01-preview`  
 
- **For access to `o3-mini`, `o1`, and `o1-preview`, registration is required, and access will be granted based on Microsoft's eligibility criteria**.
+### 1.2 Required Parameters
+- **`max_completion_tokens`:**  
+  This parameter is **required** for all o-series (reasoning) models. It sets the upper bound for both visible output tokens and the internal “reasoning tokens.”  
+- **`reasoning_effort`:**  
+  - Valid values: `low`, `medium` (default), `high`  
+  - Higher values often provide more accurate or thoughtful responses but consume more tokens (including internal reasoning tokens).
 
- Customers who previously applied and received access to `o1` or `o1-preview`, don't need to reapply as they are automatically on the wait-list for the latest model.
+### 1.3 Role Usage
+- **`developer` Role:** Use the `developer` role (instead of `system`) when providing high-level context and instructions for `o1` and `o3-mini`.  
+  - While `system` is still recognized, `developer` is the recommended best practice.  
+  - **Do not use both roles** in the same conversation.  
+  ```json
+  {
+    "role": "developer",
+    "content": "Formatting re-enabled - You are a helpful assistant."
+  }
+  ```
 
-Request access: [limited access model application](https://aka.ms/OAI/o1access)
-
-### Region availability
-
-| Model | Region | Limited access |
-|---|---|---|
-| `o3-mini` | [Model availability](../concepts/models.md#global-standard-model-availability).  | [Limited access model application](https://aka.ms/OAI/o1access) |
-|`o1` | [Model availability](../concepts/models.md#global-standard-model-availability).  | [Limited access model application](https://aka.ms/OAI/o1access) |
-| `o1-preview` | [Model availability](../concepts/models.md#global-standard-model-availability). |This model is only available for customers who were granted access as part of the original limited access release. We're currently not expanding access to `o1-preview`. |
-| `o1-mini` | [Model availability](../concepts/models.md#global-standard-model-availability). | No access request needed for Global Standard deployments.<br><br>Standard (regional) deployments are currently only available to select customers who were previously granted access as part of the `o1-preview` release.|
-
-## API & feature support
-
-| **Feature**     | **o3-mini**, **2025-01-31**  |**o1**, **2024-12-17**   | **o1-preview**, **2024-09-12**   | **o1-mini**, **2024-09-12**   |
-|:-------------------|:--------------------------:|:--------------------------:|:-------------------------------:|:---:|
-| **API Version**    | `2024-12-01-preview` <br> `2025-02-01-preview`   | `2024-12-01-preview` <br> `2025-02-01-preview` | `2024-09-01-preview`  <br> `2024-10-01-preview` <br> `2024-12-01-preview`    | `2024-09-01-preview`  <br> `2024-10-01-preview` <br> `2024-12-01-preview`    |
-| **[Developer Messages](#developer-messages)** | ✅ | ✅ | - | - |
-| **[Structured Outputs](./structured-outputs.md)** | ✅ | ✅ | - | - |
-| **[Context Window](../concepts/models.md#o-series-models)** | Input: 200,000 <br> Output: 100,000 | Input: 200,000 <br> Output: 100,000 | Input: 128,000  <br> Output: 32,768 | Input: 128,000  <br> Output: 65,536 |
-| **[Reasoning effort](#reasoning-effort)** | ✅ | ✅ | - | - |
-| **[Vision Support](./gpt-with-vision.md)** | - | ✅ | - | - |
-| Functions/Tools | ✅  | ✅  |  - | - |
-| `max_completion_tokens`<sup>*</sup> |✅ |✅ |✅ | ✅ |
-| System Messages<sup>**</sup> | ✅ | ✅ | - | - |
-| Streaming | ✅ | - | - | - |
-
-<sup>*</sup> Reasoning models will only work with the `max_completion_tokens` parameter. <br><br>
-
-<sup>**</sup>The latest o<sup>&#42;</sup> series model support system messages to make migration easier. When you use a system message with `o3-mini` and `o1` it will be treated as a developer message. You should not use both a developer message and a system message in the same API request.
-
-
-
-### Not Supported
-
-The following are currently unsupported with reasoning models:
-
-- Parallel tool calling
-- `temperature`, `top_p`, `presence_penalty`, `frequency_penalty`, `logprobs`, `top_logprobs`, `logit_bias`, `max_tokens`
-
-## Usage
-
-These models [don't currently support the same set of parameters](#api--feature-support) as other models that use the chat completions API. 
-
-# [Python (Microsoft Entra ID)](#tab/python-secure)
-
-You'll need to upgrade your OpenAI client library for access to the latest parameters.
-
-```cmd
-pip install openai --upgrade
+### 1.4 Unsupported Parameters
+The following parameters are not supported by o-series models, so including them will cause errors:
+```
+temperature, top_p, presence_penalty, frequency_penalty, logprobs, top_logprobs, logit_bias, max_tokens
 ```
 
-If you're new to using Microsoft Entra ID for authentication see [How to configure Azure OpenAI Service with Microsoft Entra ID authentication](../how-to/managed-identity.md).
+### 1.5 Markdown Formatting
+- By default, `o1` and `o3-mini` are less likely to return Markdown-formatted text.  
+- To encourage Markdown output (especially for code blocks), prepend the `developer` role instructions with something like `"Formatting re-enabled"`.  
+  ```json
+  {
+    "role": "developer",
+    "content": "Formatting re-enabled - Provide all answers with Markdown code blocks."
+  }
+  ```
+
+### 1.6 Usage Object Details
+- Responses include `usage`, which details token counts. For o-series models, note especially:  
+  - **`reasoning_tokens`** within `completion_tokens_details`: the number of tokens used for the model’s internal reasoning.  
+  - `prompt_tokens`, `completion_tokens`, and `total_tokens` reflect overall usage impacting billing and context limits.
+
+### 1.7 Context Window Limits
+- **Input tokens (prompt context)** and **output tokens (generated response)** have model-specific maxima.  
+- `max_completion_tokens` sets an upper bound for visible output plus reasoning tokens. Always plan your prompts to stay within the model’s limits.
+
+---
+
+## 2. Endpoint Construction and Configuration
+
+### 2.1 Endpoint Construction
+Your Azure OpenAI endpoint typically looks like this:
+```
+https://<your-resource-name>.openai.azure.com
+```
+The full URL for chat completions is:
+```
+<endpoint>/openai/deployments/<deployment_id>/chat/completions?api-version=<api_version>
+```
+For example:
+```
+https://your-resource.openai.azure.com/openai/deployments/my-o1-deployment/chat/completions?api-version=2025-02-01-preview
+```
+
+### 2.2 Environment Variables
+Store these sensitive values in environment variables (recommended for security):
+- `AZURE_OPENAI_ENDPOINT`
+- `AZURE_OPENAI_KEY`
+- `AZURE_OPENAI_DEPLOYMENT` (your deployment ID)
+
+---
+
+## 3. Python Implementation Guide
+
+Below is a full reference implementation that showcases:
+- Environment-based configuration
+- Non-streaming and streaming requests
+- Token counting with the `tiktoken` library
+- Interactive chat usage
+
+### 3.1 Configuration and Setup
+```python
+import os
+import requests
+import json
+from openai import AzureOpenAI
+import tiktoken  # For token counting
+
+# Environment Variables: recommended for security
+endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")  # e.g., "https://your-resource.openai.azure.com"
+api_key = os.environ.get("AZURE_OPENAI_KEY")
+deployment_id = os.environ.get("AZURE_OPENAI_DEPLOYMENT")  # e.g., "my-o1-deployment"
+api_version = "2025-02-01-preview"  # Use a supported preview version
+```
+
+### 3.2 AzureOpenAI Client Initialization
+
+#### API Key Example
+```python
+client = AzureOpenAI(
+    azure_endpoint=endpoint,
+    api_key=api_key,
+    api_version=api_version,
+)
+```
+
+#### Azure AD Authentication Example (Optional)
+```python
+# from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+# token_provider = get_bearer_token_provider(DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default")
+# client = AzureOpenAI(
+#     azure_endpoint=endpoint,
+#     azure_ad_token_provider=token_provider,
+#     api_version=api_version,
+# )
+```
+
+### 3.3 Non-Streaming Chat Completion
 
 ```python
-from openai import AzureOpenAI
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+def chat_completion(messages, max_completion_tokens=500, reasoning_effort="medium"):
+    """
+    Performs a non-streaming chat completion.
 
-token_provider = get_bearer_token_provider(
-    DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-)
+    Args:
+        messages: A list of message objects (developer/user input).
+        max_completion_tokens: Required for o-series models.
+        reasoning_effort: "low", "medium" (default), or "high".
 
-client = AzureOpenAI(
-  azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT"), 
-  azure_ad_token_provider=token_provider,
-  api_version="2024-12-01-preview"
-)
+    Returns:
+        The response object from the API.
+    """
+    try:
+        response = client.chat.completions.create(
+            model=deployment_id,
+            messages=messages,
+            max_completion_tokens=max_completion_tokens,
+            reasoning_effort=reasoning_effort,
+        )
+        return response
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
 
-response = client.chat.completions.create(
-    model="o1-new", # replace with the model deployment name of your o1-preview, or o1-mini model
-    messages=[
-        {"role": "user", "content": "What steps should I think about when writing my first Python API?"},
-    ],
-    max_completion_tokens = 5000
 
-)
+# Example usage:
+messages = [
+    {"role": "developer", "content": "Formatting re-enabled - Provide concise answers."},
+    {"role": "user", "content": "What's the highest mountain in the world?"}
+]
 
-print(response.model_dump_json(indent=2))
+response = chat_completion(messages)
+if response:
+    print("--- Non-Streaming Response ---")
+    print(response.choices[0].message.content)
+    print("\n--- Usage ---")
+    print(json.dumps(response.usage, indent=2))
 ```
 
-# [Python (key-based auth)](#tab/python)
-
-You might need to upgrade your version of the OpenAI Python library to take advantage of the new parameters like `max_completion_tokens`.
-
-```cmd
-pip install openai --upgrade
-```
+### 3.4 Streaming Chat Completion
 
 ```python
+def chat_completion_stream(messages, max_completion_tokens=500, reasoning_effort="medium"):
+    """
+    Performs a streaming chat completion.
 
-from openai import AzureOpenAI
+    Args:
+        messages: A list of message objects.
+        max_completion_tokens: Required for o-series models.
+        reasoning_effort: "low", "medium" (default), or "high".
 
-client = AzureOpenAI(
-  azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT"), 
-  api_key=os.getenv("AZURE_OPENAI_API_KEY"),  
-  api_version="2024-12-01-preview"
-)
+    Returns:
+        A generator that yields streamed response chunks.
+    """
+    try:
+        stream = client.chat.completions.create(
+            model=deployment_id,
+            messages=messages,
+            max_completion_tokens=max_completion_tokens,
+            reasoning_effort=reasoning_effort,
+            stream=True,
+        )
+        return stream
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
 
-response = client.chat.completions.create(
-    model="o1-new", # replace with the model deployment name of your o1 deployment.
-    messages=[
-        {"role": "user", "content": "What steps should I think about when writing my first Python API?"},
-    ],
-    max_completion_tokens = 5000
 
-)
+# Example usage (streaming):
+messages = [
+    {"role": "developer", "content": "Formatting re-enabled - Provide code examples in Markdown."},
+    {"role": "user", "content": "Tell me a short story about a cat."}
+]
 
-print(response.model_dump_json(indent=2))
+stream = chat_completion_stream(messages)
+if stream:
+    print("--- Streaming Response ---")
+    for chunk in stream:
+        if chunk.choices:
+            delta = chunk.choices[0].delta
+            if delta.content:
+                print(delta.content, end="", flush=True)
+    print()  # Newline after streaming finishes
+```
+
+### 3.5 Token Counting with tiktoken
+
+```python
+def count_tokens(messages, model_name="gpt-4"):
+    """
+    Counts the number of tokens for a list of messages using tiktoken.
+
+    Args:
+        messages: List of message objects (developer/user).
+        model_name: The model name recognized by tiktoken (e.g., "gpt-4", "gpt-3.5-turbo").
+
+    Returns:
+        The total number of tokens.
+    """
+    try:
+        encoding = tiktoken.encoding_for_model(model_name)
+    except KeyError:
+        print("Warning: Model not recognized, defaulting to cl100k_base.")
+        encoding = tiktoken.get_encoding("cl100k_base")
+
+    total_tokens = 0
+    for msg in messages:
+        total_tokens += 3  # overhead for each message
+        total_tokens += len(encoding.encode(msg.get("content", "")))
+    # Additional overhead for the reply
+    total_tokens += 3
+    return total_tokens
+
+
+# Example usage:
+messages = [
+    {"role": "developer", "content": "Formatting re-enabled - You are a helpful assistant."},
+    {"role": "user", "content": "How many tokens does this consume?"}
+]
+
+token_count = count_tokens(messages, model_name="gpt-4")
+print(f"Total tokens: {token_count}")
+```
+
+### 3.6 Interactive Chat Example
+
+```python
+print("--- Interactive Chat --- Type 'exit' to quit.")
+messages = [
+    {"role": "developer", "content": "Formatting re-enabled - You are a helpful assistant."}
+]
+
+while True:
+    user_input = input("You: ")
+    if user_input.lower() == "exit":
+        break
+
+    messages.append({"role": "user", "content": user_input})
+    response = chat_completion(messages)
+    if response:
+        assistant_response = response.choices[0].message.content
+        print(f"Assistant: {assistant_response}")
+        messages.append({"role": "assistant", "content": assistant_response})
+        print(f"Tokens used so far: {response.usage.total_tokens}")
 ```
 
 ---
 
-**Output:**
+## 4. Response Structure Details
+
+Below is additional detail on how o-series models (e.g., `o1`) structure their responses, whether non-streaming or streaming.
+
+### 4.1 Non-Streaming Response
+When `stream=False` (the default), you get a single JSON object containing the entire completion, plus metadata:
 
 ```json
 {
-  "id": "chatcmpl-AEj7pKFoiTqDPHuxOcirA9KIvf3yz",
+  "id": "chatcmpl-...",
+  "object": "chat.completion",
+  "created": 1678882457,
+  "model": "your-o1-deployment",
   "choices": [
     {
-      "finish_reason": "stop",
       "index": 0,
-      "logprobs": null,
       "message": {
-        "content": "Writing your first Python API is an exciting step in developing software that can communicate with other applications. An API (Application Programming Interface) allows different software systems to interact with each other, enabling data exchange and functionality sharing. Here are the steps you should consider when creating your first Python API...truncated for brevity.",
-        "refusal": null,
         "role": "assistant",
+        "content": "The capital of France is Paris.",
+        "refusal": null,
         "function_call": null,
         "tool_calls": null
       },
+      "finish_reason": "stop",
       "content_filter_results": {
-        "hate": {
-          "filtered": false,
-          "severity": "safe"
-        },
-        "protected_material_code": {
-          "filtered": false,
-          "detected": false
-        },
-        "protected_material_text": {
-          "filtered": false,
-          "detected": false
-        },
-        "self_harm": {
-          "filtered": false,
-          "severity": "safe"
-        },
-        "sexual": {
-          "filtered": false,
-          "severity": "safe"
-        },
-        "violence": {
-          "filtered": false,
-          "severity": "safe"
-        }
-      }
+        "...": "..."
+      },
+      "logprobs": null
     }
   ],
-  "created": 1728073417,
-  "model": "o1-2024-12-17",
-  "object": "chat.completion",
-  "service_tier": null,
-  "system_fingerprint": "fp_503a95a7d8",
   "usage": {
-    "completion_tokens": 1843,
     "prompt_tokens": 20,
+    "completion_tokens": 1843,
     "total_tokens": 1863,
-    "completion_tokens_details": {
-      "audio_tokens": null,
-      "reasoning_tokens": 448
-    },
     "prompt_tokens_details": {
       "audio_tokens": null,
       "cached_tokens": 0
+    },
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 448,
+      "rejected_prediction_tokens": null
     }
   },
   "prompt_filter_results": [
     {
       "prompt_index": 0,
       "content_filter_results": {
-        "custom_blocklists": {
-          "filtered": false
-        },
-        "hate": {
-          "filtered": false,
-          "severity": "safe"
-        },
-        "jailbreak": {
-          "filtered": false,
-          "detected": false
-        },
-        "self_harm": {
-          "filtered": false,
-          "severity": "safe"
-        },
-        "sexual": {
-          "filtered": false,
-          "severity": "safe"
-        },
-        "violence": {
-          "filtered": false,
-          "severity": "safe"
-        }
+        "...": "..."
       }
     }
-  ]
-}
-```
-
-## Reasoning effort
-
-> [!NOTE]
-> Reasoning models have `reasoning_tokens` as part of `completion_tokens_details` in the model response. These are hidden tokens that aren't returned as part of the message response content but are used by the model to help generate a final answer to your request. `2024-12-01-preview` adds an additional new parameter `reasoning_effort` which can be set to `low`, `medium`, or `high` with the latest `o1` model. The higher the effort setting, the longer the model will spend processing the request, which will generally result in a larger number of `reasoning_tokens`.
-
-## Developer messages
-
-Functionally developer messages ` "role": "developer"` are the same as system messages. 
-
-Adding a developer message to the previous code example would look as follows:
-
-# [Python (Microsoft Entra ID)](#tab/python-secure)
-
-You'll need to upgrade your OpenAI client library for access to the latest parameters.
-
-```cmd
-pip install openai --upgrade
-```
-
-If you're new to using Microsoft Entra ID for authentication see [How to configure Azure OpenAI Service with Microsoft Entra ID authentication](../how-to/managed-identity.md).
-
-```python
-from openai import AzureOpenAI
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-
-token_provider = get_bearer_token_provider(
-    DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-)
-
-client = AzureOpenAI(
-  azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT"), 
-  azure_ad_token_provider=token_provider,
-  api_version="2024-12-01-preview"
-)
-
-response = client.chat.completions.create(
-    model="o1-new", # replace with the model deployment name of your o1-preview, or o1-mini model
-    messages=[
-        {"role": "developer","content": "You are a helpful assistant."}, # optional equivalent to a system message for reasoning models 
-        {"role": "user", "content": "What steps should I think about when writing my first Python API?"},
-    ],
-    max_completion_tokens = 5000
-
-)
-
-print(response.model_dump_json(indent=2))
-```
-
-# [Python (key-based auth)](#tab/python)
-
-You might need to upgrade your version of the OpenAI Python library to take advantage of the new parameters like `max_completion_tokens`.
-
-```cmd
-pip install openai --upgrade
-```
-
-```python
-
-from openai import AzureOpenAI
-
-client = AzureOpenAI(
-  azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT"), 
-  api_key=os.getenv("AZURE_OPENAI_API_KEY"),  
-  api_version="2024-12-01-preview"
-)
-
-response = client.chat.completions.create(
-    model="o1-new", # replace with the model deployment name of your o1 deployment.
-    messages=[
-        {"role": "developer","content": "You are a helpful assistant."}, # optional equivalent to a system message for reasoning models 
-        {"role": "user", "content": "What steps should I think about when writing my first Python API?"},
-    ],
-    max_completion_tokens = 5000
-)
-
-print(response.model_dump_json(indent=2))
-```
-
----
-
-## Markdown output
-
-By default the `o3-mini` and `o1` models will not attempt to produce output that includes markdown formatting. A common use case where this behavior is undesirable is when you want the model to output code contained within a markdown code block. When the model generates output without markdown formatting you lose features like syntax highlighting, and copyable code blocks in interactive playground experiences. To override this new default behavior and encourage markdown inclusion in model responses, add the string `Formatting re-enabled` to the beginning of your developer message.
-
-Adding `Formatting re-enabled` to the beginning of your developer message does not guarantee that the model will include markdown formatting in its response, it only increases the likelihood. We have found from internal testing that `Formatting re-enabled` is less effective by itself with the `o1` model than with `o3-mini`.
-
-To improve the performance of `Formatting re-enabled` you can further augment the beginning of the developer message which will often result in the desired output. Rather than just adding `Formatting re-enabled` to the beginning of your developer message, you can experiment with adding a more descriptive initial instruction like one of the examples below:
-
-- `Formatting re-enabled - please enclose code blocks with appropriate markdown tags.`
-- `Formatting re-enabled - code output should be wrapped in markdown.`
-
-Depending on your expected output you may need to customize your initial developer message further to target your specific use case.
-
----
-
-
-Okay, let's focus specifically on chat completions using the "o1 reasoning models" within the Azure OpenAI API (2025-02-01-preview). This will highlight the features and parameters that are either unique to or have special considerations for these models.
-
-**Key Distinctions of o1 Reasoning Models:**
-
-The "o1" series models are specifically designed for tasks that require more advanced reasoning capabilities.  This means they are better at:
-
-*   **Complex Problem Solving:** Handling multi-step problems, logical deductions, and scenarios requiring deeper understanding.
-*   **Structured Output:**  Generating output that adheres to specific formats or constraints (especially with `response_format: "json_schema"`).
-*   **Tool Use:**  More effectively utilizing tools (like function calling) to interact with external systems and data.
-* **Developer Messages:** The `developer` role replaces the `system` role.
-
-**Chat Completion Parameters for o1 Models:**
-
-Most of the general chat completion parameters apply to o1 models, but here's how they relate specifically, including unique parameters:
-
-1.  **`messages` (Required):**
-
-    *   **`role`:** The `developer` role is *specifically* highlighted for o1 models.  It replaces the `system` role and provides stronger instructions that the model should follow regardless of user input.  You should use `developer` instead of `system` with o1 models.  The other roles (`user`, `assistant`, `tool`) function the same way.
-    *   **`content`:** The content can be text, or an array of content parts. For `developer` messages, only `text` type is supported.
-
-2.  **`reasoning_effort` (o1 Models *Only*):**
-
-    *   **Purpose:** This parameter *exclusively* applies to o1 reasoning models. It allows you to control the amount of computational effort the model spends on reasoning.
-    *   **Values:**
-        *   `"low"`:  Faster responses, fewer reasoning tokens used, but potentially less thorough reasoning.
-        *   `"medium"` (Default): A balance between speed and reasoning depth.
-        *   `"high"`:  Slower responses, more reasoning tokens used, potentially more thorough and accurate reasoning.
-    *   **Use Case:**  If you need very fast responses and are willing to sacrifice some reasoning depth, use `"low"`. If you need the most accurate and well-reasoned response, and speed is less critical, use `"high"`.
-
-3.  **`max_completion_tokens` (o1 Models *Only*):**
-
-    *   **Purpose:** This parameter is *only supported* in o1 series models in the provided API version. It sets an *upper bound* on the total number of tokens generated for a completion, *including* both visible output tokens and the internal "reasoning" tokens the model uses.
-    *   **Contrast with `max_tokens`:** The standard `max_tokens` parameter only limits the number of tokens in the *visible* output (the `content` of the `assistant` message).  `max_completion_tokens` gives you finer-grained control over the *total* token usage, which is important for cost management and preventing excessively long runtimes.
-    *   **Use Case:** Use this to strictly limit the total computational resources used by the model, even for internal reasoning steps.
-
-4.  **`response_format` (Strongly Recommended):**
-
-    *   While `response_format` is available for other models, it's *particularly* beneficial with o1 models due to their enhanced reasoning and structured output capabilities.
-    *   **`{ "type": "json_schema", "json_schema": { ... } }`:**  This is where o1 models shine.  You can provide a detailed JSON Schema, and the model will make a best effort to generate output that *strictly* conforms to that schema.  This is much more reliable than simply requesting JSON output with `"type": "json_object"`.
-    *   **`{ "type": "json_object" }`**: Still supported, but remember to *always* instruct the model to generate JSON in a `developer` or `user` message.
-
-5.  **`tools` and `tool_choice` (Enhanced Capabilities):**
-
-    *   o1 models are generally better at using tools (especially function calling) effectively. Their improved reasoning helps them decide when and how to call functions, and to interpret the results.
-    *   The `tool_choice` parameter is fully supported, allowing you to control whether the model uses tools (`auto`), must use tools (`required`), or is forced to use a specific tool.
-
-6.  **`stream`:** Streaming works the same way as with other models, providing partial message deltas.
-
-7.  **`temperature`, `top_p`, `presence_penalty`, `frequency_penalty`, `logit_bias`:** These parameters all function as expected, allowing you to control the randomness and diversity of the generated text.
-
-8.  **`metadata`:**  Allows you to attach arbitrary key-value pairs to the completion request for tracking or filtering.
-
-9. **`store`**: Allows you to specify whether or not to store the output of the chat completion.
-
-10. **`user`**: Allows you to specify a unique identifier representing your end-user.
-
-**Example (o1 Model with `reasoning_effort` and `json_schema`):**
-
-```json
-{
-  "deployment-id": "your-o1-deployment",
-  "api-version": "2025-02-01-preview",
-  "messages": [
-    {
-      "role": "developer",
-      "content": "You are a helpful assistant that always responds in JSON, following the provided schema."
-    },
-    {
-      "role": "user",
-      "content": "What is the capital of France?"
-    }
   ],
-  "reasoning_effort": "high",
-  "response_format": {
-    "type": "json_schema",
-    "json_schema": {
-      "type": "object",
-      "properties": {
-        "capital": {
-          "type": "string",
-          "description": "The capital city."
-        }
-      },
-      "required": ["capital"]
-    }
-  }
+  "system_fingerprint": "fp_..."
 }
 ```
 
-**Key Takeaways for o1 Reasoning Models:**
+#### Non-Streaming Highlights
+- **`choices[0].message.content`:** The returned text from the assistant.  
+- **`reasoning_tokens`:** Within `completion_tokens_details`, indicating how many tokens were spent on reasoning.  
+- **Unsupported fields:** `logprobs`, `temperature`, etc., are `null` or absent.
 
-*   Use the `developer` role instead of `system`.
-*   Leverage `reasoning_effort` to control the trade-off between speed and reasoning depth.
-*   Use `max_completion_tokens` to limit total token usage (including reasoning tokens).
-*   Strongly consider using `response_format: "json_schema"` for structured output.
-*   o1 models are well-suited for complex tasks involving tools and structured data.
-*   All other standard chat completion parameters are also applicable.
+### 4.2 Streaming Response
+When you set `stream=True`, the API returns a series of server-sent events (SSE). Each event represents a “chunk” of the completion. You’ll need to read these events incrementally and piece them together:
 
-By understanding these distinctions, you can effectively utilize the enhanced capabilities of o1 reasoning models for your most demanding AI applications.
+Example SSE sequence (simplified):
+```
+data: {"id": "chatcmpl-...", "object": "chat.completion.chunk", "model": "...",
+ "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": null}]}
+
+data: {"id": "chatcmpl-...", "object": "chat.completion.chunk", "model": "...",
+ "choices": [{"index": 0, "delta": {"content": "The"}, "finish_reason": null}]}
+
+data: {"id": "chatcmpl-...", "object": "chat.completion.chunk", "model": "...",
+ "choices": [{"index": 0, "delta": {"content": " capital"}, "finish_reason": null}]}
+
+...
+
+data: {"id": "chatcmpl-...", "object": "chat.completion.chunk", "model": "...",
+ "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+
+data: [DONE]  <- signifies end of stream
+```
+
+#### Streaming Highlights
+- **`delta`:** Contains partial response data.  
+  - First chunk usually sets `"role": "assistant"`.  
+  - Subsequent chunks supply incremental `"content"`.  
+- **Concatenate `delta.content`:** to build the final response string.  
+- **Usage info** typically appears in a final chunk before `[DONE]` with the detailed token usage, including `reasoning_tokens`.
+
+---
+
+## 5. Summary and Next Steps
+
+By combining the required parameters (`max_completion_tokens`, `reasoning_effort`), using the `developer` role, and monitoring `reasoning_tokens` in the `usage` details, you can take full advantage of Azure OpenAI’s o-series models for advanced reasoning tasks. Control your prompts, watch your token usage, and use the streaming or non-streaming API calls as needed.
+
+For more in-depth discussions or troubleshooting, consult the official Azure OpenAI documentation or your Azure portal logs to review model deployments, token usage, and operational status. If you have any further questions, feel free to ask!

@@ -1,6 +1,7 @@
 // A module for managing conversations in the sidebar
 import { showNotification } from './notificationManager.js';
 import { getSessionId, createNewConversation } from '../session.js';
+let sidebarInitialized = false;
 
 // State management
 let conversations = [];
@@ -14,6 +15,26 @@ let hasMoreConversations = true;
  * Initialize the conversation manager
  */
 export function initConversationManager() {
+    if (sidebarInitialized) return; // Prevent double initialization
+
+    // Fix conversations sidebar positioning
+    const conversationsSidebar = document.getElementById('conversations-sidebar');
+    if (conversationsSidebar) {
+        // Ensure proper positioning for the conversation sidebar
+        if (window.innerWidth < 768) {
+            conversationsSidebar.classList.add('hidden');
+        } else {
+            conversationsSidebar.classList.remove('hidden');
+        }
+        
+        // Ensure this sidebar doesn't interfere with the settings sidebar
+        conversationsSidebar.style.zIndex = '40'; // Lower than settings sidebar
+    }
+    
+    // Set initialization flag
+    sidebarInitialized = true;
+    
+    // Continue with normal setup
     setupEventListeners();
     loadConversations();
 }
@@ -485,3 +506,22 @@ async function deleteConversation(conversationId) {
         showNotification('Failed to delete conversation', 'error');
     }
 }
+// Add window resize handler at the end of the file
+window.addEventListener('resize', () => {
+    const conversationsSidebar = document.getElementById('conversations-sidebar');
+    const conversationsToggle = document.getElementById('conversations-toggle');
+    
+    if (conversationsSidebar && conversationsToggle) {
+        const isMobile = window.innerWidth < 768;
+        
+        if (isMobile) {
+            // On mobile, conversation sidebar should be hidden by default
+            conversationsSidebar.classList.add('hidden');
+            conversationsToggle.setAttribute('aria-expanded', 'false');
+        } else {
+            // On desktop, conversation sidebar should be visible by default
+            conversationsSidebar.classList.remove('hidden');
+            conversationsToggle.setAttribute('aria-expanded', 'true');
+        }
+    }
+});

@@ -19,7 +19,7 @@ export function initSidebar() {
   // Sidebar toggle button
   if (toggleButton) {
     toggleButton.addEventListener('click', () => {
-      const isClosed = sidebar.classList.contains('translate-x-full');
+      const isClosed = !sidebar.classList.contains('sidebar-open');
       toggleSidebar(isClosed);
     });
   }
@@ -40,7 +40,7 @@ export function initSidebar() {
 
   // Register keyboard shortcut (ESC to close sidebar)
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar && !sidebar.classList.contains('translate-x-full')) {
+    if (e.key === 'Escape' && sidebar && sidebar.classList.contains('sidebar-open')) {
       toggleSidebar(false);
     }
   });
@@ -48,8 +48,7 @@ export function initSidebar() {
   // Initially hide sidebar on mobile if needed
   const isMobile = window.matchMedia('(max-width: 768px)').matches;
   if (isMobile) {
-    sidebar.classList.add('translate-x-full');
-    sidebar.classList.remove('translate-x-0');
+    sidebar.classList.remove('sidebar-open');
     if (toggleButton) toggleButton.setAttribute('aria-expanded', 'false');
     if (overlay) overlay.classList.add('hidden');
   }
@@ -73,6 +72,51 @@ export function initSidebar() {
       conversationsToggle.setAttribute('aria-expanded', 'false');
     }
   }
+
+  // Init proper sidebar for first load based on viewport
+  const viewportWidth = window.innerWidth;
+  if (viewportWidth >= 768) {
+    // Desktop view - fix any mobile styles
+    sidebar.style.width = '384px';
+  } else {
+    // Mobile view - ensure proper mobile styles
+    sidebar.style.width = '100%';
+  }
+
+  // Listen for resize events to adjust sidebar
+  window.addEventListener('resize', handleResize);
+}
+
+/**
+ * Handle window resize events to maintain proper sidebar state
+ */
+function handleResize() {
+  const sidebar = document.getElementById('sidebar');
+  const chatContainer = document.getElementById('chat-container');
+  const overlay = document.getElementById('sidebar-overlay');
+
+  if (!sidebar) return;
+
+  const isMobile = window.innerWidth < 768;
+  const isOpen = sidebar.classList.contains('sidebar-open');
+
+  // Update sidebar width
+  if (isMobile) {
+    sidebar.style.width = '100%';
+    if (chatContainer) chatContainer.classList.remove('sidebar-open');
+  } else {
+    sidebar.style.width = '384px';
+    if (isOpen && chatContainer) chatContainer.classList.add('sidebar-open');
+  }
+
+  // Update overlay visibility
+  if (overlay) {
+    if (isMobile && isOpen) {
+      overlay.classList.remove('hidden');
+    } else {
+      overlay.classList.add('hidden');
+    }
+  }
 }
 
 /**
@@ -89,29 +133,28 @@ export function toggleSidebar(show) {
 
   if (!sidebar) return;
 
-  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  const isMobile = window.innerWidth < 768;
 
   if (show) {
     // Show sidebar
-    sidebar.classList.remove('translate-x-full');
-    sidebar.classList.add('translate-x-0', 'sidebar-open');
+    sidebar.classList.add('sidebar-open');
 
     if (isMobile) {
+      // Mobile-specific behavior
       if (overlay) overlay.classList.remove('hidden');
       // On mobile, don't adjust the chat container width
       if (chatContainer) chatContainer.classList.remove('sidebar-open');
     } else {
-      // On desktop, add the padding
+      // Desktop-specific behavior
       if (chatContainer) chatContainer.classList.add('sidebar-open');
-      // Hide overlay on desktop always
+      // Hide overlay on desktop
       if (overlay) overlay.classList.add('hidden');
     }
 
     if (toggleButton) toggleButton.setAttribute('aria-expanded', 'true');
   } else {
     // Hide sidebar
-    sidebar.classList.add('translate-x-full');
-    sidebar.classList.remove('translate-x-0', 'sidebar-open');
+    sidebar.classList.remove('sidebar-open');
 
     if (overlay) overlay.classList.add('hidden');
     if (toggleButton) toggleButton.setAttribute('aria-expanded', 'false');

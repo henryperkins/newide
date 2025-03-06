@@ -13,52 +13,63 @@
  * @param {string} newHTML - New HTML content to render
  * @param {Object} options - Rendering options (e.g., scroll behavior)
  */
+// More efficient DOM updates with less jitter
 export function renderContentEfficiently(container, newHTML, options = {}) {
   if (!container) return;
 
-  // Initialize a stored reference to previous HTML if missing
+  // Store a reference to previous HTML
   if (typeof container.__previousHtml === 'undefined') {
     container.__previousHtml = '';
   }
 
   const oldHTML = container.__previousHtml;
 
-  // If content is the same, do nothing
+  // If content is identical, do nothing
   if (oldHTML === newHTML) return;
 
-  // For incremental updates: if the new content starts with old content, just append the remainder
-  if (newHTML.startsWith(oldHTML)) {
-    const remainder = newHTML.slice(oldHTML.length);
-    if (remainder) {
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = remainder;
-      const fragment = document.createDocumentFragment();
-      while (tempDiv.firstChild) {
-        fragment.appendChild(tempDiv.firstChild);
+  try {
+    // For incremental updates: if new content starts with old content, just append the remainder
+    if (newHTML.startsWith(oldHTML)) {
+      const remainder = newHTML.slice(oldHTML.length);
+      if (remainder) {
+        // Create content without attaching to DOM yet
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = remainder;
+
+        // Use document fragment for better performance
+        const fragment = document.createDocumentFragment();
+        while (tempDiv.firstChild) {
+          fragment.appendChild(tempDiv.firstChild);
+        }
+
+        // Single DOM mutation to append new content
+        container.appendChild(fragment);
       }
-      container.appendChild(fragment);
-    }
-  } else {
-    // Otherwise, replace the entire innerHTML
-    container.innerHTML = newHTML;
-  }
-
-  container.__previousHtml = newHTML;
-
-  // Optional scroll behavior - get chat history container for consistent scrolling
-  if (options.scroll) {
-    const chatHistory = document.getElementById('chat-history');
-    if (chatHistory) {
-      // Use scrollTo instead of scrollIntoView for more predictable behavior
-      const scrollOptions = options.scrollOptions || { behavior: 'smooth' };
-      chatHistory.scrollTo({
-        top: chatHistory.scrollHeight,
-        ...scrollOptions
-      });
     } else {
-      // Fallback to scrollIntoView if chat history not found
-      container.scrollIntoView(options.scrollOptions || { behavior: 'smooth', block: 'end' });
+      // Fall back to full replacement only when necessary
+      container.innerHTML = newHTML;
     }
+
+    // Update stored HTML reference
+    container.__previousHtml = newHTML;
+
+    // Optional scroll behavior - only if explicitly requested
+    if (options.scroll) {
+      const chatHistory = document.getElementById('chat-history');
+      if (chatHistory) {
+        // Use requestAnimationFrame to ensure scroll happens after render
+        requestAnimationFrame(() => {
+          chatHistory.scrollTo({
+            top: chatHistory.scrollHeight,
+            ...options.scrollOptions
+          });
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Error in incremental render:', err);
+    container.innerHTML = newHTML;
+    container.__previousHtml = newHTML;
   }
 }
 

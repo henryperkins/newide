@@ -28,9 +28,13 @@ let connectionCheckIntervalId = null;
 let streamStartTime = 0;
 let firstTokenTime = 0;
 let tokenCount = 0;
+let lastScrollTimestamp = 0;
+let currentMessageId = null; // Track the current message ID
+let thinkingContainers = {}; // Store thinking containers by message ID
 
 // --- Constants ---
-const RENDER_INTERVAL_MS = 50;
+const RENDER_INTERVAL_MS = 150;  // Increased from 50ms
+const SCROLL_INTERVAL_MS = 500;  // Only scroll every 500ms
 const BASE_CONNECTION_TIMEOUT_MS = 60000; // 60 seconds
 const MAX_CONNECTION_TIMEOUT_MS = 180000; // 3 minutes
 const MAX_RETRY_ATTEMPTS = 3;
@@ -102,6 +106,8 @@ function resetStreamingState() {
   streamStartTime = 0;
   firstTokenTime = 0;
   tokenCount = 0;
+  currentMessageId = Date.now().toString(); // Generate a new ID for this message
+  thinkingContainers = {}; // Reset thinking containers
 
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
@@ -629,10 +635,21 @@ function processDataChunkWrapper(data) {
   chunkBuffer = result.chunkBuffer || '';
   isThinking = result.isThinking || false;
 
+  // Check if we're entering a thinking state
   if (isThinking && thinkingTextBuffer) {
     const container = ensureMessageContainer();
     messageContainer = container; // Ensure messageContainer is updated
-    thinkingContainer = deepSeekProcessor.renderThinkingContainer(container, thinkingTextBuffer);
+
+    // Use current message ID for this thinking container
+    if (!thinkingContainers[currentMessageId]) {
+      // Create a new thinking container for this thinking block
+      thinkingContainers[currentMessageId] = deepSeekProcessor.renderThinkingContainer(
+        container,
+        thinkingTextBuffer,
+        { createNew: true }
+      );
+    }
+    thinkingContainer = thinkingContainers[currentMessageId];
   }
 }
 
@@ -646,8 +663,6 @@ function scheduleRender() {
     }
     animationFrameId = requestAnimationFrame(() => {
       renderBufferedContent();
-      messageContainer = ensureMessageContainer(); // Ensure we always have a container
-      showStreamingProgressIndicator(messageContainer);
       lastRenderTimestamp = Date.now();
       animationFrameId = null;
     });
@@ -672,17 +687,10 @@ function forceRender() {
 function renderBufferedContent() {
   try {
     messageContainer = ensureMessageContainer();
+    if (!messageContainer) return;
 
     // Use safe defaults for thinking content
     const thinkBuffer = thinkingTextBuffer || '';
-
-    // Properly handle chain-of-thought container
-    if (thinkBuffer) {
-      thinkingContainer = deepSeekProcessor.renderThinkingContainer(
-        messageContainer,
-        thinkBuffer
-      );
-    }
 
     // Get both content buffers with proper boundary handling
     const separated = deepSeekProcessor.separateContentBuffers(
@@ -693,21 +701,45 @@ function renderBufferedContent() {
     const mainContent = separated.mainContent || '';
     const thinkingContent = separated.thinkingContent || '';
 
-    // Update main content
+    // Update main content FIRST
     if (mainContent) {
       const processedMain = deepSeekProcessor.processDeepSeekResponse(mainContent);
+
+      // Only scroll periodically to reduce jitter
+      const shouldScroll = (Date.now() - lastScrollTimestamp > SCROLL_INTERVAL_MS) && !errorState;
+
       renderContentEfficiently(messageContainer, processedMain, {
-        scroll: !errorState,
-        scrollOptions: { behavior: 'smooth' }
+        scroll: shouldScroll,
+        scrollOptions: { behavior: shouldScroll ? 'smooth' : 'auto' }
       });
+
+      if (shouldScroll) {
+        lastScrollTimestamp = Date.now();
+        showStreamingProgressIndicator(messageContainer);
+      }
     }
 
-    // Update chain-of-thought if available
-    if (thinkingContent && thinkingContainer) {
-      deepSeekProcessor.renderThinkingContainer(
-        thinkingContainer,
-        thinkingContent
-      );
+    // Handle thinking content separately to prevent layout thrashing
+    if (thinkBuffer) {
+      // Make sure we have a dedicated container for the current thinking block
+      if (!thinkingContainers[currentMessageId]) {
+        thinkingContainers[currentMessageId] = deepSeekProcessor.renderThinkingContainer(
+          messageContainer,
+          thinkingContent,
+          { createNew: true }
+        );
+      }
+
+      thinkingContainer = thinkingContainers[currentMessageId];
+
+      if (thinkingContainer && thinkingContent) {
+        // Update content in the correct container
+        const thinkingPre = thinkingContainer.querySelector('.thinking-pre');
+        if (thinkingPre) {
+          const sanitized = DOMPurify ? DOMPurify.sanitize(thinkingContent) : thinkingContent;
+          thinkingPre.innerHTML = sanitized;
+        }
+      }
     }
   } catch (err) {
     console.error('[renderBufferedContent] Error:', err);
@@ -729,7 +761,7 @@ async function cleanupStreaming(modelName) {
     removeStreamingProgressIndicator();
   } finally {
     document.querySelectorAll('.typing-indicator').forEach(el => el.remove());
-    document.querySelectorAll('.streaming-progress').forEach(el => el.remove());
+    document.querySelectorAll('.streaming-progress').forEach(el.remove());
   }
   if (mainTextBuffer && messageContainer) {
     try {
