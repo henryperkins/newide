@@ -717,18 +717,26 @@ async def generate_stream_chunks(
     usage_block: Dict[str, Any] = {}
 
     try:
-        # Build messages
+        # Build messages with system prompt
         messages = []
         if developer_config:
             messages.append({"role": "system", "content": developer_config})
         messages.append({"role": "user", "content": message})
 
-        # Real DeepSeek streaming implementation
+        # Get the correct client with DeepSeek headers
+        client_wrapper = await get_model_client_dependency(model_name)
+        client = client_wrapper["client"]
+
+        # DeepSeek-specific streaming call
         stream_response = client.complete(
             messages=messages,
-            temperature=0.0,  # Required for best results
+            temperature=0.0,
             max_tokens=config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
-            stream=True
+            stream=True,
+            headers={
+                "x-ms-thinking-format": "html",
+                "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION
+            }
         )
         
         async for chunk in stream_response:

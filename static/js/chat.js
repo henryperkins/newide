@@ -395,7 +395,11 @@ async function fetchChatResponse(
         try {
           response = await fetch(apiUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'x-ms-thinking-format': 'html',
+              'x-ms-streaming-version': '2024-05-01-preview'
+            },
             body: JSON.stringify(payload),
             signal
           });

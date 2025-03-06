@@ -207,14 +207,12 @@ class ClientPool:
             return ChatCompletionsClient(
                 endpoint=config.AZURE_INFERENCE_ENDPOINT,
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                model="DeepSeek-R1",  # Must be exact case
-                api_version="2024-05-01-preview",  # Required API version
-                headers={  # Mandatory headers
+                model="DeepSeek-R1",  # Exact case match required
+                api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+                headers={
                     "x-ms-thinking-format": "html",
-                    "x-ms-streaming-version": "2024-05-01-preview"
-                },
-                connection_timeout=120.0,
-                read_timeout=120.0
+                    "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION
+                }
             )
         elif config.is_o_series_model(model_id):
             return AzureOpenAI(
