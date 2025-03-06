@@ -33,21 +33,35 @@ export function processDataChunk(
 /**
  * Ensures that a main message container exists in the DOM.
  * If not found, creates one inside the element with the ID "chat-history".
+ * 
+ * FIXED: Now correctly creates or finds the LATEST assistant message container,
+ * instead of selecting the first one which causes message ordering issues.
  *
  * @returns {HTMLElement|null} The message container element or null if not found.
  */
 export function ensureMessageContainer() {
-  let messageContainer = document.querySelector('.assistant-message');
-  if (!messageContainer) {
-    const chatHistory = document.getElementById('chat-history');
-    if (!chatHistory) return null;
+  const chatHistory = document.getElementById('chat-history');
+  if (!chatHistory) return null;
 
+  // Check for an assistant message with data-streaming attribute, which
+  // we use to track the active streaming container
+  let messageContainer = chatHistory.querySelector('.assistant-message[data-streaming="true"]');
+
+  // If no active streaming container, create a new one at the END of chat history
+  if (!messageContainer) {
     messageContainer = document.createElement('div');
     messageContainer.className = 'message assistant-message';
     messageContainer.setAttribute('role', 'log');
     messageContainer.setAttribute('aria-live', 'polite');
+    messageContainer.setAttribute('data-streaming', 'true');
+
+    // Add timestamp to ensure proper ordering when conversations are loaded
+    messageContainer.dataset.timestamp = Date.now();
+
+    // Append to the END of chat history to maintain proper message order
     chatHistory.appendChild(messageContainer);
   }
+
   return messageContainer;
 }
 
@@ -93,6 +107,18 @@ export function removeStreamingProgressIndicator() {
 }
 
 /**
+ * Finalizes a streaming message, removing the streaming flag
+ * to prevent it from being reused for future responses.
+ * 
+ * @param {HTMLElement} container - The container to finalize.
+ */
+export function finalizeStreamingContainer(container) {
+  if (container && container.hasAttribute('data-streaming')) {
+    container.removeAttribute('data-streaming');
+  }
+}
+
+/**
  * Displays an error indicator in the message container if streaming is interrupted.
  * Also calls a notification callback for user feedback.
  *
@@ -106,24 +132,27 @@ export function handleStreamingError(error, showNotification, parentContainer) {
   // Only add the error notice if we don't already have a streaming-error-note
   if (parentContainer && !parentContainer.querySelector('.streaming-error-note')) {
     const errorNotice = document.createElement('div');
-    
+
     // Check if this is a DeepSeek service unavailability error
     const errorMessage = error?.message?.toLowerCase() || '';
     const isServiceUnavailable = (
-      errorMessage.includes('no healthy upstream') || 
+      errorMessage.includes('no healthy upstream') ||
       errorMessage.includes('failed dependency') ||
       errorMessage.includes('deepseek service')
     );
-    
+
     errorNotice.className = 'streaming-error-note py-2 px-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm rounded mt-2';
-    
+
     if (isServiceUnavailable) {
       errorNotice.textContent = '⚠️ The AI service is temporarily unavailable. Please try again later or switch to a different model.';
     } else {
       errorNotice.textContent = '⚠️ The response was interrupted. The content above may be incomplete.';
     }
-    
+
     parentContainer.appendChild(errorNotice);
+
+    // Finalize the container to prevent reuse
+    finalizeStreamingContainer(parentContainer);
   }
 
   if (typeof showNotification === 'function') {
@@ -131,16 +160,16 @@ export function handleStreamingError(error, showNotification, parentContainer) {
       showNotification('Network connection lost.', 'error');
     } else {
       const errorMessage = error?.message || 'An unexpected error occurred.';
-      const isDeepSeekError = errorMessage.toLowerCase().includes('deepseek') || 
-                             errorMessage.toLowerCase().includes('no healthy upstream') ||
-                             errorMessage.toLowerCase().includes('failed dependency');
-      
+      const isDeepSeekError = errorMessage.toLowerCase().includes('deepseek') ||
+        errorMessage.toLowerCase().includes('no healthy upstream') ||
+        errorMessage.toLowerCase().includes('failed dependency');
+
       if (isDeepSeekError) {
         // Don't show another notification since streaming.js already handles this with buttons
         // The error notice in the message is sufficient
         return;
       }
-      
+
       showNotification(errorMessage, 'error');
     }
   }

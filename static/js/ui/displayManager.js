@@ -686,6 +686,9 @@ async function deleteConversation() {
 /**
  * Creates a new conversation session, clearing the chat
  */
+/**
+ * Creates a new conversation session, clearing the chat
+ */
 export async function createNewConversation(pinned = false, archived = false, title = "Untitled Conversation") {
   try {
     const response = await fetch("/api/chat/conversations", {
@@ -701,6 +704,10 @@ export async function createNewConversation(pinned = false, archived = false, ti
     const data = await response.json();
     const newConversationId = data.conversation_id;
 
+    // Store the new conversation ID in sessionStorage
+    // This is the critical fix that was missing
+    sessionStorage.setItem('sessionId', newConversationId);
+
     // Clear the chat and re-initialize
     const chatHistory = document.getElementById('chat-history');
     if (chatHistory) {
@@ -713,9 +720,12 @@ export async function createNewConversation(pinned = false, archived = false, ti
 
     showWelcomeMessageIfNeeded();
     showNotification(`New conversation created (ID: ${newConversationId})`, 'success');
+
+    return newConversationId;
   } catch (err) {
     console.error("Error creating new conversation:", err);
     showNotification("Failed to create new conversation", "error");
+    return null;
   }
 }
 

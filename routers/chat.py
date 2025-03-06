@@ -862,12 +862,9 @@ async def generate_stream_chunks(
                     stream=True,
                 )
 
-                # FIX: Azure AI SDK StreamingChatCompletions doesn't support async iteration
-                # Instead we need to get the underlying chunks using more basic approach
-                response_iterator = stream_response.chunks
-
-                # Iterate through the chunks
-                for chunk in response_iterator:
+                # FIXED: The StreamingChatCompletions object is synchronously iterable
+                # Don't use async for as it doesn't have __aiter__
+                for chunk in stream_response:
                     # Extract content from chunk
                     chunk_content = ""
                     if hasattr(chunk, "choices") and chunk.choices:
