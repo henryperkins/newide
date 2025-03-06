@@ -22,8 +22,7 @@ class ChatMessage(BaseModel):
     file_ids: Optional[List[str]] = None
     use_file_search: bool = False
     response_format: Optional[Dict[str, str]] = Field(
-        None,
-        description="O-series only: Request structured output format"
+        None, description="O-series only: Request structured output format"
     )
     max_completion_tokens: Optional[int] = None
     max_tokens: Optional[int] = None  # Added for non-O-series models
@@ -35,7 +34,7 @@ class ChatMessage(BaseModel):
     @model_validator(mode="after")
     def validate_model_specific_rules(self):
         from config import is_o_series_model
-        
+
         if is_o_series_model(self.model):
             if self.response_format and not self.response_format.get("json_schema"):
                 raise ValueError("O-series requires JSON schema for structured output")

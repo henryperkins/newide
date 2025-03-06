@@ -243,7 +243,7 @@ export async function sendMessage() {
     renderUserMessage(messageContent);
     const modelSelect = document.getElementById('model-select');
     let modelName = 'DeepSeek-R1';  // Must use exact casing
-    if (modelSelect) modelName = modelSelect.value === 'deepseek-r1' ? 'DeepSeek-R1' : modelSelect.value;
+    if (modelSelect) modelName = modelSelect.value === 'DeepSeek-R1' ? 'DeepSeek-R1' : modelSelect.value;
 
     // Handle o1hp as an alias for o1
     let actualModelName = modelName.toLowerCase() === 'o1hp' ? 'o1' : modelName;
@@ -366,7 +366,7 @@ async function fetchChatResponse(
         model: modelName,
         messages
       };
-      
+
       // Only add reasoning_effort for O-series models
       if (modelName.toLowerCase().startsWith('o1') || modelName.toLowerCase().startsWith('o3')) {
         payload.reasoning_effort = effort;
@@ -395,7 +395,7 @@ async function fetchChatResponse(
         try {
           response = await fetch(apiUrl, {
             method: 'POST',
-            headers: { 
+            headers: {
               'Content-Type': 'application/json',
               'x-ms-thinking-format': 'html',
               'x-ms-streaming-version': '2024-05-01-preview'
@@ -614,7 +614,7 @@ async function getModelConfig(modelName) {
     console.warn(`Could not fetch model config for ${modelName}, status: ${response.status}`);
     if (response.status === 400) console.error(`Bad request: check model name and API.`);
     else if (response.status === 404) console.error(`Model ${modelName} not found in config.`);
-    if (modelName.toLowerCase() === 'deepseek-r1')
+    if (modelName.toLowerCase() === 'DeepSeek-R1')
       return { name: 'DeepSeek-R1', supports_streaming: true, supports_temperature: true, api_version: '2024-05-01-preview' };
     if (modelName.toLowerCase().startsWith('o1'))
       return { name: modelName, supports_streaming: false, supports_temperature: false, api_version: '2025-01-01-preview' };

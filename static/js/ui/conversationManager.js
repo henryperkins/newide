@@ -169,8 +169,31 @@ export async function loadConversations(reset = false) {
 
         renderConversations();
     } catch (error) {
-        console.error('Error loading conversations:', error);
-        conversationList.innerHTML = '<div class="py-4 px-3 text-center text-red-500">Failed to load conversations</div>';
+        // Use standardized error handling
+        import('./displayManager.js').then(module => {
+            const recovery = () => {
+                conversations = [];
+                conversationList.innerHTML = '<div class="py-4 px-3 text-center text-dark-500 dark:text-dark-400">No conversations found</div>';
+                isLoading = false;
+            };
+
+            if (module.handleConversationError) {
+                module.handleConversationError(
+                    error,
+                    'Failed to load conversations',
+                    recovery,
+                    { filter: currentFilter, page: currentPage }
+                );
+            } else {
+                // Fallback if module import fails
+                console.error('Error loading conversations:', error);
+                conversationList.innerHTML = '<div class="py-4 px-3 text-center text-red-500">Failed to load conversations</div>';
+                recovery();
+            }
+        }).catch(err => {
+            console.error('Error loading module:', err);
+            conversationList.innerHTML = '<div class="py-4 px-3 text-center text-red-500">Failed to load conversations</div>';
+        });
     } finally {
         isLoading = false;
     }
@@ -209,34 +232,37 @@ function renderConversations() {
         item.className = `conversation-item p-3 border-b border-dark-200 dark:border-dark-700 cursor-pointer hover:bg-dark-100 dark:hover:bg-dark-700/50 relative ${isActive ? 'bg-dark-100 dark:bg-dark-700/50' : ''}`;
         item.setAttribute('data-id', conversation.id);
 
+        // Add "updating" visual indicator if applicable
+        const updatingClass = conversation.updating ? ' opacity-60 ' : '';
+
         item.innerHTML = `
-      <div class="flex justify-between items-start mb-1">
-        <h3 class="conversation-title text-sm font-medium truncate pr-16">${conversation.title || 'Untitled Conversation'}</h3>
-        <div class="flex space-x-1">
-          <button class="pin-conversation-btn p-1 text-dark-400 hover:text-primary-500 ${conversation.pinned ? 'pinned text-primary-500' : ''}" 
-                  title="${conversation.pinned ? 'Unpin conversation' : 'Pin conversation'}">
-            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="${conversation.pinned ? 'currentColor' : 'none'}" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-            </svg>
-          </button>
-          <button class="archive-conversation-btn p-1 text-dark-400 hover:text-primary-500 ${conversation.archived ? 'archived text-primary-500' : ''}" 
-                  title="${conversation.archived ? 'Unarchive conversation' : 'Archive conversation'}">
-            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-            </svg>
-          </button>
-          <button class="delete-conversation-btn p-1 text-dark-400 hover:text-red-500" title="Delete conversation">
-            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div class="flex justify-between">
-        <span class="text-xs text-dark-500">${conversation.message_count} message${conversation.message_count !== 1 ? 's' : ''}</span>
-        <span class="text-xs text-dark-500">${formattedDate}</span>
-      </div>
-    `;
+            <div class="flex justify-between items-start mb-1 ${updatingClass}">
+                <h3 class="conversation-title text-sm font-medium truncate pr-16">${conversation.title || 'Untitled Conversation'}</h3>
+                <div class="flex space-x-1">
+                    <button class="pin-conversation-btn p-1 text-dark-400 hover:text-primary-500 ${conversation.pinned ? 'pinned text-primary-500' : ''}" 
+                            title="${conversation.pinned ? 'Unpin conversation' : 'Pin conversation'}">
+                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="${conversation.pinned ? 'currentColor' : 'none'}" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                        </svg>
+                    </button>
+                    <button class="archive-conversation-btn p-1 text-dark-400 hover:text-primary-500 ${conversation.archived ? 'archived text-primary-500' : ''}" 
+                            title="${conversation.archived ? 'Unarchive conversation' : 'Archive conversation'}">
+                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                        </svg>
+                    </button>
+                    <button class="delete-conversation-btn p-1 text-dark-400 hover:text-red-500" title="Delete conversation">
+                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-xs text-dark-500">${conversation.message_count} message${conversation.message_count !== 1 ? 's' : ''}</span>
+                <span class="text-xs text-dark-500">${formattedDate}</span>
+            </div>
+        `;
 
         conversationList.appendChild(item);
     });
@@ -289,7 +315,18 @@ async function loadConversation(conversationId) {
  * @param {boolean} pinned - Whether to pin or unpin
  */
 async function togglePinConversation(conversationId, pinned) {
+    // Store previous state for recovery
+    const previousState = conversations.map(c => ({ ...c }));
+
     try {
+        // Optimistic update
+        conversations = conversations.map(c =>
+            c.id === conversationId ? { ...c, pinned, updating: true } : c
+        );
+
+        // Update UI immediately
+        renderConversations();
+
         const response = await fetch(`/api/chat/conversations/${conversationId}/pin`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -298,36 +335,40 @@ async function togglePinConversation(conversationId, pinned) {
 
         if (!response.ok) throw new Error('Failed to update conversation');
 
-        // Update UI without reloading
-        const button = document.querySelector(`.conversation-item[data-id="${conversationId}"] .pin-conversation-btn`);
-        if (button) {
-            if (pinned) {
-                button.classList.add('pinned', 'text-primary-500');
-                button.title = 'Unpin conversation';
-            } else {
-                button.classList.remove('pinned', 'text-primary-500');
-                button.title = 'Pin conversation';
-            }
+        // Update with new state from response
+        const data = await response.json();
 
-            // Update the SVG fill
-            const svg = button.querySelector('svg');
-            if (svg) {
-                svg.setAttribute('fill', pinned ? 'currentColor' : 'none');
-            }
-        }
+        // Update local state
+        conversations = conversations.map(c =>
+            c.id === conversationId ? {
+                ...c,
+                pinned,
+                version: data.version,
+                updating: false
+            } : c
+        );
 
         // If we're filtering by pinned, reload conversations
         if (currentFilter === 'pinned' && !pinned) {
             loadConversations(true);
         } else {
-            // Update local data
-            conversations = conversations.map(c =>
-                c.id === conversationId ? { ...c, pinned } : c
-            );
+            renderConversations();
         }
     } catch (error) {
-        console.error('Error updating conversation:', error);
-        showNotification('Failed to update conversation', 'error');
+        // Recover from the error by restoring previous state
+        conversations = previousState;
+        renderConversations();
+
+        // Use standardized error handling if available
+        import('./displayManager.js').then(module => {
+            if (module.handleConversationError) {
+                module.handleConversationError(error, 'Failed to update conversation');
+            } else {
+                showNotification('Failed to update conversation', 'error');
+            }
+        }).catch(() => {
+            showNotification('Failed to update conversation', 'error');
+        });
     }
 }
 
@@ -337,40 +378,76 @@ async function togglePinConversation(conversationId, pinned) {
  * @param {boolean} archived - Whether to archive or unarchive
  */
 async function toggleArchiveConversation(conversationId, archived) {
+    // Find conversation and get version if available
+    const conversation = conversations.find(c => c.id === conversationId);
+    const version = conversation?.version || 0;
+
+    // Store previous state for recovery
+    const previousState = conversations.map(c => ({ ...c }));
+
     try {
+        // Optimistic update
+        conversations = conversations.map(c =>
+            c.id === conversationId ? { ...c, archived, updating: true } : c
+        );
+
+        // Update UI immediately
+        renderConversations();
+
         const response = await fetch(`/api/chat/conversations/${conversationId}/archive`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ archived })
+            body: JSON.stringify({
+                archived,
+                version  // Send version for conflict detection
+            })
         });
 
-        if (!response.ok) throw new Error('Failed to update conversation');
+        if (!response.ok) throw new Error(`Server returned ${response.status}`);
 
-        // Update UI without reloading
-        const button = document.querySelector(`.conversation-item[data-id="${conversationId}"] .archive-conversation-btn`);
-        if (button) {
-            if (archived) {
-                button.classList.add('archived', 'text-primary-500');
-                button.title = 'Unarchive conversation';
-            } else {
-                button.classList.remove('archived', 'text-primary-500');
-                button.title = 'Archive conversation';
-            }
+        const data = await response.json();
+
+        if (data.status === 'conflict') {
+            // Handle conflict - reload the conversation
+            showNotification('This conversation was modified elsewhere', 'warning');
+            loadConversations(true);
+            return;
         }
+
+        // Update with new version from server
+        conversations = conversations.map(c =>
+            c.id === conversationId ? {
+                ...c,
+                archived,
+                version: data.version,
+                updating: false
+            } : c
+        );
 
         // If filtering, reload conversations
         if ((currentFilter === 'archived' && !archived) ||
             (currentFilter !== 'archived' && archived)) {
             loadConversations(true);
         } else {
-            // Update local data
-            conversations = conversations.map(c =>
-                c.id === conversationId ? { ...c, archived } : c
-            );
+            renderConversations();
         }
     } catch (error) {
-        console.error('Error updating conversation:', error);
-        showNotification('Failed to update conversation', 'error');
+        // Reset updating flag in case of error
+        conversations = conversations.map(c =>
+            c.id === conversationId ? { ...c, updating: false } : c
+        );
+        renderConversations();
+
+        // Use standardized error handling if available
+        import('./displayManager.js').then(module => {
+            if (module.handleConversationError) {
+                module.handleConversationError(error, 'Failed to update conversation');
+            } else {
+                showNotification('Failed to update conversation', 'error');
+            }
+        }).catch(() => {
+            showNotification('Failed to update conversation', 'error');
+        });
     }
 }
 
@@ -406,28 +483,5 @@ async function deleteConversation(conversationId) {
     } catch (error) {
         console.error('Error deleting conversation:', error);
         showNotification('Failed to delete conversation', 'error');
-    }
-}
-
-// Add API endpoints for pin/archive
-export async function addPinAndArchiveEndpoints() {
-    try {
-        // Make POST request to API to add missing endpoints
-        const response = await fetch('/api/admin/add_conversation_endpoints', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                token: 'development_setup_2034'
-            })
-        });
-
-        if (response.ok) {
-            console.log('Conversation endpoints added successfully');
-            return true;
-        }
-        return false;
-    } catch (error) {
-        console.error('Error adding conversation endpoints:', error);
-        return false;
     }
 }

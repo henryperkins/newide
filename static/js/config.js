@@ -166,16 +166,16 @@ async function handleModelSelectChange(e) {
   const modelId = e.target.value;
   try {
     console.log("Handling model select change to:", modelId);
-    
+
     // Check if the model config exists in modelManager before switching
     if (!modelManager.modelConfigs[modelId]) {
       console.log(`Model ${modelId} not in modelManager configs, forcing re-initialization`);
       // Force a re-initialization of local model configs
       modelManager.ensureLocalModelConfigs();
-      
+
       // Log available models after re-initialization
       console.log("Available models after re-initialization:", Object.keys(modelManager.modelConfigs));
-      
+
       // If still not available, show error
       if (!modelManager.modelConfigs[modelId]) {
         console.error(`Model ${modelId} still not available after re-initialization`);
@@ -184,7 +184,7 @@ async function handleModelSelectChange(e) {
         return;
       }
     }
-    
+
     const success = await modelManager.switchModel(modelId);
     if (success) {
       updateConfig({ selectedModel: modelId });
@@ -205,29 +205,29 @@ export async function updateModelSpecificUI(modelName) {
   try {
     const modelConfig = modelManager.modelConfigs[modelName] || await modelManager.getModelConfig(modelName);
     if (!modelConfig) return;
-    
+
     // Determine model type
     const modelType = modelConfig.model_type || 'standard';
     const isOSeries = modelType === 'o-series' || modelName.toLowerCase().startsWith('o1') || modelName.toLowerCase().startsWith('o3');
     const isDeepSeek = modelType === 'deepseek' || modelName.toLowerCase().includes('deepseek');
-    
+
     // Get capabilities
     const supportsStreaming = modelConfig.supports_streaming || false;
     const supportsVision = modelConfig.supports_vision || false;
     const apiVersion = modelConfig.api_version || '2025-01-01-preview';
-    
+
     // Update reasoning controls visibility
     const reasoningControls = document.getElementById('reasoning-controls');
     if (reasoningControls) {
       reasoningControls.classList.toggle('hidden', !isOSeries || isDeepSeek);
     }
-    
+
     // Update thinking controls visibility (for DeepSeek models)
     const thinkingControls = document.getElementById('thinking-controls');
     if (thinkingControls) {
       thinkingControls.classList.toggle('hidden', !isDeepSeek);
     }
-    
+
     // Update streaming toggle
     const streamingToggle = document.getElementById('enable-streaming');
     if (streamingToggle) {
@@ -241,7 +241,7 @@ export async function updateModelSpecificUI(modelName) {
         updateConfig({ appSettings: { ...cachedConfig.appSettings, streamingEnabled: false } });
       }
     }
-    
+
     // Update model info display
     const modelInfoSection = document.querySelector('.model-info');
     if (modelInfoSection) {
@@ -250,31 +250,31 @@ export async function updateModelSpecificUI(modelName) {
       if (isDeepSeek) features.push('thinking process');
       if (supportsStreaming) features.push('streaming');
       if (supportsVision) features.push('vision');
-      
+
       const featuresText = features.length > 0 ? `with ${features.join(' & ')}` : '';
       const apiVersionText = `<span class="text-xs text-gray-500">(API: ${apiVersion})</span>`;
-      
+
       modelInfoSection.innerHTML = `
         <p><strong>Model:</strong> ${modelName} ${featuresText}</p>
         <p class="text-xs text-gray-500">Type: ${modelType} ${apiVersionText}</p>
       `;
     }
-    
+
     // Update model badge
     const modelBadge = document.getElementById('model-badge');
     if (modelBadge) {
       modelBadge.textContent = modelName;
     }
-    
+
     // Publish event for other components
     eventBus.publish('modelUpdated', {
       modelName,
       modelType,
       apiVersion,
-      capabilities: { 
-        isOSeries, 
+      capabilities: {
+        isOSeries,
         isDeepSeek,
-        supportsStreaming, 
+        supportsStreaming,
         supportsVision,
         apiVersion
       }
@@ -383,21 +383,21 @@ export function isFeatureEnabled(featureName) {
   if (!cachedConfig) return false;
   const modelName = cachedConfig.selectedModel;
   const model = modelManager.modelConfigs[modelName];
-  
+
   switch (featureName) {
     case 'streaming':
-      return cachedConfig.appSettings?.streamingEnabled && 
-             model?.supports_streaming;
+      return cachedConfig.appSettings?.streamingEnabled &&
+        model?.supports_streaming;
     case 'reasoning':
-      return model?.requires_reasoning_effort || 
-             model?.model_type === 'o-series' ||
-             modelName?.toLowerCase().startsWith('o1') || 
-             modelName?.toLowerCase().startsWith('o3');
+      return model?.requires_reasoning_effort ||
+        model?.model_type === 'o-series' ||
+        modelName?.toLowerCase().startsWith('o1') ||
+        modelName?.toLowerCase().startsWith('o3');
     case 'vision':
       return model?.supports_vision;
     case 'thinking':
-      return model?.model_type === 'deepseek' || 
-             model?.enable_thinking;
+      return model?.model_type === 'deepseek' ||
+        model?.enable_thinking;
     default:
       return false;
   }
@@ -414,7 +414,7 @@ export function getDeveloperConfig() {
 export async function getModelAPIConfig(modelName) {
   const config = await getCurrentConfig();
   let modelConfig = null;
-  
+
   try {
     // First check if the model is already in modelManager
     if (modelManager.modelConfigs[modelName]) {
@@ -429,7 +429,7 @@ export async function getModelAPIConfig(modelName) {
   } catch (error) {
     console.error('Error fetching model config:', error);
   }
-  
+
   // Map the model config to API config format
   if (modelConfig) {
     return {
@@ -444,7 +444,7 @@ export async function getModelAPIConfig(modelName) {
       requiresReasoningEffort: modelConfig.requires_reasoning_effort || false
     };
   }
-  
+
   // Return default config if no model config found
   return {
     endpoint: config.azureOpenAI?.endpoint || "https://o1models.openai.azure.com",
@@ -462,23 +462,23 @@ export async function getModelAPIConfig(modelName) {
 export function setupConfigEventHandlers() {
   const reasoningSlider = document.getElementById('reasoning-effort-slider');
   if (reasoningSlider) reasoningSlider.addEventListener('input', handleReasoningSliderChange);
-  
+
   const developerConfigInput = document.getElementById('developer-config');
   if (developerConfigInput) developerConfigInput.addEventListener('change', handleDeveloperConfigChange);
-  
+
   const streamingToggle = document.getElementById('enable-streaming');
   if (streamingToggle) streamingToggle.addEventListener('change', handleStreamingToggleChange);
-  
+
   const modelSelect = document.getElementById('model-select');
   if (modelSelect) modelSelect.addEventListener('change', handleModelSelectChange);
-  
+
   // Get the current configuration and initialize the UI
   getCurrentConfig().then(config => {
     if (config) {
       initConfigUI(config);
     }
   });
-  
+
   console.log('Config event handlers initialized');
 }
 

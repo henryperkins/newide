@@ -1,6 +1,6 @@
 ## In this article
 
-1. [DeepSeek-R1](#deepseek-r1)
+1. [DeepSeek-R1](#DeepSeek-R1)
 2. [Prerequisites](#prerequisites)
 3. [Work with chat completions](#work-with-chat-completions)
 4. [More inference examples](#more-inference-examples)
@@ -17,7 +17,7 @@ Important
 
 Models that are in preview are marked as _preview_ on their model cards in the model catalog.
 
-[](#deepseek-r1)
+[](#DeepSeek-R1)
 
 ## DeepSeek-R1
 

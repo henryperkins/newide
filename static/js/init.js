@@ -313,7 +313,6 @@ function openFileInSidebar(filename) {
  * Conversation controls container
  */
 function initConversationControls() {
-  // Instead of creating duplicative buttons, we'll ensure the existing HTML buttons work properly
   console.log('Initializing conversation control buttons...');
 
   // Get references to existing buttons in index.html
@@ -322,11 +321,8 @@ function initConversationControls() {
 
   // Set up event handler for the Load Older Messages button
   if (loadOlderBtn) {
-    // Remove any existing click handlers to prevent duplicates
-    loadOlderBtn.replaceWith(loadOlderBtn.cloneNode(true));
-    const newLoadOlderBtn = document.getElementById('load-older-btn');
-
-    newLoadOlderBtn.addEventListener('click', async () => {
+    // Use safeAddEventListener instead
+    safeAddEventListener(loadOlderBtn, 'click', async () => {
       console.log('Load Older Messages clicked');
       try {
         const module = await import('./ui/displayManager.js');
@@ -341,18 +337,15 @@ function initConversationControls() {
     });
 
     // Make sure it's visible
-    newLoadOlderBtn.classList.remove('hidden');
+    loadOlderBtn.classList.remove('hidden');
   } else {
     console.warn('Load Older Messages button not found in the DOM');
   }
 
   // Set up event handler for the Save Conversation button
   if (saveOlderBtn) {
-    // Remove any existing click handlers to prevent duplicates
-    saveOlderBtn.replaceWith(saveOlderBtn.cloneNode(true));
-    const newSaveOlderBtn = document.getElementById('save-older-btn');
-
-    newSaveOlderBtn.addEventListener('click', async () => {
+    // Use safeAddEventListener instead
+    safeAddEventListener(saveOlderBtn, 'click', async () => {
       console.log('Save Conversation clicked');
       try {
         const module = await import('./ui/displayManager.js');
@@ -367,7 +360,7 @@ function initConversationControls() {
     });
 
     // Make sure it's visible
-    newSaveOlderBtn.classList.remove('hidden');
+    saveOlderBtn.classList.remove('hidden');
   } else {
     console.warn('Save Conversation button not found in the DOM');
   }
@@ -912,4 +905,41 @@ function initSettingsButton() {
       settingsPanel.classList.toggle('hidden');
     }
   });
+}
+/**
+ * Safely add event listener ensuring no duplicates
+ * @param {Element} element - DOM element to attach listener to
+ * @param {string} eventType - Event type (e.g., 'click')
+ * @param {Function} handler - Event handler function
+ * @param {Object} options - addEventListener options
+ */
+function safeAddEventListener(element, eventType, handler, options = {}) {
+  if (!element) return false;
+
+  // Store event handlers on the element
+  if (!element._eventHandlers) {
+    element._eventHandlers = {};
+  }
+
+  // Create a unique key for this handler
+  const handlerKey = `${eventType}_${handler.name || 'anonymous'}`;
+
+  // If handler with this key exists, remove it first
+  if (element._eventHandlers[handlerKey]) {
+    element.removeEventListener(
+      eventType,
+      element._eventHandlers[handlerKey].fn,
+      element._eventHandlers[handlerKey].options
+    );
+  }
+
+  // Store reference to handler
+  element._eventHandlers[handlerKey] = {
+    fn: handler,
+    options
+  };
+
+  // Add the event listener
+  element.addEventListener(eventType, handler, options);
+  return true;
 }

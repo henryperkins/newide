@@ -23,27 +23,10 @@ function initDisplayManager() {
     if (updates.appSettings?.fontSize) applyFontSize(updates.appSettings.fontSize);
   });
   showWelcomeMessageIfNeeded();
-  return true;
 }
 
 function setupEventListeners() {
   console.log('Setting up displayManager event listeners');
-  
-  // Load Older Messages button - use this handler only if not already set up in init.js
-  const loadOlderBtn = document.getElementById('load-older-btn');
-  if (loadOlderBtn && !loadOlderBtn.hasEventListener) {
-    console.log('Adding event listener to Load Older Messages button');
-    loadOlderBtn.addEventListener('click', loadOlderMessages);
-    loadOlderBtn.hasEventListener = true;
-  }
-
-  // Save Conversation button - use this handler only if not already set up in init.js
-  const saveOlderBtn = document.getElementById('save-older-btn');
-  if (saveOlderBtn && !saveOlderBtn.hasEventListener) {
-    console.log('Adding event listener to Save Conversation button');
-    saveOlderBtn.addEventListener('click', saveConversation);
-    saveOlderBtn.hasEventListener = true;
-  }
 
   // Token usage toggle
   const tokenUsageToggle = document.getElementById('token-usage-toggle');
@@ -63,7 +46,7 @@ function setupEventListeners() {
       tokenChevron.classList.add('rotate-180');
     }
   }
-  
+
   // Font size controls
   const fontSizeUpBtn = document.getElementById('font-size-up');
   const fontSizeDownBtn = document.getElementById('font-size-down');
@@ -71,7 +54,7 @@ function setupEventListeners() {
   if (fontSizeUpBtn) fontSizeUpBtn.addEventListener('click', () => adjustFontSize(1));
   if (fontSizeDownBtn) fontSizeDownBtn.addEventListener('click', () => adjustFontSize(-1));
   if (fontSizeResetBtn) fontSizeResetBtn.addEventListener('dblclick', () => adjustFontSize(0));
-  
+
   // Global click handler for code copy buttons and file links
   document.addEventListener('click', handleGlobalClick);
 }
@@ -140,7 +123,6 @@ export async function loadConversationFromDb() {
 
     // Debugging
     console.log('API response status:', res.status);
-
     // Try to get the response text first for debugging
     const responseText = await res.text();
     console.log('Raw API response:', responseText);
@@ -203,102 +185,102 @@ export async function loadConversationFromDb() {
     showNotification('Failed to load conversation from DB', 'error');
   }
 }
-  export async function loadOlderMessages() {
-    if (isLoadingPrevious || !hasMoreMessages) return;
 
-    const sessionIdMaybe = getSessionId();
-    const conversationId = sessionIdMaybe instanceof Promise ? await sessionIdMaybe : sessionIdMaybe;
-    if (!conversationId) return;
+export async function loadOlderMessages() {
+  if (isLoadingPrevious || !hasMoreMessages) return;
 
-    try {
-      isLoadingPrevious = true;
-      const loadBtn = document.getElementById('load-older-btn');
-      if (loadBtn) {
-        loadBtn.classList.add('loading');
-        loadBtn.setAttribute('disabled', 'true');
+  const sessionIdMaybe = getSessionId();
+  const conversationId = sessionIdMaybe instanceof Promise ? await sessionIdMaybe : sessionIdMaybe;
+  if (!conversationId) return;
+
+  try {
+    isLoadingPrevious = true;
+    const loadBtn = document.getElementById('load-older-btn');
+    if (loadBtn) {
+      loadBtn.classList.add('loading');
+      loadBtn.setAttribute('disabled', 'true');
+    }
+
+    const chatHistory = document.getElementById('chat-history');
+    if (!chatHistory) {
+      throw new Error('Chat history container not found');
+    }
+
+    // Remember current scroll position and height
+    const scrollPositionBefore = chatHistory.scrollTop;
+    const scrollHeightBefore = chatHistory.scrollHeight;
+
+    // Get currently rendered messages count (excluding system messages)
+    const rendered = chatHistory.querySelectorAll('.message:not(.system-message)').length;
+    const fetchLimit = 50; // Load 50 older messages
+    // Updated endpoint path
+    const api = `/api/chat/conversations/${conversationId}/messages?offset=${rendered}&limit=${fetchLimit}`;
+
+    const res = await fetch(api);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch older messages: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    if (!data || !data.messages || !data.messages.length) {
+      hasMoreMessages = false;
+      updateLoadMoreButton(0);
+      return;
+    }
+
+    // Create a document fragment to batch DOM operations
+    const fragment = document.createDocumentFragment();
+
+    // Sort messages by timestamp
+    data.messages.sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      return timeA - timeB; // Ascending order (oldest first)
+    });
+
+    for (const m of data.messages) {
+      const messageElement = m.role === 'user'
+        ? createUserMessageElement(m.content)
+        : createAssistantMessageElement(m.content);
+      fragment.appendChild(messageElement);
+    }
+
+    // Insert older messages at top
+    if (chatHistory.firstChild) {
+      chatHistory.insertBefore(fragment, chatHistory.firstChild);
+    } else {
+      chatHistory.appendChild(fragment);
+    }
+
+    // Update hasMoreMessages based on number of messages received
+    hasMoreMessages = data.has_more || data.messages.length >= fetchLimit;
+    updateLoadMoreButton(data.total_count ? data.total_count - rendered - data.messages.length : 0);
+
+    // Setup observers for lazy-loaded content
+    chatHistory.querySelectorAll('.message:not(.observed)').forEach(el => {
+      if (messageObserver && el.classList.contains('assistant-message')) {
+        el.classList.add('observed');
+        messageObserver.observe(el);
       }
+    });
 
-      const chatHistory = document.getElementById('chat-history');
-      if (!chatHistory) {
-        throw new Error('Chat history container not found');
-      }
-
-      // Remember current scroll position and height
-      const scrollPositionBefore = chatHistory.scrollTop;
-      const scrollHeightBefore = chatHistory.scrollHeight;
-
-      // Get currently rendered messages count (excluding system messages)
-      const rendered = chatHistory.querySelectorAll('.message:not(.system-message)').length;
-      const fetchLimit = 50; // Load 50 older messages
-      // Updated endpoint path
-      const api = `/api/chat/conversations/${conversationId}/messages?offset=${rendered}&limit=${fetchLimit}`;
-
-      const res = await fetch(api);
-      if (!res.ok) {
-        throw new Error(`Failed to fetch older messages: ${res.statusText}`);
-      }
-
-      const data = await res.json();
-      if (!data || !data.messages || !data.messages.length) {
-        hasMoreMessages = false;
-        updateLoadMoreButton(0);
-        return;
-      }
-
-      // Create a document fragment to batch DOM operations
-      const fragment = document.createDocumentFragment();
-
-      // Sort messages by timestamp
-      data.messages.sort((a, b) => {
-        const timeA = new Date(a.timestamp).getTime();
-        const timeB = new Date(b.timestamp).getTime();
-        return timeA - timeB; // Ascending order (oldest first)
-      });
-
-      for (const m of data.messages) {
-        const messageElement = m.role === 'user'
-          ? createUserMessageElement(m.content)
-          : createAssistantMessageElement(m.content);
-
-        fragment.appendChild(messageElement);
-      }
-
-      // Insert older messages at top
-      if (chatHistory.firstChild) {
-        chatHistory.insertBefore(fragment, chatHistory.firstChild);
-      } else {
-        chatHistory.appendChild(fragment);
-      }
-
-      // Update hasMoreMessages based on number of messages received
-      hasMoreMessages = data.has_more || data.messages.length >= fetchLimit;
-      updateLoadMoreButton(data.total_count ? data.total_count - rendered - data.messages.length : 0);
-
-      // Setup observers for lazy-loaded content
-      chatHistory.querySelectorAll('.message:not(.observed)').forEach(el => {
-        if (messageObserver && el.classList.contains('assistant-message')) {
-          el.classList.add('observed');
-          messageObserver.observe(el);
-        }
-      });
-
-      // Adjust scroll position to maintain view
-      requestAnimationFrame(() => {
-        const heightDiff = chatHistory.scrollHeight - scrollHeightBefore;
-        chatHistory.scrollTop = scrollPositionBefore + heightDiff;
-      });
-    } catch (error) {
-      console.error('Error loading older messages:', error);
-      showNotification('Failed to load older messages', 'error');
-    } finally {
-      isLoadingPrevious = false;
-      const loadBtn = document.getElementById('load-older-btn');
-      if (loadBtn) {
-        loadBtn.classList.remove('loading');
-        loadBtn.removeAttribute('disabled');
-      }
+    // Adjust scroll position to maintain view
+    requestAnimationFrame(() => {
+      const heightDiff = chatHistory.scrollHeight - scrollHeightBefore;
+      chatHistory.scrollTop = scrollPositionBefore + heightDiff;
+    });
+  } catch (error) {
+    console.error('Error loading older messages:', error);
+    showNotification('Failed to load older messages', 'error');
+  } finally {
+    isLoadingPrevious = false;
+    const loadBtn = document.getElementById('load-older-btn');
+    if (loadBtn) {
+      loadBtn.classList.remove('loading');
+      loadBtn.removeAttribute('disabled');
     }
   }
+}
 
 async function saveConversation() {
   const sessionIdMaybe = getSessionId();
@@ -365,9 +347,9 @@ async function saveConversation() {
 function updateLoadMoreButton(unloadedCount) {
   const loadBtn = document.getElementById('load-older-btn');
   if (!loadBtn) return;
-  
+
   loadBtn.classList.toggle('hidden', !hasMoreMessages);
-  
+
   if (hasMoreMessages) {
     const sessionId = getSessionId();
     if (sessionId) {
@@ -383,7 +365,7 @@ function updateLoadMoreButton(unloadedCount) {
             unloadedCount = 0;
           }
         }
-        
+
         // Update button text to show number of unloaded messages
         if (unloadedCount > 0) {
           loadBtn.innerHTML = `
@@ -424,7 +406,7 @@ export function renderUserMessage(content, skipScroll = false, skipStore = false
   element.innerHTML = sanitizeHTML(content).replace(/\n/g, '<br>');
 
   chatHistory.appendChild(element);
-  
+
   // Use consistent scrolling behavior by scrolling the chat history container
   if (!skipScroll) {
     requestAnimationFrame(() => {
@@ -434,7 +416,7 @@ export function renderUserMessage(content, skipScroll = false, skipStore = false
       });
     });
   }
-  
+
   pruneOldMessages();
   if (!skipStore) storeChatMessage('user', content);
   return element;
@@ -443,6 +425,7 @@ export function renderUserMessage(content, skipScroll = false, skipStore = false
 function createUserMessageElement(content) {
   const cacheKey = `user-${content}`;
   if (messageCache.has(cacheKey)) return messageCache.get(cacheKey).cloneNode(true);
+
   const el = document.createElement('div');
   el.className = 'message user-message';
   el.setAttribute('role', 'log');
@@ -461,7 +444,7 @@ export function renderAssistantMessage(content, skipScroll = false, skipStore = 
     messageElement.classList.add('observed');
     messageObserver.observe(messageElement);
   }
-  
+
   // Use consistent scrolling behavior by scrolling the chat history container
   if (!skipScroll) {
     requestAnimationFrame(() => {
@@ -471,7 +454,7 @@ export function renderAssistantMessage(content, skipScroll = false, skipStore = 
       });
     });
   }
-  
+
   pruneOldMessages();
   if (!skipStore) storeChatMessage('assistant', content);
   return messageElement;
@@ -485,7 +468,7 @@ function createAssistantMessageElement(content) {
   if (messageCache.has(cacheKey)) {
     return messageCache.get(cacheKey).cloneNode(true);
   }
-  
+
   const el = document.createElement('div');
   el.className = 'message assistant-message';
   el.setAttribute('role', 'log');
@@ -503,7 +486,6 @@ function createAssistantMessageElement(content) {
     ${lazy}
     <!-- Removed model reference to avoid currentModel error -->
   `;
-
   messageCache.set(cacheKey, el.cloneNode(true));
   return el;
 }
@@ -555,57 +537,57 @@ const pruneOldMessages = debounce(() => {
 
 let clientVersion = Date.now();
 
-  async function storeChatMessage(role, content) {
+async function storeChatMessage(role, content) {
+  try {
+    // Get conversation ID, handling both Promise and direct value
+    const sessionIdMaybe = getSessionId();
+    const conversationId = sessionIdMaybe instanceof Promise ? await sessionIdMaybe : sessionIdMaybe;
+
+    if (!conversationId) {
+      console.error('No valid conversation ID found — cannot store message.');
+      return;
+    }
+
+    if (!role || !content) {
+      console.error('Missing role or content — cannot store message.');
+      return;
+    }
+
+    // Use window.location.origin to ensure we're using the correct base URL
+    const apiUrl = `${window.location.origin}/api/chat/conversations/${conversationId}/messages`;
+
     try {
-      // Get conversation ID, handling both Promise and direct value
-      const sessionIdMaybe = getSessionId();
-      const conversationId = sessionIdMaybe instanceof Promise ? await sessionIdMaybe : sessionIdMaybe;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role, content })
+      });
 
-      if (!conversationId) {
-        console.error('No valid conversation ID found — cannot store message.');
-        return;
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('[storeChatMessage] Server error:', response.status, text);
+        throw new Error(`Server returned ${response.status}: ${text}`);
       }
 
-      if (!role || !content) {
-        console.error('Missing role or content — cannot store message.');
-        return;
-      }
-
-      // Use window.location.origin to ensure we're using the correct base URL
-      const apiUrl = `${window.location.origin}/api/chat/conversations/${conversationId}/messages`;
-
-      try {
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role, content })
-        });
-
-        if (!response.ok) {
-          const text = await response.text();
-          console.error('[storeChatMessage] Server error:', response.status, text);
-          throw new Error(`Server returned ${response.status}: ${text}`);
-        }
-
-        console.log('[storeChatMessage] Message stored successfully');
-      } catch (err) {
-        console.warn('Failed to store message in backend:', err);
-      }
-    } catch (error) {
-      console.error('Error in storeChatMessage:', error);
+      console.log('[storeChatMessage] Message stored successfully');
+    } catch (err) {
+      console.warn('Failed to store message in backend:', err);
     }
+  } catch (error) {
+    console.error('Error in storeChatMessage:', error);
+  }
+}
+
+function updateConversationTitle(title) {
+  // Update the title in the UI if there's an appropriate element
+  const titleElement = document.getElementById('conversation-title');
+  if (titleElement) {
+    titleElement.textContent = title;
   }
 
-  function updateConversationTitle(title) {
-    // Update the title in the UI if there's an appropriate element
-    const titleElement = document.getElementById('conversation-title');
-    if (titleElement) {
-      titleElement.textContent = title;
-    }
-
-    // Could also update document title
-    document.title = `${title} - Azure OpenAI Chat`;
-  }
+  // Could also update document title
+  document.title = `${title} - Azure OpenAI Chat`;
+}
 
 function showWelcomeMessageIfNeeded() {
   const sessionId = getSessionId();
@@ -654,87 +636,111 @@ function openFileInSidebar(filename) {
     for (const f of filesList) {
       if (f.innerText.includes(filename)) {
         f.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        f.classList.add('bg-blue-100','dark:bg-blue-900/30');
-        setTimeout(() => f.classList.remove('bg-blue-100','dark:bg-blue-900/30'), 1500);
+        f.classList.add('bg-blue-100', 'dark:bg-blue-900/30');
+        setTimeout(() => f.classList.remove('bg-blue-100', 'dark:bg-blue-900/30'), 1500);
         break;
       }
     }
   }, 500);
 }
 
-  async function deleteConversation() {
-    showConfirmDialog(
-      'Delete Conversation',
-      'Are you sure you want to delete the current conversation? This action cannot be undone.',
-      async () => {
-        try {
-          const sessionId = await getSessionId();
-          if (sessionId) {
-            // Updated endpoint path
-            await fetch(`/api/chat/conversations/${sessionId}`, {
-              method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' }
-            });
-          }
-
-          // Now remove from DOM
-          const chatHistory = document.getElementById('chat-history');
-          if (chatHistory) {
-            const systemMessages = [];
-            chatHistory.querySelectorAll('.system-message').forEach(el => systemMessages.push(el.cloneNode(true)));
-            chatHistory.innerHTML = '';
-            systemMessages.forEach(el => chatHistory.appendChild(el));
-          }
-          messageCache.clear();
-          hasMoreMessages = false;
-          updateLoadMoreButton(0);
-
-          // Create a new conversation
-          await createNewConversation();
-
-          showNotification('Conversation deleted', 'success');
-        } catch (error) {
-          console.error('Failed to delete conversation:', error);
-          showNotification('Failed to delete conversation', 'error');
+async function deleteConversation() {
+  showConfirmDialog(
+    'Delete Conversation',
+    'Are you sure you want to delete the current conversation? This action cannot be undone.',
+    async () => {
+      try {
+        const sessionId = await getSessionId();
+        if (sessionId) {
+          // Updated endpoint path
+          await fetch(`/api/chat/conversations/${sessionId}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' }
+          });
         }
+
+        // Now remove from DOM
+        const chatHistory = document.getElementById('chat-history');
+        if (chatHistory) {
+          const systemMessages = [];
+          chatHistory.querySelectorAll('.system-message').forEach(el => systemMessages.push(el.cloneNode(true)));
+          chatHistory.innerHTML = '';
+          systemMessages.forEach(el => chatHistory.appendChild(el));
+        }
+        messageCache.clear();
+        hasMoreMessages = false;
+        updateLoadMoreButton(0);
+
+        // Create a new conversation
+        await createNewConversation();
+
+        showNotification('Conversation deleted', 'success');
+      } catch (error) {
+        console.error('Failed to delete conversation:', error);
+        showNotification('Failed to delete conversation', 'error');
       }
-    );
-  }
+    }
+  );
+}
 
 /**
  * Creates a new conversation session, clearing the chat
  */
 export async function createNewConversation(pinned = false, archived = false, title = "Untitled Conversation") {
-    try {
-        const response = await fetch("/api/chat/conversations", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pinned, archived, title })
-        });
+  try {
+    const response = await fetch("/api/chat/conversations", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pinned, archived, title })
+    });
 
-        if (!response.ok) {
-            throw new Error(`Failed to create conversation: ${response.status} - ${await response.text()}`);
-        }
-
-        const data = await response.json();
-        const newConversationId = data.conversation_id;
-
-        // Clear the chat and re-initialize
-        const chatHistory = document.getElementById('chat-history');
-        if (chatHistory) {
-            const systemMessages = [...chatHistory.querySelectorAll('.system-message')].map(el => el.cloneNode(true));
-            const controls = chatHistory.querySelector('.conversation-controls');
-            chatHistory.innerHTML = '';
-            systemMessages.forEach(msg => chatHistory.appendChild(msg));
-            if (controls) chatHistory.appendChild(controls);
-        }
-
-        showWelcomeMessageIfNeeded();
-        showNotification(`New conversation created (ID: ${newConversationId})`, 'success');
-    } catch (err) {
-        console.error("Error creating new conversation:", err);
-        showNotification("Failed to create new conversation", "error");
+    if (!response.ok) {
+      throw new Error(`Failed to create conversation: ${response.status} - ${await response.text()}`);
     }
+
+    const data = await response.json();
+    const newConversationId = data.conversation_id;
+
+    // Clear the chat and re-initialize
+    const chatHistory = document.getElementById('chat-history');
+    if (chatHistory) {
+      const systemMessages = [...chatHistory.querySelectorAll('.system-message')].map(el => el.cloneNode(true));
+      const controls = chatHistory.querySelector('.conversation-controls');
+      chatHistory.innerHTML = '';
+      systemMessages.forEach(msg => chatHistory.appendChild(msg));
+      if (controls) chatHistory.appendChild(controls);
+    }
+
+    showWelcomeMessageIfNeeded();
+    showNotification(`New conversation created (ID: ${newConversationId})`, 'success');
+  } catch (err) {
+    console.error("Error creating new conversation:", err);
+    showNotification("Failed to create new conversation", "error");
+  }
+}
+
+/**
+ * Standard error handler for conversation operations
+ * 
+ * @param {Error} error - The error that occurred
+ * @param {string} userMessage - Message to show the user
+ * @param {Function} recoveryFn - Optional function to call for recovery
+ * @param {Object} analyticsData - Optional data for analytics
+ */
+export function handleConversationError(error, userMessage, callback, context) {
+  console.error('Display Manager Error:', error);
+
+  // Show error message in UI
+  const errorDisplay = document.getElementById('error-display');
+  if (errorDisplay) {
+    errorDisplay.textContent = userMessage || 'An error occurred';
+    errorDisplay.classList.remove('hidden');
+  }
+
+  // Recovery callback if provided
+  if (callback) {
+    callback();
+  }
 }
 
 export {

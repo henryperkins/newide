@@ -9379,3 +9379,1557 @@
 
 # 2025-03-06 07:56:45.635506
 +/run git commit .
+
+# 2025-03-06 07:56:59.815413
++no
+
+# 2025-03-06 07:57:05.324252
++/run git push
+
+# 2025-03-06 07:57:08.653001
++no
+
+# 2025-03-06 07:57:13.812187
++/run git status
+
+# 2025-03-06 07:57:21.281107
++no
+
+# 2025-03-06 08:43:49.967687
++/add chat.py
+
+# 2025-03-06 08:43:57.271031
++no
+
+# 2025-03-06 08:44:01.974425
++/add routers/chat.py
+
+# 2025-03-06 08:44:14.883298
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 08:44:19.635717
++yes
+
+# 2025-03-06 08:44:29.158770
++/architect fix this
+
+# 2025-03-06 08:44:41.820932
++yes
+
+# 2025-03-06 08:45:13.776335
++/run venv/bin/pip install py-dompurify
+
+# 2025-03-06 08:45:31.773161
++yes
+
+# 2025-03-06 08:45:33.063170
++What's wrong? Fix
+
+# 2025-03-06 08:45:48.826824
++yes
+
+# 2025-03-06 08:45:48.828755
++/run venv/bin/pip install dompurify
+
+# 2025-03-06 08:45:48.828790
++/run venv/bin/pip install dompurify
+
+# 2025-03-06 08:45:51.565418
++yes
+
+# 2025-03-06 08:45:55.780475
++well?
+
+# 2025-03-06 08:46:13.778927
++yes
+
+# 2025-03-06 08:46:13.780932
++/run venv/bin/pip install python-dompurify
+
+# 2025-03-06 08:46:13.780973
++/run venv/bin/pip install python-dompurify
+
+# 2025-03-06 08:46:18.771719
++yes
+
+# 2025-03-06 08:46:26.902392
++what if we used bleach?
+
+# 2025-03-06 08:47:00.767225
++yes
+
+# 2025-03-06 08:47:00.769175
++/run venv/bin/pip install bleach
+
+# 2025-03-06 08:47:00.769203
++/run venv/bin/pip install bleach
+
+# 2025-03-06 08:47:03.768857
++no
+
+# 2025-03-06 08:47:11.775135
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 08:48:01.611595
++no
+
+# 2025-03-06 08:48:18.542108
++/add static/js/models.js
+
+# 2025-03-06 08:48:32.979839
++/add static/js/chat.js
+
+# 2025-03-06 08:48:37.967345
++/add static/js/utils/modelUtils.js
+
+# 2025-03-06 08:48:58.149936
++/add deepseek-reference.md
+
+# 2025-03-06 08:49:19.005605
++/architect why isnt DeepSeek-R1 a selectable model?
+
+# 2025-03-06 08:50:03.348568
++no
+
+# 2025-03-06 08:50:24.356410
++/architect the endpoint is DeepSeek-R1D2
+
+# 2025-03-06 08:50:50.284763
++no
+
+# 2025-03-06 08:51:11.031690
++read the documentation and will know the model is DeepSeek-R1
+
+# 2025-03-06 08:52:26.545095
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 08:53:17.901967
++yes
+
+# 2025-03-06 08:53:29.327580
++/add clients.py
+
+# 2025-03-06 08:53:38.435001
++/add config.py
+
+# 2025-03-06 08:53:49.535399
++/add routers/config.py
+
+# 2025-03-06 08:53:58.602115
++/add services/config_service.py
+
+# 2025-03-06 08:54:07.756414
++/add services/chat_service.py
+
+# 2025-03-06 08:54:24.227443
++/architect whats the issues
+
+# 2025-03-06 08:55:39.157021
++yes
+
+# 2025-03-06 10:14:17.896595
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 10:28:09.598426
++no
+
+# 2025-03-06 10:28:11.529813
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 10:28:48.913817
++yes
+
+# 2025-03-06 10:28:56.611465
++/add static/js/ui/conversationManager.js
+
+# 2025-03-06 10:29:02.276922
++/add static/js/ui/displayManager.js
+
+# 2025-03-06 10:29:06.526178
++/add static/js/init.js
+
+# 2025-03-06 10:29:21.028223
++/add reasoning-o1.md
+
+# 2025-03-06 10:29:23.613713
++no
+
+# 2025-03-06 10:30:00.824891
++/add static/js/ui/sidebarManager.js
+
+# 2025-03-06 10:30:05.391679
++/add static/js/ui/tabManager.js
+
+# 2025-03-06 10:30:14.287113
++/add chat.js
+
+# 2025-03-06 10:30:16.077740
++no
+
+# 2025-03-06 10:30:32.591384
++/add static/js/streaming.js
+
+# 2025-03-06 10:30:56.555617
++identify api usage that doesnt meet the requirements of DeepSeek-R1
+
+# 2025-03-06 10:33:27.809893
++/architect
+
+# 2025-03-06 10:33:44.906641
++{
+
+# 2025-03-06 10:33:45.866140
++First, create the client to consume the model. The following code uses an endpoint URL and key that are stored in environment variables.
+
+# 2025-03-06 10:33:45.874805
++import os
+
+# 2025-03-06 10:33:45.880830
++from azure.ai.inference import ChatCompletionsClient
+
+# 2025-03-06 10:33:45.887242
++from azure.core.credentials import AzureKeyCredential
+
+# 2025-03-06 10:33:45.894195
++client = ChatCompletionsClient(
+
+# 2025-03-06 10:33:45.901876
++    endpoint=os.environ["AZURE_INFERENCE_ENDPOINT"],
+
+# 2025-03-06 10:33:45.909697
++    credential=AzureKeyCredential(os.environ["AZURE_INFERENCE_CREDENTIAL"]),
+
+# 2025-03-06 10:33:45.913071
++)
+
+# 2025-03-06 10:33:45.917276
++Get the model’s capabilities
+
+# 2025-03-06 10:33:45.931334
++The /info route returns information about the model that is deployed to the endpoint. Return the model’s information by calling the following method:
+
+# 2025-03-06 10:33:45.940236
++model_info = client.get_model_info()
+
+# 2025-03-06 10:33:45.944417
++The response is as follows:
+
+# 2025-03-06 10:33:45.951439
++print("Model name:", model_info.model_name)
+
+# 2025-03-06 10:33:45.956724
++print("Model type:", model_info.model_type)
+
+# 2025-03-06 10:33:45.963087
++print("Model provider name:", model_info.model_provider_name)
+
+# 2025-03-06 10:33:45.967807
++Model name: DeepSeek-R1
+
+# 2025-03-06 10:33:45.971941
++Model type: chat-completions
+
+# 2025-03-06 10:33:45.976071
++Model provider name: DeepSeek
+
+# 2025-03-06 10:33:45.980619
++Create a chat completion request
+
+# 2025-03-06 10:33:45.994419
++The following example shows how you can create a basic chat completions request to the model.
+
+# 2025-03-06 10:33:46.033677
++from azure.ai.inference.models import SystemMessage, UserMessage
+
+# 2025-03-06 10:33:46.040137
++response = client.complete(
+
+# 2025-03-06 10:33:46.043288
++    messages=[
+
+# 2025-03-06 10:33:46.049619
++        SystemMessage(content="You are a helpful assistant."),
+
+# 2025-03-06 10:33:46.057035
++        UserMessage(content="How many languages are in the world?"),
+
+# 2025-03-06 10:33:46.060525
++    ],
+
+# 2025-03-06 10:33:46.062590
++)
+
+# 2025-03-06 10:34:26.188821
++this is how the client and basic chat completions is to be configured for DeepSeek-R1
+
+# 2025-03-06 10:34:28.121184
++}
+
+# 2025-03-06 10:34:52.036444
++yes
+
+# 2025-03-06 10:35:44.934313
++look for more api usage and model configuration that needs adjustinf 
+
+# 2025-03-06 10:36:32.771507
++yes
+
+# 2025-03-06 10:39:22.974335
++{
+
+# 2025-03-06 10:39:24.153404
++#### Stream content
+
+# 2025-03-06 10:39:24.173098
++By default, the completions API returns the entire generated content in a single response. If you're generating long completions, waiting for the response can take many seconds.
+
+# 2025-03-06 10:39:24.208301
++You can _stream_ the content to get it as it's being generated. Streaming content allows you to start processing the completion as content becomes available. This mode returns an object that streams back the response as [data-only server-sent events](https://html.spec.whatwg.org/multipage/server-sent-events.html#server-sent-events). Extract chunks from the delta field, rather than the message field.
+
+# 2025-03-06 10:39:24.219896
++```
+
+# 2025-03-06 10:39:24.223743
++result = client.complete(
+
+# 2025-03-06 10:39:24.226810
++    messages=[
+
+# 2025-03-06 10:39:24.233318
++        SystemMessage(content="You are a helpful assistant."),
+
+# 2025-03-06 10:39:24.240904
++        UserMessage(content="How many languages are in the world?"),
+
+# 2025-03-06 10:39:24.244446
++    ],
+
+# 2025-03-06 10:39:24.247847
++    temperature=0,
+
+# 2025-03-06 10:39:24.250995
++    top_p=1,
+
+# 2025-03-06 10:39:24.254932
++    max_tokens=2048,
+
+# 2025-03-06 10:39:24.258248
++    stream=True,
+
+# 2025-03-06 10:39:24.260585
++)
+
+# 2025-03-06 10:39:24.262671
++```
+
+# 2025-03-06 10:39:25.287162
++To stream completions, set `stream=True` when you call the model.
+
+# 2025-03-06 10:39:43.662284
++this outlines orher specific DeepSeek-R1 usage
+
+# 2025-03-06 10:39:45.724172
++}
+
+# 2025-03-06 10:39:50.142090
++no
+
+# 2025-03-06 10:40:32.111369
++yes
+
+# 2025-03-06 10:43:06.280727
++/drop static/js/ui/tabManager.js
+
+# 2025-03-06 10:43:14.144098
++/add pydantic_models.py
+
+# 2025-03-06 10:43:57.690745
++/add static/js/config.js
+
+# 2025-03-06 10:44:08.916034
++/add session_utils.py
+
+# 2025-03-06 10:44:16.717350
++analyze the codebase
+
+# 2025-03-06 10:45:35.760374
++yes
+
+# 2025-03-06 11:01:43.469694
++no
+
+# 2025-03-06 11:02:03.503390
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 11:02:30.688008
++yes
+
+# 2025-03-06 11:07:09.422035
++/add routers/chat.py
+
+# 2025-03-06 11:07:18.570816
++/architect fix it
+
+# 2025-03-06 11:07:48.229740
++yes
+
+# 2025-03-06 11:08:14.247301
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 12:21:09.759545
++no
+
+# 2025-03-06 12:21:23.232144
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 12:21:59.570593
++no
+
+# 2025-03-06 12:22:02.585354
++/add database.py
+
+# 2025-03-06 12:22:05.668270
++/add init_db.py
+
+# 2025-03-06 12:22:08.773321
++/add migrate.py
+
+# 2025-03-06 12:22:11.159513
++/add migrate_utils.py
+
+# 2025-03-06 12:22:15.298473
++/add models.py
+
+# 2025-03-06 12:22:17.548515
++/add pydantic_models.py
+
+# 2025-03-06 12:22:21.126009
++/add static/js/models.js
+
+# 2025-03-06 12:22:25.631281
++/add static/js/utils/modelUtils.js
+
+# 2025-03-06 12:22:36.179078
++/add clients.py
+
+# 2025-03-06 12:22:49.590268
++/add routers/config.py
+
+# 2025-03-06 12:22:53.436660
++/add services/config_service.py
+
+# 2025-03-06 12:23:09.479403
++/architect is model configuration saved to the database?
+
+# 2025-03-06 12:24:20.762916
++no
+
+# 2025-03-06 12:24:30.460323
++/architect is DeepSeek-R1 in the database?
+
+# 2025-03-06 12:26:10.657283
++no
+
+# 2025-03-06 12:26:20.175307
++/add static/js/init.js
+
+# 2025-03-06 12:26:56.490557
++/add static/js/utils/helpers.js
+
+# 2025-03-06 12:26:59.081818
++/add static/js/ui/notificationManager.js
+
+# 2025-03-06 12:30:02.384975
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 12:30:37.458107
++yes
+
+# 2025-03-06 12:30:50.404168
++/architect how come DeepSeek-R1 isn't in the dropdown menu of models to select?
+
+# 2025-03-06 12:31:41.515141
++no
+
+# 2025-03-06 12:31:47.528516
++/run python3 init_db.py
+
+# 2025-03-06 12:31:50.407063
++no
+
+# 2025-03-06 12:31:53.156811
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 12:32:17.564204
++no
+
+# 2025-03-06 12:32:35.248737
++/architect the initialization script (init_db.py) didn't add DeepSeek-R1 to the list
+
+# 2025-03-06 12:34:48.703287
++yes
+
+# 2025-03-06 12:35:24.347314
++/run python3 init_db.py
+
+# 2025-03-06 12:35:27.807724
++yes
+
+# 2025-03-06 12:35:28.915512
++What's wrong? Fix
+
+# 2025-03-06 12:39:57.655746
++/run python3 init_db.py
+
+# 2025-03-06 12:40:02.361910
++no
+
+# 2025-03-06 12:40:06.250270
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 12:40:21.842920
++no
+
+# 2025-03-06 12:40:50.597946
++/architect it's not showing up still, even after running init_db. also in the models configuration ui panel, no models are showing up and teh add model button doesn't even work
+
+# 2025-03-06 12:42:25.143305
++yes
+
+# 2025-03-06 12:43:46.594934
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 12:44:07.610156
++no
+
+# 2025-03-06 12:44:10.354791
++/architect
+
+# 2025-03-06 12:44:24.398139
++{
+
+# 2025-03-06 12:44:32.652665
++init.js:104  Uncaught SyntaxError: Unexpected reserved word
++browser console errors
+
+# 2025-03-06 12:44:34.204790
++}
+
+# 2025-03-06 12:45:11.712432
++yes
+
+# 2025-03-06 12:45:24.199633
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 12:45:40.219859
++no
+
+# 2025-03-06 12:45:41.637015
++{
+
+# 2025-03-06 12:45:44.157989
++init.js:104  Uncaught (in promise) ReferenceError: modelManager is not defined
++    at HTMLDocument.initApplication (init.js:104:3)
++initApplication @ init.js:104
++models.js:561  Uncaught (in promise) ReferenceError: newConfig is not defined
++    at ModelManager.ensureLocalModelConfigs (models.js:561:48)
++    at init.js:563:18
++ensureLocalModelConfigs @ models.js:561
++(anonymous) @ init.js:563
++Promise.then
++initModelSelector @ init.js:560
++initApplication @ init.js:96
++models.js:42  Error initializing ModelManager: ReferenceError: newConfig is not defined
++    at ModelManager.ensureLocalModelConfigs (models.js:561:48)
++    at ModelManager.initialize (models.js:21:18)
++    at init.js:606:12
++initialize @ models.js:42
++(anonymous) @ init.js:606
++Promise.then
++(anonymous) @ init.js:596
++setTimeout
++initModelSelector @ init.js:594
++initApplication @ init.js:96
++init.js:635  Error initializing ModelManager: ReferenceError: newConfig is not defined
++    at ModelManager.ensureLocalModelConfigs (models.js:561:48)
++    at ModelManager.initialize (models.js:45:18)
++    at init.js:606:12
++(anonymous) @ init.js:635
++Promise.catch
++(anonymous) @ init.js:635
++Promise.then
++(anonymous) @ init.js:596
++setTimeout
++initModelSelector @ init.js:594
++initApplication @ init.js:96
++
+
+# 2025-03-06 12:45:45.800817
++}
+
+# 2025-03-06 12:46:30.641653
++yes
+
+# 2025-03-06 12:46:57.641435
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 12:47:10.781416
++no
+
+# 2025-03-06 12:47:14.044022
++{
+
+# 2025-03-06 12:47:25.541829
++models.js:42  Error initializing ModelManager: ReferenceError: newConfig is not defined
++    at ModelManager.ensureLocalModelConfigs (models.js:561:48)
++    at ModelManager.initialize (models.js:21:18)
++    at HTMLDocument.initApplication (init.js:105:22)
++initialize @ models.js:42
++initApplication @ init.js:105
++models.js:561  Uncaught (in promise) ReferenceError: newConfig is not defined
++    at ModelManager.ensureLocalModelConfigs (models.js:561:48)
++    at ModelManager.initialize (models.js:45:18)
++    at HTMLDocument.initApplication (init.js:105:22)
++ensureLocalModelConfigs @ models.js:561
++initialize @ models.js:45
++initApplication @ init.js:105
++models.js:561  Uncaught (in promise) ReferenceError: newConfig is not defined
++    at ModelManager.ensureLocalModelConfigs (models.js:561:48)
++    at init.js:564:18
++ensureLocalModelConfigs @ models.js:561
++(anonymous) @ init.js:564
++Promise.then
++initModelSelector @ init.js:561
++initApplication @ init.js:97
++models.js:42  Error initializing ModelManager: ReferenceError: newConfig is not defined
++    at ModelManager.ensureLocalModelConfigs (models.js:561:48)
++    at ModelManager.initialize (models.js:21:18)
++    at init.js:607:12
++initialize @ models.js:42
++(anonymous) @ init.js:607
++Promise.then
++(anonymous) @ init.js:597
++setTimeout
++initModelSelector @ init.js:595
++initApplication @ init.js:97
++init.js:636  Error initializing ModelManager: ReferenceError: newConfig is not defined
++    at ModelManager.ensureLocalModelConfigs (models.js:561:48)
++    at ModelManager.initialize (models.js:45:18)
++    at init.js:607:12
++(anonymous) @ init.js:636
++Promise.catch
++(anonymous) @ init.js:636
++Promise.then
++(anonymous) @ init.js:597
++setTimeout
++initModelSelector @ init.js:595
++initApplication @ init.js:97
++}
+
+# 2025-03-06 12:47:29.501333
++}
+
+# 2025-03-06 12:48:14.119242
++yes
+
+# 2025-03-06 12:48:39.523388
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 12:48:57.138319
++no
+
+# 2025-03-06 12:48:59.614476
++{
+
+# 2025-03-06 12:49:05.553397
++models.js:681  Network error creating model o1: Cannot read properties of undefined (reading 'azure_endpoint')
++createModelOnServer @ models.js:681
++ensureLocalModelConfigs @ models.js:562
++initialize @ models.js:21
++(anonymous) @ init.js:607
++Promise.then
++(anonymous) @ init.js:597
++setTimeout
++initModelSelector @ init.js:595
++initApplication @ init.js:97
++
+
+# 2025-03-06 12:49:06.116121
++}
+
+# 2025-03-06 12:50:04.710089
++yes
+
+# 2025-03-06 12:50:41.391732
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 12:52:40.054229
++yes
+
+# 2025-03-06 12:54:55.683528
++{
+
+# 2025-03-06 12:55:17.068238
++getting these errors after checking "enable streaming" and "enable thinking mode" for DeepSeek-R1, and then sending a message:
+
+# 2025-03-06 12:55:30.436568
++sse:1 
++            
++            
++            GET https://liveonshuffle.com/api/chat/sse?session_id=bea5a422-d35c-40f0-9e62-98794adb01a0&model=deepseek-r1&message=Test&enable_thinking=true&developer_config=You+are+a+helpful+AI+assistant. 500 (Internal Server Error)
++streaming.js:313  Uncaught (in promise) ReferenceError: isTimeout is not defined
++    at eventSource.onerror (streaming.js:313:25)
++eventSource.onerror @ streaming.js:313
++}
+
+# 2025-03-06 12:55:34.285247
++}
+
+# 2025-03-06 12:55:36.220630
++no
+
+# 2025-03-06 12:57:25.057579
++yes
+
+# 2025-03-06 13:02:47.049576
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 13:03:15.375543
++yes
+
+# 2025-03-06 13:03:18.233375
++/add static/js/streaming.js
+
+# 2025-03-06 13:03:21.923447
++/add static/js/streaming_utils.js
+
+# 2025-03-06 13:03:28.988249
++/add static/js/ui/deepseekProcessor.js
+
+# 2025-03-06 13:03:31.377847
++{
+
+# 2025-03-06 13:03:34.140850
++sse:1 
++            
++            
++            GET https://liveonshuffle.com/api/chat/sse?session_id=bea5a422-d35c-40f0-9e62-98794adb01a0&model=deepseek-r1&message=TEset&enable_thinking=true&developer_config=Formatting+re-enabled+-+use+markdown+code+blocks 500 (Internal Server Error)
++streaming.js:469  [handleStreamingError] Error: Connection failed (EventSource closed)
++    at eventSource.onerror (streaming.js:312:21)
++handleStreamingError @ streaming.js:469
++eventSource.onerror @ streaming.js:351
++streaming_utils.js:104  [streaming_utils] handleStreamingError: Error: Connection failed (EventSource closed)
++    at eventSource.onerror (streaming.js:312:21)
++handleStreamingError @ streaming_utils.js:104
++handleStreamingError @ streaming.js:484
++eventSource.onerror @ streaming.js:351
++
+
+# 2025-03-06 13:03:34.681334
++}
+
+# 2025-03-06 13:03:36.570024
++no
+
+# 2025-03-06 13:05:13.797161
++/add routers/chat.py
+
+# 2025-03-06 13:05:25.024524
++{
+
+# 2025-03-06 13:05:30.896406
++sse:1 
++            
++            
++            GET https://liveonshuffle.com/api/chat/sse?session_id=bea5a422-d35c-40f0-9e62-98794adb01a0&model=deepseek-r1&message=TEset&enable_thinking=true&developer_config=Formatting+re-enabled+-+use+markdown+code+blocks 500 (Internal Server Error)
++streaming.js:469  [handleStreamingError] Error: Connection failed (EventSource closed)
++    at eventSource.onerror (streaming.js:312:21)
++handleStreamingError @ streaming.js:469
++eventSource.onerror @ streaming.js:351
++streaming_utils.js:104  [streaming_utils] handleStreamingError: Error: Connection failed (EventSource closed)
++    at eventSource.onerror (streaming.js:312:21)
++handleStreamingError @ streaming_utils.js:104
++handleStreamingError @ streaming.js:484
++eventSource.onerror @ streaming.js:351
++statsDisplay.js:110 
++            
++            
++            GET https://liveonshuffle.com/api/model-stats/connections 502 (Bad Gateway)
++fetchConnections @ statsDisplay.js:110
++setTimeout
++fetchConnections @ statsDisplay.js:139
++await in fetchConnections
++startConnectionTracking @ statsDisplay.js:142
++StatsDisplay @ statsDisplay.js:53
++initApplication @ init.js:76
++statsDisplay.js:110 
++            
++            
++            GET https://liveonshuffle.com/api/model-stats/connections 502 (Bad Gateway)
++fetchConnections @ statsDisplay.js:110
++setTimeout
++fetchConnections @ statsDisplay.js:139
++setTimeout
++fetchConnections @ statsDisplay.js:139
++await in fetchConnections
++startConnectionTracking @ statsDisplay.js:142
++StatsDisplay @ statsDisplay.js:53
++initApplication @ init.js:76
++
+
+# 2025-03-06 13:05:31.481724
++}
+
+# 2025-03-06 13:05:33.573903
++no
+
+# 2025-03-06 13:06:37.611741
++yes
+
+# 2025-03-06 13:08:19.585447
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 13:08:53.044408
++no
+
+# 2025-03-06 13:08:55.046644
++{
+
+# 2025-03-06 13:08:57.767963
++/api/chat/sse?session_id=bea5a422-d35c-40f0-9e62-98794adb01a0&model=deepseek-r1&message=test&enable_thinking=true&developer_config=Formatting+re-enabled+-+use+markdown+code+blocks:1 
++            
++            
++            GET https://liveonshuffle.com/api/chat/sse?session_id=bea5a422-d35c-40f0-9e62-98794adb01a0&model=deepseek-r1&message=test&enable_thinking=true&developer_config=Formatting+re-enabled+-+use+markdown+code+blocks 500 (Internal Server Error)
++streaming.js:469  [handleStreamingError] Error: Connection failed (EventSource closed)
++    at eventSource.onerror (streaming.js:312:21)
++handleStreamingError @ streaming.js:469
++eventSource.onerror @ streaming.js:351
++streaming_utils.js:104  [streaming_utils] handleStreamingError: Error: Connection failed (EventSource closed)
++    at eventSource.onerror (streaming.js:312:21)
++handleStreamingError @ streaming_utils.js:104
++handleStreamingError @ streaming.js:484
++eventSource.onerror @ streaming.js:351
++
+
+# 2025-03-06 13:08:58.915790
++}
+
+# 2025-03-06 13:09:05.419237
++{
+
+# 2025-03-06 13:09:47.696889
++browser console errors: /api/chat/sse?session_id=bea5a422-d35c-40f0-9e62-98794adb01a0&model=deepseek-r1&message=test&enable_thinking=true&developer_config=Formatting+re-enabled+-+use+markdown+code+blocks:1 
++            
++            
++            GET https://liveonshuffle.com/api/chat/sse?session_id=bea5a422-d35c-40f0-9e62-98794adb01a0&model=deepseek-r1&message=test&enable_thinking=true&developer_config=Formatting+re-enabled+-+use+markdown+code+blocks 500 (Internal Server Error)
++streaming.js:469  [handleStreamingError] Error: Connection failed (EventSource closed)
++    at eventSource.onerror (streaming.js:312:21)
++handleStreamingError @ streaming.js:469
++eventSource.onerror @ streaming.js:351
++streaming_utils.js:104  [streaming_utils] handleStreamingError: Error: Connection failed (EventSource closed)
++    at eventSource.onerror (streaming.js:312:21)
++handleStreamingError @ streaming_utils.js:104
++handleStreamingError @ streaming.js:484
++eventSource.onerror @ streaming.js:351
++
+
+# 2025-03-06 13:09:49.159321
++]
+
+# 2025-03-06 13:09:51.657344
++}
+
+# 2025-03-06 13:09:53.591880
++no
+
+# 2025-03-06 13:11:14.461249
++yes
+
+# 2025-03-06 13:17:49.992488
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 13:18:33.573420
++no
+
+# 2025-03-06 13:18:35.327654
++/clear
+
+# 2025-03-06 13:18:38.481188
++/add deepseek-reference.md
+
+# 2025-03-06 13:18:58.552769
++investigate the parameters we are sending to DeepSeek-R1 and compare against the reference documentation
+
+# 2025-03-06 13:22:30.552884
++yes
+
+# 2025-03-06 13:23:39.224366
++the enable_thinking is not something that we need to send the API in order for it to work
+
+# 2025-03-06 13:27:50.109752
++no
+
+# 2025-03-06 13:27:51.890728
++in english
+
+# 2025-03-06 13:31:34.067773
++yes
+
+# 2025-03-06 13:39:21.709197
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 13:39:49.479085
++yes
+
+# 2025-03-06 13:39:53.951147
++it needs to be DeepSeek-R1
+
+# 2025-03-06 13:40:44.128104
++yes
+
+# 2025-03-06 15:56:43.602995
++no
+
+# 2025-03-06 15:57:49.703075
++/run venv/bin/uvicorn --reload
+
+# 2025-03-06 15:57:53.573363
++no
+
+# 2025-03-06 15:58:00.033921
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 16:00:20.883592
++no
+
+# 2025-03-06 16:00:22.412343
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 16:01:08.386281
++no
+
+# 2025-03-06 16:01:35.177127
++/add static/js/chat.js
+
+# 2025-03-06 16:01:37.675849
++/add static/js/ui/notificationManager.js
+
+# 2025-03-06 16:01:40.308711
++/add services/streaming_helpers.py
+
+# 2025-03-06 16:01:46.944338
++/add static/js/streaming.js
+
+# 2025-03-06 16:01:57.953097
++/architect investigate the typing indicator implementation
+
+# 2025-03-06 16:02:30.123599
++no
+
+# 2025-03-06 16:02:35.546549
++/architect investigate the typing indicator implementation and identify issues
+
+# 2025-03-06 16:03:02.709068
++no
+
+# 2025-03-06 16:03:05.427757
++/add static/css/tailwind.css
+
+# 2025-03-06 16:03:11.863841
++/add tailwind.config.js
+
+# 2025-03-06 16:03:13.978365
++/architect investigate the typing indicator implementation and identify issues
+
+# 2025-03-06 16:04:32.617893
++yes
+
+# 2025-03-06 16:06:33.562856
++/drop *
+
+# 2025-03-06 16:06:40.220746
++/architect
+
+# 2025-03-06 16:08:49.996233
++/add static/js/ui/sidebarManager.js
+
+# 2025-03-06 16:08:52.786541
++/add static/js/ui/displayManager.js
+
+# 2025-03-06 16:08:55.936201
++/add static/js/streaming.js
+
+# 2025-03-06 16:09:00.346982
++/add static/js/session.js
+
+# 2025-03-06 16:09:04.059753
++/add static/css/tailwind.css
+
+# 2025-03-06 16:09:07.480786
++/add static/js/init.js
+
+# 2025-03-06 16:09:10.269004
++/add static/js/chat.js
+
+# 2025-03-06 16:09:12.181313
++/add routers/chat.py
+
+# 2025-03-06 16:09:14.480198
++/add services/chat_service.py
+
+# 2025-03-06 16:09:18.594450
++/add models.py
+
+# 2025-03-06 16:09:23.679149
++/add services/model_tracking_service.py
+
+# 2025-03-06 16:09:28.473507
++/add static/js/ui/conversationManager.js
+
+# 2025-03-06 16:09:38.821215
++/add static/index.html
+
+# 2025-03-06 16:10:16.669565
++analyze the conversation management implementation
+
+# 2025-03-06 16:11:31.636520
++no
+
+# 2025-03-06 16:11:36.902656
++analyze the conversation management implementation and identify issues
+
+# 2025-03-06 16:14:07.584004
++no
+
+# 2025-03-06 16:14:11.801564
++Analyze the conversation management implementation and identify issues - provide code solutions customized for this application that do not create new modules or introduce fucntionality just to mask current codebase limitations and issues
+
+# 2025-03-06 16:27:37.115251
++no
+
+# 2025-03-06 16:41:19.539247
++/clear
+
+# 2025-03-06 16:41:27.998777
++analyze the conversation management implementation
+
+# 2025-03-06 16:42:44.926384
++no
+
+# 2025-03-06 16:42:47.964624
++Analyze the conversation management implementation and identify issues - provide code solutions customized for this application that do not create new modules or introduce fucntionality just to mask current codebase limitations and issues
+
+# 2025-03-06 16:44:51.016602
++no
+
+# 2025-03-06 16:45:01.186752
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 16:45:07.486552
++y
+
+# 2025-03-06 16:45:10.366378
++fix it
+
+# 2025-03-06 16:45:30.571285
++yes
+
+# 2025-03-06 16:52:03.754128
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 16:52:10.172566
++yes
+
+# 2025-03-06 16:52:12.889398
++/drop
+
+# 2025-03-06 16:52:15.387148
++/add routers/chat.py
+
+# 2025-03-06 16:52:17.100650
++fix it
+
+# 2025-03-06 16:52:33.566691
++yes
+
+# 2025-03-06 16:58:27.064845
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 17:03:46.621636
++no
+
+# 2025-03-06 17:03:48.040026
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 17:04:02.551588
++yes
+
+# 2025-03-06 17:04:06.083562
++/add database.py
+
+# 2025-03-06 17:04:07.592451
++/add init_db.py
+
+# 2025-03-06 17:04:09.593819
++/add migrate.py
+
+# 2025-03-06 17:04:11.371320
++/add migrate_utils.py
+
+# 2025-03-06 17:04:16.485159
++/add startup_validation.py
+
+# 2025-03-06 17:04:18.391221
++/add schema_validation.py
+
+# 2025-03-06 17:04:30.340506
++/add models.py
+
+# 2025-03-06 17:04:31.978285
++/add pydantic_models.py
+
+# 2025-03-06 17:04:42.916696
++/add utils.py
+
+# 2025-03-06 17:04:48.315740
++align the database with the ORM
+
+# 2025-03-06 17:05:01.191287
++yes
+
+# 2025-03-06 17:05:21.008667
++/run python init_db.py
+
+# 2025-03-06 17:05:24.000280
++no
+
+# 2025-03-06 17:05:29.310445
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 17:05:40.561944
++yes
+
+# 2025-03-06 17:05:45.196269
++align the database with the ORM
+
+# 2025-03-06 17:06:00.501276
++yes
+
+# 2025-03-06 17:06:22.727361
++/run python init_db.py
+
+# 2025-03-06 17:06:27.070008
++no
+
+# 2025-03-06 17:06:29.570215
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 17:06:54.583187
++no
+
+# 2025-03-06 17:07:00.930939
++/add static/js/streaming.js
+
+# 2025-03-06 17:07:07.433591
++streaming.js:717  Uncaught SyntaxError: Unexpected token '{' (at streaming.js:717:12)
++
+
+# 2025-03-06 17:07:50.255400
++yes
+
+# 2025-03-06 17:08:10.411828
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 17:08:56.801512
++yes
+
+# 2025-03-06 17:08:59.281744
++/drop *
+
+# 2025-03-06 17:09:09.248637
++/add routers/chat.py
+
+# 2025-03-06 17:09:11.815410
++/add static/js/streaming.js
+
+# 2025-03-06 17:09:17.055604
++/add static/js/streaming_utils.js
+
+# 2025-03-06 17:09:30.533493
++/add clients.py
+
+# 2025-03-06 17:09:33.734253
++/add services/chat_service.py
+
+# 2025-03-06 17:09:36.635252
++/add static/js/chat.js
+
+# 2025-03-06 17:09:46.350797
++{
+
+# 2025-03-06 17:10:12.481963
++sse:1 
++            
++            
++            GET https://liveonshuffle.com/api/chat/sse?session_id=eb3100de-16ab-4324-9fe1-e6062653d270&model=DeepSeek-R1&message=Test&developer_config=You+are+a+helpful+AI+assistant. 500 (Internal Server Error)
++streaming.js:467  [handleStreamingError] Error: Connection failed (EventSource closed)
++    at eventSource.onerror (streaming.js:310:21)
++handleStreamingError @ streaming.js:467
++eventSource.onerror @ streaming.js:349
++streaming_utils.js:104  [streaming_utils] handleStreamingError: Error: Connection failed (EventSource closed)
++    at eventSource.onerror (streaming.js:310:21)
++handleStreamingError @ streaming_utils.js:104
++handleStreamingError @ streaming.js:482
++eventSource.onerror @ streaming.js:349
+
+# 2025-03-06 17:10:25.907296
++Browser console errors when I attempt to stream with DeepSeek-R1
+
+# 2025-03-06 17:10:40.691562
++read deepseek-reference.md
+
+# 2025-03-06 17:10:42.801658
++}
+
+# 2025-03-06 17:10:44.564070
++yes
+
+# 2025-03-06 17:10:47.309063
++no
+
+# 2025-03-06 17:11:46.418202
++Where in the documentation does it say temperature is mandatory 0.0
+
+# 2025-03-06 17:12:24.799621
++yes
+
+# 2025-03-06 17:13:45.532031
++Any other code that is not inline with the documentaiton? What is developer_config?
+
+# 2025-03-06 17:14:32.196540
++yes
+
+# 2025-03-06 17:16:15.699469
++Any other code that is not inline with the documentaiton? Can we remove developer_config?
+
+# 2025-03-06 17:16:52.646787
++yes
+
+# 2025-03-06 17:20:18.186903
++Any other code that is not inline with the documentaiton? Can we remove developer_config?
+
+# 2025-03-06 17:21:02.652167
++yes
+
+# 2025-03-06 17:26:08.162628
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 17:34:42.390665
++no
+
+# 2025-03-06 17:34:46.571153
++/add services/streaming_helpers.py
+
+# 2025-03-06 17:34:58.650375
++/add static/js/ui/displayManager.js
+
+# 2025-03-06 17:35:03.239926
++/add static/js/ui/conversationManager.js
+
+# 2025-03-06 17:35:11.162734
++/add static/js/streamingRenderer.js
+
+# 2025-03-06 17:35:15.618842
++/add static/js/ui/deepseekProcessor.js
+
+# 2025-03-06 17:35:20.452100
++/add static/css/thinking-blocks.css
+
+# 2025-03-06 17:35:24.908549
++/add static/css/tailwind.css
+
+# 2025-03-06 17:35:28.822366
++/add tailwind.config.js
+
+# 2025-03-06 17:35:40.324758
++identify issues with DeepSeek-R1
+
+# 2025-03-06 17:36:22.422003
++yes
+
+# 2025-03-06 17:40:12.668977
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 17:40:47.228864
++yes
+
+# 2025-03-06 17:40:49.792504
++fix it
+
+# 2025-03-06 17:41:32.474157
++yes
+
+# 2025-03-06 17:42:30.908469
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 17:43:09.405155
++yes
+
+# 2025-03-06 17:43:12.936933
++fix it
+
+# 2025-03-06 17:43:45.361844
++yes
+
+# 2025-03-06 17:45:29.268380
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 17:48:16.827932
++ yes
+
+# 2025-03-06 17:48:19.304761
++yes
+
+# 2025-03-06 17:48:22.275522
++/add utils.py
+
+# 2025-03-06 17:48:38.026953
++/add static/js/models.js
+
+# 2025-03-06 17:48:41.419142
++/add static/js/utils/modelUtils.js
+
+# 2025-03-06 17:48:44.885713
++/add static/js/utils/helpers.js
+
+# 2025-03-06 17:48:52.624513
++/add config.py
+
+# 2025-03-06 17:48:57.484514
++/add services/config_service.py
+
+# 2025-03-06 17:49:01.761650
++/add routers/config.py
+
+# 2025-03-06 17:49:13.618218
++List the requirements for DeepSeek-R1 and o1
+
+# 2025-03-06 17:50:45.552639
++no
+
+# 2025-03-06 17:51:41.420558
++Temperature doesn't need to be 0 for DeepSeek, it is flexible. Reasoning_Effort isn't required for o1, it's optional. Temperature can be sent to o1 IF it's 1.0, the API version to use is now 2025-02-01-preview, and the response format doesn't have to be json_schema
+
+# 2025-03-06 17:53:12.430970
++no
+
+# 2025-03-06 17:53:26.831086
++DeepSeek API Version is still 2024-05-01-preview, o1 is 2025-02-01-preview
+
+# 2025-03-06 17:54:27.760870
++yes
+
+# 2025-03-06 17:55:21.902554
++/drop static/css/tailwind.css
+
+# 2025-03-06 17:55:23.631647
++/drop tailwind.config.js
+
+# 2025-03-06 17:55:33.801541
++/drop deepseek-reference.md
+
+# 2025-03-06 17:55:42.757250
++/drop static/js/ui/conversationManager.js
+
+# 2025-03-06 17:56:41.031659
++Identify issues with client creation, chat completion, API Usage, Endpoint creation, Model name, API Version, Temperature, System Messages or Developer messages, Streaming, Thinking or Reasoning Effort.
+
+# 2025-03-06 17:58:03.292683
++no
+
+# 2025-03-06 17:58:04.124670
++/clear
+
+# 2025-03-06 17:58:11.165682
++/tokens
+
+# 2025-03-06 17:58:22.973097
++/add o1models-reference-guide.md
+
+# 2025-03-06 17:58:27.861678
++/add deepseek-reference.md
+
+# 2025-03-06 17:58:38.034594
++Analyze the documentation for R1 and o1
+
+# 2025-03-06 17:59:48.094923
++yes
+
+# 2025-03-06 18:00:56.652919
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 18:01:14.793612
++yes
+
+# 2025-03-06 18:01:15.780702
++{
+
+# 2025-03-06 18:01:17.284613
++streaming.js:203 
++            
++            
++            GET https://liveonshuffle.com/api/chat/sse?session_id=eb3100de-16ab-4324-9fe1-e6062653d270&model=DeepSeek-R1&message=Test 500 (Internal Server Error)
++(anonymous) @ streaming.js:203
++streamChatResponse @ streaming.js:148
++(anonymous) @ chat.js:271
++Promise.then
++sendMessage @ chat.js:270
++streaming.js:211  Uncaught (in promise) Error: HTTP error! status: 500
++    at streaming.js:211:13
++(anonymous) @ streaming.js:211
++await in (anonymous)
++streamChatResponse @ streaming.js:148
++(anonymous) @ chat.js:271
++Promise.then
++sendMessage @ chat.js:270
++
+
+# 2025-03-06 18:01:20.705133
++}
+
+# 2025-03-06 18:01:22.257338
++no
+
+# 2025-03-06 18:02:57.848722
++yes
+
+# 2025-03-06 18:05:49.620017
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 18:06:17.386349
++yes
+
+# 2025-03-06 18:06:37.451775
++This needs to fucking get solved it is an errror EVERY FUCKIN TIME YOU TRY A FIX IT DOESN"T WORK SO TRTY SOMETHING YOU HAVEN"T BEFORE OR YOU ARE INSANE
+
+# 2025-03-06 18:07:25.376512
++yes
+
+# 2025-03-06 18:08:32.501385
++no
+
+# 2025-03-06 18:09:14.570822
++THE ENDPOINT DOESN'T END WITH OPENAI/DEPLOYMENTS YOU ILLITERATE FUCK, POST /chat/completions?api-version=2024-05-01-preview IS THE ONLY FUCKING WEAY
+
+# 2025-03-06 18:10:16.399985
++NO
+
+# 2025-03-06 18:10:37.866542
++THE DEPLOYMENT NAME IS IN THE URL OF THE ENDPOINT, YOU DON'T NEED TO FUCKING PASS IT. INCLUDE THE MODEL NAME, PERIOD.
+
+# 2025-03-06 18:11:32.539568
++NO
+
+# 2025-03-06 18:12:15.491790
++ARE YOU FUCKING KIDDING ME. THE FULL COMPLETE ENDPOINT FOR DEEPSEEK-R1 IS https://DeepSeek-R1D2.useast2.ai.azure.com/v1/chat/completions?api-version=2024-05-01-preview you fucking moron
+
+# 2025-03-06 18:12:22.376573
++no
+
+# 2025-03-06 18:14:14.585899
++/web https://learn.microsoft.com/en-us/rest/api/aifoundry/model-inference/get-chat-completions/get-chat-completions?view=rest-aifoundry-model-inference-2024-05-01-preview&tabs=HTTP
+
+# 2025-03-06 18:14:32.577470
++please stop fucking up DeepSeek-R1
+
+# 2025-03-06 18:15:10.226745
++yes
+
+# 2025-03-06 18:18:37.003642
++/web https://learn.microsoft.com/en-us/python/api/azure-ai-inference/azure.ai.inference.chatcompletionsclient?view=azure-python-preview
+
+# 2025-03-06 18:18:52.077814
++please apply the documentation about DeepSeek-R1 and Azure AI Inference to the codebase.....
+
+# 2025-03-06 18:20:56.124066
++yes
+
+# 2025-03-06 18:23:56.729984
++{
+
+# 2025-03-06 18:23:58.911657
++Example code:
+
+# 2025-03-06 18:24:03.006824
++# pip install azure-ai-inference
++import os
++from azure.ai.inference import ChatCompletionsClient
++from azure.core.credentials import AzureKeyCredential
++
++api_key = os.getenv("AZURE_INFERENCE_CREDENTIAL", '')
++if not api_key:
++  raise Exception("A key should be provided to invoke the endpoint")
++
++client = ChatCompletionsClient(
++    endpoint='https://DeepSeek-R1D2.eastus2.models.ai.azure.com',
++    credential=AzureKeyCredential(api_key)
++)
++
++model_info = client.get_model_info()
++print("Model name:", model_info.model_name)
++print("Model type:", model_info.model_type)
++print("Model provider name:", model_info.model_provider_name)
++
++payload = {
++  "messages": [
++    {
++      "role": "user",
++      "content": "I am going to Paris, what should I see?"
++    },
++    {
++      "role": "assistant",
++      "content": "Paris, the capital of France, is known for its stunning architecture, art museums, historical landmarks, and romantic atmosphere. Here are some of the top attractions to see in Paris:\n\n1. The Eiffel Tower: The iconic Eiffel Tower is one of the most recognizable landmarks in the world and offers breathtaking views of the city.\n2. The Louvre Museum: The Louvre is one of the world's largest and most famous museums, housing an impressive collection of art and artifacts, including the Mona Lisa.\n3. Notre-Dame Cathedral: This beautiful cathedral is one of the most famous landmarks in Paris and is known for its Gothic architecture and stunning stained glass windows.\n\nThese are just a few of the many attractions that Paris has to offer. With so much to see and do, it's no wonder that Paris is one of the most popular tourist destinations in the world."
++    },
++    {
++      "role": "user",
++      "content": "What is so great about #1?"
++    }
++  ],
++  "max_tokens": 2048
++}
++response = client.complete(payload)
++
++print("Response:", response.choices[0].message.content)
++print("Model:", response.model)
++print("Usage:")
++print("	Prompt tokens:", response.usage.prompt_tokens)
++print("	Total tokens:", response.usage.total_tokens)
++print("	Completion tokens:", response.usage.completion_tokens)
++
+
+# 2025-03-06 18:24:03.793645
++}
+
+# 2025-03-06 18:24:05.616270
++no
+
+# 2025-03-06 18:24:52.669821
++yes
+
+# 2025-03-06 18:26:25.011193
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-06 18:26:40.243569
++yes
+
+# 2025-03-06 18:26:43.775768
++What is this nonsense
+
+# 2025-03-06 18:27:19.039080
++no
+
+# 2025-03-06 18:27:45.920652
++remove that validation it's retarded, the endoint is  constructedfrom the base URL which is correctly set in config.py, then /chat/completions?api-version=  etc...
+
+# 2025-03-06 18:29:22.090127
++yes

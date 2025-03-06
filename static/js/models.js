@@ -19,18 +19,18 @@ class ModelManager {
             // First ensure we have the basic known models loaded
             console.log("Pre-loading known models before server request");
             this.ensureLocalModelConfigs();
-            
+
             // Update the UI with what we have so far
             this.updateModelsList();
-            
+
             // Then try to fetch from server (will add any additional models)
             await this.refreshModelsList();
-            
+
             if (!this.isInitialized) {
                 this.initModelManagement();
                 this.isInitialized = true;
             }
-            
+
             const currentModel = await this.getCurrentModelFromServer() || Object.keys(this.modelConfigs)[0];
             if (currentModel) {
                 this.currentModel = currentModel;
@@ -40,16 +40,16 @@ class ModelManager {
             return true;
         } catch (error) {
             console.error('Error initializing ModelManager:', error);
-            
+
             // Make sure we at least have the known models
             this.ensureLocalModelConfigs();
             this.updateModelsList();
-            
+
             if (!this.isInitialized) {
                 this.initModelManagement();
                 this.isInitialized = true;
             }
-            
+
             eventBus.publish('modelInitError', { error });
             return false;
         }
@@ -67,11 +67,11 @@ class ModelManager {
             return models;
         } catch (error) {
             console.error('Error loading models:', error);
-            
+
             // Create known models from local defaults
             console.log("Creating known models from local defaults");
             this.ensureLocalModelConfigs();
-            
+
             // Now update the models list using the local configs
             this.updateModelsList();
             return this.modelConfigs;
@@ -447,45 +447,45 @@ class ModelManager {
         if (formContainer) formContainer.classList.add('hidden');
     }
 
-  async switchModel(modelId) {
-    if (this.currentModel === modelId) return true;
+    async switchModel(modelId) {
+        if (this.currentModel === modelId) return true;
 
-    // Abort current streaming/inference if it's in progress
-    if (window.currentController) {
-      console.log("[switchModel] Aborting current streaming inference...");
-      window.currentController.abort();
-      window.currentController = null;
-      // Provide a small user-facing confirmation
-      showNotification('Stopped the current model inference; switching now...', 'info');
-    }
-    console.log('[switchModel] Initiating switchModel for:', modelId, 'currentModel:', this.currentModel);
-
-    // Check if model exists in configurations, create if it doesn't
-    if (!this.modelConfigs[modelId]) {
-      console.log(`Model ${modelId} not found in configurations, attempting to create it...`);
-      
-      // Check if it's a known model
-      const knownModel = KNOWN_MODELS.find(m => m.id.toLowerCase() === modelId.toLowerCase());
-      
-      if (knownModel) {
-        // Create the model config
-        const newConfig = generateDefaultModelConfig(modelId, knownModel.modelApiConfig);
-        this.modelConfigs[modelId] = newConfig;
-        
-        try {
-          // Try to save to server
-          const result = await this.createModelOnServer(modelId, newConfig);
-          console.log(`Created model ${modelId} on server:`, result);
-        } catch (err) {
-          console.warn(`Failed to create ${modelId} on server: ${err.message}`);
-          // We still continue with the local config
+        // Abort current streaming/inference if it's in progress
+        if (window.currentController) {
+            console.log("[switchModel] Aborting current streaming inference...");
+            window.currentController.abort();
+            window.currentController = null;
+            // Provide a small user-facing confirmation
+            showNotification('Stopped the current model inference; switching now...', 'info');
         }
-      } else {
-        console.error(`Model ${modelId} is not a known model and not in configurations`);
-        showNotification(`Model ${modelId} not available`, 'error');
-        return false;
-      }
-    }
+        console.log('[switchModel] Initiating switchModel for:', modelId, 'currentModel:', this.currentModel);
+
+        // Check if model exists in configurations, create if it doesn't
+        if (!this.modelConfigs[modelId]) {
+            console.log(`Model ${modelId} not found in configurations, attempting to create it...`);
+
+            // Check if it's a known model
+            const knownModel = KNOWN_MODELS.find(m => m.id.toLowerCase() === modelId.toLowerCase());
+
+            if (knownModel) {
+                // Create the model config
+                const newConfig = generateDefaultModelConfig(modelId, knownModel.modelApiConfig);
+                this.modelConfigs[modelId] = newConfig;
+
+                try {
+                    // Try to save to server
+                    const result = await this.createModelOnServer(modelId, newConfig);
+                    console.log(`Created model ${modelId} on server:`, result);
+                } catch (err) {
+                    console.warn(`Failed to create ${modelId} on server: ${err.message}`);
+                    // We still continue with the local config
+                }
+            } else {
+                console.error(`Model ${modelId} is not a known model and not in configurations`);
+                showNotification(`Model ${modelId} not available`, 'error');
+                return false;
+            }
+        }
 
         try {
             showNotification(`Switching to ${modelId}...`, 'info');
@@ -544,7 +544,7 @@ class ModelManager {
         console.log("Beginning ensureLocalModelConfigs...");
         console.log("KNOWN_MODELS:", KNOWN_MODELS);
         console.log("Current modelConfigs:", Object.keys(this.modelConfigs));
-        
+
         // Make sure o1 model is always created first and consistently
         const o1Model = KNOWN_MODELS.find(m => m.id.toLowerCase() === 'o1');
         let newConfig;
@@ -556,7 +556,7 @@ class ModelManager {
                 this.modelConfigs['o1'] = newConfig;
             }
             console.log("Explicitly added o1 model to modelConfigs");
-            
+
             // Skip server creation if it would fail or block
             if (!this.pendingModelActions['o1'] && newConfig) {
                 this.createModelOnServer('o1', newConfig).catch(err =>
@@ -566,7 +566,7 @@ class ModelManager {
         } else {
             console.warn("O1 model not found in KNOWN_MODELS, this is unexpected");
         }
-        
+
         // Process remaining known models
         for (const { id, modelApiConfig } of KNOWN_MODELS) {
             // Skip if already exists
@@ -576,7 +576,7 @@ class ModelManager {
             }
             // Skip o1 as we already explicitly handled it above
             if (id.toLowerCase() === 'o1') continue;
-            
+
             console.log(`Processing known model: ${id}`);
             const existingModel = Object.keys(this.modelConfigs).find(
                 k => k.toLowerCase() === id.toLowerCase()
@@ -586,7 +586,7 @@ class ModelManager {
                 console.log(`Model ${id} not found in configs, creating it...`);
                 const newConfig = generateDefaultModelConfig(id, modelApiConfig);
                 this.modelConfigs[id] = newConfig;
-                
+
                 if (!this.pendingModelActions[id] && newConfig) {
                     this.createModelOnServer(id, newConfig).catch(err =>
                         console.warn(`Failed to create ${id} on server: ${err.message}`)
@@ -598,10 +598,10 @@ class ModelManager {
                 delete this.modelConfigs[existingModel];
             }
         }
-        
+
         // Final verification
         console.log("After ensuring configs - models available:", Object.keys(this.modelConfigs));
-        
+
         // Add DeepSeek-R1 if missing (case-insensitive check)
         console.log("Checking for DeepSeek-R1 existence...");
         const hasDeepSeek = Object.keys(this.modelConfigs).some(k => k.toLowerCase().includes('deepseek'));
@@ -630,7 +630,7 @@ class ModelManager {
                 this.modelConfigs['o1'] = newConfig;
             }
         }
-        
+
         return this.modelConfigs;
     }
 
@@ -651,7 +651,7 @@ class ModelManager {
                 supportsTemperature: modelConfig.supports_temperature,
                 supportsVision: modelConfig.supports_vision
             });
-            
+
             const completeConfig = {
                 ...defaultConfig,
                 ...modelConfig,
@@ -749,7 +749,7 @@ class ModelManager {
             // Remove any existing event listeners to prevent duplicates
             const newAddModelBtn = addModelBtn.cloneNode(true);
             addModelBtn.parentNode.replaceChild(newAddModelBtn, addModelBtn);
-            
+
             // Add the event listener to show model form
             newAddModelBtn.addEventListener('click', () => {
                 console.log('Add Model button clicked');
@@ -772,7 +772,7 @@ class ModelManager {
             // Ensure we don't have duplicate listeners
             const newModelForm = modelForm.cloneNode(true);
             modelForm.parentNode.replaceChild(newModelForm, modelForm);
-            
+
             newModelForm.addEventListener('submit', (e) => {
                 console.log('Model form submitted');
                 this.handleModelFormSubmit(e);
@@ -788,7 +788,7 @@ class ModelManager {
                 }
             });
         }
-        
+
         console.log('Model management UI initialized');
     }
 
