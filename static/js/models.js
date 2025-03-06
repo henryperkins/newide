@@ -622,7 +622,8 @@ class ModelManager {
                 supportsStreaming: false,
                 requiresReasoningEffort: true
             };
-            this.modelConfigs['o1'] = generateDefaultModelConfig('o1', o1Default);
+            const newConfig = generateDefaultModelConfig('o1', o1Default);
+            this.modelConfigs['o1'] = newConfig;
         }
         
         return this.modelConfigs;

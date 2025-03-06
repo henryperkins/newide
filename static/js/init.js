@@ -1,5 +1,6 @@
 import { sendMessage } from './chat.js';
 import { deepSeekProcessor } from './ui/deepseekProcessor.js';
+import { modelManager } from './models.js';
 import { initThemeSwitcher } from './ui/themeSwitcher.js';
 import { initTabSystem } from './ui/tabManager.js';
 import { initSidebar } from './ui/sidebarManager.js';
