@@ -638,10 +638,16 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
         endpoint = os.getenv("AZURE_OPENAI_ENDPOINT") or "https://o1models.openai.azure.com"
         api_version = os.getenv("AZURE_OPENAI_API_VERSION") or "2025-02-01-preview"
 
-        client = AzureOpenAI(
-            api_key=os.getenv("AZURE_OPENAI_API_KEY", ""),
-            azure_endpoint=endpoint,
-            api_version=api_version,
+        # DeepSeek requires special handling for temperature and max_tokens
+        client = ChatCompletionsClient(
+            endpoint=config.AZURE_INFERENCE_ENDPOINT,
+            credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
+            model="DeepSeek-R1",
+            api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+            headers={
+                "x-ms-thinking-format": "html",
+                "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION
+            }
         )
 
         response = client.chat.completions.create(  # type: ignore
