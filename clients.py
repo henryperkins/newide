@@ -224,8 +224,7 @@ class ClientPool:
                 default_headers={
                     "reasoning-effort": model_config.get("reasoning_effort", "medium"),
                     "x-ms-json-response": "true",
-                    "x-ms-reasoning-effort": model_config.get("reasoning_effort", "medium"),
-                    "Formatting": "re-enabled"
+                    "x-ms-reasoning-effort": model_config.get("reasoning_effort", "medium")
                 },
                 max_retries=config.O_SERIES_MAX_RETRIES,
                 timeout=model_config.get("base_timeout", 120.0)

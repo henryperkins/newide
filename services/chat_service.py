@@ -380,7 +380,7 @@ async def process_chat_message(
             if file_context:
                 # Add file context as a system message before the user's message
                 file_system_message = {
-                    "role": "developer" if is_o_series else "system",
+                    "role": "system",
                     "content": file_context
                 }
                 

@@ -242,8 +242,8 @@ export async function sendMessage() {
     }
     renderUserMessage(messageContent);
     const modelSelect = document.getElementById('model-select');
-    let modelName = 'DeepSeek-R1';  // This is the model name, not the deployment name which is in the URL
-    if (modelSelect) modelName = modelSelect.value;
+    let modelName = 'DeepSeek-R1';  // Must use exact casing
+    if (modelSelect) modelName = modelSelect.value === 'deepseek-r1' ? 'DeepSeek-R1' : modelSelect.value;
 
     // Handle o1hp as an alias for o1
     let actualModelName = modelName.toLowerCase() === 'o1hp' ? 'o1' : modelName;
@@ -361,8 +361,7 @@ async function fetchChatResponse(
       // Use the appropriate role based on model type
       if (devConfig) {
         if (modelName.toLowerCase().startsWith('o1')) {
-          // For o1 models, use 'developer' role instead of 'system'
-          messages.push({ role: 'developer', content: devConfig });
+          messages.push({ role: 'system', content: devConfig });
         } else {
           messages.push({ role: 'system', content: devConfig });
         }
