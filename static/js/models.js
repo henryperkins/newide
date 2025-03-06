@@ -549,9 +549,11 @@ class ModelManager {
         const o1Model = KNOWN_MODELS.find(m => m.id.toLowerCase() === 'o1');
         if (o1Model) {
             console.log("Found o1 model in KNOWN_MODELS:", o1Model);
-            // Force create/update o1 config
-            const newConfig = generateDefaultModelConfig('o1', o1Model.modelApiConfig);
-            this.modelConfigs['o1'] = newConfig;
+            // Only create o1 if it doesn't exist
+            if (!this.modelConfigs['o1']) {
+                const newConfig = generateDefaultModelConfig('o1', o1Model.modelApiConfig);
+                this.modelConfigs['o1'] = newConfig;
+            }
             console.log("Explicitly added o1 model to modelConfigs");
             
             // Skip server creation if it would fail or block

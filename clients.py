@@ -21,6 +21,8 @@ class ModelRegistry:
         "deepseek": {
             "name": "DeepSeek-R1",
             "description": "Model that supports chain-of-thought reasoning with <think> tags",
+            "enable_thinking": True,
+            "thinking_tags": ["think", "/think"],
             "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
             "supports_streaming": True,
             "supports_temperature": True,
@@ -208,7 +210,11 @@ class ClientPool:
                 model="DeepSeek-R1",  # Fixed model name
                 api_version=model_config["api_version"],
                 connection_timeout=120.0,
-                read_timeout=120.0
+                read_timeout=120.0,
+                headers={
+                    "x-ms-thinking-format": "html",
+                    "x-ms-streaming-version": "2024-05-01-preview"
+                }
             )
         elif config.is_o_series_model(model_id):
             return AzureOpenAI(
