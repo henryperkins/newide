@@ -272,6 +272,8 @@ export function streamChatResponse(
       }
     };
 
+    let isTimeout = false;
+
     eventSource.onerror = async (e) => {
       if (signal && signal.aborted) return;
       clearTimeout(connectionTimeoutId);
