@@ -222,7 +222,7 @@ class ClientPool:
                 endpoint=config.AZURE_INFERENCE_ENDPOINT,
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
                 model="DeepSeek-R1",  # Exact case match required
-                api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+                api_version="2024-05-01-preview",  # Hardcoded version per DeepSeek requirements
                 headers={
                     "x-ms-thinking-format": "html",
                     "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
@@ -468,7 +468,7 @@ async def get_model_client_dependency(
         # Use non-async client for better compatibility with both streaming and non-streaming
         client = AzureOpenAI(
             api_key=config.AZURE_OPENAI_API_KEY,
-            api_version=config.AZURE_OPENAI_API_VERSION,
+            api_version="2025-02-01-preview",  # O1 specific API version
             azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
         )
         return {

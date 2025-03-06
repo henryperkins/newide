@@ -73,8 +73,8 @@ def resolve_api_version(deployment_name: str) -> str:
 
     # Else use the static version matrix
     version_matrix = {
-        "o1-prod": "2025-01-01-preview",
-        "o3-mini": "2025-01-01-preview",
+        "o1-prod": "2025-02-01-preview",
+        "o3-mini": "2025-02-01-preview",
         "DeepSeek-R1": "2024-05-01-preview",
         "gpt-4": "2023-12-01",
     }
@@ -99,8 +99,8 @@ def validate_streaming(model_id: str) -> bool:
     if model_id.startswith("o3-mini"):
         base_model = "o3-mini"
     # Disallow streaming for any o1 variants.
-    elif model_id.startswith("o1"):
-        return False
+    elif model_id.startswith("o3-mini"):
+        return True
     elif model_id.startswith("gpt-4"):
         base_model = "gpt-4"
     elif model_id.startswith("gpt-35") or model_id.startswith("gpt-3.5"):

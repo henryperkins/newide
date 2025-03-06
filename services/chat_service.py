@@ -110,20 +110,12 @@ def prepare_model_parameters(
     }
 
     if is_o_series:
-        # Enforce JSON schema for O-series
-        if chat_message.response_format:
-            params["response_format"] = chat_message.response_format
-        else:
-            params["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {
-                    "type": "object",
-                    "properties": {
-                        "content": {"type": "string"},
-                        "reasoning_steps": {"type": "array"},
-                    },
-                },
-            }
+        # O1 temperature validation
+        if is_o_series:
+            if params.get("temperature") not in [None, 1.0]:
+                raise ValueError("O1 models only support temperature=1.0 when provided")
+            if params.get("temperature") is None:
+                params.pop("temperature", None)
 
     if is_deepseek:
         # Enforce DeepSeek-R1 token limits
