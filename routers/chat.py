@@ -74,9 +74,10 @@ def expand_chain_of_thought(full_content: str) -> str:
     matches = re.findall(think_regex, full_content, re.DOTALL)
     formatted = full_content
     for match in matches:
-        # Sanitize content and add nonce for CSP compliance
-        sanitized = re.sub(r"[^\w\s\-_.,;:!?@#$%^&*()+=]", "", match)
-        nonce = os.urandom(16).hex()
+        # Secure HTML sanitization with DOMPurify and CSP nonce
+        from dompurify import clean
+        sanitized = clean(match)
+        nonce = request.state.nonce  # From CSP middleware
         thinking_html = f"""<div class="thinking-process" nonce="{nonce}">
             <div class="thinking-header">
                 <button class="thinking-toggle" aria-expanded="true">

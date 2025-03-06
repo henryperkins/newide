@@ -114,7 +114,8 @@ def prepare_model_parameters(
             or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
         )
     else:
-        params["temperature"] = chat_message.temperature or 0.7
+        # DeepSeek recommends temperature 0.0 for best results
+        params["temperature"] = chat_message.temperature or (0.0 if is_deepseek else 0.7)
         params["max_completion_tokens"] = chat_message.max_completion_tokens or 1000
 
     return params
@@ -426,8 +427,15 @@ async def process_chat_message(
                 }
         else:
             # Using the openai.AzureOpenAI client
+            # Add DeepSeek-specific streaming headers
+            headers = {
+                "x-ms-thinking-format": "html",
+                "x-ms-streaming-version": "2024-05-01-preview"
+            } if is_deepseek else {}
+
             response = azure_client.chat.completions.create(
                 model=model_name,
+                headers=headers,
                 messages=params["messages"],  # type: ignore
                 temperature=params.get("temperature", 0.7),  # type: ignore
                 max_completion_tokens=params.get("max_completion_tokens", 1000),  # type: ignore
