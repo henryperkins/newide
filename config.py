@@ -434,10 +434,6 @@ def get_azure_credential(model_name: str = None) -> Union[str, AzureKeyCredentia
     if is_deepseek_model(model_name):
         credential = os.getenv("AZURE_INFERENCE_CREDENTIAL")
         if not credential:
-            if "no healthy upstream" in str(e):
-                raise ValueError(
-                    "DeepSeek service unavailable - no healthy upstream"
-                ) from e
             raise ValueError(f"AZURE_INFERENCE_CREDENTIAL required for DeepSeek models")
         return AzureKeyCredential(credential)
     else:
