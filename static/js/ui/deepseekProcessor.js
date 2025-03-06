@@ -279,19 +279,14 @@ function initializeExistingBlocks() {
  * ------------------------------------------------------------------------- */
 
 export const deepSeekProcessor = {
-  // SSE chunk / chain-of-thought
-  processChunkAndUpdateBuffers,
-  processStreamingChunk,
-  separateContentBuffers,
-
-  // Final user-facing content
-  processDeepSeekResponse,
-  replaceThinkingBlocks,
-
-  // DOM rendering / toggling
-  renderThinkingContainer,
-  createThinkingBlockHTML,
-  initializeThinkingToggle,
-  initializeExistingBlocks,
-  markdownToHtml,
+  processChunkAndUpdateBuffers: processChunkAndUpdateBuffers,  // explicit assignment to existing function
+  processStreamingChunk: processStreamingChunk,
+  separateContentBuffers: separateContentBuffers,              // correct existing function use
+  processDeepSeekResponse: processDeepSeekResponse,
+  replaceThinkingBlocks: replaceThinkingBlocks,
+  renderThinkingContainer: (parent, thinkingText) => renderThinkingContainer(parent, thinkingText, {createNew: true}),
+  createThinkingBlockHTML: createThinkingBlockHTML,
+  initializeThinkingToggle: initializeThinkingToggle,
+  initializeExistingBlocks: initializeExistingBlocks,
+  markdownToHtml: markdownToHtml,
 };

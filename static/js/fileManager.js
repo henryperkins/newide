@@ -152,7 +152,15 @@ export class FileManager {
     
     // Show processing indicator
     const dropArea = this.dropArea;
-    const originalContent = dropArea.innerHTML;
+    if (!dropArea) {
+        console.warn("No file-drop-area element found. Creating fallback container...");
+        const fallbackContainer = document.createElement('div');
+        fallbackContainer.className = 'file-drop-area fallback-container border border-gray-300 dark:border-gray-700 p-4 mt-2 rounded';
+        fallbackContainer.innerHTML = '<p class="text-sm text-gray-600 dark:text-gray-300">Drop files here or click the upload button.</p>';
+        document.body.appendChild(fallbackContainer);
+        this.dropArea = fallbackContainer;
+    }
+    const originalContent = this.dropArea.innerHTML;
     if (fileList.length > 3 || Array.from(fileList).some(f => f.size > 5 * 1024 * 1024)) {
       dropArea.innerHTML = `
         <div class="flex items-center justify-center">

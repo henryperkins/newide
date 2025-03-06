@@ -102,13 +102,13 @@ module.exports = {
         mono: ['"JetBrains Mono"', 'monospace'],
       },
       fontSize: {
-        xs: ['0.75rem', { lineHeight: '1rem' }],
-        sm: ['0.875rem', { lineHeight: '1.25rem' }],
-        base: ['1rem', { lineHeight: '1.5rem' }],
-        lg: ['1.125rem', { lineHeight: '1.75rem' }],
-        xl: ['1.25rem', { lineHeight: '1.75rem' }],
-        '2xl': ['1.5rem', { lineHeight: '2rem' }],
-        '3xl': ['1.875rem', { lineHeight: '2.25rem' }],
+        xs: ['0.5rem', { lineHeight: '0.75rem' }],
+        sm: ['0.625rem', { lineHeight: '1rem' }],
+        base: ['0.75rem', { lineHeight: '1rem' }],
+        lg: ['0.875rem', { lineHeight: '1.25rem' }],
+        xl: ['1rem', { lineHeight: '1.375rem' }],
+        '2xl': ['1.25rem', { lineHeight: '1.625rem' }],
+        '3xl': ['1.625rem', { lineHeight: '1.875rem' }],
       },
       spacing: {
         '0': '0',
@@ -182,9 +182,9 @@ module.exports = {
           alignItems: 'center',
           justifyContent: 'center',
           fontWeight: '500',
-          fontSize: '0.875rem',
-          padding: '0.5rem 1rem',
-          borderRadius: '0.375rem',
+          fontSize: '0.75rem',
+          padding: '0.25rem 0.75rem',
+          borderRadius: '0.25rem',
           transition: 'all 150ms ease-in-out',
           cursor: 'pointer',
           '&:focus-visible': {
@@ -315,10 +315,10 @@ module.exports = {
           },
         },
         '.message': {
-          padding: '1rem',
-          borderRadius: '0.75rem',
-          marginBottom: '1rem',
-          maxWidth: '80%',
+          padding: '0.5rem',
+          borderRadius: '0.5rem',
+          marginBottom: '0.5rem',
+          maxWidth: '75%',
           position: 'relative',
           '.dark &': {
             color: 'oklch(95% 0.008 276)',
@@ -344,12 +344,16 @@ module.exports = {
             color: 'oklch(40% 0.12 85)',
             width: '100%',
             maxWidth: '36rem',
-            margin: '0 auto 1rem auto',
+            margin: '0 auto 0.5rem auto',
             '.dark &': {
               backgroundColor: 'oklch(40% 0.12 85 / 0.2)',
               color: 'oklch(94% 0.08 85)',
             },
           },
+        },
+        '.header-bar': {
+          padding: '0.5rem 1rem',
+          fontSize: '0.75rem',
         },
         '.mobile-text-optimized': {
           '@media (max-width: 640px)': {
@@ -440,4 +444,49 @@ module.exports = {
       addUtilities(ringOpacityUtilities);
     },
   ],
+  };
+  
+  const plugin = require('tailwindcss/plugin');
+  
+  // Ensure plugins is defined as an array
+  module.exports.plugins = module.exports.plugins || [];
+  
+  // Push a new plugin to add responsive base font sizing
+  module.exports.plugins.push(plugin(({ addBase }) => {
+    addBase({
+      '@screen sm': {
+        html: {
+          fontSize: '14px', // smaller font on small screens
+        },
+      },
+      '@screen md': {
+        html: {
+          fontSize: '16px', // revert to default on medium+ screens
+        },
+      },
+    });
+  }));
+
+// Add at the very end to apply a responsive base font-size
+module.exports = {
+  ...module.exports,
+  plugins: [
+    ...module.exports.plugins,
+    function ({ addBase, theme }) {
+      addBase({
+        '@screen sm': {
+          'html': {
+            // Slightly smaller than default for mobile
+            fontSize: '14px'
+          }
+        },
+        '@screen md': {
+          'html': {
+            // Return to a more standard size on tablets/desktop
+            fontSize: '16px'
+          }
+        }
+      })
+    }
+  ]
 };

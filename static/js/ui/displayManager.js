@@ -292,8 +292,16 @@ async function saveConversation() {
 
   try {
     // Fetch all conversation messages from DB
-    const api = `/api/chat/conversations/history?session_id=${sessionId}&offset=0&limit=9999`;
-    const res = await fetch(api);
+    const api = `/api/chat/conversations/history`;
+    const res = await fetch(api, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            session_id: sessionId,
+            offset: 0,
+            limit: 9999
+        })
+    });
     if (!res.ok) {
       console.error('Failed to fetch conversation for saving:', res.statusText);
       showNotification('Failed to fetch conversation for saving', 'error');

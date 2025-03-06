@@ -686,8 +686,17 @@ function forceRender() {
  */
 function renderBufferedContent() {
   try {
-    messageContainer = ensureMessageContainer();
-    if (!messageContainer) return;
+    const chatHistory = document.getElementById('chat-history');
+    if (!chatHistory) return;
+    
+    messageContainer = document.createElement('div');
+    messageContainer.className = 'message assistant-message';
+    const lastMessage = chatHistory.lastElementChild;
+    if (lastMessage) {
+        chatHistory.insertBefore(messageContainer, lastMessage.nextSibling);
+    } else {
+        chatHistory.appendChild(messageContainer);
+    }
 
     // Use safe defaults for thinking content
     const thinkBuffer = thinkingTextBuffer || '';
@@ -761,7 +770,7 @@ async function cleanupStreaming(modelName) {
     removeStreamingProgressIndicator();
   } finally {
     document.querySelectorAll('.typing-indicator').forEach(el => el.remove());
-    document.querySelectorAll('.streaming-progress').forEach(el.remove());
+    document.querySelectorAll('.streaming-progress').forEach(el => el.remove());
   }
   if (mainTextBuffer && messageContainer) {
     try {

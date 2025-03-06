@@ -375,8 +375,10 @@ async function fetchChatResponse(
       while (retries <= maxApiRetries) {
         try {
           // Add special headers for DeepSeek-R1
+          const token = localStorage.getItem('authToken');
           const headers = {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': 'Bearer ' + token } : {})
           };
 
           if (isDeepSeek) {
@@ -460,11 +462,15 @@ function renderUserMessage(content) {
   el.setAttribute('role', 'log');
   el.setAttribute('aria-live', 'polite');
   el.innerHTML = sanitizeHTML(content).replace(/\n/g, '<br>');
-  chatHistory.appendChild(el);
+  const lastMessage = chatHistory.lastElementChild;
+  if (lastMessage) {
+      chatHistory.insertBefore(el, lastMessage.nextSibling);
+  } else {
+      chatHistory.appendChild(el);
+  }
   setTimeout(() => {
     el.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, 100);
-  storeChatMessage('user', content);
 }
 
 export function renderAssistantMessage(content, isThinking = false) {
