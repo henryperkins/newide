@@ -607,3 +607,5 @@ async def debug_models(db_session: AsyncSession = Depends(get_db_session)):
             "error": str(e), 
             "traceback": traceback.format_exc()
         }
+def is_deepseek_model(name: str) -> bool:
+    return name.lower() == "deepseek-r1"  # Case-insensitive check
