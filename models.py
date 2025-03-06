@@ -191,6 +191,10 @@ class AppConfiguration(Base):
     created_at = Column(DateTime(timezone=True), server_default=text("NOW()"))
     updated_at = Column(DateTime(timezone=True), server_default=text("NOW()"), onupdate=text("NOW()"))
 
+@router.get("/healthcheck")
+async def config_healthcheck():
+    return {"status": "ok"}
+
 # -------------------------------------------------------------------------
 # Model Usage Stats
 # -------------------------------------------------------------------------

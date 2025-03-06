@@ -161,15 +161,14 @@ async def get_all_configs(
     }
 
 
-@router.get("/models")
+@router.get("/models", response_model=Dict[str, Any])
 async def get_models(db_session: AsyncSession = Depends(get_db_session)):
     """Get all model configurations"""
     try:
         client_pool = await get_client_pool(db_session)
-        return {"models": client_pool.get_all_models()}
+        return client_pool.get_all_models()
     except Exception as e:
         logger.error(f"Error in get_models: {str(e)}")
-        # Return default models from ModelRegistry as a fallback
         return ModelRegistry.create_default_models()
 
 
@@ -215,13 +214,13 @@ async def get_model(model_id: str, db_session: AsyncSession = Depends(get_db_ses
         )
 
 
-@router.post("/models/{model_id}")
+@router.post("/models/{model_id}", status_code=201, response_model=Dict[str, str])
 async def create_model(
     model_id: str,
     model: ModelConfigModel,
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    """Create a new model configuration. Another key endpoint."""
+    """Create a new model configuration"""
     try:
         # Check for model aliases
         actual_model_id = MODEL_ALIASES.get(model_id.lower(), model_id)
@@ -235,11 +234,11 @@ async def create_model(
         client_pool = await get_client_pool(db_session)
 
         # Check if model already exists
-        existing_config = client_pool.get_model_config(actual_model_id)
-        if existing_config:
-            # Return 409 Conflict if model already exists
+        existing = client_pool.get_model_config(actual_model_id)
+        if existing:
             raise HTTPException(
-                status_code=409, detail=f"Model {actual_model_id} already exists"
+                status_code=409, 
+                detail=f"Model {actual_model_id} already exists"
             )
 
         # If no model data provided, use template from registry
