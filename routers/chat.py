@@ -1,4 +1,5 @@
 # chat.py
+
 import uuid
 import json
 import re
@@ -20,8 +21,8 @@ from database import get_db_session
 from routers.security import get_current_user
 import logging
 from logging_config import logger
+
 from dompurify import clean as dompurify_clean
-from fastapi import Request
 from utils import (
     count_tokens,
     handle_client_error,
@@ -59,62 +60,56 @@ SSE_SEMAPHORE = asyncio.Semaphore(MAX_SSE_CONNECTIONS)
 DEEPSEEK_R1_DEFAULT_MAX_TOKENS = 131072  # 128k context window
 DEEPSEEK_R1_DEFAULT_TEMPERATURE = 0.0
 O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS = 40000
-# etc.
 
 
 # -------------------------------------------------------------------------
-# Helper: Expand <think> blocks into HTML
+# Helper: Expand <details style="margin: 0.5rem 0 1.5rem; padding: 0.75rem; border: 1px solid var(--background-modifier-border); border-radius: 4px; background-color: var(--background-secondary)">
+            <summary style="cursor: pointer; color: var(--text-muted); font-size: 0.8em; margin-bottom: 0.5rem; user-select: none">Thought for a second</summary>
+            <div class="text-muted" style="margin-top: 0.75rem; padding: 0.75rem; border-radius: 4px; background-color: var(--background-primary)">blocks into HTML
 # -------------------------------------------------------------------------
-def expand_chain_of_thought(full_content: str) -> str:
+def expand_chain_of_thought(full_content: str, request: Request) -> str:
     """
-    Replace <think>...</think> blocks with an HTML expansion.
-    Typically used by DeepSeek models or other LLMs that embed chain-of-thought.
+    Replaces <think>...</div>
+          </details>
+
+ blocks with a hidden HTML expansion
+    for chain-of-thought style content. Uses CSP nonce and DOMPurify.
     """
     if not full_content:
         return full_content
-    # More robust thinking block parsing with CSP nonce and XSS protection
+
     from bs4 import BeautifulSoup
+
     soup = BeautifulSoup(full_content, "html.parser")
     think_blocks = soup.find_all("think")
-    
+
     for block in think_blocks:
-        sanitized = DOMPurify.sanitize(str(block))
+        block_html = str(block)
+        sanitized_html = dompurify_clean(block_html)
         nonce = request.state.nonce
-        thinking_html = f'''<div class="thinking-process" nonce="{nonce}">
-            <div class="thinking-header">
-                <button class="thinking-toggle" aria-expanded="true">
-                    <span class="toggle-icon">▼</span> Thinking Process
-                </button>
-            </div>
-            <div class="thinking-content">
-                <pre class="thinking-pre">{sanitized}</pre>
-            </div>
-        </div>'''
+        thinking_html = f"""
+<div class="thinking-process" nonce="{nonce}">
+    <div class="thinking-header">
+        <button class="thinking-toggle" aria-expanded="true">
+            <span class="toggle-icon">▼</span> Thinking Process
+        </button>
+    </div>
+    <div class="thinking-content">
+        <pre class="thinking-pre">{sanitized_html}</pre>
+    </div>
+</div>
+        """
+        # Replace the "<think>" block with sanitized HTML
         block.replace_with(BeautifulSoup(thinking_html, "html.parser"))
-    
-    # Secure HTML sanitization with DOMPurify and CSP nonce
-    from dompurify import clean
-    sanitized = clean(match)
-    nonce = request.state.nonce  # From CSP middleware
-    thinking_html = f"""<div class="thinking-process" nonce="{nonce}">
-            <div class="thinking-header">
-                <button class="thinking-toggle" aria-expanded="true">
-                    <span class="toggle-icon">▼</span> Thinking Process
-                </button>
-            </div>
-            <div class="thinking-content">
-                <pre class="thinking-pre">{match}</pre>
-            </div>
-        </div>"""
-        formatted = formatted.replace(f"<think>{match}</think>", thinking_html, 1)
-    return formatted
+
+    # Final pass to sanitize the entire result
+    final_html = dompurify_clean(str(soup))
+    return final_html
 
 
 # -------------------------------------------------------------------------
 # Conversations Endpoints
 # -------------------------------------------------------------------------
-
-
 @router.post("/conversations")
 async def create_new_conversation(
     request: Request,
@@ -131,11 +126,11 @@ async def create_new_conversation(
         pinned = data.get("pinned", False)
         archived = data.get("archived", False)
 
-        # Create a brand-new Session (this is how your schema ties in).
+        # Create a brand-new Session.
         session_id = uuid.uuid4()
         new_session = Session(id=session_id)
         db.add(new_session)
-        await db.flush()  # This ensures new_session is persisted but not yet committed.
+        await db.flush()  # Ensures new_session is persisted but not yet committed.
 
         # Create the initial Conversation row
         timestamp = datetime.now(timezone.utc)
@@ -162,7 +157,6 @@ async def create_new_conversation(
         }
     except Exception as exc:
         await db.rollback()
-        # logger.exception(f"Error creating conversation: {exc}")
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -192,10 +186,6 @@ async def add_conversation_message(
         if not session_db:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
-        # Optional: Check ownership if your logic requires it
-        # if session_db.user_id and session_db.user_id != current_user.id:
-        #     raise HTTPException(status_code=403, detail="Not authorized to post here")
-
         msg = Conversation(
             session_id=session_db.id,
             user_id=current_user.id if current_user else None,
@@ -211,7 +201,6 @@ async def add_conversation_message(
         raise
     except Exception as exc:
         await db.rollback()
-        # logger.exception("Error storing message: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -225,7 +214,7 @@ async def get_conversation_messages(
 ):
     """
     Retrieve messages for a conversation, with pagination (offset/limit).
-    Returns pinned/archived/title from the first row found (due to your schema).
+    Returns pinned/archived/title from the first message row found.
     """
     try:
         # Validate conversation
@@ -282,7 +271,6 @@ async def get_conversation_messages(
     except HTTPException:
         raise
     except Exception as exc:
-        # logger.exception("Error getting conversation messages: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -293,7 +281,7 @@ async def clear_conversation(
     current_user: Optional[User] = Depends(get_current_user),
 ):
     """
-    Deletes all messages for a given conversation (and optionally the Session row itself).
+    Deletes all messages for a given conversation (and the Session row if desired).
     """
     try:
         # Validate session
@@ -303,19 +291,16 @@ async def clear_conversation(
         if not session_db:
             return {"status": "cleared", "detail": "No conversation found"}
 
-        # Optional: Check ownership, e.g. session_db.user_id == current_user.id
-
         del_conversation = delete(Conversation).where(
             Conversation.session_id == session_db.id
         )
         await db.execute(del_conversation)
-        # Possibly also remove the session row:
+
         await db.delete(session_db)
         await db.commit()
 
         return {"status": "cleared"}
     except Exception as exc:
-        # logger.exception("Error clearing conversation: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -327,8 +312,8 @@ async def rename_conversation(
     current_user: Optional[User] = Depends(get_current_user),
 ):
     """
-    Update the conversation's title (since your schema duplicates the title on each row).
-    Body must have {"title": "..."}.
+    Update the conversation's title across all messages.
+    Body must have: {"title": "..."}.
     """
     try:
         body = await request.json()
@@ -361,7 +346,6 @@ async def rename_conversation(
         raise
     except Exception as exc:
         await db.rollback()
-        # logger.exception("Error renaming conversation: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -386,7 +370,7 @@ async def pin_conversation(
         if not session_db:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
-        # Update
+        # Update pinned value in all rows
         upd_stmt = (
             update(Conversation)
             .where(Conversation.session_id == session_db.id)
@@ -398,7 +382,6 @@ async def pin_conversation(
         return {"status": "success", "pinned": pinned_val}
     except Exception as exc:
         await db.rollback()
-        # logger.exception("Error pinning conversation: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -423,7 +406,7 @@ async def archive_conversation(
         if not session_db:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
-        # Update
+        # Update archived value in all rows
         upd_stmt = (
             update(Conversation)
             .where(Conversation.session_id == session_db.id)
@@ -435,7 +418,6 @@ async def archive_conversation(
         return {"status": "success", "archived": archived_val}
     except Exception as exc:
         await db.rollback()
-        # logger.exception("Error archiving conversation: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -450,11 +432,9 @@ async def list_conversations(
     current_user: Optional[User] = Depends(get_current_user),
 ):
     """
-    Lists distinct conversations by grouping rows that share the same session_id.
-    Because pinned, archived, and title are repeated across all rows, we do a group_by.
+    Lists distinct conversations by session_id, with optional pinned, archived, or search filters.
     """
     try:
-        # Base query
         base_query = (
             select(
                 Conversation.session_id,
@@ -470,10 +450,10 @@ async def list_conversations(
 
         if pinned is not None:
             base_query = base_query.having(func.bool_or(Conversation.pinned) == pinned)
+
         if archived is not None:
-            base_query = base_query.having(
-                func.bool_or(Conversation.archived) == archived
-            )
+            base_query = base_query.having(func.bool_or(Conversation.archived) == archived)
+
         if search:
             pattern = f"%{search}%"
             base_query = base_query.where(
@@ -481,11 +461,8 @@ async def list_conversations(
                 | (Conversation.content.ilike(pattern))
             )
 
-        # Count total distinct sessions (for pagination)
+        # Count distinct sessions (for pagination)
         count_stmt = select(func.count(func.distinct(Conversation.session_id)))
-        # If pinned/archived/search needed in count, replicate the same filters:
-        #   e.g. count_stmt = count_stmt.where(...)
-
         total_res = await db.execute(count_stmt)
         total_count = total_res.scalar() or 0
 
@@ -521,7 +498,6 @@ async def list_conversations(
             "has_more": offset + limit < total_count,
         }
     except Exception as exc:
-        # logger.exception("Error listing conversations: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -531,23 +507,22 @@ async def store_conversation(
     db: AsyncSession = Depends(get_db_session),
     current_user: Optional[User] = Depends(get_current_user),
 ):
-    """Store conversation data from client"""
+    """Store conversation data from client (user or system messages)."""
     try:
         data = await request.json()
         session_id = data.get("session_id")
         role = data.get("role")
         content = data.get("content")
-        
+
         if not all([session_id, role, content]):
             raise HTTPException(status_code=400, detail="Missing required fields")
-            
-        # Validate session exists
+
+        # Validate session
         stmt = select(Session).where(Session.id == session_id)
         result = await db.execute(stmt)
         if not result.scalar_one_or_none():
             raise HTTPException(status_code=404, detail="Session not found")
-            
-        # Store the message
+
         msg = Conversation(
             session_id=session_id,
             user_id=current_user.id if current_user else None,
@@ -557,13 +532,13 @@ async def store_conversation(
         )
         db.add(msg)
         await db.commit()
-        
+
         return {"status": "success", "message_id": msg.id}
-        
     except Exception as e:
         await db.rollback()
         logger.error(f"Error storing conversation: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # -------------------------------------------------------------------------
 # Non-Streaming Chat Completion
@@ -576,23 +551,19 @@ async def create_chat_completion(
 ):
     """
     Creates a non-streaming chat completion, returning an Azure-like JSON.
-    You can use the logic from your snippet to call O-series or DeepSeek here.
+    This is a stub showing where you'd integrate O-series or DeepSeek calls.
     """
     try:
         if not request.messages:
             raise HTTPException(status_code=400, detail="Missing 'messages' field")
 
         model_name = request.model or "o1"
-        # logger.info(f"create_chat_completion with model={model_name}")
 
         # Acquire the model client
         client_wrapper = await get_model_client_dependency(model_name)
         client = client_wrapper["client"]
-        # Possibly read custom config:
-        # model_config = client_wrapper.get("model_config", {})
 
-        # *** Perform the actual inference call here. ***
-        # For brevity, we'll just mock a result:
+        # Mocked response for demonstration
         response_data = {
             "id": f"chatcmpl-{uuid.uuid4()}",
             "object": "chat.completion",
@@ -608,11 +579,7 @@ async def create_chat_completion(
             "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
         }
 
-        # If you have a usage stats service, call it here:
-        # stats_service = ModelStatsService(db)
-        # stats_service.record_usage(...)
-
-        # Store the user and assistant messages in 'conversations' table:
+        # Store user & assistant messages in the conversation table
         user_text = request.messages[-1]["content"]
         assistant_text = response_data["choices"][0]["message"]["content"]
 
@@ -639,19 +606,19 @@ async def create_chat_completion(
         raise exc
     except Exception as exc:
         await db.rollback()
-        if hasattr(exc, "response"):
-            try:
-                error_data = exc.response.json()
-                if "content_filter_results" in error_data:
-                    raise HTTPException(
-                        status_code=400,
-                        detail={
-                            "error": "content_filtered",
-                            "filter_results": error_data["content_filter_results"]
-                        }
-                    ) from exc
-            except (json.JSONDecodeError, AttributeError):
-                pass
+        # Optionally parse cloud error
+        try:
+            error_data = exc.response.json()
+            if "content_filter_results" in error_data:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "content_filtered",
+                        "filter_results": error_data["content_filter_results"],
+                    },
+                ) from exc
+        except (AttributeError, json.JSONDecodeError):
+            pass
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
@@ -675,7 +642,7 @@ async def chat_sse(
     # Acquire concurrency slot
     await SSE_SEMAPHORE.acquire()
     try:
-        # Validate Session
+        # Validate session
         sel_stmt = select(Session).where(Session.id == session_id)
         sess_res = await db.execute(sel_stmt)
         session_db = sess_res.scalar_one_or_none()
@@ -686,7 +653,7 @@ async def chat_sse(
         client_wrapper = await get_model_client_dependency(model)
         client = client_wrapper["client"]
         if not client or not client_wrapper.get("supports_streaming", False):
-            raise HTTPException(400, "Model doesn't support streaming")
+            raise HTTPException(status_code=400, detail="Model doesn't support streaming")
 
         # Return the streaming response
         return StreamingResponse(
@@ -703,7 +670,6 @@ async def chat_sse(
             media_type="text/event-stream",
         )
     except Exception as exc:
-        # logger.exception("Error in SSE endpoint: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
     finally:
         SSE_SEMAPHORE.release()
@@ -720,40 +686,44 @@ async def generate_stream_chunks(
     client: Any,
 ):
     """
-    Async generator that yields SSE data chunks from your streaming model.
+    Async generator yielding SSE data chunks from your streaming model.
     Replace this stub with your actual streaming code to Azure/DeepSeek/etc.
     """
     full_content = ""
+    # If you track usage data, initialize a usage block:
+    usage_block: Dict[str, Any] = {}
+
     try:
-        # Actual streaming implementation
+        # Determine if chain-of-thought expansion is needed
         enable_thinking = "true" if "deepseek" in model_name.lower() else "false"
-        
+
+        # Example streaming call - actual parameters depend on your model
         response = client.chat.completions.create(
             model=model_name,
             messages=[{"role": "user", "content": message}],
             stream=True,
             headers={
                 "x-ms-thinking-format": "html" if enable_thinking else "none",
-                "x-ms-streaming-version": "2024-05-01-preview"
-            }
+                "x-ms-streaming-version": "2024-05-01-preview",
+            },
         )
 
         async for chunk in response:
             content = chunk.choices[0].delta.content or ""
             full_content += content
-            
-            # Process thinking blocks in real-time
+
+            # If it's a DeepSeek model, expand chain-of-thought blocks
             if "deepseek" in model_name.lower():
                 processed = expand_chain_of_thought(content, request)
                 yield sse_json({"choices": [{"delta": {"content": processed}}]})
             else:
-                yield sse_json({"choices": [{"delta": {"content": content}]}])
+                yield sse_json({"choices": [{"delta": {"content": content}}]})
 
         # Final chunk with stop reason
         yield sse_json({"choices": [{"finish_reason": "stop"}]})
-        yield "event: complete\ndata: {}\n\n"
+        yield "event: complete\ndata: done\n\n"
 
-        # If we want to store the final messages in DB:
+        # Store user & assistant messages in DB if desired
         user_msg = Conversation(
             session_id=session_id,
             role="user",
@@ -775,11 +745,10 @@ async def generate_stream_chunks(
         await db.commit()
 
     except asyncio.CancelledError:
-        # Typical if client disconnects
-        # logger.warning("SSE client disconnected.")
+        # Typically occurs if client disconnects
         return
     except Exception as exc:
-        # logger.exception("SSE streaming error: %s", exc)
+        # Return an SSE formatted error message
         error_payload = {
             "error": {
                 "message": "Streaming error occurred",
@@ -793,6 +762,7 @@ async def generate_stream_chunks(
 
 def sse_json(data: Dict[str, Any]) -> str:
     """
-    Utility function to format SSE data lines as JSON: "data: {...}\n\n"
+    Utility to format SSE data lines as:
+    data: {...}\n\n
     """
     return "data: " + json.dumps(data) + "\n\n"
