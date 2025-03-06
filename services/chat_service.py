@@ -101,7 +101,12 @@ def prepare_model_parameters(
     ]
     params = {
         "messages": messages,
-        "api_version": config.DEEPSEEK_R1_DEFAULT_API_VERSION
+        "api_version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+        "headers": {
+            "x-ms-thinking-format": "html",
+            "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION
+        },
+        "temperature": 0.0  # Required for DeepSeek-R1
     }
 
     if is_o_series:
