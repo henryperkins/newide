@@ -7,7 +7,7 @@ import { generateDefaultModelConfig, KNOWN_MODELS } from './utils/modelUtils.js'
 
 class ModelManager {
     constructor() {
-        this.currentModel = null;
+        this.currentModel = 'DeepSeek-R1';
         this.modelConfigs = {};
         this.isInitialized = false;
         this.pendingModelActions = {};
