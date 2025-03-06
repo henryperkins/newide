@@ -70,10 +70,26 @@ def expand_chain_of_thought(full_content: str) -> str:
     if not full_content:
         return full_content
     # More robust thinking block parsing with CSP nonce and XSS protection
-    think_regex = r"<think>((?:[^<]|<(?!\/think>))*?)<\/think>"
-    matches = re.findall(think_regex, full_content, re.DOTALL)
-    formatted = full_content
-    for match in matches:
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(full_content, "html.parser")
+    think_blocks = soup.find_all("think")
+    
+    for block in think_blocks:
+        sanitized = DOMPurify.sanitize(str(block))
+        nonce = request.state.nonce
+        thinking_html = f'''<div class="thinking-process" nonce="{nonce}">
+            <div class="thinking-header">
+                <button class="thinking-toggle" aria-expanded="true">
+                    <span class="toggle-icon">▼</span> Thinking Process
+                </button>
+            </div>
+            <div class="thinking-content">
+                <pre class="thinking-pre">{sanitized}</pre>
+            </div>
+        </div>'''
+        block.replace_with(BeautifulSoup(thinking_html, "html.parser"))
+    
+    formatted = str(soup)
         # Secure HTML sanitization with DOMPurify and CSP nonce
         from dompurify import clean
         sanitized = clean(match)

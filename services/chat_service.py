@@ -101,6 +101,22 @@ def prepare_model_parameters(
     ]
     params = {"messages": messages}
 
+    if is_o_series:
+        # Enforce JSON schema for O-series
+        if chat_message.response_format:
+            params["response_format"] = chat_message.response_format
+        else:
+            params["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "type": "object",
+                    "properties": {
+                        "content": {"type": "string"},
+                        "reasoning_steps": {"type": "array"}
+                    }
+                }
+            }
+
     if is_deepseek:
         params["max_tokens"] = (
             chat_message.max_completion_tokens or config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS

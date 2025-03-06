@@ -207,7 +207,8 @@ class ClientPool:
             return ChatCompletionsClient(
                 endpoint=model_config["azure_endpoint"],
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                model=model_id.lower(),  # Use normalized name
+                model=model_id.lower(),  # Force lowercase for API compatibility
+                azure_deployment="DeepSeek-R1",  # Explicit deployment name
                 api_version=model_config["api_version"],
                 connection_timeout=120.0,
                 read_timeout=120.0,
@@ -224,6 +225,7 @@ class ClientPool:
                 default_headers={
                     "reasoning-effort": model_config.get("reasoning_effort", "medium"),
                     "x-ms-json-response": "true",
+                    "x-ms-reasoning-effort": model_config.get("reasoning_effort", "medium"),
                     "Formatting": "re-enabled"
                 },
                 max_retries=config.O_SERIES_MAX_RETRIES,
