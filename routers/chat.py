@@ -53,7 +53,7 @@ MAX_SSE_CONNECTIONS = 10
 SSE_SEMAPHORE = asyncio.Semaphore(MAX_SSE_CONNECTIONS)
 
 # Defaults for your DeepSeek or O-series models, if relevant
-DEEPSEEK_R1_DEFAULT_MAX_TOKENS = 4096
+DEEPSEEK_R1_DEFAULT_MAX_TOKENS = 131072  # 128k context window
 DEEPSEEK_R1_DEFAULT_TEMPERATURE = 0.0
 O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS = 40000
 # etc.
@@ -69,11 +69,15 @@ def expand_chain_of_thought(full_content: str) -> str:
     """
     if not full_content:
         return full_content
-    think_regex = r"<think>([\s\S]*?)<\/think>"
-    matches = re.findall(think_regex, full_content)
+    # More robust thinking block parsing with CSP nonce and XSS protection
+    think_regex = r"<think>((?:[^<]|<(?!\/think>))*?)<\/think>"
+    matches = re.findall(think_regex, full_content, re.DOTALL)
     formatted = full_content
     for match in matches:
-        thinking_html = f"""<div class="thinking-process">
+        # Sanitize content and add nonce for CSP compliance
+        sanitized = re.sub(r"[^\w\s\-_.,;:!?@#$%^&*()+=]", "", match)
+        nonce = os.urandom(16).hex()
+        thinking_html = f"""<div class="thinking-process" nonce="{nonce}">
             <div class="thinking-header">
                 <button class="thinking-toggle" aria-expanded="true">
                     <span class="toggle-icon">▼</span> Thinking Process

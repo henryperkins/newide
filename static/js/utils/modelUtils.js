@@ -12,6 +12,8 @@ export function generateDefaultModelConfig(modelId, modelApiConfig = {}) {
   modelId = modelId.trim();
   const isOSeries = modelId.toLowerCase().startsWith('o1') || modelId.toLowerCase().startsWith('o3');
   const isDeepSeek = modelId.toLowerCase().includes('deepseek');
+  // Enable thinking mode by default for DeepSeek models
+  if (isDeepSeek) modelApiConfig.enable_thinking = true;
   
   // Base configuration that applies to all models
   const config = {

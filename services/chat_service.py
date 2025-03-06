@@ -453,6 +453,11 @@ async def process_chat_message(
         err_code = getattr(e.error, "code", "Unknown") if getattr(e, "error", None) else "Unknown"
         err_message = getattr(e, "message", str(e))
         err_reason = getattr(e, "reason", "Unknown")
+        
+        # Handle Azure Content Safety filtering
+        if hasattr(e, 'response') and 'content_filter_results' in e.response.json():
+            filter_results = e.response.json()['content_filter_results']
+            err_message += f" | Blocked content: {filter_results}"
         logger.error(f"[Azure AI Error] Session: {session_id} | Model: {model_name} | Status: {status_code} | Code: {err_code} | Message: {err_message} | Reason: {err_reason}")
         return create_error_response(
             status_code=status_code,
