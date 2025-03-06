@@ -71,39 +71,6 @@ async def get_current_model(
         raise HTTPException(status_code=500, detail=f"Error retrieving current model: {str(e)}")
 
 
-@router.get("/{key}", response_model=None)
-async def get_config(key: str, config_service=Depends(get_config_service)) -> dict:
-    """
-    Retrieve a configuration by key, returning as a raw dict.
-    response_model=None ensures no Pydantic parse of the DB session or the result.
-    """
-    # Check if this is a specific endpoint we want to handle differently
-    if key == "current-model":
-        raise HTTPException(status_code=404, detail="Use /api/config/current-model endpoint instead")
-        
-    val = await config_service.get_config(key)
-    if not val:
-        raise HTTPException(status_code=404, detail="Config not found")
-    return {key: val}
-
-
-@router.put("/{key}", response_model=None)
-async def update_config(
-    key: str, update: ConfigUpdate, config_service=Depends(get_config_service)
-):
-    """
-    Update a configuration specified by key.
-    """
-    # If we need the config key for validation
-    update.value = ConfigUpdate.validate_value(update.value, {})
-    success = await config_service.set_config(
-        key, update.value, update.description, update.is_secret
-    )
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to update config")
-    return {"status": "updated"}
-
-
 @router.get("/", response_model=None)
 async def get_all_configs(
     request: Request, config_service=Depends(get_config_service)
@@ -206,6 +173,37 @@ async def get_models(db_session: AsyncSession = Depends(get_db_session)):
         # Return default models from ModelRegistry
         return ModelRegistry.create_default_models()
 
+@router.get("/models/debug", tags=["debug"])
+async def debug_models(db_session: AsyncSession = Depends(get_db_session)):
+    """Debug endpoint to check model configurations"""
+    try:
+        # Get client pool
+        client_pool = await get_client_pool(db_session)
+        
+        # Get raw config from config service
+        config_service = ConfigService(db_session)
+        raw_config = await config_service.get_config("model_configs")
+        
+        # Get environment settings
+        import config
+        
+        return {
+            "status": "ok",
+            "client_pool_models": client_pool.get_all_models(),
+            "db_models": raw_config,
+            "env_defaults": {
+                "AZURE_OPENAI_ENDPOINT": config.AZURE_OPENAI_ENDPOINT,
+                "AZURE_INFERENCE_ENDPOINT": config.AZURE_INFERENCE_ENDPOINT,
+                "default_model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
+            },
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error", 
+            "error": str(e), 
+            "traceback": traceback.format_exc()
+        }
 
 @router.get("/models/{model_id}", response_model=None)
 async def get_model(
@@ -399,6 +397,38 @@ class ModelSwitchRequest(BaseModel):
     model_id: str
     session_id: Optional[str] = None
 
+
+@router.get("/{key}", response_model=None)
+async def get_config(key: str, config_service=Depends(get_config_service)) -> dict:
+    """
+    Retrieve a configuration by key, returning as a raw dict.
+    response_model=None ensures no Pydantic parse of the DB session or the result.
+    """
+    # Check if this is a specific endpoint we want to handle differently
+    if key == "current-model":
+        raise HTTPException(status_code=404, detail="Use /api/config/current-model endpoint instead")
+        
+    val = await config_service.get_config(key)
+    if not val:
+        raise HTTPException(status_code=404, detail="Config not found")
+    return {key: val}
+
+
+@router.put("/{key}", response_model=None)
+async def update_config(
+    key: str, update: ConfigUpdate, config_service=Depends(get_config_service)
+):
+    """
+    Update a configuration specified by key.
+    """
+    # If we need the config key for validation
+    update.value = ConfigUpdate.validate_value(update.value, {})
+    success = await config_service.set_config(
+        key, update.value, update.description, update.is_secret
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update config")
+    return {"status": "updated"}
 
 @router.post("/models/switch")
 async def switch_model(
