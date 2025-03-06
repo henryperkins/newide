@@ -49,24 +49,24 @@ class ConfigService:
         """Set configuration value using upsert"""
         try:
             # Use upsert operation
-            await self.db.execute(
-                insert(AppConfiguration)
-                .values(
-                    key=key,
-                    value=value,
-                    description=description,
-                    is_secret=is_secret
-                )
-                .on_conflict_do_update(
-                    index_elements=['key'],
-                    set_={
-                        'value': value,
-                        'description': description,
-                        'is_secret': is_secret,
-                        'updated_at': func.now()
-                    }
-                )
+            # Use native PostgreSQL upsert syntax
+            from sqlalchemy.dialects.postgresql import insert
+            insert_stmt = insert(AppConfiguration).values(
+                key=key,
+                value=value,
+                description=description,
+                is_secret=is_secret
             )
+            update_stmt = insert_stmt.on_conflict_do_update(
+                index_elements=['key'],
+                set_={
+                    'value': value,
+                    'description': description,
+                    'is_secret': is_secret,
+                    'updated_at': func.now()
+                }
+            )
+            await self.db.execute(update_stmt)
             await self.db.commit()
             return True
         except Exception as e:
