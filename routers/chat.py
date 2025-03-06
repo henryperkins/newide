@@ -679,8 +679,6 @@ async def generate_stream_chunks(
 
     try:
         # Determine if chain-of-thought expansion is needed
-        enable_thinking = "true" if "deepseek" in model_name.lower() else "false"
-
         messages = []
         if developer_config:
             messages.append({"role": "system", "content": developer_config})
@@ -694,7 +692,6 @@ async def generate_stream_chunks(
             max_tokens=131072,      # or smaller if needed
             stream=True,
             headers={
-                "x-ms-thinking-format": "html" if enable_thinking else "none",
                 "x-ms-streaming-version": "2024-05-01-preview",
             },
         )
