@@ -750,9 +750,13 @@ async def generate_stream_chunks(
         client_wrapper = await get_model_client_dependency(model_name)
         client = client_wrapper["client"]
 
-        # DeepSeek-specific streaming call with required parameters
+        # Log request details for debugging
+        logger.debug(f"Attempting DeepSeek connection to: {client.endpoint}")
+        logger.debug(f"Using API version: {client.api_version}")
+        logger.debug(f"Request headers: {client._config.headers}")  # noqa
+        
+        # Make streaming request with validated parameters
         stream_response = client.chat.completions.create(
-            model=model_name,
             messages=messages,
             temperature=0.0,
             max_tokens=config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,

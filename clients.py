@@ -471,10 +471,34 @@ async def get_model_client_dependency(
                 "model_config": model_config,
             }
 
-        # Use non-async client for better compatibility with both streaming and non-streaming
+        # Handle DeepSeek client configuration
+        if is_deepseek_model(model_name):
+            # Validate endpoint format
+            endpoint = config.AZURE_INFERENCE_ENDPOINT
+            if not endpoint.endswith("/openai/deployments/DeepSeek-R1"):
+                endpoint = f"{config.AZURE_INFERENCE_ENDPOINT.rstrip('/')}/openai/deployments/DeepSeek-R1"
+                
+            # Properly initialize DeepSeek client
+            client = ChatCompletionsClient(
+                endpoint=endpoint,
+                credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
+                api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+                headers={
+                    "x-ms-thinking-format": "html",
+                    "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+                    "x-ms-user-agent": "azure-ai-inference/1.0.0"
+                }
+            )
+            return {
+                "client": client,
+                "model_name": "DeepSeek-R1",  # Must match exactly
+                "model_config": {"supports_streaming": True}
+            }
+            
+        # Handle O-series and other models
         client = AzureOpenAI(
             api_key=config.AZURE_OPENAI_API_KEY,
-            api_version="2025-02-01-preview",  # O1 specific API version
+            api_version="2025-02-01-preview",
             azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
         )
         return {
