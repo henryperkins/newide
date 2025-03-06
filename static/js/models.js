@@ -547,11 +547,12 @@ class ModelManager {
         
         // Make sure o1 model is always created first and consistently
         const o1Model = KNOWN_MODELS.find(m => m.id.toLowerCase() === 'o1');
+        let newConfig;
         if (o1Model) {
             console.log("Found o1 model in KNOWN_MODELS:", o1Model);
             // Only create o1 if it doesn't exist
             if (!this.modelConfigs['o1']) {
-                const newConfig = generateDefaultModelConfig('o1', o1Model.modelApiConfig);
+                newConfig = generateDefaultModelConfig('o1', o1Model.modelApiConfig);
                 this.modelConfigs['o1'] = newConfig;
             }
             console.log("Explicitly added o1 model to modelConfigs");
