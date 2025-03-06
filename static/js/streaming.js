@@ -327,7 +327,6 @@ export function streamChatResponse(
             messageContent,
             sessionId,
             modelName,
-            devConfigToUse,
             reasoningEffort,
             null, // New signal
             fileIds,
