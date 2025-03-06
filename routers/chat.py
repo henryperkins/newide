@@ -379,6 +379,24 @@ async def archive_conversation(
     db: AsyncSession = Depends(get_db_session),
     current_user: Optional[User] = Depends(get_current_user),
 ):
+    """Archive or unarchive a conversation. Body must have {"archived": bool}."""
+    try:
+        data = await request.json()
+        archived = data.get("archived", True)
+
+        # Update all messages in the conversation
+        await db.execute(
+            update(Conversation)
+            .where(Conversation.session_id == conversation_id)
+            .values(archived=archived)
+        )
+        await db.commit()
+
+        return {"status": "success", "archived": archived}
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error archiving conversation: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
     """
     Archive or unarchive a conversation. Body must have {"archived": bool}.
     """
@@ -464,7 +482,7 @@ async def list_conversations(                (Conversation.title.ilike(pattern))
     db: AsyncSession = Depends(get_db_session),db.execute(count_stmt)
     current_user: Optional[User] = Depends(get_current_user),
 ):
-    """    
+    """
     Lists distinct conversations by session_id, with optional pinned, archived, or search filters.
     """
     try:
@@ -513,7 +531,7 @@ async def list_conversations(                (Conversation.title.ilike(pattern))
             title_val = row.title or "Untitled Conversation"
 
             conversations.append({
-                {ng required fields")
+                "detail": "Missing required fields",
                     "id": str(sess_id),
                     "title": title_val,
                     "pinned": pinned_val,
@@ -577,9 +595,9 @@ ted": int(time.time()),
 # Non-Streaming Chat Completion "total_tokens": 30},
 # -------------------------------------------------------------------------
 @router.post("")
-async def create_chat_completion(        # Store user & assistant messages in the conversation table
-    request: CreateChatCompletionRequest,ages[-1]["content"]
-    db: AsyncSession = Depends(get_db_session),][0]["message"]["content"]
+async def create_chat_completion(
+    request: CreateChatCompletionRequest,
+    db: AsyncSession = Depends(get_db_session),
     current_user: Optional[User] = Depends(get_current_user),
 ):rsation(
     """quest.session_id),
@@ -810,5 +828,4 @@ Dict[str, Any]) -> str:
 
 def sse_json(data: Dict[str, Any]) -> str:
     """Format SSE data lines as: data: {...}\n\n"""
-    return "data: " + json.dumps(data) + "\n\n"
     return "data: " + json.dumps(data) + "\n\n"
