@@ -99,12 +99,14 @@ def prepare_model_parameters(
     # Validate parameters against model requirements
     if is_deepseek and chat_message.temperature not in (None, 0.0):
         raise ValueError("DeepSeek models require temperature=0.0")
-        
+
     if is_o_series and chat_message.temperature is not None:
         raise ValueError("O-series models do not support temperature parameter")
+
     messages = chat_message.messages or [
         {"role": "user", "content": chat_message.message}
     ]
+
     params = {
         "messages": messages,
         "api_version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
@@ -117,11 +119,8 @@ def prepare_model_parameters(
 
     if is_o_series:
         # O1 temperature validation
-        if is_o_series:
-            if params.get("temperature") not in [None, 1.0]:
-                raise ValueError("O1 models only support temperature=1.0 when provided")
-            if params.get("temperature") is None:
-                params.pop("temperature", None)
+        if params.get("temperature") is not None:
+            params.pop("temperature", None)
 
     if is_deepseek:
         # Enforce DeepSeek-R1 token limits
@@ -469,8 +468,8 @@ async def process_chat_message(
         from clients import get_model_client_dependency
 
         # Distinguish between ChatCompletionsClient and AzureOpenAI:
-        client_wrapper = get_model_client_dependency(model_name)
-        azure_client = client_wrapper.get("client")
+        client_wrapper = await get_model_client_dependency(model_name)
+        azure_client = client_wrapper["client"]
         if isinstance(azure_client, ChatCompletionsClient):
             if is_deepseek:
                 logger.debug(
@@ -513,16 +512,31 @@ async def process_chat_message(
                 }
         else:
             # Using the openai.AzureOpenAI client
-            # Add DeepSeek-specific streaming headers
-            # For DeepSeek models, use ChatCompletionsClient directly
-            response = azure_client.complete(
-                model=model_name,
-                messages=params["messages"],  # type: ignore
-                temperature=params.get("temperature", 0.7),  # type: ignore
-                max_completion_tokens=params.get("max_completion_tokens", 1000),  # type: ignore
-                # Removed reasoning_effort for DeepSeek models:
-                # No longer passing reasoning_effort in the call for DeepSeek-R1
-            )
+            if is_o_series:
+                # For O-series models
+                response = azure_client.chat.completions.create(
+                    model=model_name,
+                    messages=params["messages"],
+                    max_completion_tokens=params.get("max_completion_tokens", 40000),
+                    reasoning_effort=params.get("reasoning_effort", "medium"),
+                )
+            elif is_deepseek:
+                # For DeepSeek models
+                response = azure_client.chat.completions.create(
+                    model=model_name,
+                    messages=params["messages"],
+                    temperature=0.0,
+                    max_tokens=params.get("max_tokens", 131072),
+                )
+            else:
+                # For standard models
+                response = azure_client.chat.completions.create(
+                    model=model_name,
+                    messages=params["messages"],
+                    temperature=params.get("temperature", 0.7),
+                    max_tokens=params.get("max_tokens", 4096),
+                )
+
             content = response.choices[0].message.content if response.choices else ""
             usage_raw = getattr(response, "usage", None)
             usage_data = {
@@ -717,11 +731,9 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
         )
         api_version = os.getenv("AZURE_OPENAI_API_VERSION") or "2025-02-01-preview"
 
-        # DeepSeek requires special handling for temperature and max_tokens
         client = ChatCompletionsClient(
             endpoint=config.AZURE_INFERENCE_ENDPOINT,
             credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-            model="DeepSeek-R1",
             api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION,
             headers={
                 "x-ms-thinking-format": "html",
@@ -729,8 +741,7 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
             },
         )
 
-        response = client.chat.completions.create(  # type: ignore
-            model=config.AZURE_OPENAI_DEPLOYMENT_NAME,
+        response = client.complete(
             messages=[
                 {
                     "role": "system",
@@ -741,8 +752,10 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
                     "content": f"Summarize the following chat:\n\n{combined_text}\n\nBrief Summary:",
                 },
             ],
-            max_completion_tokens=150,
+            temperature=0.0,
+            max_tokens=150,
         )
+
         summary_text = ""
         if (
             response.choices

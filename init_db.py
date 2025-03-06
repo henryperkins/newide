@@ -588,7 +588,7 @@ async def init_database():
                 "max_timeout": 300.0,
                 "token_factor": 0.05,
                 "api_version": os.getenv(
-                    "AZURE_OPENAI_API_VERSION", "2025-01-01-preview"
+                    "AZURE_OPENAI_API_VERSION", "2025-02-01-preview"
                 ),
                 "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT", ""),
                 "api_key": "",  # Never store API keys in database

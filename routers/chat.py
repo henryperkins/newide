@@ -655,22 +655,22 @@ async def chat_sse(
     if is_deepseek_model(model):
         required_headers = {
             "x-ms-thinking-format": "html",
-            "x-ms-streaming-version": "2024-05-01-preview"
+            "x-ms-streaming-version": "2024-05-01-preview",
         }
-        
+
         for header, expected_value in required_headers.items():
             actual_value = request.headers.get(header)
             if not actual_value:
                 raise HTTPException(
-                    status_code=400, 
-                    detail=f"Missing required header: {header} for DeepSeek-R1"
+                    status_code=400,
+                    detail=f"Missing required header: {header} for DeepSeek-R1",
                 )
             if actual_value != expected_value:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Invalid {header} value. Expected {expected_value} got {actual_value}"
+                    detail=f"Invalid {header} value. Expected {expected_value} got {actual_value}",
                 )
-            
+
     await SSE_SEMAPHORE.acquire()
     try:
         # Validate session
@@ -713,7 +713,6 @@ async def generate_stream_chunks(
     reasoning_effort: str,
     db: AsyncSession,
     session_id: UUID,
-    developer_config: Optional[str],
     client: Any,
 ):
     """
@@ -724,24 +723,21 @@ async def generate_stream_chunks(
     usage_block: Dict[str, Any] = {}
 
     try:
-        # Build messages with system prompt
-        messages = []
-        if developer_config:
-            messages.append({"role": "system", "content": developer_config})
-        messages.append({"role": "user", "content": message})
+        # Build messages with user message only
+        messages = [{"role": "user", "content": message}]
 
         # Validate DeepSeek credentials and endpoint format
-        if config.is_deepseek_model(model_name):
+        if is_deepseek_model(model_name):
             expected_path = "/v1/chat/completions"
             if not client.endpoint.endswith(expected_path):
                 raise HTTPException(
                     status_code=400,
-                    detail=f"DeepSeek endpoint must end with {expected_path}"
+                    detail=f"DeepSeek endpoint must end with {expected_path}",
                 )
             if not config.AZURE_INFERENCE_CREDENTIAL:
                 raise HTTPException(
                     status_code=500,
-                    detail="Missing DeepSeek API credentials - check AZURE_INFERENCE_CREDENTIAL environment variable"
+                    detail="Missing DeepSeek API credentials - check AZURE_INFERENCE_CREDENTIAL environment variable",
                 )
 
         # Get properly configured client
@@ -749,41 +745,69 @@ async def generate_stream_chunks(
         client = client_wrapper["client"]
 
         # Log request details for debugging
-        logger.debug(f"Attempting DeepSeek connection to: {client.endpoint}")
+        logger.debug(f"Attempting connection to: {client.endpoint}")
         logger.debug(f"Using API version: {client.api_version}")
-        logger.debug(f"Request headers: {client._config.headers}")  # noqa
-        
+
+        # Prepare request parameters based on model type
+        params = {}
+        if is_deepseek_model(model_name):
+            # DeepSeek-R1 specific parameters
+            params = {
+                "messages": messages,
+                "temperature": 0.0,  # Required to be 0.0 for DeepSeek
+                "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
+                "stream": True,
+                "headers": {
+                    "x-ms-thinking-format": "html",
+                    "x-ms-streaming-version": "2024-05-01-preview",
+                },
+            }
+        elif is_o_series_model(model_name):
+            # o1 or o3 model specific parameters
+            params = {
+                "messages": messages,
+                "max_completion_tokens": config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
+                "stream": True,
+                "reasoning_effort": reasoning_effort,
+            }
+            # O-series models don't support temperature
+        else:
+            # Default parameters for other models
+            params = {
+                "messages": messages,
+                "temperature": 0.7,
+                "max_tokens": 4096,
+                "stream": True,
+            }
+
         # Make streaming request with validated parameters
-        stream_response = client.chat.completions.create(
-            messages=messages,
-            temperature=0.0,
-            max_tokens=config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
-            stream=True
-        )
-        
+        stream_response = client.chat.completions.create(**params)
+
         async for chunk in stream_response:
-            # Process each chunk from the DeepSeek stream
+            # Process each chunk from the stream
             chunk_content = chunk.choices[0].delta.content or ""
             full_content += chunk_content
-            
+
             # Handle thinking blocks
-            if "" in chunk_content:
-                yield sse_json({
-                    "choices": [{
-                        "delta": {"content": chunk_content},
-                        "finish_reason": None
-                    }],
-                    "model": model_name,
-                    "thinking_block": True
-                })
+            if "<think>" in chunk_content:
+                yield sse_json(
+                    {
+                        "choices": [
+                            {"delta": {"content": chunk_content}, "finish_reason": None}
+                        ],
+                        "model": model_name,
+                        "thinking_block": True,
+                    }
+                )
             else:
-                yield sse_json({
-                    "choices": [{
-                        "delta": {"content": chunk_content},
-                        "finish_reason": None
-                    }],
-                    "model": model_name
-                })
+                yield sse_json(
+                    {
+                        "choices": [
+                            {"delta": {"content": chunk_content}, "finish_reason": None}
+                        ],
+                        "model": model_name,
+                    }
+                )
 
         # Final chunk with a "stop" reason
         yield sse_json({"choices": [{"finish_reason": "stop"}]})

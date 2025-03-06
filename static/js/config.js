@@ -5,7 +5,6 @@ import { generateDefaultModelConfig } from './utils/modelUtils.js';
 
 const DEFAULT_CONFIG = {
   reasoningEffort: "medium",
-  developerConfig: "Formatting re-enabled - use markdown code blocks",
   includeFiles: false,
   selectedModel: "o1",
   deploymentName: "o1",
@@ -74,7 +73,6 @@ function loadConfigFromLocalStorage() {
   try {
     const config = { ...DEFAULT_CONFIG };
     config.reasoningEffort = localStorage.getItem('reasoningEffort') || config.reasoningEffort;
-    config.developerConfig = localStorage.getItem('developerConfig') || config.developerConfig;
     config.selectedModel = localStorage.getItem('selectedModel') || config.selectedModel;
     config.appSettings = { ...config.appSettings };
     config.appSettings.streamingEnabled = localStorage.getItem('streamingEnabled') === 'true';
@@ -90,7 +88,6 @@ function saveConfigToLocalStorage(config) {
   if (!config) return;
   try {
     localStorage.setItem('reasoningEffort', config.reasoningEffort || DEFAULT_CONFIG.reasoningEffort);
-    localStorage.setItem('developerConfig', config.developerConfig || DEFAULT_CONFIG.developerConfig);
     localStorage.setItem('selectedModel', config.selectedModel || DEFAULT_CONFIG.selectedModel);
     if (config.appSettings) {
       localStorage.setItem('streamingEnabled', config.appSettings.streamingEnabled ? 'true' : 'false');
@@ -117,8 +114,6 @@ function initConfigUI(config) {
       updateReasoningDescription(config.reasoningEffort, reasoningDescription);
     }
   }
-  const developerConfigInput = document.getElementById('developer-config');
-  if (developerConfigInput) developerConfigInput.value = config.developerConfig || '';
   const streamingToggle = document.getElementById('enable-streaming');
   if (streamingToggle) streamingToggle.checked = config.appSettings?.streamingEnabled || false;
   updateModelSelectUI(config.selectedModel);
@@ -151,9 +146,6 @@ function updateReasoningDescription(effortLevel, descriptionElement) {
       text = 'Medium: Balanced processing time (1-3min) and quality';
   }
   descriptionElement.textContent = text;
-}
-function handleDeveloperConfigChange(e) {
-  updateConfig({ developerConfig: e.target.value });
 }
 
 function handleStreamingToggleChange(e) {
@@ -320,7 +312,6 @@ export async function updateConfig(updates) {
 async function saveConfigToServer(updates) {
   const serverUpdates = {};
   if (updates.reasoningEffort) serverUpdates.reasoningEffort = updates.reasoningEffort;
-  if (updates.developerConfig) serverUpdates.developerConfig = updates.developerConfig;
   if (updates.selectedModel) serverUpdates.selectedModel = updates.selectedModel;
   if (updates.includeFiles !== undefined) serverUpdates.includeFiles = updates.includeFiles;
   if (!Object.keys(serverUpdates).length) return;
@@ -330,7 +321,7 @@ async function saveConfigToServer(updates) {
       let formattedValue = value;
       if (key === 'reasoningEffort') formattedValue = String(value).toLowerCase();
       else if (key === 'includeFiles') formattedValue = Boolean(value);
-      else if (key === 'selectedModel' || key === 'developerConfig') formattedValue = String(value);
+      else if (key === 'selectedModel') formattedValue = String(value);
       const response = await fetch(`${window.location.origin}/api/config/${key}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -407,10 +398,6 @@ export function getReasoningEffort() {
   return cachedConfig?.reasoningEffort || REASONING_EFFORT.MEDIUM;
 }
 
-export function getDeveloperConfig() {
-  return cachedConfig?.developerConfig || DEFAULT_CONFIG.developerConfig;
-}
-
 export async function getModelAPIConfig(modelName) {
   const config = await getCurrentConfig();
   let modelConfig = null;
@@ -462,9 +449,6 @@ export async function getModelAPIConfig(modelName) {
 export function setupConfigEventHandlers() {
   const reasoningSlider = document.getElementById('reasoning-effort-slider');
   if (reasoningSlider) reasoningSlider.addEventListener('input', handleReasoningSliderChange);
-
-  const developerConfigInput = document.getElementById('developer-config');
-  if (developerConfigInput) developerConfigInput.addEventListener('change', handleDeveloperConfigChange);
 
   const streamingToggle = document.getElementById('enable-streaming');
   if (streamingToggle) streamingToggle.addEventListener('change', handleStreamingToggleChange);

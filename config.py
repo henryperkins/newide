@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     AZURE_OPENAI_API_KEY: Optional[str] = os.getenv("AZURE_OPENAI_API_KEY")
     AZURE_OPENAI_DEPLOYMENT_NAME: str = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "o1")
     AZURE_OPENAI_API_VERSION: str = os.getenv(
-        "AZURE_OPENAI_API_VERSION", "2025-01-01-preview"
+        "AZURE_OPENAI_API_VERSION", "2025-02-01-preview"
     )
 
     # JWT Configuration
@@ -136,9 +136,11 @@ def validate_azure_credentials():
         raise ValueError(
             f"Missing required environment variables: {', '.join(missing)}"
         )
-    
+
     # Additional DeepSeek-specific validation
-    if os.getenv("AZURE_INFERENCE_ENDPOINT") and "DeepSeek-R1" not in os.getenv("AZURE_INFERENCE_ENDPOINT", ""):
+    if os.getenv("AZURE_INFERENCE_ENDPOINT") and "DeepSeek-R1" not in os.getenv(
+        "AZURE_INFERENCE_ENDPOINT", ""
+    ):
         raise ValueError(
             "AZURE_INFERENCE_ENDPOINT must contain the full DeepSeek endpoint URL including '/DeepSeek-R1'"
         )
@@ -189,7 +191,7 @@ AZURE_OPENAI_API_VERSION = settings.AZURE_OPENAI_API_VERSION
 # MODEL_CONFIGS has been removed from config.py and should be loaded from a database or external config.
 
 # Model-specific settings
-O_SERIES_API_VERSION = "2025-01-01-preview"
+O_SERIES_API_VERSION = "2025-02-01-preview"
 DEEPSEEK_API_VERSION = "2024-05-01-preview"
 O_SERIES_BASE_TIMEOUT = 120  # Longer timeout for complex reasoning
 DEEPSEEK_DEFAULT_MAX_TOKENS = 64000
@@ -252,10 +254,10 @@ REASONING_EFFORT_MULTIPLIERS = {"low": 1.0, "medium": 2.5, "high": 5.0}
 # Model-level fallback API versions
 # -----------------------------------------------
 MODEL_API_VERSIONS: Dict[str, str] = {
-    "o1": "2025-01-01-preview",
-    "o3-mini": "2025-01-01-preview",
-    "o1-preview": "2025-01-01-preview",
-    "o1-mini": "2025-01-01-preview",
+    "o1": "2025-02-01-preview",
+    "o3-mini": "2025-02-01-preview",
+    "o1-preview": "2025-02-01-preview",
+    "o1-mini": "2025-02-01-preview",
     "DeepSeek-R1": "2024-05-01-preview",  # Serverless API version
     "default": "2024-05-01-preview",
 }

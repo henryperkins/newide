@@ -62,7 +62,7 @@ def resolve_api_version(deployment_name: str) -> str:
     """
     Resolve which API version to use based on the deployment_name.
     Falls back to an environment variable DEFAULT_API_VERSION or
-    a default '2025-01-01-preview' if not found.
+    a default '2025-02-01-preview' if not found.
     """
     # First check if it's in our config's MODEL_API_VERSIONS
     if (
@@ -79,7 +79,7 @@ def resolve_api_version(deployment_name: str) -> str:
         "gpt-4": "2023-12-01",
     }
     return version_matrix.get(
-        deployment_name.lower(), os.getenv("DEFAULT_API_VERSION", "2025-01-01-preview")
+        deployment_name.lower(), os.getenv("DEFAULT_API_VERSION", "2025-02-01-preview")
     )
 
 

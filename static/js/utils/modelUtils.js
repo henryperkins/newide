@@ -24,7 +24,7 @@ export function generateDefaultModelConfig(modelId, modelApiConfig = {}) {
         ? "Model with chain-of-thought reasoning capabilities"
         : "Generic AI model",
     azure_endpoint: modelApiConfig.endpoint || "https://o1models.openai.azure.com",
-    api_version: modelApiConfig.apiVersion || "2025-01-01-preview",
+    api_version: modelApiConfig.apiVersion || "2025-02-01-preview",
     max_tokens: modelApiConfig.maxTokens || 128000,
     max_completion_tokens: modelApiConfig.maxCompletionTokens || 100000,
     supports_temperature: modelApiConfig.supportsTemperature || false,
@@ -62,7 +62,7 @@ export const KNOWN_MODELS = [
     id: "o1",
     modelApiConfig: {
       endpoint: "https://o1models.openai.azure.com",
-      apiVersion: "2024-12-01-preview", // Match documented API version
+      apiVersion: "2025-02-01-preview", // Match documented API version
       maxTokens: 64000,
       supportsTemperature: false,
       supportsStreaming: false,
@@ -75,7 +75,7 @@ export const KNOWN_MODELS = [
   {
     id: "DeepSeek-R1",
     modelApiConfig: {
-      endpoint: "/v1/chat/completions",
+      endpoint: "https://DeepSeek-R1D2.eastus2.ai.azure.com",
       apiVersion: "2024-05-01-preview",
       maxTokens: 131072,
       temperature: 0.0,
@@ -85,6 +85,7 @@ export const KNOWN_MODELS = [
       },
       supportsStreaming: true,
       baseTimeout: 30.0,
-      readTimeout: 120.0
+      readTimeout: 120.0,
+    }
   }
 ];

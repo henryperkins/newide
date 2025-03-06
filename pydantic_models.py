@@ -15,7 +15,6 @@ class ChatMessage(BaseModel):
 
     message: str
     session_id: str
-    developer_config: Optional[str] = None
     reasoning_effort: Optional[str] = "medium"
     include_files: bool = False
     model: Optional[str] = None
@@ -81,26 +80,6 @@ class ChatMessage(BaseModel):
         if self.messages is None and self.message:
             self.messages = [{"role": "user", "content": self.message}]
 
-        # If developer_config is provided, add it as a system/developer message
-        if self.developer_config and self.messages:
-            # Check if any existing system/developer message
-            has_system = any(
-                m.get("role") in ["system", "developer"] for m in self.messages
-            )
-
-            if not has_system:
-                # Get model name from data if it exists
-                model_name = data.get("model", "").lower()
-
-                # Check if this is an o-series model
-                is_o_series = "o1" in model_name or "o3" in model_name
-
-                # Determine role based on model type
-                role = "developer" if is_o_series else "system"
-                self.messages.insert(
-                    0, {"role": role, "content": self.developer_config}
-                )
-
 
 # -------------------------------------------------------------------------
 # CreateChatCompletionRequest (Pydantic)
@@ -113,7 +92,6 @@ class CreateChatCompletionRequest(BaseModel):
     messages: List[Dict[str, str]]
     session_id: str
     model: Optional[str] = None
-    developer_config: Optional[str] = None
     reasoning_effort: Optional[str] = "medium"
     include_files: bool = False
     file_ids: Optional[List[str]] = None

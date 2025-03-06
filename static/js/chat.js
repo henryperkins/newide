@@ -20,7 +20,6 @@ import { renderMarkdown, sanitizeHTML, highlightCode } from './ui/markdownParser
 import { deepSeekProcessor } from './ui/deepseekProcessor.js';
 
 let streamingEnabled = false;
-let developerConfig = 'You are a helpful AI assistant.';
 let reasoningEffort = 'medium';
 let isProcessing = false;
 let currentController = null;
@@ -37,7 +36,6 @@ function initChatInterface() {
   const userInput = document.getElementById('user-input');
   const sendButton = document.getElementById('send-button');
   const streamingToggle = document.getElementById('enable-streaming');
-  const developerConfigInput = document.getElementById('developer-config');
   const reasoningSlider = document.getElementById('reasoning-effort-slider');
   const charCount = document.getElementById('char-count');
 
@@ -66,18 +64,6 @@ function initChatInterface() {
     if (storedStreamingState !== null) {
       streamingEnabled = storedStreamingState === 'true';
       streamingToggle.checked = streamingEnabled;
-    }
-  }
-
-  if (developerConfigInput) {
-    developerConfigInput.addEventListener('change', e => {
-      developerConfig = e.target.value;
-      localStorage.setItem('developerConfig', developerConfig);
-    });
-    const storedConfig = localStorage.getItem('developerConfig');
-    if (storedConfig) {
-      developerConfig = storedConfig;
-      developerConfigInput.value = developerConfig;
     }
   }
 
@@ -194,7 +180,7 @@ function initChatInterface() {
             console.error('Copy failed:', err);
             showNotification('Failed to copy to clipboard', 'error');
           });
-        console.log('[sendMessage] Using fetchChatResponse, modelName:', modelName, 'developerConfig:', developerConfig, 'reasoningEffort:', reasoningEffort);
+        console.log('[sendMessage] Using fetchChatResponse, modelName:', modelName, 'reasoningEffort:', reasoningEffort);
       }
     }
     if (
@@ -247,13 +233,11 @@ export async function sendMessage() {
 
     // Handle o1hp as an alias for o1
     let actualModelName = modelName.toLowerCase() === 'o1hp' ? 'o1' : modelName;
-    if (modelName.toLowerCase() === 'DeepSeek-R1') {
+    if (modelName.toLowerCase() === 'deepseek-r1') {
       console.log('[sendMessage] Setting actualModelName to "DeepSeek-R1" for DeepSeek-R1');
       actualModelName = 'DeepSeek-R1';
     }
 
-    // Adjust developer config based on model
-    const systemPrompt = developerConfig; // Use standard system message
     const modelConfig = await getModelConfig(actualModelName);
     isStreamingSupported = modelConfig?.supports_streaming || false;
     const useStreaming = streamingEnabled && isStreamingSupported;
@@ -337,7 +321,6 @@ async function fetchChatResponse(
   messageContent,
   sessionId,
   modelName = 'DeepSeek-R1',
-  devConfig = '',
   effort = 'medium',
   signal
 ) {
@@ -350,15 +333,12 @@ async function fetchChatResponse(
       const apiUrl = `${window.location.origin}/api/chat`;
       const messages = [];
 
-      // Use the appropriate role based on model type
-      if (systemPrompt) {
-        messages.push({ role: 'system', content: systemPrompt });
-      }
-
+      // Only add user message
       messages.push({ role: 'user', content: messageContent });
 
       // Determine if this is an O-series model
       const isOSeriesModel = modelName.toLowerCase().startsWith('o1') || modelName.toLowerCase().startsWith('o3');
+      const isDeepSeek = modelName.toLowerCase().includes('deepseek');
 
       // Adjust parameters based on model type
       const payload = {
@@ -368,7 +348,7 @@ async function fetchChatResponse(
       };
 
       // Only add reasoning_effort for O-series models
-      if (modelName.toLowerCase().startsWith('o1') || modelName.toLowerCase().startsWith('o3')) {
+      if (isOSeriesModel) {
         payload.reasoning_effort = effort;
       }
 
@@ -381,7 +361,8 @@ async function fetchChatResponse(
 
       // Only add temperature for non-o1 models
       if (!isOSeriesModel) {
-        payload.temperature = 0.7;
+        // For DeepSeek-R1, always use 0.0 temperature
+        payload.temperature = isDeepSeek ? 0.0 : 0.7;
       }
 
       console.log('[fetchChatResponse] Sending payload:', payload);
@@ -393,13 +374,19 @@ async function fetchChatResponse(
 
       while (retries <= maxApiRetries) {
         try {
+          // Add special headers for DeepSeek-R1
+          const headers = {
+            'Content-Type': 'application/json'
+          };
+
+          if (isDeepSeek) {
+            headers['x-ms-thinking-format'] = 'html';
+            headers['x-ms-streaming-version'] = '2024-05-01-preview';
+          }
+
           response = await fetch(apiUrl, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-ms-thinking-format': 'html',
-              'x-ms-streaming-version': '2024-05-01-preview'
-            },
+            headers: headers,
             body: JSON.stringify(payload),
             signal
           });
@@ -614,7 +601,7 @@ async function getModelConfig(modelName) {
     console.warn(`Could not fetch model config for ${modelName}, status: ${response.status}`);
     if (response.status === 400) console.error(`Bad request: check model name and API.`);
     else if (response.status === 404) console.error(`Model ${modelName} not found in config.`);
-    if (modelName.toLowerCase() === 'DeepSeek-R1')
+    if (modelName.toLowerCase() === 'deepseek-r1')
       return { name: 'DeepSeek-R1', supports_streaming: true, supports_temperature: true, api_version: '2024-05-01-preview' };
     if (modelName.toLowerCase().startsWith('o1'))
       return { name: modelName, supports_streaming: false, supports_temperature: false, api_version: '2025-01-01-preview' };
