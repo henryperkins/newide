@@ -158,7 +158,11 @@ export function streamChatResponse(
 
     // Build query parameters
     const params = new URLSearchParams();
-    params.append('model', validModelName);
+    let finalModelName = modelName;
+    if (finalModelName.trim().toLowerCase() === 'deepseek-r1') {
+      finalModelName = 'DeepSeek-R1';
+    }
+    params.append('model', finalModelName);
     params.append('message', messageContent || '');
     
     if (validModelName.indexOf('o1') !== -1 || validModelName.indexOf('o3') !== -1) {
