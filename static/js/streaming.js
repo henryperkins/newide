@@ -361,7 +361,14 @@ export function streamChatResponse(
         return;
       }
       
-      if (isServerUnavailable) {
+      // Handle content safety filtering
+      if (errorCode === 400 && error.message.includes('content_filtered')) {
+        showNotification(
+          'Response blocked by content safety system',
+          'error',
+          5000
+        );
+      } else if (isServerUnavailable) {
         // Special handling for DeepSeek service unavailability
         showNotification(
           'AI service is temporarily unavailable. Please try again later or switch models.',
