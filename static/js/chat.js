@@ -247,19 +247,13 @@ export async function sendMessage() {
 
     // Handle o1hp as an alias for o1
     let actualModelName = modelName.toLowerCase() === 'o1hp' ? 'o1' : modelName;
-    if (modelName.toLowerCase() === 'o1hp') {
-      console.log('[sendMessage] Using o1 as fallback for o1hp');
-    } else if (modelName.toLowerCase() === 'DeepSeek-R1') {
+    if (modelName.toLowerCase() === 'DeepSeek-R1') {
       console.log('[sendMessage] Setting actualModelName to "DeepSeek-R1" for DeepSeek-R1');
       actualModelName = 'DeepSeek-R1';
     }
 
     // Adjust developer config based on model
-    let devConfigToUse = developerConfig;
-    if (actualModelName.toLowerCase().startsWith('o1')) {
-      devConfigToUse = "Formatting re-enabled - use markdown code blocks\n" + developerConfig;
-    }
-
+    const systemPrompt = developerConfig; // Use standard system message
     const modelConfig = await getModelConfig(actualModelName);
     isStreamingSupported = modelConfig?.supports_streaming || false;
     const useStreaming = streamingEnabled && isStreamingSupported;
@@ -359,12 +353,8 @@ async function fetchChatResponse(
       const messages = [];
 
       // Use the appropriate role based on model type
-      if (devConfig) {
-        if (modelName.toLowerCase().startsWith('o1')) {
-          messages.push({ role: 'system', content: devConfig });
-        } else {
-          messages.push({ role: 'system', content: devConfig });
-        }
+      if (systemPrompt) {
+        messages.push({ role: 'system', content: systemPrompt });
       }
 
       messages.push({ role: 'user', content: messageContent });

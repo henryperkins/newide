@@ -190,9 +190,6 @@ export function streamChatResponse(
     const thinkingModeEnabled = localStorage.getItem('enableThinkingMode') === 'true';
 
     const apiUrl = window.location.origin + '/api/chat/sse?session_id=' + encodeURIComponent(sessionId);
-    if (typeof devConfigToUse === 'string' && devConfigToUse.trim()) {
-      params.append('developer_config', devConfigToUse.trim());
-    }
     const fullUrl = apiUrl + '&' + params.toString();
 
     // Create EventSource

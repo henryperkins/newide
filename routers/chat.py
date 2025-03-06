@@ -647,7 +647,6 @@ async def chat_sse(
     session_id: UUID,
     model: str,
     message: str,
-    developer_config: Optional[str] = None,
     reasoning_effort: str = "medium",
     db: AsyncSession = Depends(get_db_session),
 ):
