@@ -650,15 +650,18 @@ async def chat_sse(
     reasoning_effort: str = "medium",
     db: AsyncSession = Depends(get_db_session),
 ):
-    # Validate DeepSeek required headers
+    # Validate DeepSeek required headers and API version
     if is_deepseek_model(model):
-        required_headers = {"x-ms-thinking-format", "x-ms-streaming-version"}
-        missing_headers = [h for h in required_headers if h not in request.headers]
-        if missing_headers:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Missing required DeepSeek headers: {', '.join(missing_headers)}"
-            )
+        required_headers = {
+            "x-ms-thinking-format": "html",
+            "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION
+        }
+        for header, value in required_headers.items():
+            if request.headers.get(header) != value:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Missing or invalid DeepSeek header: {header} must be {value}"
+                )
             
     await SSE_SEMAPHORE.acquire()
     try:
@@ -720,29 +723,37 @@ async def generate_stream_chunks(
             messages.append({"role": "system", "content": developer_config})
         messages.append({"role": "user", "content": message})
 
-        # Here you'd call your client's streaming method
-        # For demonstration, yield placeholder SSE chunks
-        for i in range(3):
-            chunk_text = f"Streaming chunk {i+1} for model {model_name}\n"
-            full_content += chunk_text
-            yield sse_json(
-                {
-                    "choices": [
-                        {
-                            "delta": {
-                                "role": "assistant",
-                                "content": chunk_text,
-                            }
-                        }
-                    ],
+        # Real DeepSeek streaming implementation
+        stream_response = client.complete(
+            messages=messages,
+            temperature=0.0,  # Required for best results
+            max_tokens=config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
+            stream=True
+        )
+        
+        async for chunk in stream_response:
+            # Process each chunk from the DeepSeek stream
+            chunk_content = chunk.choices[0].delta.content or ""
+            full_content += chunk_content
+            
+            # Handle thinking blocks
+            if "" in chunk_content:
+                yield sse_json({
+                    "choices": [{
+                        "delta": {"content": chunk_content},
+                        "finish_reason": None
+                    }],
                     "model": model_name,
-                    "usage": {
-                        "completion_tokens": len(chunk_text.split()),
-                        "reasoning_tokens": 0,
-                    },
-                }
-            )
-            await asyncio.sleep(0.5)
+                    "thinking_block": True
+                })
+            else:
+                yield sse_json({
+                    "choices": [{
+                        "delta": {"content": chunk_content},
+                        "finish_reason": None
+                    }],
+                    "model": model_name
+                })
 
         # Final chunk with a "stop" reason
         yield sse_json({"choices": [{"finish_reason": "stop"}]})

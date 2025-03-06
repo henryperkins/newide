@@ -193,7 +193,20 @@ export function streamChatResponse(
     const fullUrl = apiUrl + '&' + params.toString();
 
     // Create EventSource
-    const eventSource = new EventSource(fullUrl);
+    // Use fetch API instead of EventSource to support custom headers
+    const response = await fetch(fullUrl, {
+      headers: {
+        "x-ms-thinking-format": "html",
+        "x-ms-streaming-version": "2024-05-01-preview"
+      }
+    });
+
+    if (!response.ok || !response.body) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
     const connectionTimeoutMs = calculateConnectionTimeout(validModelName, messageContent.length);
     console.log('Setting connection timeout to ' + connectionTimeoutMs + 'ms for ' + validModelName);
 
