@@ -692,23 +692,21 @@ async def generate_stream_chunks(
             content = chunk.choices[0].delta.content or ""
             full_content += content
 
-            # For DeepSeek, process thinking blocks and maintain HTML formatting
-            processed_content = expand_chain_of_thought(content, request)
-            
-            # Send formatted content as HTML
-            yield sse_json({
-                "choices": [{
-                    "delta": {
-                        "content": processed_content,
-                        "role": "assistant"
+            if enable_thinking == "true":
+                processed_content = expand_chain_of_thought(content, request)
+                yield sse_json({
+                    "choices": [{
+                        "delta": {
+                            "content": processed_content,
+                            "role": "assistant"
+                        }
+                    }],
+                    "model": model_name,
+                    "usage": {
+                        "completion_tokens": len(processed_content.split()),
+                        "reasoning_tokens": len(re.findall(r"", processed_content))
                     }
-                }],
-                "model": model_name,
-                "usage": {
-                    "completion_tokens": len(processed_content.split()),
-                    "reasoning_tokens": len(re.findall(r"", processed_content))
-                }
-            })
+                })
             else:
                 yield sse_json({"choices": [{"delta": {"content": content}}]})
 
