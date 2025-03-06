@@ -205,17 +205,16 @@ class ClientPool:
         """Create the appropriate client based on model type"""
         if config.is_deepseek_model(model_id):
             return ChatCompletionsClient(
-                endpoint=model_config["azure_endpoint"],
+                endpoint=config.AZURE_INFERENCE_ENDPOINT,
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                model="DeepSeek-R1",  # Exact case-sensitive model name
-                azure_deployment="DeepSeek-R1",  # Deployment name must match exactly
-                api_version=model_config["api_version"],
-                connection_timeout=120.0,
-                read_timeout=120.0,
-                headers={
+                model="DeepSeek-R1",  # Must be exact case
+                api_version="2024-05-01-preview",  # Required API version
+                headers={  # Mandatory headers
                     "x-ms-thinking-format": "html",
                     "x-ms-streaming-version": "2024-05-01-preview"
-                }
+                },
+                connection_timeout=120.0,
+                read_timeout=120.0
             )
         elif config.is_o_series_model(model_id):
             return AzureOpenAI(

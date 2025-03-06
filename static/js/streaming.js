@@ -531,7 +531,9 @@ async function attemptErrorRecovery(messageContent, error) {
   const isServiceUnavailable = (
     errorStr.includes('no healthy upstream') || 
     errorStr.includes('failed dependency') ||
-    errorStr.includes('deepseek service')
+    errorStr.includes('deepseek service') ||
+    errorStr.includes('missing deepseek required headers') ||
+    errorStr.includes('invalid api version')
   );
   
   // If it's a DeepSeek service issue and user didn't explicitly request retry
