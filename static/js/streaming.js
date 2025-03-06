@@ -201,6 +201,8 @@ export function streamChatResponse(
     connectionTimeoutId = setTimeout(() => {
       if (eventSource.readyState !== EventSource.CLOSED) {
         console.warn('Connection timed out after ' + connectionTimeoutMs + 'ms');
+        // Mark event source for timeout detection
+        if (eventSource.target) eventSource.target.setAttribute('data-timeout', 'true');
         eventSource.close();
         handleStreamingError(new Error('Connection timeout'));
       }
@@ -226,11 +228,14 @@ export function streamChatResponse(
       console.debug('[SSE Ping] keep-alive event received');
     });
 
+    // Near line 227
     eventSource.onopen = () => {
       clearTimeout(connectionTimeoutId);
       connectionTimeoutId = setTimeout(() => {
         if (eventSource.readyState !== EventSource.CLOSED) {
           console.warn('Stream stalled after ' + (connectionTimeoutMs * 1.5) + 'ms');
+          // Mark event source for timeout detection
+          if (eventSource.target) eventSource.target.setAttribute('data-timeout', 'true');
           eventSource.close();
           handleStreamingError(new Error('Stream stalled'));
         }
@@ -267,6 +272,7 @@ export function streamChatResponse(
       }
     };
 
+    // Near line 256
     let isTimeout = false;
 
     eventSource.onerror = async (e) => {
@@ -274,18 +280,23 @@ export function streamChatResponse(
       clearTimeout(connectionTimeoutId);
       clearInterval(connectionCheckIntervalId);
       eventSource.close();
-      
+
       // Try to get more detailed error information
       let errorMsg = 'Connection failed (EventSource closed)';
       let errorCode = 0;
       let isServerUnavailable = false;
-      
+
+      // Determine if this was a timeout error based on the error message
+      isTimeout = errorMsg.includes('timeout') ||
+        errorMsg.includes('timed out') ||
+        e?.target?.hasAttribute?.('data-timeout') === true;
+
       // Check for specific error conditions
       if (e && e.status) {
         errorMsg = 'Connection failed with status: ' + e.status;
         errorCode = e.status;
       }
-      
+
       // Check if it's the common "no healthy upstream" DeepSeek error
       try {
         const responseText = e?.target?.responseText;
@@ -302,12 +313,12 @@ export function streamChatResponse(
         // Ignore error parsing response text
         console.debug('Could not parse error response text:', err);
       }
-      
+
       // Create error object with additional properties
       const error = new Error(errorMsg);
       error.code = errorCode;
       error.recoverable = !isServerUnavailable;
-      error.isTimeout = isTimeout;
+      error.isTimeout = isTimeout;  // Now properly defined
       
       // For timeout errors, try a single auto-retry with increased timeout
       if (isTimeout && !error.retried) {

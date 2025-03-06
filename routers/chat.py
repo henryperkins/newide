@@ -651,7 +651,7 @@ async def chat_sse(
     db: AsyncSession = Depends(get_db_session),
 ):
     # Validate DeepSeek required headers
-    if config.is_deepseek_model(model):
+    if is_deepseek_model(model):
         required_headers = {"x-ms-thinking-format", "x-ms-streaming-version"}
         missing_headers = [h for h in required_headers if h not in request.headers]
         if missing_headers:
@@ -659,11 +659,7 @@ async def chat_sse(
                 status_code=400,
                 detail=f"Missing required DeepSeek headers: {', '.join(missing_headers)}"
             )
-):
-    """
-    SSE endpoint for streaming chat responses from your model.
-    Uses an in-memory concurrency limiter (SSE_SEMAPHORE).
-    """
+            
     await SSE_SEMAPHORE.acquire()
     try:
         # Validate session
