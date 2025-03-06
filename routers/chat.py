@@ -89,12 +89,11 @@ def expand_chain_of_thought(full_content: str) -> str:
         </div>'''
         block.replace_with(BeautifulSoup(thinking_html, "html.parser"))
     
-    formatted = str(soup)
-        # Secure HTML sanitization with DOMPurify and CSP nonce
-        from dompurify import clean
-        sanitized = clean(match)
-        nonce = request.state.nonce  # From CSP middleware
-        thinking_html = f"""<div class="thinking-process" nonce="{nonce}">
+    # Secure HTML sanitization with DOMPurify and CSP nonce
+    from dompurify import clean
+    sanitized = clean(match)
+    nonce = request.state.nonce  # From CSP middleware
+    thinking_html = f"""<div class="thinking-process" nonce="{nonce}">
             <div class="thinking-header">
                 <button class="thinking-toggle" aria-expanded="true">
                     <span class="toggle-icon">▼</span> Thinking Process
