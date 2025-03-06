@@ -713,9 +713,9 @@ async function cleanupStreaming(modelName) {
     animationFrameId = null;
   }
   try {
-    import('./ui/notificationManager.js').then(module => {
-      module.removeTypingIndicator();
-    });
+    // Direct import for reliability
+    import { removeTypingIndicator } from './ui/notificationManager.js';
+    removeTypingIndicator();
     removeStreamingProgressIndicator();
   } finally {
     document.querySelectorAll('.typing-indicator').forEach(el => el.remove());

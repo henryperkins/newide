@@ -23,12 +23,11 @@ class NotificationStack {
   }
 }
 
-let typingState = {
-  active: false,
-  element: null,
-  timeoutId: null,
-  animationFrame: null
-};
+const typingStates = new WeakMap(); // Use WeakMap for automatic cleanup
+let typingInstanceId = 0;
+
+const TYPING_INDICATOR_Z_INDEX = 60; // Above modals (50) and sidebar (50)
+const FADE_DURATION = 300; // Match CSS transition duration
 
 // Increase timeout to 2 minutes (120s) to accommodate longer model responses
 const INDICATOR_TIMEOUT = 120000; // Changed from 30000 (30s) to 120000 (120s)
@@ -259,12 +258,26 @@ export function showConfirmDialog(title, message, onConfirm, onCancel) {
 }
 
 export function showTypingIndicator() {
-  if (typingState.active) return;
+  const instanceId = ++typingInstanceId;
+  const currentState = {
+    active: true,
+    element: null,
+    timeoutId: null,
+    animationFrame: null,
+    instanceId,
+    removed: false
+  };
 
-  // Create element
+  // Create element with accessibility attributes
   const indicator = document.createElement('div');
+  indicator.setAttribute('aria-live', 'polite');
+  indicator.setAttribute('aria-busy', 'true');
+  indicator.setAttribute('aria-atomic', 'true');
+  indicator.setAttribute('role', 'status');
   // Tailwind classes for fade-in/out transitions
-  indicator.className = 'flex items-center space-x-1 opacity-0 transition-opacity duration-300 my-2';
+  indicator.className = 'flex items-center space-x-1 opacity-0 transition-opacity duration-300 my-2 fixed bottom-4 right-4';
+  indicator.style.zIndex = TYPING_INDICATOR_Z_INDEX;
+  indicator.dataset.typingIndicator = 'true';
   indicator.setAttribute('role', 'status');
   indicator.setAttribute('aria-live', 'polite');
   indicator.innerHTML = `
@@ -276,46 +289,59 @@ export function showTypingIndicator() {
     </div>
   `;
 
-  // State management
-  typingState = {
-    active: true,
-    element: indicator,
-    timeoutId: setTimeout(() => {
-      console.warn('Typing indicator timeout - response is taking longer than expected');
-      // Instead of removing the indicator, update its appearance to show it's still working
-      if (indicator && document.body.contains(indicator)) {
-        const message = document.createElement('small');
-        message.className = 'text-xs text-gray-500 ml-2';
-        message.textContent = 'Still generating...';
-        indicator.querySelector('.flex').appendChild(message);
-      }
-      // Don't call removeTypingIndicator() here - let the response finish naturally
-    }, INDICATOR_TIMEOUT),
+  // Track state with instance ID
+  currentState.element = indicator;
+  currentState.timeoutId = setTimeout(() => {
+    console.warn('Typing indicator timeout - response is taking longer than expected');
+    if (indicator?.isConnected) {
+      const message = document.createElement('small');
+      message.className = 'text-xs text-gray-500 ml-2';
+      message.textContent = 'Still generating...';
+      message.setAttribute('aria-live', 'polite');
+      indicator.querySelector('.flex').appendChild(message);
+    }
+  }, INDICATOR_TIMEOUT),
     animationFrame: requestAnimationFrame(() => {
-      const chatHistory = document.getElementById('chat-history');
-      if (chatHistory) {
-        chatHistory.appendChild(indicator);
-        setTimeout(() => {
-          indicator.classList.replace('opacity-0', 'opacity-100');
-        }, 10);
-        indicator.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      try {
+        const chatHistory = document.getElementById('chat-history');
+        if (chatHistory?.isConnected) {
+          chatHistory.appendChild(indicator);
+          requestAnimationFrame(() => {
+            indicator.classList.replace('opacity-0', 'opacity-100');
+          });
+          // Sync with chat history aria-live region
+          chatHistory.setAttribute('aria-busy', 'true');
+        }
+      } catch (error) {
+        console.error('Error appending typing indicator:', error);
       }
     })
   };
 }
 
 export function removeTypingIndicator() {
-  if (!typingState.active) return;
-  clearTimeout(typingState.timeoutId);
-  cancelAnimationFrame(typingState.animationFrame);
-  if (typingState.element) {
-    typingState.element.classList.replace('opacity-100', 'opacity-0');
-    setTimeout(() => {
-      if (typingState.element?.parentNode) typingState.element.parentNode.removeChild(typingState.element);
-      typingState = { active: false, element: null, timeoutId: null, animationFrame: null };
-    }, 300);
-  }
-  return true; // Return a value to indicate successful cleanup
+  const elements = document.querySelectorAll('[data-typing-indicator]');
+  elements.forEach(indicator => {
+    clearTimeout(indicator._typingTimeout);
+    cancelAnimationFrame(indicator._typingAnimationFrame);
+    
+    indicator.classList.replace('opacity-100', 'opacity-0');
+    indicator.setAttribute('aria-busy', 'false');
+    
+    const cleanup = () => {
+      if (indicator.isConnected) {
+        indicator.parentNode.removeChild(indicator);
+      }
+    };
+    
+    // Use CSS custom property for timing if available
+    const fadeDuration = getComputedStyle(document.documentElement)
+      .getPropertyValue('--typing-indicator-fade-duration') || FADE_DURATION;
+    
+    setTimeout(cleanup, parseInt(fadeDuration));
+  });
+
+  return elements.length > 0;
 }
 
 export function enableInteractiveElement(elementId, clickHandler) {
