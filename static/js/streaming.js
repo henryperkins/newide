@@ -45,13 +45,13 @@ const CONNECTION_CHECK_INTERVAL_MS = 5000; // 5 seconds
  */
 function calculateTokensPerSecond(usage) {
   if (!usage || !streamStartTime) return 0;
-  
+
   const elapsedMs = performance.now() - streamStartTime;
   if (elapsedMs <= 0) return 0;
-  
+
   const totalTokens = usage.completion_tokens || 0;
   const tokensPerSecond = (totalTokens / elapsedMs) * 1000;
-  
+
   return Math.min(tokensPerSecond, 1000); // Cap at 1000 t/s for reasonable display
 }
 
@@ -61,10 +61,10 @@ function calculateTokensPerSecond(usage) {
 function calculateConnectionTimeout(modelName, messageLength) {
   let timeout = BASE_CONNECTION_TIMEOUT_MS;
   const normalizedModelName = modelName ? modelName.toLowerCase() : '';
-  
+
   // Add debug logging to help troubleshoot timeout issues
   console.log(`[calculateConnectionTimeout] Starting with base timeout: ${timeout}ms`);
-  
+
   // Reasonable timeout multipliers for different model types
   if (normalizedModelName.indexOf('o1') !== -1 || normalizedModelName.indexOf('o3') !== -1) {
     timeout *= 2.5; // Increased from 2.0
@@ -76,14 +76,14 @@ function calculateConnectionTimeout(modelName, messageLength) {
     timeout *= 2.0; // Increased from 1.5
     console.log(`[calculateConnectionTimeout] DeepSeek model detected, timeout now: ${timeout}ms`);
   }
-  
+
   // More reasonable scaling based on message length
   if (messageLength > 1000) {
     const lengthFactor = 1 + (messageLength / 10000);
     timeout *= lengthFactor;
     console.log(`[calculateConnectionTimeout] Applied message length factor: ${lengthFactor}, timeout now: ${timeout}ms`);
   }
-  
+
   const finalTimeout = Math.min(timeout, MAX_CONNECTION_TIMEOUT_MS);
   console.log(`[calculateConnectionTimeout] Final timeout: ${finalTimeout}ms`);
   return finalTimeout;
@@ -104,7 +104,7 @@ function resetStreamingState() {
   streamStartTime = 0;
   firstTokenTime = 0;
   tokenCount = 0;
-  
+
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
     animationFrameId = null;
@@ -144,7 +144,7 @@ export function streamChatResponse(
   resetStreamingState();
   // Set streamStartTime at the beginning of the streaming process
   streamStartTime = performance.now();
-  
+
   return new Promise(async (resolve, reject) => {
     if (!sessionId) {
       reject(new Error('Invalid sessionId: Session ID is required for streaming'));
@@ -159,12 +159,12 @@ export function streamChatResponse(
     // Build query parameters
     const params = new URLSearchParams();
     let finalModelName = modelName;
-    if (finalModelName.trim().toLowerCase() === 'deepseek-r1') {
+    if (finalModelName.trim().toLowerCase() === 'DeepSeek-R1') {
       finalModelName = 'DeepSeek-R1';
     }
     params.append('model', finalModelName);
     params.append('message', messageContent || '');
-    
+
     if (validModelName.indexOf('o1') !== -1 || validModelName.indexOf('o3') !== -1) {
       params.append('reasoning_effort', reasoningEffort || 'medium');
       params.append('response_format', 'json_schema');
@@ -173,14 +173,14 @@ export function streamChatResponse(
       // For non-o1 and non-deepseek models, include it if provided but it might be ignored by the backend
       params.append('reasoning_effort', reasoningEffort);
     }
-    
+
     // Add file context parameters
     if (fileIds && fileIds.length > 0) {
       params.append('include_files', 'true');
       fileIds.forEach(fileId => {
         params.append('file_ids', fileId);
       });
-      
+
       if (useFileSearch) {
         params.append('use_file_search', 'true');
       }
@@ -332,20 +332,20 @@ export function streamChatResponse(
       error.code = errorCode;
       error.recoverable = !isServerUnavailable;
       error.isTimeout = isTimeout;  // Now properly defined
-      
+
       // For timeout errors, try a single auto-retry with increased timeout
       if (isTimeout && !error.retried) {
         error.retried = true;
         console.log('[streamChatResponse] Automatically retrying after timeout...');
-        
+
         // Wait a moment before retrying
         await new Promise(r => setTimeout(r, 1000));
-        
+
         try {
           // Try again with the same parameters but longer timeout
           const currentModelName = document.getElementById('model-select')?.value || 'DeepSeek-R1';
           window.serverCalculatedTimeout = (BASE_CONNECTION_TIMEOUT_MS * 3); // Force a much longer timeout
-          
+
           // Re-attempt the streaming with original parameters
           await streamChatResponse(
             messageContent,
@@ -356,7 +356,7 @@ export function streamChatResponse(
             fileIds,
             useFileSearch
           );
-          
+
           return; // If successful, don't show error
         } catch (retryError) {
           console.error('[streamChatResponse] Retry after timeout also failed:', retryError);
@@ -365,9 +365,9 @@ export function streamChatResponse(
           window.serverCalculatedTimeout = undefined; // Clear the override
         }
       }
-      
+
       handleStreamingError(error);
-      
+
       if (!navigator.onLine) {
         // Handle offline case
         window.addEventListener(
@@ -380,7 +380,7 @@ export function streamChatResponse(
         );
         return;
       }
-      
+
       // Handle content safety filtering
       if (errorCode === 400 && error.message.includes('content_filtered')) {
         showNotification(
@@ -436,7 +436,7 @@ export function streamChatResponse(
           const completionData = JSON.parse(e.data);
           if (completionData.usage) {
             console.log('Received token usage data:', completionData.usage);
-            
+
             // Enhance the token usage data with any timing metrics
             const enhancedUsage = {
               ...completionData.usage,
@@ -444,10 +444,10 @@ export function streamChatResponse(
               latency: (performance.now() - streamStartTime).toFixed(0),
               tokens_per_second: calculateTokensPerSecond(completionData.usage)
             };
-            
+
             console.log('Enhanced token usage with timing metrics:', enhancedUsage);
             updateTokenUsage(enhancedUsage);
-            
+
             // Store in token usage history
             if (!window.tokenUsageHistory) {
               window.tokenUsageHistory = {};
@@ -458,14 +458,14 @@ export function streamChatResponse(
             modelName: validModelName,
             usage: completionData.usage
           });
-          
+
           // Update the stats display with the final usage data
           if (completionData.usage) {
-          import('./ui/statsDisplay.js').then(({ updateStatsDisplay }) => {
-            updateStatsDisplay(completionData.usage);
-          }).catch(error => {
-            console.error('Failed to load stats display module:', error);
-          });
+            import('./ui/statsDisplay.js').then(({ updateStatsDisplay }) => {
+              updateStatsDisplay(completionData.usage);
+            }).catch(error => {
+              console.error('Failed to load stats display module:', error);
+            });
           }
         }
         forceRender();
@@ -490,7 +490,7 @@ function handleStreamingError(error) {
     if (mainTextBuffer || thinkingTextBuffer) {
       forceRender();
     }
-    
+
     // If we have partial content, add a note explaining it's incomplete
     if (mainTextBuffer && messageContainer) {
       const errorNote = document.createElement('div');
@@ -498,7 +498,7 @@ function handleStreamingError(error) {
       errorNote.textContent = '⚠️ The response was interrupted and is incomplete due to a connection error.';
       messageContainer.appendChild(errorNote);
     }
-    
+
     utilsHandleStreamingError(error, showNotification, messageContainer);
     removeStreamingProgressIndicator();
     eventBus.publish('streamingError', {
@@ -549,13 +549,13 @@ async function attemptErrorRecovery(messageContent, error) {
   // Check if the error mentions "no healthy upstream" - DeepSeek service issue
   const errorStr = error?.message?.toLowerCase() || '';
   const isServiceUnavailable = (
-    errorStr.includes('no healthy upstream') || 
+    errorStr.includes('no healthy upstream') ||
     errorStr.includes('failed dependency') ||
     errorStr.includes('deepseek service') ||
     errorStr.includes('missing deepseek required headers') ||
     errorStr.includes('invalid api version')
   );
-  
+
   // If it's a DeepSeek service issue and user didn't explicitly request retry
   if (isServiceUnavailable && error.userRequestedRetry !== true) {
     showNotification('Service unavailable. Consider switching models.', 'warning', 5000);
@@ -585,7 +585,7 @@ async function attemptErrorRecovery(messageContent, error) {
       }
       const modelSelect = document.getElementById('model-select');
       let modelName = (modelSelect && modelSelect.value) ? modelSelect.value : 'DeepSeek-R1';
-      
+
       // If this is a DeepSeek error, try a different model if available
       if (isServiceUnavailable && modelName.toLowerCase().includes('deepseek')) {
         // Look for any non-DeepSeek model
@@ -601,7 +601,7 @@ async function attemptErrorRecovery(messageContent, error) {
           }
         }
       }
-      
+
       try {
         return await retry(
           () => streamChatResponse(messageContent, sessionId, modelName),
@@ -640,7 +640,7 @@ function processDataChunkWrapper(data) {
     thinkingTextBuffer,
     isThinking
   );
-  
+
   // If we're in a thinking block, store partial content
   if (result.isThinking) {
     this.thinkingBuffer = result.thinkingTextBuffer;
@@ -700,7 +700,7 @@ function renderBufferedContent() {
 
     // Get both content buffers with proper boundary handling
     const separated = deepSeekProcessor.separateContentBuffers(
-      mainTextBuffer, 
+      mainTextBuffer,
       thinkingTextBuffer || this.thinkingBuffer
     );
     const mainContent = separated.mainContent;
@@ -752,7 +752,7 @@ async function cleanupStreaming(modelName) {
         await fetchWithRetry(
           window.location.origin + `/api/chat/conversations/${conversationId}/messages`,
           {
-            method: 'POST', 
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               role: 'assistant',

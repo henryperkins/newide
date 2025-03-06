@@ -14,19 +14,19 @@ export function generateDefaultModelConfig(modelId, modelApiConfig = {}) {
   const isDeepSeek = modelId.toLowerCase().includes('deepseek');
   // Enable thinking mode by default for DeepSeek models
   if (isDeepSeek) modelApiConfig.enable_thinking = true;
-  
+
   // Base configuration that applies to all models
   const config = {
     name: modelId,
-    description: isOSeries 
-      ? "Advanced reasoning model with high-quality outputs" 
-      : isDeepSeek 
+    description: isOSeries
+      ? "Advanced reasoning model with high-quality outputs"
+      : isDeepSeek
         ? "Model with chain-of-thought reasoning capabilities"
         : "Generic AI model",
     azure_endpoint: modelApiConfig.endpoint || "https://o1models.openai.azure.com",
     api_version: modelApiConfig.apiVersion || "2025-01-01-preview",
-    max_tokens: modelApiConfig.maxTokens || 64000,
-    max_completion_tokens: modelApiConfig.maxCompletionTokens || 4096,
+    max_tokens: modelApiConfig.maxTokens || 128000,
+    max_completion_tokens: modelApiConfig.maxCompletionTokens || 100000,
     supports_temperature: modelApiConfig.supportsTemperature || false,
     supports_streaming: modelApiConfig.supportsStreaming || false,
     supports_vision: modelApiConfig.supportsVision || false,
@@ -34,23 +34,23 @@ export function generateDefaultModelConfig(modelId, modelApiConfig = {}) {
     base_timeout: modelApiConfig.baseTimeout || (isOSeries ? 180.0 : 120.0),
     max_timeout: modelApiConfig.maxTimeout || (isOSeries ? 600.0 : 300.0),
     token_factor: modelApiConfig.tokenFactor || (isOSeries ? 0.1 : 0.05),
-    model_type: isOSeries 
-      ? "o-series" 
-      : isDeepSeek 
-        ? "deepseek" 
+    model_type: isOSeries
+      ? "o-series"
+      : isDeepSeek
+        ? "deepseek"
         : "standard"
   };
-  
+
   // Add model-specific configurations
   if (isDeepSeek) {
     config.enable_thinking = true;
     config.display_reasoning_tokens = true;
   }
-  
+
   if (isOSeries) {
     config.reasoning_effort = modelApiConfig.reasoningEffort || "medium";
   }
-  
+
   return config;
 }
 
@@ -75,9 +75,9 @@ export const KNOWN_MODELS = [
   {
     id: "DeepSeek-R1",
     modelApiConfig: {
-      endpoint: "https://DeepSeek-R1.eastus2.models.ai.azure.com",
+      endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
       apiVersion: "2024-05-01-preview",
-      maxTokens: 64000,
+      maxTokens: 128000,
       supportsTemperature: true,
       supportsStreaming: true,
       baseTimeout: 180.0,
