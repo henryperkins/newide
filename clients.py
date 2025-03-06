@@ -447,14 +447,20 @@ async def get_model_client_dependency(
         }
 
         if config.is_deepseek_model(model_name):
+            # Validate required DeepSeek configuration
+            if not config.AZURE_INFERENCE_ENDPOINT:
+                raise ValueError("AZURE_INFERENCE_ENDPOINT is not configured")
+            if not config.AZURE_INFERENCE_CREDENTIAL:
+                raise ValueError("AZURE_INFERENCE_CREDENTIAL is missing")
+
             client = ChatCompletionsClient(
                 endpoint=config.AZURE_INFERENCE_ENDPOINT,
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                model="DeepSeek-R1",  # Fixed model name
                 api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION,
                 headers={
                     "x-ms-thinking-format": "html",
                     "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+                    "x-ms-user-agent": "azure-ai-inference/1.0.0"
                 },
                 connection_timeout=120.0,
                 read_timeout=120.0,

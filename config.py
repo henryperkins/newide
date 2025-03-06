@@ -136,6 +136,12 @@ def validate_azure_credentials():
         raise ValueError(
             f"Missing required environment variables: {', '.join(missing)}"
         )
+    
+    # Additional DeepSeek-specific validation
+    if os.getenv("AZURE_INFERENCE_ENDPOINT") and "DeepSeek-R1" not in os.getenv("AZURE_INFERENCE_ENDPOINT", ""):
+        raise ValueError(
+            "AZURE_INFERENCE_ENDPOINT must contain the full DeepSeek endpoint URL including '/DeepSeek-R1'"
+        )
 
 
 # Move the function definition BEFORE the calls at line 127-128
