@@ -33,12 +33,14 @@ def handle_client_error(error: Exception) -> dict:
                     content_str = content.decode("utf-8", errors="replace")
                 else:
                     content_str = str(content)
-                
+
                 # Only try to parse as JSON if it looks like JSON
-                if content_str.strip().startswith('{'):
+                if content_str.strip().startswith("{"):
                     error_content = json.loads(content_str)
                     if "error" in error_content:
-                        error_message = error_content["error"].get("message", error_message)
+                        error_message = error_content["error"].get(
+                            "message", error_message
+                        )
                 else:
                     # For non-JSON responses, extract useful information
                     error_message = f"Azure AI error: {content_str[:200]}..."
