@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, insert, func
 from logging_config import logger
 from database import get_db_session  # For injection
 from models import AppConfiguration
