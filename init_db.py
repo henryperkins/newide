@@ -58,7 +58,8 @@ async def init_database():
                 prompt_filter_results JSONB,
                 content_filter_results JSONB,
                 model_version VARCHAR(50),
-                service_tier VARCHAR(50)
+                service_tier VARCHAR(50),
+                version INTEGER DEFAULT 1 NOT NULL
             )
         """))
 
