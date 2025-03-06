@@ -583,7 +583,7 @@ class ModelManager {
                 requestBody.enable_thinking = modelConfig.enable_thinking !== false;
             }
 
-            const response = await fetch(`${ window.location.origin } /api/config / models /switch`, {
+            const response = await fetch(`${window.location.origin}/api/config/models/switch`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

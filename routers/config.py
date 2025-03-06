@@ -18,7 +18,7 @@ from session_utils import SessionManager  # Import SessionManager
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/config", tags=["Configuration"])
+router = APIRouter(prefix="/api/config", tags=["Configuration"])
 
 # Model aliases - Map model aliases to actual model names
 MODEL_ALIASES = {"o1hp": "o1"}  # o1hp is an alias for o1
@@ -161,13 +161,12 @@ async def get_all_configs(
     }
 
 
-@router.get("/models", response_model=Dict[str, ModelConfigModel])
+@router.get("/models")
 async def get_models(db_session: AsyncSession = Depends(get_db_session)):
-    """Get all model configurations.  This is one of the key endpoints."""
+    """Get all model configurations"""
     try:
-        # Get models from client pool
         client_pool = await get_client_pool(db_session)
-        return client_pool.get_all_models()
+        return {"models": client_pool.get_all_models()}
     except Exception as e:
         logger.error(f"Error in get_models: {str(e)}")
         # Return default models from ModelRegistry as a fallback
@@ -219,7 +218,7 @@ async def get_model(model_id: str, db_session: AsyncSession = Depends(get_db_ses
 @router.post("/models/{model_id}")
 async def create_model(
     model_id: str,
-    model: Optional[Dict[str, Any]] = None,
+    model: ModelConfigModel,
     db_session: AsyncSession = Depends(get_db_session),
 ):
     """Create a new model configuration. Another key endpoint."""
@@ -537,7 +536,7 @@ async def switch_model_path(
         raise HTTPException(status_code=500, detail=f"Error switching model: {str(e)}")
 
 
-@router.get("/current-model", response_model=Dict[str, Optional[str]])
+@router.get("/current-model")
 async def get_current_model(
     request: Request, db_session: AsyncSession = Depends(get_db_session)
 ):
