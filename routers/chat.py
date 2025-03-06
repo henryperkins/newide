@@ -688,27 +688,33 @@ async def generate_stream_chunks(
             },
         )
 
-        async for chunk in response:
-            content = chunk.choices[0].delta.content or ""
-            full_content += content
+        try:
+            async for chunk in response:
+                content = chunk.choices[0].delta.content or ""
+                full_content += content
 
-            if enable_thinking == "true":
-                processed_content = expand_chain_of_thought(content, request)
-                yield sse_json({
-                    "choices": [{
-                        "delta": {
-                            "content": processed_content,
-                            "role": "assistant"
+                if enable_thinking == "true":
+                    processed_content = expand_chain_of_thought(content, request)
+                    yield sse_json({
+                        "choices": [{
+                            "delta": {
+                                "content": processed_content,
+                                "role": "assistant"
+                            }
+                        }],
+                        "model": model_name,
+                        "usage": {
+                            "completion_tokens": len(processed_content.split()),
+                            "reasoning_tokens": len(re.findall(r"", processed_content))
                         }
-                    }],
-                    "model": model_name,
-                    "usage": {
-                        "completion_tokens": len(processed_content.split()),
-                        "reasoning_tokens": len(re.findall(r"", processed_content))
-                    }
-                })
-            else:
-                yield sse_json({"choices": [{"delta": {"content": content}}]})
+                    })
+                else:
+                    yield sse_json({"choices": [{"delta": {"content": content}}]})
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            logger.exception(f"SSE error: {e}")
+            raise HTTPException(status_code=500, detail=f"SSE failed: {e}")
 
         # Final chunk with stop reason
         yield sse_json({"choices": [{"finish_reason": "stop"}]})

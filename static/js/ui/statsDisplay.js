@@ -107,16 +107,25 @@ export class StatsDisplay {
       if (!DISABLE_CONNECTION_TRACKING) {
         const fetchConnections = async () => {
           try {
-            const response = await fetch('/api/model-stats/connections');
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const data = await response.json();
-            if (data.connections && data.connections.concurrent_connections !== undefined) {
-              this.stats.activeConnections = data.connections.concurrent_connections;
-            } else if (data.active_connections !== undefined) {
-              // Fallback for backward compatibility
-              this.stats.activeConnections = data.active_connections;
-            } else {
-              this.stats.activeConnections = 0;
+            try {
+              const response = await fetch('/api/model-stats/connections');
+              if (!response.ok) {
+                console.warn(`Connection stats request failed with HTTP ${response.status}`);
+                return; // optionally show a notification here
+              }
+              const data = await response.json();
+              if (data.connections && data.connections.concurrent_connections !== undefined) {
+                this.stats.activeConnections = data.connections.concurrent_connections;
+              } else if (data.active_connections !== undefined) {
+                // Fallback for backward compatibility
+                this.stats.activeConnections = data.active_connections;
+              } else {
+                this.stats.activeConnections = 0;
+              }
+            } catch (err) {
+              console.warn('Connection stats request threw an error:', err);
+              // optionally show a notification
+              return;
             }
             failedAttempts = 0;
           } catch (e) {
