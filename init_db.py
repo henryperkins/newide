@@ -253,6 +253,10 @@ async def init_database():
 
             # Only drop content_analysis which is not in our ORM
             await conn.execute(text("""
+                ALTER TABLE conversations
+                ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1 NOT NULL
+            """))
+            await conn.execute(text("""
                 ALTER TABLE model_usage_stats
                 DROP COLUMN IF EXISTS content_analysis
             """))
