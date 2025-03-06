@@ -558,7 +558,7 @@ class ModelManager {
             console.log("Explicitly added o1 model to modelConfigs");
             
             // Skip server creation if it would fail or block
-            if (!this.pendingModelActions['o1']) {
+            if (!this.pendingModelActions['o1'] && newConfig) {
                 this.createModelOnServer('o1', newConfig).catch(err =>
                     console.warn(`Failed to create o1 on server: ${err.message}`)
                 );
@@ -587,7 +587,7 @@ class ModelManager {
                 const newConfig = generateDefaultModelConfig(id, modelApiConfig);
                 this.modelConfigs[id] = newConfig;
                 
-                if (!this.pendingModelActions[id]) {
+                if (!this.pendingModelActions[id] && newConfig) {
                     this.createModelOnServer(id, newConfig).catch(err =>
                         console.warn(`Failed to create ${id} on server: ${err.message}`)
                     );
@@ -608,9 +608,11 @@ class ModelManager {
         if (!hasDeepSeek) {
             console.log("Creating DeepSeek-R1 from template");
             const deepseekConfig = generateDefaultModelConfig('DeepSeek-R1', KNOWN_MODELS[1].modelApiConfig);
-            this.modelConfigs['DeepSeek-R1'] = deepseekConfig;
-            this.createModelOnServer('DeepSeek-R1', deepseekConfig)
-                .catch(err => console.error('DeepSeek creation failed:', err));
+            if (deepseekConfig) {
+                this.modelConfigs['DeepSeek-R1'] = deepseekConfig;
+                this.createModelOnServer('DeepSeek-R1', deepseekConfig)
+                    .catch(err => console.error('DeepSeek creation failed:', err));
+            }
         }
 
         if (!this.modelConfigs['o1']) {
@@ -624,7 +626,9 @@ class ModelManager {
                 requiresReasoningEffort: true
             };
             const newConfig = generateDefaultModelConfig('o1', o1Default);
-            this.modelConfigs['o1'] = newConfig;
+            if (newConfig) {
+                this.modelConfigs['o1'] = newConfig;
+            }
         }
         
         return this.modelConfigs;
