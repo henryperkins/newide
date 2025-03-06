@@ -53,14 +53,8 @@ app.add_middleware(
     allow_origins=["*"],  # In production, lock this down
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["Content-Type", "Authorization", "api-key", "X-API-Version", "x-model-type"],
-    expose_headers=[
-        "Content-Type",
-        "Authorization",
-        "X-API-Version",
-        "x-ms-error-code",
-        "x-ms-error-message",
-    ],
+    allow_headers=["*"],
+    expose_headers=["Cache-Control", "Content-Type", "Authorization", "X-API-Version", "x-ms-error-code", "x-ms-error-message"]
 )
 
 # Include API routers with non-root prefixes.
@@ -72,7 +66,7 @@ app.include_router(model_stats_router)  # Already has prefix="/api/model-stats"
 app.include_router(auth_router, prefix="/auth")
 
 # Mount static files at '/static' instead
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static", headers={"Cache-Control": "no-cache, max-age=0"})
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 
 # Serve the index file on the root path
