@@ -8,6 +8,8 @@ import { configureMarkdown } from './ui/markdownParser.js';
 import { loadConversationFromDb, loadOlderMessages } from './ui/displayManager.js';
 import { StatsDisplay } from './ui/statsDisplay.js';
 import fileManager from './fileManager.js';
+import { showNotification } from './ui/notificationManager.js';
+import { getSessionId } from './session.js';
 
 // Configure DOMPurify
 DOMPurify.setConfig({
@@ -29,82 +31,148 @@ if ('serviceWorker' in navigator) {
 document.addEventListener('DOMContentLoaded', initApplication);
 
 /**
+ * Ensures a valid session exists before proceeding with app initialization
+ * Handles 404 errors and other issues gracefully
+ */
+async function ensureValidSession() {
+  try {
+    // Import the getSessionId function
+    const sessionModule = await import('./session.js');
+    if (!sessionModule || !sessionModule.getSessionId) {
+      console.error('Session module not loaded properly');
+      throw new Error('Failed to load session module');
+    }
+
+    // Get or create a session ID - this function handles validation internally
+    // and will create a new session if the existing one is invalid
+    const sessionId = await sessionModule.getSessionId();
+
+    if (!sessionId) {
+      console.warn('Failed to get a valid session ID');
+
+      // Try one more time with a fresh session
+      sessionStorage.removeItem('sessionId');
+      const newSessionId = await sessionModule.createNewConversation('New Conversation');
+
+      if (!newSessionId) {
+        // Show error notification but don't throw to allow the app to continue
+        showNotification(
+          'Unable to create a session. Some features may not work correctly.',
+          'warning',
+          10000,
+          [{ label: 'Refresh', onClick: () => window.location.reload() }]
+        );
+        console.error('Failed to create a new session after multiple attempts');
+      } else {
+        console.log('Created new session after initial failure:', newSessionId);
+      }
+    } else {
+      console.log('Session initialization successful:', sessionId);
+    }
+
+    return sessionId;
+  } catch (error) {
+    // Log the error but don't throw - let the app continue
+    console.error('Session initialization error:', error);
+
+    // Show a non-blocking notification
+    showNotification(
+      'Error initializing session. Please refresh if you encounter problems.',
+      'warning',
+      10000,
+      [{ label: 'Refresh', onClick: () => window.location.reload() }]
+    );
+
+    // Return null instead of throwing to allow app to continue
+    return null;
+  }
+}
+/**
+ * Show fallback UI when initialization fails
+ */
+function showFallbackUI(error) {
+  const container = document.getElementById('chat-container') || document.body;
+
+  const errorElement = document.createElement('div');
+  errorElement.className = 'error-message p-4 m-4 bg-red-50 text-red-700 rounded-md border border-red-200';
+  errorElement.innerHTML = `
+    <h3 class="text-lg font-semibold mb-2">Application Error</h3>
+    <p>The application encountered an error during initialization.</p>
+    <p class="mt-2 text-sm text-red-600">${error.message}</p>
+    <button class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+      Refresh Page
+    </button>
+  `;
+
+  errorElement.querySelector('button').addEventListener('click', () => {
+    window.location.reload();
+  });
+
+  container.innerHTML = '';
+  container.appendChild(errorElement);
+}
+
+/**
  * Main initialization entry point
  */
 async function initApplication() {
   console.log('Initializing application...');
 
-  // 1. Initialize theme switcher
   try {
+    // 1. Initialize theme switcher
     initThemeSwitcher();
-  } catch (err) {
-    console.error('Failed to initialize theme switcher:', err);
-  }
 
-  // 2. Initialize tab system
-  try {
+    // 2. Initialize session FIRST before other components
+    await ensureValidSession();
+
+    // 3. Initialize tab system
     initTabSystem();
-  } catch (err) {
-    console.error('Failed to initialize tab system:', err);
-  }
 
-  // 3. Initialize sidebar
-  try {
+    // 4. Initialize sidebar
     initSidebar();
-  } catch (err) {
-    console.error('Failed to initialize sidebar:', err);
-  }
 
-  // 4. Initialize conversation manager (for sidebar)
-  try {
+    // 5. Initialize conversation manager (for sidebar)
     import('./ui/conversationManager.js').then(module => {
       module.initConversationManager();
     }).catch(err => console.error('Failed to load conversationManager:', err));
-  } catch (err) {
-    console.error('Failed to initialize conversation manager:', err);
-  }
 
-  // 5. Initialize existing thinking blocks
-  try {
+    // 6. Initialize existing thinking blocks
     deepSeekProcessor.initializeExistingBlocks();
-  } catch (err) {
-    console.error('Failed to initialize thinking blocks:', err);
-  }
 
-  // 6. Initialize stats display
-  try {
+    // 7. Initialize stats display
     window.statsDisplay = new StatsDisplay('performance-stats');
-  } catch (err) {
-    console.error('Failed to initialize stats display:', err);
+
+    // 8. Initialize mobile or desktop features
+    // Always run initMobileUI even on desktop so that all interactive elements have listeners
+    initMobileUI();
+
+    // 9. Additional UI init
+    initPerformanceStats();
+    configureMarkdown();
+    initChatInterface();
+    initUserInput();
+    initConversationControls();
+    initFontSizeControls();
+    initTokenUsageDisplay();
+    initThinkingModeToggle();
+    enhanceAccessibility();
+    detectTouchCapability();
+    registerKeyboardShortcuts();
+    initModelSelector();
+    initConfigHandlers();
+
+    // 10. Load conversation from database
+    await loadConversationFromDb();
+    maybeShowWelcomeMessage();
+
+    // 11. Initialize model manager
+    await modelManager.initialize();
+
+    console.log('Application initialization complete');
+  } catch (error) {
+    console.error('Initialization error:', error);
+    showFallbackUI(error);
   }
-
-  // 7. Initialize mobile or desktop features
-  // Always run initMobileUI even on desktop so that all interactive elements have listeners
-  initMobileUI();
-
-  // 8. Additional UI init
-  initPerformanceStats();
-  configureMarkdown();
-  initChatInterface();
-  initUserInput();
-  initConversationControls();
-  initFontSizeControls();
-  initTokenUsageDisplay();
-  initThinkingModeToggle();
-  enhanceAccessibility();
-  detectTouchCapability();
-  registerKeyboardShortcuts();
-  initModelSelector();
-  initConfigHandlers();
-
-  // 9. Load conversation from local storage, show welcome message if needed
-  loadConversationFromDb();
-  maybeShowWelcomeMessage();
-
-  // 10. Initialize model manager
-  await modelManager.initialize();
-
-  console.log('Application initialization complete');
 }
 
 /* ------------------------------------------------------------------

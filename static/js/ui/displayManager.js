@@ -644,82 +644,140 @@ function openFileInSidebar(filename) {
   }, 500);
 }
 
-async function deleteConversation() {
+/**
+ * Fixed deleteConversation function that properly creates a new session
+ * after deleting the current one
+ */
+export async function deleteConversation() {
   showConfirmDialog(
     'Delete Conversation',
     'Are you sure you want to delete the current conversation? This action cannot be undone.',
     async () => {
       try {
+        // 1. Get current session ID
         const sessionId = await getSessionId();
-        if (sessionId) {
-          // Updated endpoint path
-          await fetch(`/api/chat/conversations/${sessionId}`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' }
-          });
+        if (!sessionId) {
+          console.warn('No session ID to delete, creating new conversation');
+          await createAndSetupNewConversation();
+          return;
         }
 
-        // Now remove from DOM
-        const chatHistory = document.getElementById('chat-history');
-        if (chatHistory) {
-          const systemMessages = [];
-          chatHistory.querySelectorAll('.system-message').forEach(el => systemMessages.push(el.cloneNode(true)));
-          chatHistory.innerHTML = '';
-          systemMessages.forEach(el => chatHistory.appendChild(el));
-        }
-        messageCache.clear();
-        hasMoreMessages = false;
-        updateLoadMoreButton(0);
+        // 2. Delete the conversation on the server
+        const deleteResponse = await fetch(`${window.location.origin}/api/chat/conversations/${sessionId}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        });
 
-        // Create a new conversation
-        await createNewConversation();
+        if (!deleteResponse.ok) {
+          console.error(`Failed to delete conversation: ${deleteResponse.status}`);
+          // Continue anyway to ensure UI is reset
+        }
+
+        // 3. Create a new conversation and ensure sessionStorage is updated
+        await createAndSetupNewConversation();
 
         showNotification('Conversation deleted', 'success');
       } catch (error) {
         console.error('Failed to delete conversation:', error);
         showNotification('Failed to delete conversation', 'error');
+
+        // 4. Even on error, try to create a new conversation as fallback
+        try {
+          await createAndSetupNewConversation();
+        } catch (err) {
+          console.error('Failed to create new conversation after error:', err);
+        }
       }
     }
   );
 }
 
 /**
- * Creates a new conversation session, clearing the chat
+ * Helper function to create and set up a new conversation
+ * Extracted for cleaner code and reusability
  */
+async function createAndSetupNewConversation() {
+  // IMPORTANT: First remove the old session ID to prevent it from being reused
+  sessionStorage.removeItem('sessionId');
+
+  // 1. Create a new conversation (this internal function should update sessionStorage)
+  const newSessionId = await createNewConversation();
+  if (!newSessionId) {
+    throw new Error('Failed to create new conversation');
+  }
+
+  // 2. Double-check that sessionStorage was updated correctly
+  if (sessionStorage.getItem('sessionId') !== newSessionId) {
+    console.warn('Session ID not properly updated, fixing it now');
+    sessionStorage.setItem('sessionId', newSessionId);
+  }
+
+  // 3. Clear the UI
+  const chatHistory = document.getElementById('chat-history');
+  if (chatHistory) {
+    // Keep system messages
+    const systemMessages = [];
+    chatHistory.querySelectorAll('.system-message').forEach(el =>
+      systemMessages.push(el.cloneNode(true))
+    );
+
+    // Clear and restore system messages
+    chatHistory.innerHTML = '';
+    systemMessages.forEach(el => chatHistory.appendChild(el));
+
+    // Restore conversation controls if they exist
+    const controls = document.querySelector('.conversation-controls');
+    if (controls) chatHistory.appendChild(controls);
+  }
+
+  // 4. Reset other display states
+  messageCache.clear();
+  hasMoreMessages = false;
+  updateLoadMoreButton(0);
+
+  // 5. Show welcome message if needed
+  showWelcomeMessageIfNeeded();
+
+  console.log('New conversation created with ID:', newSessionId);
+  return newSessionId;
+}
+
 /**
  * Creates a new conversation session, clearing the chat
+ * 
+ * @param {boolean} pinned - Whether the conversation should be pinned
+ * @param {boolean} archived - Whether the conversation should be archived
+ * @param {string} title - Title for the conversation
+ * @returns {Promise<string|null>} The new conversation ID or null on failure
  */
-export async function createNewConversation(pinned = false, archived = false, title = "Untitled Conversation") {
+export async function createNewConversation(pinned = false, archived = false, title = "New Conversation") {
   try {
-    const response = await fetch("/api/chat/conversations", {
+    // 1. Create the conversation on the server
+    const response = await fetch(`${window.location.origin}/api/chat/conversations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pinned, archived, title })
+      body: JSON.stringify({
+        title,
+        pinned,
+        archived
+      })
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to create conversation: ${response.status} - ${await response.text()}`);
+      const responseText = await response.text();
+      throw new Error(`Failed to create conversation: ${response.status} - ${responseText}`);
     }
 
+    // 2. Get the new conversation ID
     const data = await response.json();
     const newConversationId = data.conversation_id;
 
-    // Store the new conversation ID in sessionStorage
-    // This is the critical fix that was missing
+    // 3. CRITICAL: Update session storage with the new ID
+    console.log('Setting new session ID in storage:', newConversationId);
     sessionStorage.setItem('sessionId', newConversationId);
 
-    // Clear the chat and re-initialize
-    const chatHistory = document.getElementById('chat-history');
-    if (chatHistory) {
-      const systemMessages = [...chatHistory.querySelectorAll('.system-message')].map(el => el.cloneNode(true));
-      const controls = chatHistory.querySelector('.conversation-controls');
-      chatHistory.innerHTML = '';
-      systemMessages.forEach(msg => chatHistory.appendChild(msg));
-      if (controls) chatHistory.appendChild(controls);
-    }
-
-    showWelcomeMessageIfNeeded();
-    showNotification(`New conversation created (ID: ${newConversationId})`, 'success');
+    // 4. Optional additional feedback
+    console.log(`New conversation created: ${title} (ID: ${newConversationId})`);
 
     return newConversationId;
   } catch (err) {
@@ -755,7 +813,6 @@ export function handleConversationError(error, userMessage, callback, context) {
 
 export {
   initDisplayManager,
-  deleteConversation,
   saveConversation
 };
 
