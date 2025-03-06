@@ -436,8 +436,8 @@ async def init_database():
         existing_config = existing_config.scalar()
 
         if existing_config:
-            # Update the existing model_configs entry to include "DeepSeek-R1"
-            updated_config = json.loads(existing_config)
+            # existing_config is already a dict, so skip json.loads
+            updated_config = existing_config if isinstance(existing_config, dict) else json.loads(existing_config)
             updated_config["DeepSeek-R1"] = model_configs["DeepSeek-R1"]
             await conn.execute(text("""
                 UPDATE app_configurations
