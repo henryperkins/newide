@@ -2,7 +2,9 @@ from sqlalchemy import Column, String, DateTime, Text, Boolean, Integer, Foreign
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timedelta, timezone
-from fastapi import HTTPException
+from fastapi import HTTPException, APIRouter
+
+router = APIRouter()
 
 Base = declarative_base()
 
@@ -191,9 +193,6 @@ class AppConfiguration(Base):
     created_at = Column(DateTime(timezone=True), server_default=text("NOW()"))
     updated_at = Column(DateTime(timezone=True), server_default=text("NOW()"), onupdate=text("NOW()"))
 
-@router.get("/healthcheck")
-async def config_healthcheck():
-    return {"status": "ok"}
 
 # -------------------------------------------------------------------------
 # Model Usage Stats
