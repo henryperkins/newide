@@ -681,9 +681,17 @@ async def generate_stream_chunks(
         # Determine if chain-of-thought expansion is needed
         enable_thinking = "true" if "deepseek" in model_name.lower() else "false"
 
+        messages = []
+        if developer_config:
+            messages.append({"role": "system", "content": developer_config})
+        messages.append({"role": "user", "content": message})
+
         response = client.chat.completions.create(
             model=model_name,
-            messages=[{"role": "user", "content": message}],
+            messages=messages,
+            temperature=0.7,        # add or derive from user config
+            top_p=1,
+            max_tokens=131072,      # or smaller if needed
             stream=True,
             headers={
                 "x-ms-thinking-format": "html" if enable_thinking else "none",
