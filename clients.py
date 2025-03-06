@@ -207,8 +207,8 @@ class ClientPool:
             return ChatCompletionsClient(
                 endpoint=model_config["azure_endpoint"],
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                model=model_id.lower(),  # Force lowercase for API compatibility
-                azure_deployment="DeepSeek-R1",  # Explicit deployment name
+                model="deepseek-r1",  # API requires exact model name
+                azure_deployment="DeepSeek-R1",  # Deployment name must match exactly
                 api_version=model_config["api_version"],
                 connection_timeout=120.0,
                 read_timeout=120.0,

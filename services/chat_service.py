@@ -122,7 +122,12 @@ def prepare_model_parameters(
             chat_message.max_completion_tokens or config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
         )
         params["temperature"] = (
-            chat_message.temperature or config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
+            chat_message.temperature if chat_message.temperature is not None 
+            else config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
+        )
+        params["max_tokens"] = min(
+            params.get("max_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS),
+            config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
         )
     elif is_o_series:
         params["max_completion_tokens"] = (
