@@ -370,7 +370,10 @@ async def pin_conversation(
     except Exception as exc:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(exc))
-
+        await db.rollback()
+        logger.exception(f"Error updating pin status: {exc}")
+@router.post("/conversations/{conversation_id}/archive")exc))
+async def archive_conversation(
 
 @router.post("/conversations/{conversation_id}/archive")
 async def archive_conversation(
@@ -381,383 +384,421 @@ async def archive_conversation(
 ):
     """
     Archive or unarchive a conversation. Body must have {"archived": bool}.
-    """
-    try:
-        body = await request.json()
         archived_val = body.get("archived", True)
-
+        version = body.get("version", 0)    try:
+st.json()
         # Validate session
         sel_stmt = select(Session).where(Session.id == conversation_id)
         sess_res = await db.execute(sel_stmt)
-        session_db = sess_res.scalar_one_or_none()
+        session_db = sess_res.scalar_one_or_none()Session).where(Session.id == conversation_id)
         if not session_db:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise HTTPException(status_code=404, detail="Conversation not found")        session_db = sess_res.scalar_one_or_none()
 
-        # Update archived value in all rows
-        upd_stmt = (
-            update(Conversation)
-            .where(Conversation.session_id == session_db.id)
-            .values(archived=archived_val)
-        )
+        # Get a representative message to check version if providedTPException(status_code=404, detail="Conversation not found")
+        if version > 0:
+            rep_stmt = select(Conversation).where(
+                Conversation.session_id == conversation_id
+            ).order_by(Conversation.timestamp).limit(1)   update(Conversation)
+            rep_res = await db.execute(rep_stmt)ssion_id == session_db.id)
+            conversation = rep_res.scalar_one_or_none()ved=archived_val)
+                    )
+            if conversation and conversation.version != version:
+                return {
+                    "status": "conflict",
+                    "message": "Conversation was modified by another request",}
+                    "current_version": conversation.version    except Exception as exc:
+                }        await db.rollback()
+                tatus_code=500, detail=str(exc))
+            # Update all rows with version increment
+            upd_stmt = (
+                update(Conversation)
+                .where(Conversation.session_id == session_db.id)
+                .values(archived=archived_val, version=conversation.version + 1 if conversation else 1)
+            ),
+        else:
+            # No version check, just update
+            upd_stmt = (  search: Optional[str] = Query(None),
+                update(Conversation) AsyncSession = Depends(get_db_session),
+                .where(Conversation.session_id == session_db.id)
+                .values(archived=archived_val)
+            )
+        versations by session_id, with optional pinned, archived, or search filters.
         await db.execute(upd_stmt)
         await db.commit()
 
-        return {"status": "success", "archived": archived_val}
+        # Get current version to return
+        current_ver_stmt = select(func.max(Conversation.version)).where(
+            Conversation.session_id == session_db.id
+        )rchived"),
+        current_ver_res = await db.execute(current_ver_stmt)   func.max(Conversation.timestamp).label("updated_at"),
+        current_version = current_ver_res.scalar() or 1bel("message_count"),
+
+        return {   )
+            "status": "success",            .group_by(Conversation.session_id)
+            "archived": archived_val,(Conversation.timestamp).desc())
+            "version": current_version
+        }
+    except HTTPException:
+        raise
     except Exception as exc:
-        await db.rollback()
+        await db.rollback()d is not None:
+        logger.exception(f"Error updating archive status: {exc}").having(func.bool_or(Conversation.archived) == archived)
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@router.get("/conversations")
-async def list_conversations(
-    offset: int = Query(0, ge=0),
+@router.get("/conversations")ase_query = base_query.where(
+async def list_conversations(                (Conversation.title.ilike(pattern))
+    offset: int = Query(0, ge=0),ern))
     limit: int = Query(20, ge=1, le=100),
     pinned: Optional[bool] = Query(None),
-    archived: Optional[bool] = Query(None),
-    search: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db_session),
+    archived: Optional[bool] = Query(None),tion)
+    search: Optional[str] = Query(None),        count_stmt = select(func.count(func.distinct(Conversation.session_id)))
+    db: AsyncSession = Depends(get_db_session),db.execute(count_stmt)
     current_user: Optional[User] = Depends(get_current_user),
 ):
-    """
-    Lists distinct conversations by session_id, with optional pinned, archived, or search filters.
-    """
+    """        # Apply pagination
+    Lists distinct conversations by session_id, with optional pinned, archived, or search filters.query.offset(offset).limit(limit)
+    """.execute(base_query)).all()
     try:
         base_query = (
             select(
                 Conversation.session_id,
                 func.bool_or(Conversation.pinned).label("pinned"),
                 func.bool_or(Conversation.archived).label("archived"),
-                func.max(Conversation.timestamp).label("updated_at"),
-                func.count(Conversation.id).label("message_count"),
-                func.max(Conversation.title).label("title"),
+                func.max(Conversation.timestamp).label("updated_at"),            updated_at = row.updated_at
+                func.count(Conversation.id).label("message_count"),ge_count
+                func.max(Conversation.title).label("title"),_val = row.title or "Untitled Conversation"
             )
             .group_by(Conversation.session_id)
             .order_by(func.max(Conversation.timestamp).desc())
         )
 
         if pinned is not None:
-            base_query = base_query.having(func.bool_or(Conversation.pinned) == pinned)
-
-        if archived is not None:
-            base_query = base_query.having(func.bool_or(Conversation.archived) == archived)
+            base_query = base_query.having(func.bool_or(Conversation.pinned) == pinned)   "archived": archived_val,
+       "updated_at": updated_at.isoformat() if updated_at else None,
+        if archived is not None:                    "message_count": msg_count,
+            base_query = base_query.having(func.bool_or(Conversation.archived) == archived)}
 
         if search:
             pattern = f"%{search}%"
-            base_query = base_query.where(
+            base_query = base_query.where(: conversations,
                 (Conversation.title.ilike(pattern))
-                | (Conversation.content.ilike(pattern))
+                | (Conversation.content.ilike(pattern))   "offset": offset,
             )
 
-        # Count distinct sessions (for pagination)
-        count_stmt = select(func.count(func.distinct(Conversation.session_id)))
-        total_res = await db.execute(count_stmt)
+        # Count distinct sessions (for pagination)        }
+        count_stmt = select(func.count(func.distinct(Conversation.session_id)))    except Exception as exc:
+        total_res = await db.execute(count_stmt)ode=500, detail=str(exc))
         total_count = total_res.scalar() or 0
 
         # Apply pagination
         base_query = base_query.offset(offset).limit(limit)
-        rows = (await db.execute(base_query)).all()
+        rows = (await db.execute(base_query)).all()  request: Request,
 
-        conversations = []
+        conversations = []ent_user: Optional[User] = Depends(get_current_user),
         for row in rows:
-            sess_id = row.session_id
+            sess_id = row.session_id(user or system messages)."""
             pinned_val = row.pinned
             archived_val = row.archived
-            updated_at = row.updated_at
+            updated_at = row.updated_at        session_id = data.get("session_id")
             msg_count = row.message_count
             title_val = row.title or "Untitled Conversation"
 
-            conversations.append(
-                {
+            conversations.append(n_id, role, content]):
+                {ng required fields")
                     "id": str(sess_id),
                     "title": title_val,
                     "pinned": pinned_val,
-                    "archived": archived_val,
-                    "updated_at": updated_at.isoformat() if updated_at else None,
-                    "message_count": msg_count,
+                    "archived": archived_val,        result = await db.execute(stmt)
+                    "updated_at": updated_at.isoformat() if updated_at else None,r_one_or_none():
+                    "message_count": msg_count,atus_code=404, detail="Session not found")
                 }
-            )
-
-        return {
-            "conversations": conversations,
-            "total_count": total_count,
-            "offset": offset,
-            "limit": limit,
+            )tion(
+on_id,
+        return {er else None,
+            "conversations": conversations,   role=role,
+            "total_count": total_count,=content,
+            "offset": offset,etime.now(timezone.utc),
+            "limit": limit,        )
             "has_more": offset + limit < total_count,
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-
-@router.post("/conversations/store")
+        await db.rollback()
+@router.post("/conversations/store")        logger.error(f"Error storing conversation: {str(e)}")
 async def store_conversation(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
-    current_user: Optional[User] = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),-----------------------------------------------------------
 ):
-    """Store conversation data from client (user or system messages)."""
+    """Store conversation data from client (user or system messages)."""----------------------------------
     try:
         data = await request.json()
-        session_id = data.get("session_id")
-        role = data.get("role")
+        session_id = data.get("session_id")  request: CreateChatCompletionRequest,
+        role = data.get("role") AsyncSession = Depends(get_db_session),
         content = data.get("content")
 
         if not all([session_id, role, content]):
-            raise HTTPException(status_code=400, detail="Missing required fields")
-
+            raise HTTPException(status_code=400, detail="Missing required fields")tes a non-streaming chat completion, returning an Azure-like JSON.
+ you'd integrate O-series or DeepSeek calls.
         # Validate session
-        stmt = select(Session).where(Session.id == session_id)
+        stmt = select(Session).where(Session.id == session_id)    try:
         result = await db.execute(stmt)
-        if not result.scalar_one_or_none():
+        if not result.scalar_one_or_none():            raise HTTPException(status_code=400, detail="Missing 'messages' field")
             raise HTTPException(status_code=404, detail="Session not found")
 
         msg = Conversation(
-            session_id=session_id,
-            user_id=current_user.id if current_user else None,
-            role=role,
+            session_id=session_id,        # Acquire the model client
+            user_id=current_user.id if current_user else None,ient_dependency(model_name)
+            role=role,rapper["client"]
             content=content,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(timezone.utc),ion
         )
-        db.add(msg)
-        await db.commit()
-
-        return {"status": "success", "message_id": msg.id}
+        db.add(msg)id.uuid4()}",
+        await db.commit()hat.completion",
+ted": int(time.time()),
+        return {"status": "success", "message_id": msg.id},
     except Exception as e:
         await db.rollback()
-        logger.error(f"Error storing conversation: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error storing conversation: {str(e)}")   "index": 0,
+        raise HTTPException(status_code=500, detail=str(e))      "message": {"role": "assistant", "content": "Hello from the AI."},
 
-
-# -------------------------------------------------------------------------
-# Non-Streaming Chat Completion
+       }
+# -------------------------------------------------------------------------            ],
+# Non-Streaming Chat Completion "total_tokens": 30},
 # -------------------------------------------------------------------------
 @router.post("")
-async def create_chat_completion(
-    request: CreateChatCompletionRequest,
-    db: AsyncSession = Depends(get_db_session),
+async def create_chat_completion(        # Store user & assistant messages in the conversation table
+    request: CreateChatCompletionRequest,ages[-1]["content"]
+    db: AsyncSession = Depends(get_db_session),][0]["message"]["content"]
     current_user: Optional[User] = Depends(get_current_user),
-):
-    """
-    Creates a non-streaming chat completion, returning an Azure-like JSON.
-    This is a stub showing where you'd integrate O-series or DeepSeek calls.
+):rsation(
+    """quest.session_id),
+    Creates a non-streaming chat completion, returning an Azure-like JSON.ser.id if current_user else None,
+    This is a stub showing where you'd integrate O-series or DeepSeek calls.   role="user",
     """
     try:
         if not request.messages:
-            raise HTTPException(status_code=400, detail="Missing 'messages' field")
-
+            raise HTTPException(status_code=400, detail="Missing 'messages' field")n(
+equest.session_id),
         model_name = request.model or "o1"
-
+   content=assistant_text,
         # Acquire the model client
-        client_wrapper = await get_model_client_dependency(model_name)
-        client = client_wrapper["client"]
-
-        # Mocked response for demonstration
+        client_wrapper = await get_model_client_dependency(model_name){"streaming": False, "token_usage": response_data["usage"]},
+        client = client_wrapper["client"]        )
+, assistant_msg])
+        # Mocked response for demonstration        await db.commit()
         response_data = {
-            "id": f"chatcmpl-{uuid.uuid4()}",
+            "id": f"chatcmpl-{uuid.uuid4()}",sponse_data
             "object": "chat.completion",
-            "created": int(time.time()),
-            "model": model_name,
+            "created": int(time.time()), exc:
+            "model": model_name,e exc
             "choices": [
                 {
                     "index": 0,
-                    "message": {"role": "assistant", "content": "Hello from the AI."},
-                    "finish_reason": "stop",
+                    "message": {"role": "assistant", "content": "Hello from the AI."},e.json()
+                    "finish_reason": "stop",er_results" in error_data:
                 }
             ],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-        }
-
-        # Store user & assistant messages in the conversation table
+            "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},tail={
+        }rror": "content_filtered",
+content_filter_results"],
+        # Store user & assistant messages in the conversation table    },
         user_text = request.messages[-1]["content"]
-        assistant_text = response_data["choices"][0]["message"]["content"]
-
+        assistant_text = response_data["choices"][0]["message"]["content"]        except (AttributeError, json.JSONDecodeError):
+            pass
         user_msg = Conversation(
             session_id=UUID(request.session_id),
             user_id=current_user.id if current_user else None,
-            role="user",
-            content=user_text,
-            model=model_name,
+            role="user",--------------------------------------------------------
+            content=user_text,point
+            model=model_name,------------------------------------------------------
         )
-        assistant_msg = Conversation(
-            session_id=UUID(request.session_id),
+        assistant_msg = Conversation(sse(
+            session_id=UUID(request.session_id),est,
             role="assistant",
             content=assistant_text,
             model=model_name,
-            raw_response={"streaming": False, "token_usage": response_data["usage"]},
-        )
+            raw_response={"streaming": False, "token_usage": response_data["usage"]},  developer_config: Optional[str] = None,
+        )soning_effort: str = "medium",
         db.add_all([user_msg, assistant_msg])
         await db.commit()
 
-        return response_data
-
+        return response_dataat responses from your model.
+ an in-memory concurrency limiter (SSE_SEMAPHORE).
     except HTTPException as exc:
         raise exc
     except Exception as exc:
         await db.rollback()
-        try:
+        try:Session).where(Session.id == session_id)
             error_data = exc.response.json()
-            if "content_filter_results" in error_data:
+            if "content_filter_results" in error_data:        session_db = sess_res.scalar_one_or_none()
                 raise HTTPException(
-                    status_code=400,
+                    status_code=400,not found")
                     detail={
                         "error": "content_filtered",
                         "filter_results": error_data["content_filter_results"],
-                    },
-                ) from exc
-        except (AttributeError, json.JSONDecodeError):
+                    },        client = client_wrapper["client"]
+                ) from excpper.get("supports_streaming", False):
+        except (AttributeError, json.JSONDecodeError):tatus_code=400, detail="Model doesn't support streaming")
             pass
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
+        raise HTTPException(status_code=500, detail=str(exc)) from excesponse
+(
+s(
 # -------------------------------------------------------------------------
-# Streaming SSE Endpoint
+# Streaming SSE Endpointe=message,
 # -------------------------------------------------------------------------
 @router.get("/sse")
 async def chat_sse(
-    request: Request,
-    session_id: UUID,
-    model: str,
+    request: Request,  session_id=session_id,
+    session_id: UUID,config,
+    model: str,       client=client,
     message: str,
     developer_config: Optional[str] = None,
     reasoning_effort: str = "medium",
     db: AsyncSession = Depends(get_db_session),
-):
-    """
+):        raise HTTPException(status_code=500, detail=str(exc))
+    """    finally:
     SSE endpoint for streaming chat responses from your model.
     Uses an in-memory concurrency limiter (SSE_SEMAPHORE).
     """
-    await SSE_SEMAPHORE.acquire()
+    await SSE_SEMAPHORE.acquire()tream_chunks(
     try:
         # Validate session
         sel_stmt = select(Session).where(Session.id == session_id)
         sess_res = await db.execute(sel_stmt)
-        session_db = sess_res.scalar_one_or_none()
-        if not session_db:
-            raise HTTPException(status_code=404, detail="Session not found")
+        session_db = sess_res.scalar_one_or_none()sion,
+        if not session_db:  session_id: UUID,
+            raise HTTPException(status_code=404, detail="Session not found")eloper_config: Optional[str],
 
         # Retrieve model client
         client_wrapper = await get_model_client_dependency(model)
-        client = client_wrapper["client"]
-        if not client or not client_wrapper.get("supports_streaming", False):
-            raise HTTPException(status_code=400, detail="Model doesn't support streaming")
-
+        client = client_wrapper["client"]ielding SSE data chunks from your streaming model.
+        if not client or not client_wrapper.get("supports_streaming", False):al streaming code to Azure/DeepSeek/etc.
+            raise HTTPException(status_code=400, detail="Model doesn't support streaming")    """
+_content = ""
         # Return the streaming response
         return StreamingResponse(
             generate_stream_chunks(
                 request=request,
                 message=message,
-                model_name=model,
-                reasoning_effort=reasoning_effort,
-                db=db,
+                model_name=model,        if developer_config:
+                reasoning_effort=reasoning_effort,ntent": developer_config})
+                db=db,e": "user", "content": message})
                 session_id=session_id,
                 developer_config=developer_config,
-                client=client,
+                client=client,del_name,
             ),
-            media_type="text/event-stream",
+            media_type="text/event-stream",0.7,        # add or derive from user config
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
-    finally:
-        SSE_SEMAPHORE.release()
-
+        raise HTTPException(status_code=500, detail=str(exc))ream=True,
+    finally:   headers={
+        SSE_SEMAPHORE.release()                "x-ms-streaming-version": "2024-05-01-preview",
+},
 
 async def generate_stream_chunks(
     request: Request,
-    message: str,
+    message: str,            async for chunk in response:
     model_name: str,
-    reasoning_effort: str,
+    reasoning_effort: str,content
     db: AsyncSession,
-    session_id: UUID,
+    session_id: UUID,= expand_chain_of_thought(content, request)
     developer_config: Optional[str],
     client: Any,
-):
-    """
-    Async generator yielding SSE data chunks from your streaming model.
+):delta": {
+    """     "content": processed_content,
+    Async generator yielding SSE data chunks from your streaming model.istant"
     Replace this stub with your actual streaming code to Azure/DeepSeek/etc.
     """
     full_content = ""
-    usage_block: Dict[str, Any] = {}
-
-    try:
+    usage_block: Dict[str, Any] = {}usage": {
+      "completion_tokens": len(processed_content.split()),
+    try:ning_tokens": len(re.findall(r"", processed_content))
         # Determine if chain-of-thought expansion is needed
         messages = []
         if developer_config:
             messages.append({"role": "system", "content": developer_config})
-        messages.append({"role": "user", "content": message})
-
-        response = client.chat.completions.create(
+        messages.append({"role": "user", "content": message})            traceback.print_exc()
+or: {e}")
+        response = client.chat.completions.create(iled: {e}")
             model=model_name,
-            messages=messages,
-            temperature=0.7,        # add or derive from user config
-            top_p=1,
+            messages=messages,        # Final chunk with stop reason
+            temperature=0.7,        # add or derive from user configp"}]})
+            top_p=1,data: done\n\n"
             max_tokens=131072,      # or smaller if needed
-            stream=True,
-            headers={
-                "x-ms-streaming-version": "2024-05-01-preview",
-            },
+            stream=True,ssistant messages in DB if desired
+            headers={ion(
+                "x-ms-streaming-version": "2024-05-01-preview",n_id,
+            },   role="user",
         )
 
         try:
-            async for chunk in response:
-                content = chunk.choices[0].delta.content or ""
-                full_content += content
+            async for chunk in response:ion(
+                content = chunk.choices[0].delta.content or ""n_id,
+                full_content += contentt",
 
                 processed_content = expand_chain_of_thought(content, request)
                 yield sse_json({
-                    "choices": [{
-                        "delta": {
+                    "choices": [{  "streaming": True,
+                        "delta": {       "final_content": full_content,
                             "content": processed_content,
                             "role": "assistant"
-                        }
-                    }],
-                    "model": model_name,
+                        }        )
+                    }],stant_msg])
+                    "model": model_name,db.commit()
                     "usage": {
-                        "completion_tokens": len(processed_content.split()),
+                        "completion_tokens": len(processed_content.split()),lledError:
                         "reasoning_tokens": len(re.findall(r"", processed_content))
                     }
                 })
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
+        except Exception as e:        traceback.print_exc()
+            import traceback        logger.exception(f"SSE error in generate_stream_chunks: {exc}")
+            traceback.print_exc()0, detail=f"SSE failed: {exc}")
             logger.exception(f"SSE error: {e}")
             raise HTTPException(status_code=500, detail=f"SSE failed: {e}")
-
+Dict[str, Any]) -> str:
         # Final chunk with stop reason
         yield sse_json({"choices": [{"finish_reason": "stop"}]})
-        yield "event: complete\ndata: done\n\n"
-
-        # Store user & assistant messages in DB if desired
-        user_msg = Conversation(
-            session_id=session_id,
-            role="user",
-            content=message,
-            model=model_name,
-        )
-        assistant_msg = Conversation(
-            session_id=session_id,
-            role="assistant",
-            content=full_content,
-            model=model_name,
-            raw_response={
-                "streaming": True,
-                "final_content": full_content,
-                "token_usage": usage_block,
-            },
-        )
-        db.add_all([user_msg, assistant_msg])
-        await db.commit()
-
-    except asyncio.CancelledError:
-        return
-    except Exception as exc:
-        import traceback
-        traceback.print_exc()
-        logger.exception(f"SSE error in generate_stream_chunks: {exc}")
-        raise HTTPException(status_code=500, detail=f"SSE failed: {exc}")
+        yield "event: complete\ndata: done\n\n"    data: {...}\n\n
 
 
-def sse_json(data: Dict[str, Any]) -> str:
-    """
-    Utility to format SSE data lines as:
-    data: {...}\n\n
-    """
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    return "data: " + json.dumps(data) + "\n\n"    """    data: {...}\n\n    Utility to format SSE data lines as:    """def sse_json(data: Dict[str, Any]) -> str:        raise HTTPException(status_code=500, detail=f"SSE failed: {exc}")        logger.exception(f"SSE error in generate_stream_chunks: {exc}")        traceback.print_exc()        import traceback    except Exception as exc:        return    except asyncio.CancelledError:        await db.commit()        db.add_all([user_msg, assistant_msg])        )            },                "token_usage": usage_block,                "final_content": full_content,                "streaming": True,            raw_response={            model=model_name,            content=full_content,            role="assistant",            session_id=session_id,        assistant_msg = Conversation(        )            model=model_name,            content=message,            role="user",            session_id=session_id,        user_msg = Conversation(        # Store user & assistant messages in DB if desired    """
     return "data: " + json.dumps(data) + "\n\n"
