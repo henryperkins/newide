@@ -272,7 +272,6 @@ export async function sendMessage() {
             messageContent,
             currentSessionId,
             actualModelName,
-            devConfigToUse, // Use the modified version
             reasoningEffort,
             controller.signal
           );
@@ -282,7 +281,6 @@ export async function sendMessage() {
           messageContent,
           currentSessionId,
           actualModelName,
-          devConfigToUse, // Use the modified version
           reasoningEffort,
           controller.signal
         );
