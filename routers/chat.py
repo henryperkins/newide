@@ -110,16 +110,61 @@ async def check_concurrency_limit(db: AsyncSession, limit: int = 10) -> None:
 #                         ROUTES: CONVERSATION STORAGE                        #
 ###############################################################################
 
-
-@router.post("/conversations/store")
-async def store_message(
+@router.post("/conversations")
+async def create_new_conversation(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
     current_user: Optional[User] = Depends(get_current_user),
 ):
     """
-    Store a single chat message in the database. Expects JSON with:
-      - session_id (string UUID)
+    Creates a new conversation with optional metadata.
+    Returns the conversation ID and initial metadata.
+    """
+    try:
+        body = await request.json()
+        pinned = body.get("pinned", False)
+        archived = body.get("archived", False)
+        title = body.get("title")
+
+        conversation_uuid = uuid.uuid4()
+        values = {
+            "session_id": conversation_uuid,
+            "role": "system",
+            "content": title or "New Conversation",
+            "pinned": pinned,
+            "archived": archived
+        }
+        if current_user:
+            values["user_id"] = current_user.id
+
+        stmt = insert(Conversation).values(**values)
+        await db.execute(stmt)
+        await db.commit()
+
+        return {
+            "status": "success",
+            "conversation_id": str(conversation_uuid),
+            "pinned": pinned,
+            "archived": archived,
+            "title": title or "Untitled Conversation"
+        }
+
+    except Exception as exc:
+        await db.rollback()
+        logger.exception("Error creating conversation: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/conversations/{conversation_id}/messages")
+async def add_conversation_message(
+    conversation_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    """
+    Stores a single chat message in the database for a given conversation.
+    Expects JSON with fields like:
       - role (e.g. 'user', 'assistant')
       - content (message content)
     """
@@ -130,27 +175,24 @@ async def store_message(
         if not body:
             raise HTTPException(status_code=400, detail="Invalid or missing JSON body")
 
-        session_id = body.get("session_id")
         role = body.get("role")
         content = body.get("content")
 
-        if not session_id:
-            raise HTTPException(status_code=400, detail="Missing session_id parameter")
         if not role:
             raise HTTPException(status_code=400, detail="Missing role parameter")
         if not content:
             raise HTTPException(status_code=400, detail="Missing content parameter")
 
         try:
-            session_uuid = uuid.UUID(session_id)
+            conversation_uuid = uuid.UUID(conversation_id)
         except ValueError as exc:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid session_id format: {session_id}"
+                detail=f"Invalid conversation_id format: {conversation_id}"
             ) from exc
 
         values = {
-            "session_id": session_uuid,
+            "session_id": conversation_uuid,  # Using session_id column to store conversation_id
             "role": role,
             "content": content
         }
@@ -170,24 +212,24 @@ async def store_message(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.get("/conversations/history")
+@router.get("/conversations/{conversation_id}/history")
 async def get_conversation_history(
-    session_id: UUID = Query(...),
+    conversation_id: UUID = Query(...),
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db_session),
 ):
     """
-    Returns messages for a session in ascending order.
+    Returns messages for a conversation in ascending order.
 
-    - session_id: UUID of the conversation session
+    - conversation_id: UUID of the conversation
     - offset: pagination offset
     - limit: pagination limit
     """
     try:
         query = (
             select(Conversation)
-            .where(Conversation.session_id == session_id)
+            .where(Conversation.session_id == conversation_id)
             .order_by(Conversation.id.asc())
             .offset(offset)
             .limit(limit)
@@ -196,7 +238,7 @@ async def get_conversation_history(
         messages = result.scalars().all()
 
         return {
-            "session_id": str(session_id),
+            "conversation_id": str(conversation_id),
             "messages": [
                 {
                     "role": msg.role,
@@ -219,13 +261,13 @@ async def get_conversation_history(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.get("/conversations/sessions")
-async def list_sessions(
+@router.get("/conversations")
+async def list_conversations(
     db: AsyncSession = Depends(get_db_session)
 ):
     """
-    Returns a list of distinct session_ids in the conversations table,
-    and how many messages each session has.
+    Returns a list of distinct conversation IDs in the conversations table,
+    and how many messages each conversation has.
     """
     try:
         stmt = select(
@@ -236,7 +278,7 @@ async def list_sessions(
         rows = result.all()
         return [
             {
-                "session_id": str(row.session_id),
+                "conversation_id": str(row.session_id),
                 "message_count": row.message_count
             }
             for row in rows
@@ -246,37 +288,32 @@ async def list_sessions(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.post("/conversations/clear")
-async def clear_db_conversation(
-    request: Request,
+@router.delete("/conversations/{conversation_id}")
+async def clear_conversation(
+    conversation_id: str,
     db: AsyncSession = Depends(get_db_session),
     current_user: Optional[User] = Depends(get_current_user)
 ):
     """
-    Deletes all messages for a given session_id from the DB.
+    Deletes all messages for a given conversation_id from the DB.
     """
     try:
-        body = await request.json()
-        session_id = body.get("session_id")
-        if not session_id:
-            raise HTTPException(status_code=400, detail="Missing session_id")
-
         # Validate UUID
-        session_uuid = uuid.UUID(session_id)
+        conversation_uuid = uuid.UUID(conversation_id)
 
         # Check ownership
-        results = await db.execute(select(Conversation).where(Conversation.session_id == session_uuid))
+        results = await db.execute(select(Conversation).where(Conversation.session_id == conversation_uuid))
         conversation_msgs = results.scalars().all()
         if not conversation_msgs:
-            return {"status": "cleared"}  # No messages found for that session
+            return {"status": "cleared"}  # No messages found for that conversation
 
         for msg in conversation_msgs:
             # If the message has a user_id and it's not the current user's, raise an error
             if msg.user_id and msg.user_id != current_user.id:
-                raise HTTPException(status_code=403, detail="User does not own this conversation session_id.")
+                raise HTTPException(status_code=403, detail="User does not own this conversation.")
 
         # Delete conversation rows
-        await db.execute(delete(Conversation).where(Conversation.session_id == session_uuid))
+        await db.execute(delete(Conversation).where(Conversation.session_id == conversation_uuid))
         await db.commit()
 
         return {"status": "cleared"}
@@ -668,7 +705,7 @@ async def create_chat_completion(
 @router.get("/sse")
 async def chat_sse(
     request: Request,
-    session_id: str,
+    conversation_id: str,
     model: str,
     message: str,
     reasoning_effort: str = "medium",
@@ -677,7 +714,7 @@ async def chat_sse(
     """
     SSE endpoint for streaming chat responses.
 
-    - session_id: conversation session UUID (string)
+    - conversation_id: conversation UUID (string)
     - model: which model to use
     - message: user prompt
     - reasoning_effort: used by O-series models
@@ -700,7 +737,7 @@ async def chat_sse(
                 model_name=model,
                 reasoning_effort=reasoning_effort,
                 db=db,
-                session_id=session_id
+                session_id=conversation_id
             ),
             media_type="text/event-stream"
         )
@@ -716,7 +753,7 @@ async def generate_stream_chunks(
     model_name: str,
     reasoning_effort: str,
     db: AsyncSession,
-    session_id: str
+    session_id: str  # Still called session_id internally to match DB column
 ):
     """
     Async generator that yields SSE data chunks from streaming responses.

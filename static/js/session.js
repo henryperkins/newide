@@ -1,11 +1,3 @@
-// session.js AFTER removing streaming logic
-// (Example – adjust imports if you do need anything else in this file)
-
-// 1. Remove old streaming-related imports, 
-//    or keep only what's necessary for session creation.
-
-// import { fetchWithRetry } from './utils/helpers.js'; // Only if you still need it.
-
 export async function getSessionId() {
   let sessionId = sessionStorage.getItem("sessionId");
   if (!sessionId) {
@@ -61,7 +53,3 @@ export async function initializeSession() {
     return false;
   }
 }
-
-// 2. All streaming logic, e.g. streamChatResponse, processDataChunk, etc. is REMOVED.
-//    session.js now focuses solely on session creation and retrieval.
-

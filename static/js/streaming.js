@@ -676,7 +676,7 @@ function renderBufferedContent() {
 
     // Update chain-of-thought
     if (thinkingContent) {
-      renderThinkingContainer(thinkingContainer, thinkingContent, deepSeekProcessor);
+      deepSeekProcessor.renderThinkingContainer(thinkingContainer, thinkingContent);
       // Don't scroll the thinking container separately, let the main scroll happen once
     }
   } catch (err) {
@@ -703,17 +703,16 @@ async function cleanupStreaming(modelName) {
   }
   if (mainTextBuffer && messageContainer) {
     try {
-      const sessionId = await getSessionId();
-      if (!sessionId) {
-        console.error('No valid session ID found — cannot store message.');
+      const conversationId = await getSessionId(); // TODO: Update to get actual conversation ID when available
+      if (!conversationId) {
+        console.error('No valid conversation ID found — cannot store message.');
       } else {
         await fetchWithRetry(
-          window.location.origin + '/api/chat/conversations/store',
+          window.location.origin + `/api/chat/conversations/${conversationId}/messages`,
           {
-            method: 'POST',
+            method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              session_id: sessionId,
               role: 'assistant',
               content: mainTextBuffer,
               model: modelName || 'DeepSeek-R1'

@@ -666,7 +666,7 @@ async function storeChatMessage(role, content) {
     
     try {
       // Use window.location.origin to ensure we're using the correct base URL
-      const apiUrl = `${window.location.origin}/api/chat/conversations/store`;
+      const apiUrl = `${window.location.origin}/api/chat/conversations/${currentSessionId}/messages`;
       
       const response = await fetchWithRetry(
         apiUrl,

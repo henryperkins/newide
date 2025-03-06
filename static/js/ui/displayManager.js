@@ -545,13 +545,13 @@ async function storeChatMessage(role, content) {
     sessionStorage.setItem('pending_message', JSON.stringify({ role, content }));
     
     // Use window.location.origin to ensure we're using the correct base URL
-    const apiUrl = `${window.location.origin}/api/chat/conversations/store`;
+    const apiUrl = `${window.location.origin}/api/chat/conversations/${sessionId}/messages`;
     
     try {
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, role, content })
+        body: JSON.stringify({ role, content })
       });
       
       if (!response.ok) {
