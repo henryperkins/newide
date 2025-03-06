@@ -689,7 +689,6 @@ async def chat_sse(
                 reasoning_effort=reasoning_effort,
                 db=db,
                 session_id=session_id,
-                developer_config=developer_config,
                 client=client,
             ),
             media_type="text/event-stream",
