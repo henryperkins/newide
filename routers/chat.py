@@ -738,8 +738,14 @@ async def generate_stream_chunks(
             messages.append({"role": "system", "content": developer_config})
         messages.append({"role": "user", "content": message})
 
-        # Validate DeepSeek credentials first
+        # Validate DeepSeek credentials and endpoint format
         if config.is_deepseek_model(model_name):
+            expected_path = "/v1/chat/completions"
+            if not client.endpoint.endswith(expected_path):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"DeepSeek endpoint must end with {expected_path}"
+                )
             if not config.AZURE_INFERENCE_CREDENTIAL:
                 raise HTTPException(
                     status_code=500,
