@@ -366,9 +366,13 @@ async function fetchChatResponse(
       const payload = {
         session_id: sessionId,
         model: modelName,
-        messages,
-        reasoning_effort: effort
+        messages
       };
+      
+      // Only add reasoning_effort for O-series models
+      if (modelName.toLowerCase().startsWith('o1') || modelName.toLowerCase().startsWith('o3')) {
+        payload.reasoning_effort = effort;
+      }
 
       // Use the appropriate parameter name based on model type
       if (isOSeriesModel) {
