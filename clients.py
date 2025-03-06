@@ -218,15 +218,22 @@ class ClientPool:
     def _create_client(self, model_id: str, model_config: Dict[str, Any]):
         """Create the appropriate client based on model type"""
         if config.is_deepseek_model(model_id):
+            # Construct endpoint EXACTLY as per documentation
+            endpoint = f"{config.AZURE_INFERENCE_ENDPOINT.rstrip('/')}/v1/chat/completions"
+            
             return ChatCompletionsClient(
-                endpoint=config.AZURE_INFERENCE_ENDPOINT,
+                endpoint=endpoint,
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                model="DeepSeek-R1",  # Exact case match required
-                api_version="2024-05-01-preview",  # Hardcoded version per DeepSeek requirements
+                api_version="2024-05-01-preview",  # Hardcoded as required
                 headers={
                     "x-ms-thinking-format": "html",
-                    "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+                    "x-ms-streaming-version": "2024-05-01-preview",
+                    "x-ms-user-agent": "azure-ai-inference/1.0.0",
+                    "api-key": config.AZURE_INFERENCE_CREDENTIAL
                 },
+                # Timeouts adjusted for DeepSeek's larger context window
+                connection_timeout=30.0,
+                read_timeout=120.0
             )
         elif config.is_o_series_model(model_id):
             return AzureOpenAI(
