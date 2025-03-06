@@ -429,20 +429,35 @@ async def init_database():
             }
         }
         
-        await conn.execute(text("""
-            INSERT INTO app_configurations (key, value, description, is_secret)
-            VALUES (
-                'model_configs',
-                :config_value,
-                'Azure OpenAI model configurations',
-                true
-            )
-            ON CONFLICT (key) DO UPDATE
-            SET value = EXCLUDED.value,
-                description = EXCLUDED.description,
-                is_secret = EXCLUDED.is_secret,
-                updated_at = CURRENT_TIMESTAMP
-        """), {"config_value": json.dumps(model_configs)})
+        # Ensure "DeepSeek-R1" is included in the model_configs entry
+        existing_config = await conn.execute(text("""
+            SELECT value FROM app_configurations WHERE key = 'model_configs'
+        """))
+        existing_config = existing_config.scalar()
+
+        if existing_config:
+            # Update the existing model_configs entry to include "DeepSeek-R1"
+            updated_config = json.loads(existing_config)
+            updated_config["DeepSeek-R1"] = model_configs["DeepSeek-R1"]
+            await conn.execute(text("""
+                UPDATE app_configurations
+                SET value = :config_value,
+                    description = 'Azure OpenAI model configurations',
+                    is_secret = true,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE key = 'model_configs'
+            """), {"config_value": json.dumps(updated_config)})
+        else:
+            # Insert model_configs if it doesn't exist
+            await conn.execute(text("""
+                INSERT INTO app_configurations (key, value, description, is_secret)
+                VALUES (
+                    'model_configs',
+                    :config_value,
+                    'Azure OpenAI model configurations',
+                    true
+                )
+            """), {"config_value": json.dumps(model_configs)})
 
 if __name__ == "__main__":
     asyncio.run(init_database())
