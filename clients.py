@@ -476,7 +476,7 @@ async def get_model_client_dependency(
             }
 
         # Handle DeepSeek client configuration
-        if is_deepseek_model(model_name):
+        if config.is_deepseek_model(model_name):
             # Validate endpoint format
             # Construct endpoint EXACTLY as per documentation
             endpoint = f"{config.AZURE_INFERENCE_ENDPOINT.rstrip('/')}/v1/chat/completions"
