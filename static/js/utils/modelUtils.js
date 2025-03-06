@@ -75,14 +75,16 @@ export const KNOWN_MODELS = [
   {
     id: "DeepSeek-R1",
     modelApiConfig: {
-      endpoint: "https://DeepSeek-R1D2.eastus2.models.ai.azure.com",
+      endpoint: "/v1/chat/completions",
       apiVersion: "2024-05-01-preview",
-      maxTokens: 128000,
-      supportsTemperature: true,
+      maxTokens: 131072,
+      temperature: 0.0,
+      headers: {
+        "x-ms-thinking-format": "html",
+        "x-ms-streaming-version": "2024-05-01-preview"
+      },
       supportsStreaming: true,
-      baseTimeout: 180.0,
-      maxTimeout: 600.0,
-      tokenFactor: 0.1
-    }
+      baseTimeout: 30.0,
+      readTimeout: 120.0
   }
 ];

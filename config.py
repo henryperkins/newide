@@ -229,14 +229,11 @@ def is_o_series_model(model_name: str) -> bool:
     return model_lower.startswith("o1") or model_lower.startswith("o3")
 
 
-# Validate that the endpoints are set
-if not AZURE_OPENAI_ENDPOINT:
-    logger.warning(
-        "AZURE_OPENAI_ENDPOINT is not set. This will cause issues with o-series models."
-    )
-if not AZURE_INFERENCE_ENDPOINT:
-    logger.warning(
-        "AZURE_INFERENCE_ENDPOINT is not set. This will cause issues with DeepSeek models."
+# Validate DeepSeek endpoint format
+if AZURE_INFERENCE_ENDPOINT and "/v1/chat/completions" not in AZURE_INFERENCE_ENDPOINT:
+    raise ValueError(
+        "AZURE_INFERENCE_ENDPOINT must include /v1/chat/completions path\n"
+        "Example: https://your-resource.region.inference.ai.azure.com/v1/chat/completions"
     )
 
 O_SERIES_BASE_TIMEOUT = settings.O_SERIES_BASE_TIMEOUT
