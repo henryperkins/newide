@@ -58,13 +58,22 @@ export function initSidebar() {
   const conversationsSidebar = document.getElementById('conversations-sidebar');
 
   if (conversationsToggle && conversationsSidebar) {
-    conversationsToggle.addEventListener('click', () => {
-      conversationsSidebar.classList.toggle('hidden');
-      conversationsToggle.setAttribute(
-        'aria-expanded',
-        !conversationsSidebar.classList.contains('hidden')
-      );
-    });
+      conversationsToggle.addEventListener('click', () => {
+          const isOpen = conversationsSidebar.classList.contains('sidebar-open');
+          if (isOpen) {
+              // Close conversation sidebar
+              conversationsSidebar.classList.remove('sidebar-open');
+              conversationsSidebar.classList.add('hidden');
+              conversationsSidebar.style.transform = 'translateX(-100%)';
+              conversationsToggle.setAttribute('aria-expanded', 'false');
+          } else {
+              // Open conversation sidebar
+              conversationsSidebar.classList.add('sidebar-open');
+              conversationsSidebar.classList.remove('hidden');
+              conversationsSidebar.style.transform = 'translateX(0)';
+              conversationsToggle.setAttribute('aria-expanded', 'true');
+          }
+      });
 
     // Initialize mobile conversation sidebar state
     if (isMobile) {
@@ -138,6 +147,7 @@ export function toggleSidebar(show) {
   if (show) {
     // Show sidebar
     sidebar.classList.add('sidebar-open');
+    sidebar.style.transform = 'translateX(0)';
 
     if (isMobile) {
       // Mobile-specific behavior

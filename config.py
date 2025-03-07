@@ -35,6 +35,17 @@ class Settings(BaseSettings):
     Loads environment variables for DB credentials
     """
 
+    # Sentry configuration
+    SENTRY_DSN: Optional[str] = os.getenv("SENTRY_DSN")
+    SENTRY_ENVIRONMENT: str = os.getenv("SENTRY_ENVIRONMENT", "development")
+    SENTRY_RELEASE: Optional[str] = os.getenv("SENTRY_RELEASE")
+    SENTRY_TRACES_SAMPLE_RATE: float = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "1.0"))
+    SENTRY_PROFILES_SAMPLE_RATE: float = float(os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "1.0"))
+    SENTRY_MAX_BREADCRUMBS: int = int(os.getenv("SENTRY_MAX_BREADCRUMBS", "100"))
+    SENTRY_SEND_DEFAULT_PII: bool = os.getenv("SENTRY_SEND_DEFAULT_PII", "false").lower() in ("true", "1", "yes")
+    SENTRY_SERVER_NAME: Optional[str] = os.getenv("SENTRY_SERVER_NAME")
+    SENTRY_ATTACH_STACKTRACE: bool = os.getenv("SENTRY_ATTACH_STACKTRACE", "true").lower() in ("true", "1", "yes")
+
     POSTGRES_HOST: Optional[str] = os.getenv("POSTGRES_HOST")
     POSTGRES_USER: Optional[str] = os.getenv("POSTGRES_USER")
     POSTGRES_PASSWORD: Optional[str] = os.getenv("POSTGRES_PASSWORD")

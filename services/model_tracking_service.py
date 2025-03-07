@@ -11,6 +11,7 @@ import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import logging
+import sentry_sdk
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class ModelTrackingService:
         self.active_transitions = {}
         self.transition_lock = asyncio.Lock()
 
+    @sentry_sdk.trace(tags={"operation": "model_switch", "phase": "start"})
     async def track_model_switch(
         self,
         session_id: uuid.UUID,
@@ -64,6 +66,7 @@ class ModelTrackingService:
             "status": "in_progress",
         }
 
+    @sentry_sdk.trace(tags={"operation": "model_switch", "phase": "complete"})
     async def complete_model_switch(
         self,
         tracking_id: str,
@@ -100,57 +103,63 @@ class ModelTrackingService:
 
         # Record the transition in the database
         try:
-            await self.db.execute(
-                text(
-                    """
-                    INSERT INTO model_transitions (
-                        session_id,
-                        from_model,
-                        to_model,
-                        tracking_id,
-                        success,
-                        error_message,
-                        duration_ms,
-                        metadata
-                    ) VALUES (
-                        :session_id,
-                        :from_model,
-                        :to_model,
-                        :tracking_id,
-                        :success,
-                        :error_message,
-                        :duration_ms,
-                        :metadata
-                    )
-                """
-                ),
-                {
-                    "session_id": transition["session_id"],
-                    "from_model": transition["from_model"],
-                    "to_model": transition["to_model"],
-                    "tracking_id": tracking_id,
-                    "success": 1 if success else 0,
-                    "error_message": error_message,
-                    "duration_ms": duration_ms,
-                    "metadata": metadata,
-                },
-            )
-
-            if success:
-                # Update the session's last_model
+            with sentry_sdk.start_profiling_span(
+                description="DB Insert Model Transition"
+            ):
                 await self.db.execute(
                     text(
                         """
-                        UPDATE sessions
-                        SET last_model = :model
-                        WHERE id = :session_id
+                        INSERT INTO model_transitions (
+                            session_id,
+                            from_model,
+                            to_model,
+                            tracking_id,
+                            success,
+                            error_message,
+                            duration_ms,
+                            metadata
+                        ) VALUES (
+                            :session_id,
+                            :from_model,
+                            :to_model,
+                            :tracking_id,
+                            :success,
+                            :error_message,
+                            :duration_ms,
+                            :metadata
+                        )
                     """
                     ),
                     {
-                        "model": transition["to_model"],
                         "session_id": transition["session_id"],
+                        "from_model": transition["from_model"],
+                        "to_model": transition["to_model"],
+                        "tracking_id": tracking_id,
+                        "success": 1 if success else 0,
+                        "error_message": error_message,
+                        "duration_ms": duration_ms,
+                        "metadata": metadata,
                     },
                 )
+
+            if success:
+                # Update the session's last_model
+                with sentry_sdk.start_profiling_span(
+                    description="Update Session Model"
+                ):
+                    await self.db.execute(
+                        text(
+                            """
+                            UPDATE sessions
+                            SET last_model = :model
+                            WHERE id = :session_id
+                        """
+                        ),
+                        {
+                            "model": transition["to_model"],
+                            "session_id": transition["session_id"],
+                        },
+                    )
 
             await self.db.commit()
 
@@ -244,81 +253,88 @@ class ModelTrackingService:
             / max(1, sum(row["total_count"] for row in rows)),
         }
 
+    @sentry_sdk.trace(tags={"operation": "model_usage", "type": "session_usage"})
     async def get_model_usage_by_session(self, session_id: uuid.UUID) -> Dict[str, Any]:
         """
         Get model usage timeline for a specific session with optimized queries
         """
         try:
             # Use a single query with LEFT JOINs for better performance
-            combined_query = text(
+            with sentry_sdk.start_profiling_span(
+                description="Combined Session Usage Query"
+            ):
+                combined_query = text(
+                    """
+                    WITH base_transitions AS (
+                        SELECT 
+                            from_model,
+                            to_model,
+                            tracking_id,
+                            timestamp,
+                            success
+                        FROM model_transitions
+                        WHERE session_id = :session_id
+                        ORDER BY timestamp
+                    ),
+                    base_usage AS (
+                        SELECT
+                            model,
+                            tracking_id,
+                            SUM(prompt_tokens) as prompt_tokens,
+                            SUM(completion_tokens) as completion_tokens,
+                            SUM(total_tokens) as total_tokens,
+                            COUNT(*) as request_count,
+                            MIN(timestamp) as first_use,
+                            MAX(timestamp) as last_use
+                        FROM model_usage_stats
+                        WHERE session_id = :session_id
+                        GROUP BY model, tracking_id
+                    ),
+                    base_conversations AS (
+                        SELECT
+                            model,
+                            tracking_id,
+                            COUNT(*) as message_count
+                        FROM conversations
+                        WHERE session_id = :session_id AND role = 'assistant'
+                        GROUP BY model, tracking_id
+                    )
+                    
+                    SELECT
+                        'transitions' as data_type,
+                        json_agg(t.*) as data
+                    FROM base_transitions t
+                    UNION ALL
+                    SELECT
+                        'usage' as data_type,
+                        json_agg(u.*) as data
+                    FROM base_usage u
+                    UNION ALL
+                    SELECT
+                        'conversations' as data_type,
+                        json_agg(c.*) as data
+                    FROM base_conversations c
                 """
-                WITH base_transitions AS (
-                    SELECT 
-                        from_model,
-                        to_model,
-                        tracking_id,
-                        timestamp,
-                        success
-                    FROM model_transitions
-                    WHERE session_id = :session_id
-                    ORDER BY timestamp
-                ),
-                base_usage AS (
-                    SELECT
-                        model,
-                        tracking_id,
-                        SUM(prompt_tokens) as prompt_tokens,
-                        SUM(completion_tokens) as completion_tokens,
-                        SUM(total_tokens) as total_tokens,
-                        COUNT(*) as request_count,
-                        MIN(timestamp) as first_use,
-                        MAX(timestamp) as last_use
-                    FROM model_usage_stats
-                    WHERE session_id = :session_id
-                    GROUP BY model, tracking_id
-                ),
-                base_conversations AS (
-                    SELECT
-                        model,
-                        tracking_id,
-                        COUNT(*) as message_count
-                    FROM conversations
-                    WHERE session_id = :session_id AND role = 'assistant'
-                    GROUP BY model, tracking_id
                 )
-                
-                SELECT
-                    'transitions' as data_type,
-                    json_agg(t.*) as data
-                FROM base_transitions t
-                UNION ALL
-                SELECT
-                    'usage' as data_type,
-                    json_agg(u.*) as data
-                FROM base_usage u
-                UNION ALL
-                SELECT
-                    'conversations' as data_type,
-                    json_agg(c.*) as data
-                FROM base_conversations c
-            """
-            )
 
-            result = await self.db.execute(combined_query, {"session_id": session_id})
+                result = await self.db.execute(
+                    combined_query, {"session_id": session_id}
+                )
 
             # Process the results
-            rows = result.fetchall()
-            data = {
-                "session_id": session_id,
-                "transitions": [],
-                "usage": [],
-                "conversations": [],
-            }
+            with sentry_sdk.start_profiling_span(description="Process Usage Results"):
+                rows = result.fetchall()
+                data = {
+                    "session_id": session_id,
+                    "transitions": [],
+                    "usage": [],
+                    "conversations": [],
+                }
 
-            for row in rows:
-                data_type, data_json = row
-                if data_json:  # May be None if no data for a section
-                    data[data_type] = data_json
+                for row in rows:
+                    data_type, data_json = row
+                    if data_json:  # May be None if no data for a section
+                        data[data_type] = data_json
 
             return data
 

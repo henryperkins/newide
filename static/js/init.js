@@ -10,6 +10,7 @@ import { StatsDisplay } from './ui/statsDisplay.js';
 import fileManager from './fileManager.js';
 import { showNotification } from './ui/notificationManager.js';
 import { getSessionId, createNewConversation } from './session.js';
+import { initSentry, captureError, captureMessage } from './sentryInit.js';
 
 // Configure DOMPurify
 if (typeof DOMPurify !== 'undefined') {
@@ -38,12 +39,18 @@ document.addEventListener('DOMContentLoaded', initApplication);
  */
 async function ensureValidSession() {
   try {
+    // Start a Sentry transaction for session initialization
+    const transaction = await import('./sentryInit.js').then(module => {
+      return module.startTransaction('session_initialization', 'session');
+    });
+    
     // Get or create a session ID - this function handles validation internally
     // and will create a new session if the existing one is invalid
     const sessionId = await getSessionId();
 
     if (!sessionId) {
       console.warn('Failed to get a valid session ID');
+      captureMessage('Failed to get a valid session ID', 'warning');
 
       // Try one more time with a fresh session
       sessionStorage.removeItem('sessionId');
@@ -58,17 +65,26 @@ async function ensureValidSession() {
           [{ label: 'Refresh', onClick: () => window.location.reload() }]
         );
         console.error('Failed to create a new session after multiple attempts');
+        captureMessage('Failed to create a new session after multiple attempts', 'error');
       } else {
         console.log('Created new session after initial failure:', newSessionId);
+        captureMessage('Created new session after initial failure', 'info', { sessionId: newSessionId });
       }
     } else {
       console.log('Session initialization successful:', sessionId);
+      captureMessage('Session initialization successful', 'info', { sessionId });
+    }
+    
+    // Finish the transaction
+    if (transaction) {
+      transaction.finish();
     }
 
     return sessionId;
   } catch (error) {
     // Log the error but don't throw - let the app continue
     console.error('Session initialization error:', error);
+    captureError(error, { context: 'Session initialization' });
 
     // Show a non-blocking notification
     showNotification(
@@ -98,11 +114,33 @@ function showFallbackUI(error) {
     <button class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
       Refresh Page
     </button>
+    <button class="mt-4 ml-2 px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300" id="report-error-btn">
+      Report Error
+    </button>
   `;
 
   errorElement.querySelector('button').addEventListener('click', () => {
     window.location.reload();
   });
+  
+  // Add error reporting button
+  const reportButton = errorElement.querySelector('#report-error-btn');
+  if (reportButton) {
+    reportButton.addEventListener('click', () => {
+      import('./sentryInit.js').then(module => {
+        module.captureMessage('User manually reported error', 'error', { 
+          error: error.toString(),
+          stack: error.stack,
+          location: window.location.href
+        });
+        
+        // Show feedback to user
+        reportButton.textContent = 'Error Reported';
+        reportButton.disabled = true;
+        reportButton.classList.add('opacity-50');
+      });
+    });
+  }
 
   container.innerHTML = '';
   container.appendChild(errorElement);
@@ -115,6 +153,20 @@ async function initApplication() {
   console.log('Initializing application...');
 
   try {
+    // Initialize Sentry with Session Replay early
+    initSentry({
+      dsn: window.SENTRY_DSN || 'https://d815bc9d689a9255598e0007ae5a2f67@o4508070823395328.ingest.us.sentry.io/4508935977238528',
+      environment: window.SENTRY_ENVIRONMENT || 'development',
+      release: window.SENTRY_RELEASE || '1.0.0',
+      tracesSampleRate: 1.0,
+      replaysSessionSampleRate: 0.1, // Record 10% of sessions
+      replaysOnErrorSampleRate: 1.0, // Record 100% of sessions with errors
+      maskAllInputs: true, // Mask all input fields for privacy
+    });
+    
+    // Add initial breadcrumb
+    captureMessage('Application initialization started', 'info');
+
     // Fix UI layout issues immediately
     fixLayoutIssues();
 
@@ -122,7 +174,16 @@ async function initApplication() {
     initThemeSwitcher();
 
     // 2. Initialize session FIRST before other components
-    await ensureValidSession();
+    const sessionId = await ensureValidSession();
+    
+    // Set session ID as user ID for Sentry
+    if (sessionId) {
+      window.sentryUser = { id: sessionId };
+      import('./sentryInit.js').then(module => {
+        module.setUser(window.sentryUser);
+        module.setTag('session_id', sessionId);
+      });
+    }
 
     // 3. Initialize tab system with proper handling
     initTabSystem();
@@ -133,7 +194,10 @@ async function initApplication() {
     // 5. Initialize conversation manager (for sidebar)
     import('./ui/conversationManager.js').then(module => {
       module.initConversationManager();
-    }).catch(err => console.error('Failed to load conversationManager:', err));
+    }).catch(err => {
+      console.error('Failed to load conversationManager:', err);
+      captureError(err, { context: 'Loading conversation manager' });
+    });
 
     // 6. Initialize existing thinking blocks
     deepSeekProcessor.initializeExistingBlocks();
@@ -170,9 +234,12 @@ async function initApplication() {
     // 12. Set up window resize event listener for responsive UI
     setupResizeHandler();
 
+    // Add completion breadcrumb
+    captureMessage('Application initialization complete', 'info');
     console.log('Application initialization complete');
   } catch (error) {
     console.error('Initialization error:', error);
+    captureError(error, { context: 'Application initialization' });
     showFallbackUI(error);
   }
 }
@@ -200,7 +267,11 @@ function fixLayoutIssues() {
     sidebar.style.right = '0';
     sidebar.style.zIndex = '50';
     sidebar.style.width = isMobile ? '100%' : '384px';
-    sidebar.style.transform = 'translateX(100%)';
+    if (!sidebar.classList.contains('sidebar-open')) {
+        sidebar.style.transform = 'translateX(100%)';
+    } else {
+        sidebar.style.transform = 'translateX(0)';
+    }
   }
 
   // 2. Fix tab panels display
@@ -368,14 +439,25 @@ function initUserInput() {
   if (saveConvoBtn) {
     safeAddEventListener(saveConvoBtn, 'click', async () => {
       try {
+        // Add breadcrumb for user action
+        import('./sentryInit.js').then(module => {
+          module.addBreadcrumb({
+            category: 'ui.action',
+            message: 'User clicked save conversation button',
+            level: 'info'
+          });
+        });
+        
         const module = await import('./ui/displayManager.js');
         if (typeof module.saveConversation === 'function') {
           module.saveConversation();
         } else {
           console.error('saveConversation function not found');
+          captureMessage('saveConversation function not found', 'error');
         }
       } catch (err) {
         console.error('Failed to save conversation:', err);
+        captureError(err, { context: 'Save conversation' });
       }
     });
   }
@@ -385,14 +467,25 @@ function initUserInput() {
   if (clearConvoBtn) {
     safeAddEventListener(clearConvoBtn, 'click', async () => {
       try {
+        // Add breadcrumb for user action
+        import('./sentryInit.js').then(module => {
+          module.addBreadcrumb({
+            category: 'ui.action',
+            message: 'User clicked clear conversation button',
+            level: 'info'
+          });
+        });
+        
         const module = await import('./ui/displayManager.js');
         if (typeof module.deleteConversation === 'function') {
           module.deleteConversation();
         } else {
           console.error('deleteConversation function not found');
+          captureMessage('deleteConversation function not found', 'error');
         }
       } catch (err) {
         console.error('Failed to clear conversation:', err);
+        captureError(err, { context: 'Clear conversation' });
       }
     });
   }
@@ -402,14 +495,25 @@ function initUserInput() {
   if (newConvoBtn) {
     safeAddEventListener(newConvoBtn, 'click', async () => {
       try {
+        // Add breadcrumb for user action
+        import('./sentryInit.js').then(module => {
+          module.addBreadcrumb({
+            category: 'ui.action',
+            message: 'User clicked new conversation button',
+            level: 'info'
+          });
+        });
+        
         const module = await import('./ui/displayManager.js');
         if (typeof module.createNewConversation === 'function') {
           module.createNewConversation();
         } else {
           console.error('createNewConversation function not found');
+          captureMessage('createNewConversation function not found', 'error');
         }
       } catch (err) {
         console.error('Failed to create new conversation:', err);
+        captureError(err, { context: 'Create new conversation' });
       }
     });
   }
@@ -419,14 +523,25 @@ function initUserInput() {
   if (loadOlderBtn) {
     safeAddEventListener(loadOlderBtn, 'click', async () => {
       try {
+        // Add breadcrumb for user action
+        import('./sentryInit.js').then(module => {
+          module.addBreadcrumb({
+            category: 'ui.action',
+            message: 'User clicked load older messages button',
+            level: 'info'
+          });
+        });
+        
         const module = await import('./ui/displayManager.js');
         if (typeof module.loadOlderMessages === 'function') {
           module.loadOlderMessages();
         } else {
           console.error('loadOlderMessages function not found');
+          captureMessage('loadOlderMessages function not found', 'error');
         }
       } catch (err) {
         console.error('Failed to load older messages:', err);
+        captureError(err, { context: 'Load older messages' });
       }
     });
   }
@@ -437,6 +552,17 @@ function initUserInput() {
     if (link) {
       e.preventDefault();
       const fname = link.getAttribute('data-file-name');
+      
+      // Add breadcrumb for file reference click
+      import('./sentryInit.js').then(module => {
+        module.addBreadcrumb({
+          category: 'ui.action',
+          message: 'User clicked file reference link',
+          data: { filename: fname },
+          level: 'info'
+        });
+      });
+      
       openFileInSidebar(fname);
     }
   });
@@ -459,6 +585,15 @@ function initUserInput() {
 
     // Add event listener for send button
     sendButton.addEventListener('click', () => {
+      // Add breadcrumb for send message
+      import('./sentryInit.js').then(module => {
+        module.addBreadcrumb({
+          category: 'ui.action',
+          message: 'User clicked send message button',
+          level: 'info'
+        });
+      });
+      
       if (typeof sendMessage === 'function') {
         sendMessage();
       } else if (typeof window.sendMessage === 'function') {
@@ -470,6 +605,16 @@ function initUserInput() {
     userInput.addEventListener('keydown', (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
+        
+        // Add breadcrumb for keyboard shortcut
+        import('./sentryInit.js').then(module => {
+          module.addBreadcrumb({
+            category: 'ui.action',
+            message: 'User used Ctrl+Enter keyboard shortcut',
+            level: 'info'
+          });
+        });
+        
         if (typeof sendMessage === 'function') {
           sendMessage();
         } else if (typeof window.sendMessage === 'function') {
@@ -744,6 +889,15 @@ function initDoubleTapToCopy() {
           feedback.textContent = 'Copied to clipboard';
           document.body.appendChild(feedback);
           setTimeout(() => feedback.remove(), 1500);
+          
+          // Add breadcrumb for copy action
+          import('./sentryInit.js').then(module => {
+            module.addBreadcrumb({
+              category: 'ui.action',
+              message: 'User double-tapped to copy message',
+              level: 'info'
+            });
+          });
         });
         e.preventDefault();
       }
@@ -813,6 +967,15 @@ function initPullToRefresh() {
       chatHistory.style.removeProperty('--pull-distance');
       if (pullDistance > threshold && chatHistory.scrollTop <= 0) {
         if (indicator) indicator.textContent = 'Loading...';
+        
+        // Add breadcrumb for pull-to-refresh action
+        import('./sentryInit.js').then(module => {
+          module.addBreadcrumb({
+            category: 'ui.action',
+            message: 'User pulled to refresh messages',
+            level: 'info'
+          });
+        });
 
         // Load older messages
         import('./ui/displayManager.js')
@@ -821,7 +984,10 @@ function initPullToRefresh() {
               module.loadOlderMessages();
             }
           })
-          .catch(err => console.error('Failed to load displayManager:', err));
+          .catch(err => {
+            console.error('Failed to load displayManager:', err);
+            captureError(err, { context: 'Pull to refresh' });
+          });
       }
       setTimeout(() => {
         if (indicator) {
@@ -858,6 +1024,15 @@ function setupMobileStatsToggle() {
         ? 'Settings panel opened'
         : 'Settings panel closed';
     }
+    
+    // Add breadcrumb for stats toggle
+    import('./sentryInit.js').then(module => {
+      module.addBreadcrumb({
+        category: 'ui.action',
+        message: `User ${hidden ? 'opened' : 'closed'} mobile stats panel`,
+        level: 'info'
+      });
+    });
   });
 
   mobileStatsPanel.setAttribute('aria-hidden', 'true');
@@ -872,11 +1047,31 @@ function setupMobileFontControls() {
   const mobileFontDown = document.getElementById('mobile-font-down');
 
   if (mobileFontUp) {
-    safeAddEventListener(mobileFontUp, 'click', () => adjustFontSize(1));
+    safeAddEventListener(mobileFontUp, 'click', () => {
+      adjustFontSize(1);
+      // Add breadcrumb for font size change
+      import('./sentryInit.js').then(module => {
+        module.addBreadcrumb({
+          category: 'ui.action',
+          message: 'User increased font size on mobile',
+          level: 'info'
+        });
+      });
+    });
   }
 
   if (mobileFontDown) {
-    safeAddEventListener(mobileFontDown, 'click', () => adjustFontSize(-1));
+    safeAddEventListener(mobileFontDown, 'click', () => {
+      adjustFontSize(-1);
+      // Add breadcrumb for font size change
+      import('./sentryInit.js').then(module => {
+        module.addBreadcrumb({
+          category: 'ui.action',
+          message: 'User decreased font size on mobile',
+          level: 'info'
+        });
+      });
+    });
   }
 }
 
@@ -927,15 +1122,45 @@ function initFontSizeControls() {
   document.documentElement.classList.add(storedSize);
 
   if (smallerBtn) {
-    safeAddEventListener(smallerBtn, 'click', () => adjustFontSize(-1));
+    safeAddEventListener(smallerBtn, 'click', () => {
+      adjustFontSize(-1);
+      // Add breadcrumb for font size change
+      import('./sentryInit.js').then(module => {
+        module.addBreadcrumb({
+          category: 'ui.action',
+          message: 'User decreased font size',
+          level: 'info'
+        });
+      });
+    });
   }
 
   if (biggerBtn) {
-    safeAddEventListener(biggerBtn, 'click', () => adjustFontSize(1));
+    safeAddEventListener(biggerBtn, 'click', () => {
+      adjustFontSize(1);
+      // Add breadcrumb for font size change
+      import('./sentryInit.js').then(module => {
+        module.addBreadcrumb({
+          category: 'ui.action',
+          message: 'User increased font size',
+          level: 'info'
+        });
+      });
+    });
   }
 
   if (resetBtn) {
-    safeAddEventListener(resetBtn, 'dblclick', () => adjustFontSize(0));
+    safeAddEventListener(resetBtn, 'dblclick', () => {
+      adjustFontSize(0);
+      // Add breadcrumb for font size reset
+      import('./sentryInit.js').then(module => {
+        module.addBreadcrumb({
+          category: 'ui.action',
+          message: 'User reset font size',
+          level: 'info'
+        });
+      });
+    });
   }
 }
 
@@ -973,9 +1198,13 @@ function initConfigHandlers() {
         module.setupConfigEventHandlers();
       } else {
         console.error('setupConfigEventHandlers function not found in config.js');
+        captureMessage('setupConfigEventHandlers function not found', 'error');
       }
     })
-    .catch(err => console.error('Failed to load config module:', err));
+    .catch(err => {
+      console.error('Failed to load config module:', err);
+      captureError(err, { context: 'Config initialization' });
+    });
 }
 
 /**
