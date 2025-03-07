@@ -157,52 +157,30 @@ export function injectMarkdownStyles() {
       .markdown-content code:not(pre code) {
         @apply bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded text-sm;
       }
-    `;
-        
-        .markdown-content blockquote {
-            margin: 1em 0;
-            padding-left: 1em;
-            color: #4b5563;
-            border-left: 4px solid #e5e7eb;
-        }
-        
-        .markdown-content ul, .markdown-content ol {
-            margin: 1em 0;
-            padding-left: 2em;
-        }
-        
-        .markdown-content li {
-            margin: 0.5em 0;
-        }
-        
-        .markdown-content img {
-            max-width: 100%;
-            height: auto;
-            border-radius: 6px;
-        }
-        
-        .markdown-content hr {
-            margin: 2em 0;
-            border: 0;
-            border-top: 1px solid #e5e7eb;
-        }
-        
-        .markdown-content table {
-            width: 100%;
-            margin: 1em 0;
-            border-collapse: collapse;
-        }
-        
-        .markdown-content th, .markdown-content td {
-            padding: 0.5em;
-            border: 1px solid #e5e7eb;
-            text-align: left;
-        }
-        
-        .markdown-content th {
-            background-color: #f9fafb;
-            font-weight: 600;
-        }
+      .markdown-content blockquote {
+        @apply my-4 pl-4 text-gray-600 dark:text-gray-300 border-l-4 border-gray-200 dark:border-gray-600;
+      }
+      .markdown-content ul, .markdown-content ol {
+        @apply my-4 pl-8;
+      }
+      .markdown-content li {
+        @apply my-2;
+      }
+      .markdown-content img {
+        @apply max-w-full h-auto rounded-lg;
+      }
+      .markdown-content hr {
+        @apply my-8 border-t border-gray-200 dark:border-gray-700;
+      }
+      .markdown-content table {
+        @apply w-full my-4 border-collapse;
+      }
+      .markdown-content th, .markdown-content td {
+        @apply px-2 py-1 border border-gray-200 dark:border-gray-700 text-left;
+      }
+      .markdown-content th {
+        @apply bg-gray-50 dark:bg-gray-800 font-semibold;
+      }
     `;
     document.head.appendChild(style);
     stylesInjected = true;
