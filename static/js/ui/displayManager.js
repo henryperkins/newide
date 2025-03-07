@@ -506,7 +506,7 @@ function processCodeBlocks(html) {
       const safeCode = code.replace(/`/g, '&#96;').replace(/'/g, '&#39;');
       return `
         <div class="relative group">
-          <button class="copy-code-button absolute top-2 right-2 p-1 rounded text-xs bg-dark-700/50 text-white opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity md:opacity-0 sm:opacity-100" aria-label="Copy code">
+          <button class="copy-code-button absolute top-2 right-2 p-1 rounded text-xs bg-gray-800/90 text-gray-100 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Copy code">
             Copy
           </button>
           <pre><code class="language-${language}">${safeCode}</code></pre>
