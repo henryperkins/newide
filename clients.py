@@ -22,7 +22,6 @@ class ModelRegistry:
         "deepseek": {
             "name": "DeepSeek-R1",
             "description": "Model that supports chain-of-thought reasoning with <think> tags",
-            "enable_thinking": True,
             "thinking_tags": ["think", "/think"],
             "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
             "supports_streaming": True,
@@ -219,7 +218,7 @@ class ClientPool:
         """Create the appropriate client based on model type"""
         if config.is_deepseek_model(model_id):
             # Construct endpoint EXACTLY as per documentation
-            endpoint = f"{config.AZURE_INFERENCE_ENDPOINT.rstrip('/')}/v1/chat/completions"
+            endpoint = f"{config.AZURE_INFERENCE_ENDPOINT.rstrip('/')}/chat/completions"
             
             return ChatCompletionsClient(
                 endpoint=endpoint,
@@ -230,7 +229,6 @@ class ClientPool:
                     "x-ms-streaming-version": "2024-05-01-preview",
                     "api-key": config.AZURE_INFERENCE_CREDENTIAL,
                     "Content-Type": "application/json",
-                    "User-Agent": "DeepSeek-Client/1.0.0"
                 },
                 connection_timeout=30.0,
                 read_timeout=120.0
@@ -471,7 +469,7 @@ async def get_model_client_dependency(
             # The endpoint should NOT include /v1/chat/completions - this is getting added by routers/chat.py
             # Removing this extra path to fix the 500 error
             if "/v1/chat/completions" in endpoint_base:
-                endpoint_base = endpoint_base.replace("/v1/chat/completions", "")
+                endpoint_base = endpoint_base.replace("/chat/completions", "")
                 logger.warning(
                     f"Removing /v1/chat/completions from endpoint: {endpoint_base}"
                 )

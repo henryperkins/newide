@@ -810,7 +810,7 @@ async def generate_stream_chunks(
         if is_deepseek:
             params.update(
                 {
-                    "temperature": 0.0,  # Required for DeepSeek
+                    "temperature": 0.5,
                     "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
                 }
             )
@@ -890,7 +890,7 @@ async def generate_stream_chunks(
                 # For ChatCompletionsClient, create the streaming response
                 stream_response = client.complete(
                     messages=messages,
-                    temperature=0.0 if is_deepseek else params.get("temperature", 0.7),
+                    temperature=0.5 if is_deepseek else params.get("temperature", 0.7),
                     max_tokens=params.get("max_tokens", 4096),
                     stream=True,
                 )

@@ -97,7 +97,7 @@ def prepare_model_parameters(
     chat_message: ChatMessage, model_name: str, is_deepseek: bool, is_o_series: bool
 ) -> Dict[str, Any]:
     # Validate parameters against model requirements
-    if is_deepseek and chat_message.temperature not in (None, 0.0):
+    if is_deepseek and chat_message.temperature not in (None, 0.5):
         raise ValueError("DeepSeek models require temperature=0.0")
 
     if is_o_series and chat_message.temperature is not None:
@@ -114,7 +114,7 @@ def prepare_model_parameters(
             "x-ms-thinking-format": "html",
             "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
         },
-        "temperature": 0.0,  # Required for DeepSeek-R1
+        "temperature": 0.5,
     }
 
     if is_o_series:
@@ -142,6 +142,8 @@ def prepare_model_parameters(
             chat_message.max_completion_tokens
             or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
         )
+        # Enforce O1 context limit of 200,000 tokens
+        params["max_completion_tokens"] = min(params["max_completion_tokens"], 200000)
         params["reasoning_effort"] = chat_message.reasoning_effort or "medium"
         params.pop("temperature", None)
     else:
@@ -298,271 +300,125 @@ async def get_file_context(
 
 
 async def process_chat_message(
-    chat_message: ChatMessage,
+    chat_message: Any,
     db_session: AsyncSession,
     model_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Processes a single chat message, calling the appropriate client to get a response,
-    and stores conversation data in the database.
-    """
     start_time = perf_counter()
     session_id = chat_message.session_id
-    # Use provided model_name or fallback to chat_message.model_name or default deployment
+
     model_name = (
         model_name
         or getattr(chat_message, "model_name", None)
         or config.AZURE_INFERENCE_DEPLOYMENT
     )
 
-    # Fetch model configurations if available
-    model_configs = {}
     try:
-        from services.config_service import ConfigService
-        from clients import get_model_client_dependency
-        from database import AsyncSessionLocal
-
-        async def fetch_model_configs() -> Dict[str, Any]:
-            async with AsyncSessionLocal() as config_db:
-                config_service = ConfigService(config_db)
-                return await config_service.get_model_configs() or {}
-
-        model_configs = await fetch_model_configs()
+        model_configs = await fetch_model_configs(db_session)
         if model_name not in model_configs:
             logger.warning(f"No configuration found for model {model_name}")
     except Exception as e:
         logger.error(f"Error fetching model_configs: {str(e)}")
         model_configs = {}
 
-    # Identify model type flags
     is_deepseek = is_deepseek_model(model_name)
     is_o_series = is_o_series_model(model_name)
 
-    # Prepare API parameters based on model type
-    params = prepare_model_parameters(
-        chat_message, model_name, is_deepseek, is_o_series
-    )
+    # Set params based on model
+    if is_deepseek:
+        params = {
+            "messages": chat_message.messages,
+            "temperature": chat_message.temperature or 0.5,
+            "max_tokens": chat_message.max_tokens or 131072,
+            "response_format": {"type": "text"},
+        }
+    elif is_o_series:
+        params = {
+            "model": model_name,
+            "messages": chat_message.messages,
+            "max_completion_tokens": chat_message.max_tokens or 40000,
+            "reasoning_effort": "medium",
+            "response_format": {"type": "text"},
+        }
+    else:
+        params = {
+            "model": model_name,
+            "messages": chat_message.messages,
+            "temperature": chat_message.temperature or 0.7,
+            "max_tokens": chat_message.max_tokens or 4096,
+            "response_format": {"type": "text"},
+        }
 
-    # Process advanced data sources integration if files are included
-    if (
-        chat_message.include_files
-        and chat_message.file_ids
-        and chat_message.use_file_search
-    ):
+    # Handle file context integration
+    if chat_message.include_files and chat_message.file_ids:
         try:
-            from services.azure_search_service import AzureSearchService
-            from models import UploadedFile
-
-            # Get session_id for Azure Search
-            file_result = await db_session.execute(
-                text(
-                    """
-                    SELECT session_id 
-                    FROM uploaded_files 
-                    WHERE id = :file_id::uuid
-                    LIMIT 1
-                """
-                ),
-                {"file_id": chat_message.file_ids[0]},
-            )
-
-            session_id_row = file_result.fetchone()
-            if not session_id_row:
-                logger.warning(
-                    f"Could not find session_id for file {chat_message.file_ids[0]}"
-                )
-            else:
-                session_id = session_id_row[0]
-
-                # Set up data_sources for direct Azure Search integration
-                params["data_sources"] = [
-                    {
-                        "type": "azure_search",
-                        "parameters": {
-                            "endpoint": config.AZURE_SEARCH_ENDPOINT,
-                            "authentication": {
-                                "type": "api_key",
-                                "api_key": config.AZURE_SEARCH_KEY,
-                            },
-                            "index_name": f"index-{session_id}",
-                            "query_type": "hybrid",  # Use both vector and keyword search
-                            "embedding_dependency": {
-                                "type": "deployment_name",
-                                "deployment_name": config.AZURE_EMBEDDING_DEPLOYMENT,
-                            },
-                            "in_scope": True,
-                            "top_n_documents": 5,
-                            "strictness": 3,
-                            "role_information": "You are an AI assistant that helps people find information from their files. When referencing information from files, cite the specific file.",
-                            "fields_mapping": {
-                                "content_fields_separator": "\n",
-                                "content_fields": ["content", "chunk_content"],
-                                "filepath_field": "filepath",
-                                "title_field": "filename",
-                                "url_field": "id",
-                                "vector_fields": ["content_vector"],
-                            },
-                        },
-                    }
-                ]
-
-                # If specific file_ids are provided, add filter to only search those files
-                if len(chat_message.file_ids) > 0:
-                    id_filters = [
-                        f"id eq '{file_id}' or startsWith(id, '{file_id}-chunk-')"
-                        for file_id in chat_message.file_ids
-                    ]
-                    params["data_sources"][0]["parameters"]["filter"] = " or ".join(
-                        id_filters
-                    )
-
-                logger.info(
-                    f"Using direct Azure Search integration with {len(chat_message.file_ids)} files"
-                )
-        except Exception as e:
-            logger.error(f"Error setting up direct Azure Search integration: {e}")
-            # Fall back to traditional context approach
             file_context = await get_file_context(
                 db_session, chat_message.file_ids, False
             )
             if file_context:
-                # Add file context as a system message before the user's message
-                file_system_message = {"role": "system", "content": file_context}
+                file_system_message = {
+                    "role": "developer" if is_o_series else "system",
+                    "content": file_context,
+                }
+                params["messages"].insert(0, file_system_message)
+                logger.info(f"Added file context ({len(file_context)} chars)")
+        except Exception as e:
+            logger.error(f"Error integrating file context: {e}")
 
-                # Insert file context before the user's message
-                user_msg_index = 0
-                for i, msg in enumerate(params["messages"]):
-                    if msg["role"] not in ["system", "developer"]:
-                        user_msg_index = i
-                        break
-
-                # Insert the file context message
-                params["messages"].insert(user_msg_index, file_system_message)
-
-                logger.info(
-                    f"Added file context ({len(file_context)} chars) to message (fallback method)"
-                )
-    # Use traditional context method if not using search or if direct integration isn't requested
-    elif chat_message.include_files and chat_message.file_ids:
-        file_context = await get_file_context(db_session, chat_message.file_ids, False)
-        if file_context:
-            # Add file context as a system message before the user's message
-            file_system_message = {
-                "role": "developer" if is_o_series else "system",
-                "content": file_context,
-            }
-
-            # Insert file context before the user's message
-            user_msg_index = 0
-            for i, msg in enumerate(params["messages"]):
-                if msg["role"] not in ["system", "developer"]:
-                    user_msg_index = i
-                    break
-
-            # Insert the file context message
-            params["messages"].insert(user_msg_index, file_system_message)
-
-            logger.info(f"Added file context ({len(file_context)} chars) to message")
-
+    # Make the model call and handle responses
     try:
-        from clients import get_model_client_dependency
-
-        # Distinguish between ChatCompletionsClient and AzureOpenAI:
-        client_wrapper = await get_model_client_dependency(model_name)
-        azure_client = client_wrapper["client"]
-        if isinstance(azure_client, ChatCompletionsClient):
-            if is_deepseek:
-                logger.debug(
-                    f"Calling DeepSeek-R1 model with messages and temperature: {params.get('temperature')}"
-                )
-                response = azure_client.complete(
-                    messages=params["messages"],
-                    temperature=params.get("temperature"),
-                    max_tokens=params.get("max_tokens"),
-                )
-                content = (
-                    response.choices[0].message.content if response.choices else ""
-                )
-                usage_data = {
-                    "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
-                    "completion_tokens": getattr(
-                        response.usage, "completion_tokens", 0
-                    ),
-                    "total_tokens": getattr(response.usage, "total_tokens", 0),
-                }
-                if "<think>" in content and "</think>" in content:
-                    thinking_text = content.split("<think>")[1].split("</think>")[0]
-                    usage_data["thinking_process"] = thinking_text
-                    usage_data["reasoning_tokens"] = len(thinking_text.split())
-            else:
-                response = azure_client.complete(
-                    messages=params["messages"],
-                    temperature=params.get("temperature", 0.7),
-                    max_tokens=params.get("max_tokens", 1000),
-                )
-                content = (
-                    response.choices[0].message.content if response.choices else ""
-                )
-                usage_data = {
-                    "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
-                    "completion_tokens": getattr(
-                        response.usage, "completion_tokens", 0
-                    ),
-                    "total_tokens": getattr(response.usage, "total_tokens", 0),
-                }
+        if is_deepseek:
+            client = ChatCompletionsClient(
+                endpoint=os.environ["AZURE_INFERENCE_ENDPOINT"],
+                credential=AzureKeyCredential(os.environ["AZURE_INFERENCE_CREDENTIAL"]),
+            )
+            response = client.complete(**params)
         else:
-            # Using the openai.AzureOpenAI client
+            client_wrapper = await get_model_client_dependency(model_name)
+            azure_client = client_wrapper["client"]
+
             if is_o_series:
-                # For O-series models
                 response = azure_client.chat.completions.create(
-                    model=model_name,
+                    model=params["model"],
                     messages=params["messages"],
-                    max_completion_tokens=params.get("max_completion_tokens", 40000),
-                    reasoning_effort=params.get("reasoning_effort", "medium"),
-                )
-            elif is_deepseek:
-                # For DeepSeek models
-                response = azure_client.chat.completions.create(
-                    model=model_name,
-                    messages=params["messages"],
-                    temperature=0.0,
-                    max_tokens=params.get("max_tokens", 131072),
+                    max_completion_tokens=params["max_completion_tokens"],
+                    reasoning_effort=params["reasoning_effort"],
                 )
             else:
-                # For standard models
                 response = azure_client.chat.completions.create(
-                    model=model_name,
+                    model=params["model"],
                     messages=params["messages"],
-                    temperature=params.get("temperature", 0.7),
-                    max_tokens=params.get("max_tokens", 4096),
+                    temperature=params["temperature"],
+                    max_tokens=params["max_tokens"],
                 )
 
-            content = response.choices[0].message.content if response.choices else ""
-            usage_raw = getattr(response, "usage", None)
-            usage_data = {
-                "prompt_tokens": getattr(usage_raw, "prompt_tokens", 0),
-                "completion_tokens": getattr(usage_raw, "completion_tokens", 0),
-                "total_tokens": getattr(usage_raw, "total_tokens", 0),
-            }
-            if (
-                usage_raw
-                and hasattr(usage_raw, "completion_tokens_details")
-                and usage_raw.completion_tokens_details
-            ):
-                usage_data["reasoning_tokens"] = getattr(
-                    usage_raw.completion_tokens_details, "reasoning_tokens", 0
-                )
-            if is_deepseek and "<think>" in content and "</think>" in content:
-                thinking_text = content.split("<think>")[1].split("</think>")[0]
-                usage_data["thinking_process"] = thinking_text
-                if "reasoning_tokens" not in usage_data:
-                    usage_data["reasoning_tokens"] = len(thinking_text.split())
+        content = response.choices[0].message.content if response.choices else ""
+        usage_raw = getattr(response, "usage", None)
+        usage_data = {
+            "prompt_tokens": getattr(usage_raw, "prompt_tokens", 0),
+            "completion_tokens": getattr(usage_raw, "completion_tokens", 0),
+            "total_tokens": getattr(usage_raw, "total_tokens", 0),
+        }
+
+        # Robust HTML parsing for reasoning sections (DeepSeek-specific)
+        if is_deepseek and "<details" in content:
+            details_pattern = re.compile(
+                r"""<details.*?>
+                <summary.*?>Thought for a second</summary>\s*
+                <div[^>]*>(.*?)</div>\s*
+                </details>\s*(.*)""",
+                re.DOTALL,
+            )
+            match = details_pattern.match(content)
+            if match:
+                reasoning = match.group(1).strip()
+                answer = match.group(2).strip()
+                usage_data["thinking_process"] = reasoning
+                usage_data["reasoning_tokens"] = len(reasoning.split())
+                content = answer
+
     except HttpResponseError as e:
-        # Handle DeepSeek-specific errors
-        if "no healthy upstream" in str(e).lower():
-            raise ValueError("DeepSeek service unavailable") from e
-
-        status_code = e.status_code if hasattr(e, "status_code") else 500
+        status_code = getattr(e, "status_code", 500)
         err_code = (
             getattr(e.error, "code", "Unknown")
             if getattr(e, "error", None)
@@ -570,18 +426,7 @@ async def process_chat_message(
         )
         err_message = getattr(e, "message", str(e))
         err_reason = getattr(e, "reason", "Unknown")
-
-        # Special handling for DeepSeek's thinking format requirements
-        if "x-ms-thinking-format" in err_message:
-            err_message += " - Required for chain-of-thought responses"
-
-        # Handle Azure Content Safety filtering
-        if hasattr(e, "response") and "content_filter_results" in e.response.json():
-            filter_results = e.response.json()["content_filter_results"]
-            err_message += f" | Blocked content: {filter_results}"
-        logger.error(
-            f"[Azure AI Error] Session: {session_id} | Model: {model_name} | Status: {status_code} | Code: {err_code} | Message: {err_message} | Reason: {err_reason}"
-        )
+        logger.error(f"[Azure AI Error] {err_message}")
         return create_error_response(
             status_code=status_code,
             code=str(err_code),
@@ -590,47 +435,34 @@ async def process_chat_message(
             inner_error=err_message,
         )
     except OpenAIError as e:
-        logger.exception(f"[Session {session_id}] AzureOpenAI call failed: {str(e)}")
-        error_code = getattr(e, "code", "api_error")
-        error_message = str(e)
-        err = create_error_response(
+        logger.exception(f"[OpenAI Error] {str(e)}")
+        return create_error_response(
             status_code=503,
-            code=error_code,
+            code=getattr(e, "code", "api_error"),
             message="Error during AzureOpenAI call",
             error_type="api_call_error",
-            inner_error=error_message,
+            inner_error=str(e),
         )
-        logger.critical(f"Handled AzureOpenAI error gracefully. {err['detail']}")
-        return err
     except Exception as e:
-        logger.exception(f"[Session {session_id}] Unexpected error occurred: {str(e)}")
-        err = create_error_response(
+        logger.exception(f"[Unexpected Error] {str(e)}")
+        return create_error_response(
             status_code=500,
             code="internal_server_error",
             message="An unexpected error occurred during processing.",
             error_type="unknown_error",
             inner_error=str(e),
         )
-        logger.critical(f"Handled unexpected error gracefully. {err['detail']}")
-        return err
 
     processing_time = perf_counter() - start_time
-    full_content = content
-    formatted_content = full_content
 
-    # No server-side transform for DeepSeek; rely on client
-    if is_deepseek and full_content:
-        pass
-    formatted_content = full_content
-
-    # Store the conversation in the database
+    # Store conversation
     await save_conversation(
         db_session=db_session,
         session_id=session_id,
         model_name=model_name,
         user_text=chat_message.message,
-        assistant_text=full_content,
-        formatted_assistant_text=formatted_content,
+        assistant_text=content,
+        formatted_assistant_text=content,
         raw_response=response,
     )
 
@@ -642,12 +474,12 @@ async def process_chat_message(
         "choices": [
             {
                 "index": 0,
-                "message": {"role": "assistant", "content": full_content},
+                "message": {"role": "assistant", "content": content},
                 "finish_reason": "stop",
             }
         ],
         "usage": usage_data,
-        "processing_time_seconds": processing_time,  # Add processing time to help diagnose issues
+        "processing_time_seconds": processing_time,
     }
 
 
@@ -752,7 +584,7 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
                     "content": f"Summarize the following chat:\n\n{combined_text}\n\nBrief Summary:",
                 },
             ],
-            temperature=0.0,
+            temperature=0.5,
             max_tokens=150,
         )
 

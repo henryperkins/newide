@@ -363,8 +363,7 @@ async function fetchChatResponse(
 
       // Only add temperature for non-o1 models
       if (!isOSeriesModel) {
-        // For DeepSeek-R1, always use 0.0 temperature
-        payload.temperature = isDeepSeek ? 0.0 : 0.7;
+        payload.temperature = isDeepSeek ? 0.5: 0.7;
       }
 
       console.log('[fetchChatResponse] Sending payload:', payload);

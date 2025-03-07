@@ -1,5 +1,3 @@
-// Updated streaming.js with fixed object extension issues
-
 import { getSessionId } from './session.js';
 import { updateTokenUsage, fetchWithRetry, retry, eventBus } from './utils/helpers.js';
 import { showNotification, handleMessageError } from './ui/notificationManager.js';
@@ -165,8 +163,9 @@ export function streamChatResponse(
     const isDeepSeek = validModelName.includes('deepseek');
 
     if (finalModelName.trim().toLowerCase() === 'deepseek-r1') {
+      // Map user-specified 'DeepSeek-R1' to the actual Azure deployment name if needed
       finalModelName = 'DeepSeek-R1';
-      params.append('temperature', '0.0'); // Enforce temperature=0 for DeepSeek
+      params.append('temperature', '0.5');
     }
 
     params.append('model', finalModelName);
@@ -176,8 +175,6 @@ export function streamChatResponse(
       params.append('reasoning_effort', reasoningEffort || 'medium');
       params.append('response_format', 'json_schema');
       params.append('max_completion_tokens', '100000'); // Enforce O-series token limit
-      params.delete('temperature'); // Remove temperature for O-series
-      console.log(`[streamChatResponse] Using o1 model with reasoning_effort=${reasoningEffort || 'medium'}`);
     } else if (reasoningEffort && !isDeepSeek) {
       // For non-o1 and non-deepseek models, include it if provided but it might be ignored by the backend
       params.append('reasoning_effort', reasoningEffort);
@@ -203,12 +200,13 @@ export function streamChatResponse(
 
     try {
       // Prepare headers with specific DeepSeek requirements
-      const headers = {};
-
+      const headers = {
+        'Content-Type': 'application/json',
+      };
       // DeepSeek-R1 requires specific headers
       if (isDeepSeek) {
-        headers["x-ms-thinking-format"] = "html";
-        headers["x-ms-streaming-version"] = "2024-05-01-preview";
+        headers['x-ms-thinking-format'] = "html";
+        headers['x-ms-streaming-version'] = "2024-05-01-preview";
         console.log("[streamChatResponse] Adding DeepSeek-R1 required headers");
       }
 
@@ -274,7 +272,7 @@ export function streamChatResponse(
             clearInterval(connectionCheckIntervalId);
 
             if (onCompleteCallback) {
-              onCompleteCallback({ data: '{}' });
+              onCompleteCallback({ data: '' });
             }
 
             await cleanupStreaming(finalModelName);
@@ -283,23 +281,28 @@ export function streamChatResponse(
           }
 
           const text = decoder.decode(value);
-          const lines = text.split('\n\n');
+          // Accumulate partial chunks in chunkBuffer and split only on complete SSE messages
+          chunkBuffer += text;
+          const chunks = chunkBuffer.split('\n\n');
+          // Keep the last part in chunkBuffer if it's incomplete
+          chunkBuffer = chunks.pop() || '';
 
-          for (const line of lines) {
-            if (!line.trim()) continue;
+          for (const rawLine of chunks) {
+            const line = rawLine.trim();
+            if (!line) continue;
 
             if (line.startsWith('data:')) {
-              const data = line.slice(5).trim();
+              const dataPart = line.slice(5).trim();
 
-              if (data === 'done') {
+              if (dataPart === 'done') {
                 if (onCompleteCallback) {
-                  onCompleteCallback({ data: '{}' });
+                  onCompleteCallback({ data: '' });
                 }
                 continue;
               }
 
               try {
-                const jsonData = JSON.parse(data);
+                const azureData = JSON.parse(dataPart);
 
                 // Reset connection timeout on each message
                 clearTimeout(connectionTimeoutId);
@@ -312,16 +315,58 @@ export function streamChatResponse(
                   }
                 }, connectionTimeoutMs * 1.5);
 
-                // Call message callback if registered
-                if (onMessageCallback) {
-                  onMessageCallback({ data });
+                // Azure's SSE may include a 'kind' field. Let's handle that gracefully:
+                if (azureData.kind) {
+                  const kindLower = azureData.kind.toLowerCase();
+                  if (kindLower === 'partial') {
+                    // This is a partial chunk
+                    if (azureData.choices && azureData.choices[0]) {
+                      // Check for partial content in delta, fallback to message content, or raw data
+                      const partialContent =
+                        (azureData.choices[0].delta && azureData.choices[0].delta.content) ||
+                        (azureData.choices[0].message && azureData.choices[0].message.content) ||
+                        dataPart;
+
+                      if (onMessageCallback && partialContent.trim()) {
+                        onMessageCallback({ data: partialContent });
+                      } else {
+                        console.log('[DeepSeek Partial] Received empty or whitespace-only chunk, ignoring.');
+                      }
+                    }
+                  } else if (kindLower === 'final') {
+                    // The final chunk
+                    if (azureData.choices && azureData.choices[0] && azureData.choices[0].delta) {
+                      const finalContent = azureData.choices[0].delta.content || '';
+                      if (onMessageCallback) {
+                        onMessageCallback({ data: finalContent });
+                      }
+                    }
+                  } else {
+                    // Unrecognized kind, fallback to raw chunk
+                    if (onMessageCallback) {
+                      onMessageCallback({ data: dataPart });
+                    }
+                  }
+                } else {
+                  // No 'kind' field; fallback to typical pattern
+                  if (azureData.choices && azureData.choices[0] && azureData.choices[0].delta) {
+                    const typicalContent = azureData.choices[0].delta.content || '';
+                    if (onMessageCallback) {
+                      onMessageCallback({ data: typicalContent });
+                    }
+                  } else {
+                    // Just pass the raw chunk
+                    if (onMessageCallback) {
+                      onMessageCallback({ data: dataPart });
+                    }
+                  }
                 }
               } catch (err) {
-                console.error('Error parsing SSE data:', err);
+                console.error('Error parsing SSE data from Azure Chat Completions:', err);
               }
             } else if (line.startsWith('event: complete')) {
               if (onCompleteCallback) {
-                onCompleteCallback({ data: '{}' });
+                onCompleteCallback({ data: '' });
               }
             }
           }
@@ -342,13 +387,33 @@ export function streamChatResponse(
         try {
           console.log('Received SSE chunk from server');
 
-          const data = JSON.parse(e.data);
-          // Avoid optional chaining
-          if (data.choices && data.choices[0] && data.choices[0].delta && data.choices[0].delta.content) {
-            if (data.choices[0].delta.content.indexOf('<think>') !== -1) {
-              console.log('Thinking block detected in streaming chunk:', data.choices[0].delta.content);
+          let data;
+          try {
+            data = JSON.parse(e.data);
+          } catch (parseError) {
+            // If e.data is not valid JSON, wrap it in an object with a 'text' field
+            data = { text: e.data };
+          }
+
+          // Special handling for DeepSeek model
+          const modelSelect = document.getElementById('model-select');
+          const currentModel = (modelSelect && modelSelect.value) ? modelSelect.value : 'DeepSeek-R1';
+          const isDeepSeek = currentModel.toLowerCase().includes('deepseek');
+
+          if (isDeepSeek) {
+            // Handle both structured and unstructured responses
+            if (typeof data.text === 'string') {
+              // For text field format responses
+              data.text = data.text.trim();
+            } else if (data.choices && data.choices[0] && data.choices[0].delta && data.choices[0].delta.content) {
+              // For structured JSON response format with delta
+              data.choices[0].delta.content = data.choices[0].delta.content.trim();
+            } else if (typeof e.data === 'string' && e.data.trim()) {
+              // For raw string data, ensure we have a clean object with text field
+              data = { text: e.data.trim() };
             }
           }
+
           processDataChunkWrapper(data);
           scheduleRender();
         } catch (err) {
@@ -617,6 +682,27 @@ async function attemptErrorRecovery(messageContent, error) {
  * Wrapper around processDataChunk to update local streaming state.
  */
 function processDataChunkWrapper(data) {
+  // Check if we're handling a DeepSeek model
+  const modelSelect = document.getElementById('model-select');
+  const currentModel = (modelSelect && modelSelect.value) ? modelSelect.value : 'DeepSeek-R1';
+  const isDeepSeek = currentModel.toLowerCase().includes('deepseek');
+
+  // For DeepSeek models, preprocess the chunks to avoid unwanted newlines
+  if (isDeepSeek && typeof data === 'object' && data.text) {
+    // Remove any trailing newlines that would cause unwanted breaks
+    data.text = data.text.replace(/\r?\n$/, '');
+
+    // If this is a continuation and doesn't start with whitespace or punctuation,
+    // ensure we have proper spacing from the previous chunk
+    if (mainTextBuffer &&
+      data.text &&
+      data.text.length > 0 &&
+      !/^[\s\.,!?;:]/.test(data.text) &&
+      !/[\s\.,!?;:]$/.test(mainTextBuffer)) {
+      data.text = ' ' + data.text;
+    }
+  }
+
   // Handle DeepSeek-specific thinking blocks and HTML formatting
   const processedData = deepSeekProcessor.preprocessChunk ?
     deepSeekProcessor.preprocessChunk(data) : data;
@@ -634,11 +720,11 @@ function processDataChunkWrapper(data) {
   thinkingTextBuffer = result.thinkingTextBuffer || '';
   chunkBuffer = result.chunkBuffer || '';
   isThinking = result.isThinking || false;
-  
+
   // If the newly processed chunk is already contained in mainTextBuffer, skip appending again
   if (result.mainTextBuffer && mainTextBuffer && mainTextBuffer.endsWith(result.mainTextBuffer.trim())) {
-      console.warn('[processDataChunkWrapper] Skipping repeated partial chunk...');
-      return;
+    console.warn('[processDataChunkWrapper] Skipping repeated partial chunk...');
+    return;
   }
 
   // Check if we're entering a thinking state
@@ -694,23 +780,20 @@ function renderBufferedContent() {
   try {
     const chatHistory = document.getElementById('chat-history');
     if (!chatHistory) return;
-    
+
     messageContainer = document.createElement('div');
     messageContainer.className = 'message assistant-message';
     const lastMessage = chatHistory.lastElementChild;
     if (lastMessage) {
-        chatHistory.insertBefore(messageContainer, lastMessage.nextSibling);
+      chatHistory.insertBefore(messageContainer, lastMessage.nextSibling);
     } else {
-        chatHistory.appendChild(messageContainer);
+      chatHistory.appendChild(messageContainer);
     }
-
-    // Use safe defaults for thinking content
-    const thinkBuffer = thinkingTextBuffer || '';
 
     // Get both content buffers with proper boundary handling
     const separated = deepSeekProcessor.separateContentBuffers(
       mainTextBuffer || '',
-      thinkBuffer
+      thinkingTextBuffer || ''
     );
 
     const mainContent = separated.mainContent || '';
@@ -735,23 +818,23 @@ function renderBufferedContent() {
     }
 
     // Handle thinking content separately to prevent layout thrashing
-    if (thinkBuffer) {
+    if (thinkingTextBuffer) {
       // Make sure we have a dedicated container for the current thinking block
       if (!thinkingContainers[currentMessageId]) {
         thinkingContainers[currentMessageId] = deepSeekProcessor.renderThinkingContainer(
           messageContainer,
-          thinkingContent,
+          thinkingTextBuffer,
           { createNew: true }
         );
       }
 
       thinkingContainer = thinkingContainers[currentMessageId];
 
-      if (thinkingContainer && thinkingContent) {
+      if (thinkingContainer && thinkingTextBuffer) {
         // Update content in the correct container
         const thinkingPre = thinkingContainer.querySelector('.thinking-pre');
         if (thinkingPre) {
-          const sanitized = DOMPurify ? DOMPurify.sanitize(thinkingContent) : thinkingContent;
+          const sanitized = DOMPurify ? DOMPurify.sanitize(thinkingTextBuffer) : thinkingTextBuffer;
           thinkingPre.innerHTML = sanitized;
         }
       }
