@@ -220,18 +220,21 @@ class ClientPool:
             # Construct endpoint EXACTLY as per documentation
             endpoint = config.AZURE_INFERENCE_ENDPOINT.rstrip('/')
             
+            # Validate endpoint format for DeepSeek
+            if "/chat/completions" in endpoint:
+                endpoint = endpoint.replace("/chat/completions", "")
+                logger.warning(f"Removed /chat/completions from endpoint: {endpoint}")
+
             return ChatCompletionsClient(
                 endpoint=endpoint,
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
                 api_version="2024-05-01-preview",
                 headers={
                     "x-ms-thinking-format": "html",
-                    "x-ms-streaming-version": "2024-05-01-preview",
-                    "api-key": config.AZURE_INFERENCE_CREDENTIAL,
-                    "Content-Type": "application/json",
+                    "x-ms-streaming-version": "2024-05-01-preview"
                 },
                 connection_timeout=30.0,
-                read_timeout=120.0
+                read_timeout=180.0  # Increased timeout for longer responses
             )
     # Rest of the function remains unchanged
         elif config.is_o_series_model(model_id):
