@@ -148,55 +148,16 @@ export function injectMarkdownStyles() {
     const style = document.createElement('style');
     style.id = 'markdown-styles';
     style.textContent = `
-        .markdown-content {
-            line-height: 1.6;
-            color: #1f2937;
-            overflow-wrap: break-word;
-        }
-        
-        .markdown-content h1, .markdown-content h2, .markdown-content h3,
-        .markdown-content h4, .markdown-content h5, .markdown-content h6 {
-            margin-top: 1.5em;
-            margin-bottom: 0.5em;
-            font-weight: 600;
-            line-height: 1.25;
-        }
-        
-        .markdown-content p {
-            margin: 1em 0;
-        }
-        
-        .markdown-content a {
-            color: #3b82f6;
-            text-decoration: none;
-        }
-        
-        .markdown-content a:hover {
-            text-decoration: underline;
-        }
-        
-        .markdown-content code {
-            padding: 0.2em 0.4em;
-            background-color: rgba(0, 0, 0, 0.05);
-            border-radius: 3px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.9em;
-        }
-        
-        .markdown-content pre {
-            padding: 1em;
-            overflow: auto;
-            background-color: #f3f4f6;
-            border-radius: 6px;
-            margin: 1em 0;
-        }
-        
-        .markdown-content pre code {
-            padding: 0;
-            background-color: transparent;
-            border-radius: 0;
-            font-size: 0.9em;
-        }
+      .markdown-content {
+        @apply prose prose-gray max-w-none dark:prose-invert;
+      }
+      .markdown-content pre {
+        @apply bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-x-auto;
+      }
+      .markdown-content code:not(pre code) {
+        @apply bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded text-sm;
+      }
+    `;
         
         .markdown-content blockquote {
             margin: 1em 0;
