@@ -102,8 +102,8 @@ function handleResize() {
 
   // Update sidebar width
   if (isMobile) {
-    sidebar.style.width = '100%';
-    if (chatContainer) chatContainer.classList.remove('sidebar-open');
+    sidebar.classList.add('w-full', 'md:w-[384px]');
+    if (chatContainer) chatContainer.classList.remove('md:ml-[384px]');
   } else {
     sidebar.style.width = '384px';
     if (isOpen && chatContainer) chatContainer.classList.add('sidebar-open');

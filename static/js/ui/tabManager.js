@@ -165,8 +165,7 @@ function handleTabChange(clickedTab) {
     activeContent.setAttribute('aria-hidden', 'false');
 
     // Ensure proper positioning and dimensions
-    activeContent.style.position = 'relative';
-    activeContent.style.width = '100%';
+    activeContent.classList.add('relative', 'w-full');
 
     // Make sure the panel is properly visible
     activeContent.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
