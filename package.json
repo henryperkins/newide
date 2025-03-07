@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "dompurify": "^3.2.4",
+    "markdown-it": "^14.1.0",
+    "prismjs": "^1.29.0",
     "puppeteer": "^24.2.1"
   },
   "devDependencies": {

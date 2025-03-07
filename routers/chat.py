@@ -594,7 +594,8 @@ async def create_chat_completion(
         client_wrapper = await get_model_client_dependency(model_name)
         client = client_wrapper["client"]
 
-        # Mocked response for demonstration
+        # TODO: Replace this mock with a real completion call if desired.
+        # For now, returning an empty text or any minimal fallback to avoid the "Hello from the AI" default.
         response_data = {
             "id": f"chatcmpl-{uuid.uuid4()}",
             "object": "chat.completion",
@@ -603,11 +604,11 @@ async def create_chat_completion(
             "choices": [
                 {
                     "index": 0,
-                    "message": {"role": "assistant", "content": "Hello from the AI."},
+                    "message": {"role": "assistant", "content": ""},
                     "finish_reason": "stop",
                 }
             ],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 
         # Store user & assistant messages in the conversation table

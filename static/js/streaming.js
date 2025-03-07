@@ -634,6 +634,12 @@ function processDataChunkWrapper(data) {
   thinkingTextBuffer = result.thinkingTextBuffer || '';
   chunkBuffer = result.chunkBuffer || '';
   isThinking = result.isThinking || false;
+  
+  // If the newly processed chunk is already contained in mainTextBuffer, skip appending again
+  if (result.mainTextBuffer && mainTextBuffer && mainTextBuffer.endsWith(result.mainTextBuffer.trim())) {
+      console.warn('[processDataChunkWrapper] Skipping repeated partial chunk...');
+      return;
+  }
 
   // Check if we're entering a thinking state
   if (isThinking && thinkingTextBuffer) {

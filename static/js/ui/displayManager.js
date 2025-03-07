@@ -116,8 +116,16 @@ export async function loadConversationFromDb() {
     // Updated endpoint path to match new structure
     const res = await fetch(`/api/chat/conversations/${conversationId}/messages?offset=0&limit=100`);
     if (!res.ok) {
-      console.error('Failed to fetch conversation from DB:', res.statusText);
-      showNotification('Failed to load conversation from DB', 'error');
+      if (res.status === 404) {
+          // The conversation no longer exists, so create a new one
+          console.warn('Conversation not found, creating a new conversation...');
+          sessionStorage.removeItem('sessionId');
+          const cm = await import('./conversationManager.js');
+          await cm.createAndSetupNewConversation();
+      } else {
+          console.error('Failed to fetch conversation from DB:', res.statusText);
+          showNotification('Failed to load conversation from DB', 'error');
+      }
       return;
     }
 

@@ -482,7 +482,13 @@ async function deleteConversation(conversationId) {
         const response = await fetch(`/api/chat/conversations/${conversationId}`, {
             method: 'DELETE'
         });
-
+if (!response.ok) {
+    if (response.status === 404) {
+        console.warn('Conversation not found. Possibly already deleted on the server.');
+    } else {
+        throw new Error(`Failed to delete conversation: ${response.status}`);
+    }
+}
         if (!response.ok) throw new Error('Failed to delete conversation');
 
         // Remove from UI
@@ -497,8 +503,7 @@ async function deleteConversation(conversationId) {
         // If current conversation was deleted, create a new one
         if (sessionStorage.getItem('sessionId') === conversationId) {
             await createNewConversation();
-            const displayManagerModule = await import('./displayManager.js');
-            await displayManagerModule.loadConversationFromDb();
+            // Skip reloading conversation for the just-deleted ID
         }
 
         showNotification('Conversation deleted', 'success');
@@ -553,4 +558,33 @@ if (settingsIcon && settingsSidebar) {
             settingsSidebar.style.transform = 'translateX(0%)';  // show sidebar
         }
     });
+}
+
+/**
+ * Create a new conversation and set it in session storage, then clear the conversation list in the UI
+ * This allows displayManager.js to import and call createAndSetupNewConversation() when a conversation 404s.
+ */
+export async function createAndSetupNewConversation() {
+  // Remove the old session ID to avoid reusing it
+  sessionStorage.removeItem("sessionId");
+
+  // Create a fresh conversation
+  const newSessionId = await createNewConversation();
+  if (!newSessionId) {
+    throw new Error('Failed to create new conversation');
+  }
+
+  // Ensure sessionId in storage matches the newly created one
+  if (sessionStorage.getItem("sessionId") !== newSessionId) {
+    sessionStorage.setItem("sessionId", newSessionId);
+  }
+
+  // Clear or reset the UI if needed (for example clearing the conversation list in the sidebar)
+  const conversationList = document.getElementById('conversation-list');
+  if (conversationList) {
+    conversationList.innerHTML = '';
+  }
+
+  console.log('[createAndSetupNewConversation] New conversation created with ID:', newSessionId);
+  return newSessionId;
 }
