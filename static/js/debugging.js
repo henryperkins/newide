@@ -2,7 +2,7 @@
 function addDebugConsole() {
   // Create debug console element
   const debugConsole = document.createElement('div');
-  debugConsole.className = 'fixed bottom-0 left-0 right-0 bg-black/90 text-green-400 font-mono text-xs p-2 z-50 h-48 overflow-auto hidden';
+  debugConsole.className = 'fixed bottom-5 left-5 bg-black/80 text-white p-4 rounded-lg z-[9999] max-w-md max-h-96 overflow-auto';
   debugConsole.id = 'debug-console';
   document.body.appendChild(debugConsole);
   
