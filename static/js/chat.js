@@ -276,6 +276,8 @@ export async function sendMessage() {
       if (error.name !== 'AbortError' || !controller.signal.aborted) {
         await handleMessageError(error);
       }
+      // Ensure typing indicator is removed on any error
+      removeTypingIndicator();
     } finally {
       clearTimeout(timeoutId);
       currentController = null;
@@ -494,7 +496,8 @@ export function renderAssistantMessage(content, isThinking = false) {
   // Add model name display with Tailwind classes
   el.innerHTML = `
     ${processedContent}
-    <div class="font-mono text-xs text-gray-400/80 dark:text-gray-500 mt-2 transition-opacity opacity-70 hover:opacity-100">
+    <div class="font-mono text-xs text-gray-400/80 dark:text-gray-500 mt-2 transition-opacity opacity-70 hover:opacity-100"
+         aria-label="Current model: ${currentModel}">
       Model: ${currentModel}
     </div>
   `;
@@ -625,7 +628,8 @@ function adjustFontSize(direction) {
     document.documentElement.classList.remove(...sizes);
     document.documentElement.classList.add('text-base'); // Default size
     localStorage.removeItem('fontSize'); // Clear stored preference
-    showNotification('Font size reset to default', 'info', 2000);
+    const defaultSize = window.getComputedStyle(document.documentElement).fontSize;
+    showNotification(`Font size reset to default (${defaultSize})`, 'info', 2000);
     return;
   }
 
