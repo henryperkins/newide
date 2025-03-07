@@ -345,10 +345,13 @@ export function streamChatResponse(
                         (azureData.choices[0].message && azureData.choices[0].message.content) ||
                         dataPart;
 
-                      if (onMessageCallback && partialContent.trim()) {
+                      // CRITICAL FIX: Don't ignore whitespace-only chunks
+                      if (onMessageCallback) {
                         onMessageCallback({ data: partialContent });
-                      } else {
-                        console.log('[DeepSeek Partial] Received empty or whitespace-only chunk, ignoring.');
+                        // Log empty chunks but still process them
+                        if (!partialContent.trim()) {
+                          console.log('[DeepSeek Partial] Received whitespace-only chunk, still processing.');
+                        }
                       }
                     }
                   } else if (kindLower === 'final') {
@@ -720,6 +723,7 @@ function processDataChunkWrapper(data) {
 
       // Only process if we found content
       if (contentText) {
+        // CRITICAL FIX: Don't skip content even if it's just whitespace
         // Remove any trailing newlines that would cause unwanted breaks
         contentText = contentText.replace(/\r?\n$/, '');
 
@@ -787,9 +791,21 @@ function processDataChunkWrapper(data) {
       thinkingContainer = thinkingContainers[currentMessageId];
     }
 
-    // CRITICAL FIX: Force render on every chunk for DeepSeek since it's failing
-    if (isDeepSeek && mainTextBuffer.length > 0) {
-      console.log('[processDataChunkWrapper] Forcing render for DeepSeek model');
+    // CRITICAL FIX: Ensure content is always displayed, even if it's inside thinking blocks
+    let shouldForceRender = false;
+    
+    // If we have any content at all, we should render
+    if (mainTextBuffer.length > 0 || thinkingTextBuffer.length > 0) {
+      shouldForceRender = true;
+    }
+    
+    // For DeepSeek models, always force render on every chunk
+    if (isDeepSeek) {
+      shouldForceRender = true;
+    }
+    
+    if (shouldForceRender) {
+      console.log('[processDataChunkWrapper] Forcing render');
       renderBufferedContent();
     }
   } catch (error) {
