@@ -101,8 +101,7 @@ function resetTabPanels(panels) {
     if (button && button.getAttribute('aria-selected') === 'true') {
       panel.classList.remove('hidden');
       panel.setAttribute('aria-hidden', 'false');
-      panel.style.position = 'relative';
-      panel.style.width = '100%';
+      panel.classList.add('relative', 'w-full');
     } else {
       panel.classList.add('hidden');
       panel.setAttribute('aria-hidden', 'true');

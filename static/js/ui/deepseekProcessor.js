@@ -236,7 +236,7 @@ function createThinkingBlockHTML(thinkingText) {
       </div>
       <div class="thinking-content">
         <pre class="thinking-pre">${sanitized}</pre>
-        <div class="thinking-gradient"></div>
+        <div class="bg-gradient-to-t from-transparent to-white/50 dark:to-gray-800/50 h-8"></div>
       </div>
     </div>
   `;
