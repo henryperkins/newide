@@ -218,7 +218,7 @@ class ClientPool:
         """Create the appropriate client based on model type"""
         if config.is_deepseek_model(model_id):
             # Construct endpoint EXACTLY as per documentation
-            endpoint = f"{config.AZURE_INFERENCE_ENDPOINT.rstrip('/')}/chat/completions"
+            endpoint = config.AZURE_INFERENCE_ENDPOINT.rstrip('/')
             
             return ChatCompletionsClient(
                 endpoint=endpoint,
@@ -233,6 +233,7 @@ class ClientPool:
                 connection_timeout=30.0,
                 read_timeout=120.0
             )
+    # Rest of the function remains unchanged
         elif config.is_o_series_model(model_id):
             return AzureOpenAI(
                 api_key=config.AZURE_OPENAI_API_KEY,

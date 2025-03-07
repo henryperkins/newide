@@ -277,7 +277,6 @@ function initializeExistingBlocks() {
 /* -------------------------------------------------------------------------
  * 4. Export a single object so streaming.js (etc.) can import
  * ------------------------------------------------------------------------- */
-
 export const deepSeekProcessor = {
   processChunkAndUpdateBuffers: processChunkAndUpdateBuffers,  // explicit assignment to existing function
   processStreamingChunk: processStreamingChunk,
@@ -289,4 +288,40 @@ export const deepSeekProcessor = {
   initializeThinkingToggle: initializeThinkingToggle,
   initializeExistingBlocks: initializeExistingBlocks,
   markdownToHtml: markdownToHtml,
+  // Add these functions to the deepSeekProcessor export:
+  preprocessChunk: function(data) {
+    console.log('[deepSeekProcessor.preprocessChunk] Processing chunk:',
+      typeof data === 'object' ?
+      (data.choices ? 'choices format' : 'text format') :
+      'string format');
+    
+    // Handle both JSON formats that DeepSeek might return
+    if (typeof data === 'object') {
+      if (data.choices && data.choices[0] && data.choices[0].delta) {
+        // Extract content from delta format
+        const deltaContent = data.choices[0].delta.content || '';
+        console.log('[preprocessChunk] Found delta content:', deltaContent.length > 0);
+        
+        // Convert to text format to standardize processing
+        return { text: deltaContent };
+      }
+      else if (data.text !== undefined) {
+        // Already in text format, ensure it's a string
+        console.log('[preprocessChunk] Found text content:', data.text.length > 0);
+        data.text = String(data.text);
+        return data;
+      }
+    }
+    
+    // If we get here, we couldn't extract content in a standard way
+    console.warn('[preprocessChunk] Unexpected data format:', data);
+    
+    // Try to convert to a standard format as best we can
+    if (typeof data === 'string') {
+      return { text: data };
+    }
+    
+    // If all else fails, return an empty object to avoid errors
+    return { text: '' };
+  },
 };

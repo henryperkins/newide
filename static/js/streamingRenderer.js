@@ -2,7 +2,6 @@
  * streamingRenderer.js
  *
  * Minimal content renderer for streaming updates, avoiding excessive reflows/flicker.
- * Restores the previously removed `renderContentEfficiently` export so streaming.js can import it.
  */
 
 /**
@@ -13,9 +12,17 @@
  * @param {string} newHTML - New HTML content to render
  * @param {Object} options - Rendering options (e.g., scroll behavior)
  */
-// More efficient DOM updates with less jitter
 export function renderContentEfficiently(container, newHTML, options = {}) {
-  if (!container) return;
+  if (!container) {
+    console.error('[renderContentEfficiently] No container provided!');
+    return;
+  }
+
+  // CRITICAL FIX: Log content we're trying to render for debugging
+  console.log('[renderContentEfficiently] Rendering HTML content:',
+    newHTML ? newHTML.substring(0, 100) + '...' : 'EMPTY');
+  console.log('[renderContentEfficiently] Target container:',
+    container.id || 'unnamed container');
 
   // Store a reference to previous HTML
   if (typeof container.__previousHtml === 'undefined') {
@@ -44,10 +51,28 @@ export function renderContentEfficiently(container, newHTML, options = {}) {
 
         // Single DOM mutation to append new content
         container.appendChild(fragment);
+
+        // Log success
+        console.log('[renderContentEfficiently] Appended new content');
       }
     } else {
-      // Fall back to full replacement only when necessary
-      container.innerHTML = newHTML;
+      // CRITICAL FIX: The full HTML replacement has issues - ensure content is visible
+      console.log('[renderContentEfficiently] Full content replace');
+
+      // Make sure the container is visible and has width/height
+      container.style.display = 'block';
+      container.style.minHeight = '20px';
+
+      // CRITICAL FIX: Use innerText for simple content to avoid HTML parsing issues
+      if (newHTML.length < 1000 && !newHTML.includes('<')) {
+        container.innerText = newHTML;
+      } else {
+        // For HTML content, use innerHTML
+        container.innerHTML = newHTML;
+      }
+
+      // Log that we did a full replace
+      console.log('[renderContentEfficiently] Full content replacement complete');
     }
 
     // Update stored HTML reference
@@ -67,9 +92,16 @@ export function renderContentEfficiently(container, newHTML, options = {}) {
       }
     }
   } catch (err) {
-    console.error('Error in incremental render:', err);
-    container.innerHTML = newHTML;
-    container.__previousHtml = newHTML;
+    console.error('[renderContentEfficiently] Error in incremental render:', err);
+
+    // CRITICAL FIX: Use direct textContent as fallback if all else fails
+    try {
+      container.textContent = newHTML;
+      container.__previousHtml = newHTML;
+      console.log('[renderContentEfficiently] Used textContent fallback');
+    } catch (fallbackErr) {
+      console.error('[renderContentEfficiently] Even fallback failed:', fallbackErr);
+    }
   }
 }
 

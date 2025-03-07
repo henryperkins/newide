@@ -1,3 +1,11 @@
+/**
+ * streaming.js - Core module for handling streaming chat responses
+ * 
+ * This module contains the functionality for processing streaming Server-Sent Events (SSE)
+ * from the API and rendering them incrementally into the DOM. It's specifically enhanced
+ * to support DeepSeek-R1 model responses with "thinking" blocks.
+ */
+
 import { getSessionId } from './session.js';
 import { updateTokenUsage, fetchWithRetry, retry, eventBus } from './utils/helpers.js';
 import { showNotification, handleMessageError } from './ui/notificationManager.js';
@@ -7,6 +15,7 @@ import {
   shouldRenderNow,
   showStreamingProgressIndicator,
   removeStreamingProgressIndicator,
+  finalizeStreamingContainer,
   handleStreamingError as utilsHandleStreamingError
 } from './streaming_utils.js';
 import { renderContentEfficiently, renderThinkingContainer } from './streamingRenderer.js';
@@ -28,11 +37,12 @@ let firstTokenTime = 0;
 let tokenCount = 0;
 let lastScrollTimestamp = 0;
 let currentMessageId = null; // Track the current message ID
+let currentMessageContainer = null; // Track the current container element ID
 let thinkingContainers = {}; // Store thinking containers by message ID
 
 // --- Constants ---
-const RENDER_INTERVAL_MS = 150;  // Increased from 50ms
-const SCROLL_INTERVAL_MS = 500;  // Only scroll every 500ms
+const RENDER_INTERVAL_MS = 150;  // Increased from 50ms for better performance
+const SCROLL_INTERVAL_MS = 500;  // Only scroll every 500ms to reduce jitter
 const BASE_CONNECTION_TIMEOUT_MS = 60000; // 60 seconds
 const MAX_CONNECTION_TIMEOUT_MS = 180000; // 3 minutes
 const MAX_RETRY_ATTEMPTS = 3;
@@ -57,6 +67,7 @@ function calculateTokensPerSecond(usage) {
 
 /**
  * Dynamically calculates a connection timeout based on model type and message length.
+ * Longer messages and certain model types get extended timeouts.
  */
 function calculateConnectionTimeout(modelName, messageLength) {
   let timeout = BASE_CONNECTION_TIMEOUT_MS;
@@ -91,6 +102,7 @@ function calculateConnectionTimeout(modelName, messageLength) {
 
 /**
  * Resets the local streaming state.
+ * This is called at the start of each new streaming request to ensure a clean slate.
  */
 function resetStreamingState() {
   mainTextBuffer = '';
@@ -105,7 +117,13 @@ function resetStreamingState() {
   firstTokenTime = 0;
   tokenCount = 0;
   currentMessageId = Date.now().toString(); // Generate a new ID for this message
+  currentMessageContainer = null; // Reset the container tracker
   thinkingContainers = {}; // Reset thinking containers
+
+  // Clear out any existing streaming containers
+  document.querySelectorAll('[data-streaming="true"]').forEach(el => {
+    el.removeAttribute('data-streaming');
+  });
 
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
@@ -678,75 +696,110 @@ async function attemptErrorRecovery(messageContent, error) {
   return false;
 }
 
-/**
- * Wrapper around processDataChunk to update local streaming state.
- */
 function processDataChunkWrapper(data) {
   // Check if we're handling a DeepSeek model
   const modelSelect = document.getElementById('model-select');
   const currentModel = (modelSelect && modelSelect.value) ? modelSelect.value : 'DeepSeek-R1';
   const isDeepSeek = currentModel.toLowerCase().includes('deepseek');
 
-  // For DeepSeek models, preprocess the chunks to avoid unwanted newlines
-  if (isDeepSeek && typeof data === 'object' && data.text) {
-    // Remove any trailing newlines that would cause unwanted breaks
-    data.text = data.text.replace(/\r?\n$/, '');
+  try {
+    // CRITICAL FIX: More detailed logging of what's in the incoming data
+    console.log('[processDataChunkWrapper] Processing chunk:',
+      typeof data === 'object' ? JSON.stringify(data).substring(0, 100) : data);
 
-    // If this is a continuation and doesn't start with whitespace or punctuation,
-    // ensure we have proper spacing from the previous chunk
-    if (mainTextBuffer &&
-      data.text &&
-      data.text.length > 0 &&
-      !/^[\s\.,!?;:]/.test(data.text) &&
-      !/[\s\.,!?;:]$/.test(mainTextBuffer)) {
-      data.text = ' ' + data.text;
+    // For DeepSeek models, preprocess the chunks to avoid unwanted newlines
+    if (isDeepSeek && typeof data === 'object') {
+      // CRITICAL FIX: Handle both data.text and data.choices[0].delta.content formats
+      let contentText = '';
+
+      if (data.text) {
+        contentText = data.text;
+      } else if (data.choices && data.choices[0] && data.choices[0].delta && data.choices[0].delta.content) {
+        contentText = data.choices[0].delta.content;
+      }
+
+      // Only process if we found content
+      if (contentText) {
+        // Remove any trailing newlines that would cause unwanted breaks
+        contentText = contentText.replace(/\r?\n$/, '');
+
+        // If this is a continuation and doesn't start with whitespace or punctuation,
+        // ensure we have proper spacing from the previous chunk
+        if (mainTextBuffer &&
+          contentText.length > 0 &&
+          !/^[\s\.,!?;:]/.test(contentText) &&
+          !/[\s\.,!?;:]$/.test(mainTextBuffer)) {
+          contentText = ' ' + contentText;
+        }
+
+        // CRITICAL FIX: Set this back into the right property
+        if (data.text) {
+          data.text = contentText;
+        } else if (data.choices && data.choices[0] && data.choices[0].delta) {
+          data.choices[0].delta.content = contentText;
+        }
+      }
     }
-  }
 
-  // Handle DeepSeek-specific thinking blocks and HTML formatting
-  const processedData = deepSeekProcessor.preprocessChunk ?
-    deepSeekProcessor.preprocessChunk(data) : data;
-
-  const result = deepSeekProcessor.processChunkAndUpdateBuffers(
-    processedData,
-    chunkBuffer,
-    mainTextBuffer,
-    thinkingTextBuffer,
-    isThinking
-  );
-
-  // Store the result (Fix for thinkingBuffer issue)
-  mainTextBuffer = result.mainTextBuffer || '';
-  thinkingTextBuffer = result.thinkingTextBuffer || '';
-  chunkBuffer = result.chunkBuffer || '';
-  isThinking = result.isThinking || false;
-
-  // If the newly processed chunk is already contained in mainTextBuffer, skip appending again
-  if (result.mainTextBuffer && mainTextBuffer && mainTextBuffer.endsWith(result.mainTextBuffer.trim())) {
-    console.warn('[processDataChunkWrapper] Skipping repeated partial chunk...');
-    return;
-  }
-
-  // Check if we're entering a thinking state
-  if (isThinking && thinkingTextBuffer) {
-    const container = ensureMessageContainer();
-    messageContainer = container; // Ensure messageContainer is updated
-
-    // Use current message ID for this thinking container
-    if (!thinkingContainers[currentMessageId]) {
-      // Create a new thinking container for this thinking block
-      thinkingContainers[currentMessageId] = deepSeekProcessor.renderThinkingContainer(
-        container,
-        thinkingTextBuffer,
-        { createNew: true }
-      );
+    // CRITICAL FIX: Always create the container first before processing chunks
+    if (!messageContainer) {
+      messageContainer = ensureMessageContainer();
+      if (messageContainer) {
+        console.log('[processDataChunkWrapper] Created container:', messageContainer.id);
+        currentMessageContainer = messageContainer.id;
+      }
     }
-    thinkingContainer = thinkingContainers[currentMessageId];
+
+    // Handle DeepSeek-specific thinking blocks and HTML formatting
+    const processedData = deepSeekProcessor.preprocessChunk ?
+      deepSeekProcessor.preprocessChunk(data) : data;
+
+    // CRITICAL FIX: Log what's going on with the buffer before & after processing
+    console.log(`[processDataChunkWrapper] Current buffer lengths - Main: ${mainTextBuffer.length}, Thinking: ${thinkingTextBuffer.length}`);
+
+    const result = deepSeekProcessor.processChunkAndUpdateBuffers(
+      processedData,
+      chunkBuffer,
+      mainTextBuffer,
+      thinkingTextBuffer,
+      isThinking
+    );
+
+    // CRITICAL FIX: Even if buffers didn't update, render what we have
+    mainTextBuffer = result.mainTextBuffer || '';
+    thinkingTextBuffer = result.thinkingTextBuffer || '';
+    chunkBuffer = result.chunkBuffer || '';
+    isThinking = result.isThinking || false;
+
+    console.log(`[processDataChunkWrapper] After processing - Main buffer length: ${mainTextBuffer.length}`);
+
+    // Check if we're entering a thinking state
+    if (isThinking && thinkingTextBuffer) {
+      // Use current message ID for this thinking container
+      if (!thinkingContainers[currentMessageId]) {
+        // Create a new thinking container for this thinking block
+        thinkingContainers[currentMessageId] = deepSeekProcessor.renderThinkingContainer(
+          messageContainer,
+          thinkingTextBuffer,
+          { createNew: true }
+        );
+      }
+      thinkingContainer = thinkingContainers[currentMessageId];
+    }
+
+    // CRITICAL FIX: Force render on every chunk for DeepSeek since it's failing
+    if (isDeepSeek && mainTextBuffer.length > 0) {
+      console.log('[processDataChunkWrapper] Forcing render for DeepSeek model');
+      renderBufferedContent();
+    }
+  } catch (error) {
+    console.error("[processDataChunkWrapper] Error processing chunk:", error);
+    // Continue processing despite errors to avoid breaking the stream
   }
 }
-
 /**
  * Schedules a DOM render if enough time has passed.
+ * This throttles rendering to reduce unnecessary DOM updates.
  */
 function scheduleRender() {
   if (shouldRenderNow(lastRenderTimestamp, RENDER_INTERVAL_MS)) {
@@ -763,6 +816,7 @@ function scheduleRender() {
 
 /**
  * Immediately flushes buffered content to the DOM.
+ * Used for error states and final rendering.
  */
 function forceRender() {
   if (animationFrameId) {
@@ -773,21 +827,53 @@ function forceRender() {
   lastRenderTimestamp = Date.now();
 }
 
-/**
- * Renders main and thinking buffers into the DOM.
- */
 function renderBufferedContent() {
   try {
     const chatHistory = document.getElementById('chat-history');
     if (!chatHistory) return;
 
-    messageContainer = document.createElement('div');
-    messageContainer.className = 'message assistant-message';
-    const lastMessage = chatHistory.lastElementChild;
-    if (lastMessage) {
-      chatHistory.insertBefore(messageContainer, lastMessage.nextSibling);
-    } else {
-      chatHistory.appendChild(messageContainer);
+    // FIXED: Find existing container or create a new one
+    if (!messageContainer) {
+      // Try to find an existing streaming container first
+      const existingContainer = chatHistory.querySelector('.assistant-message[data-streaming="true"]');
+
+      if (existingContainer) {
+        messageContainer = existingContainer;
+        console.log('[renderBufferedContent] Found existing container:', messageContainer.id);
+      } else {
+        // Create a new container if none exists
+        messageContainer = document.createElement('div');
+        messageContainer.className = 'message assistant-message';
+        messageContainer.setAttribute('role', 'log');
+        messageContainer.setAttribute('aria-live', 'polite');
+        messageContainer.setAttribute('data-streaming', 'true');
+        messageContainer.id = `message-${Date.now()}`;
+
+        // CRITICAL FIX: Set important styles to ensure visibility
+        messageContainer.style.display = 'block';
+        messageContainer.style.minHeight = '40px';
+        messageContainer.style.opacity = '1';
+        messageContainer.style.visibility = 'visible';
+
+        // Add debug class to help troubleshoot
+        messageContainer.classList.add('debug-streaming-container');
+
+        // CRITICAL FIX: Create a content div to ensure text is properly contained
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        contentDiv.style.width = '100%';
+        contentDiv.style.minHeight = '20px';
+        contentDiv.innerHTML = ''; // Start with empty content
+        messageContainer.appendChild(contentDiv);
+
+        // Add it to the chat history
+        chatHistory.appendChild(messageContainer);
+
+        console.log('[renderBufferedContent] Created new container:', messageContainer.id);
+      }
+
+      // Track the current message container
+      currentMessageContainer = messageContainer.id;
     }
 
     // Get both content buffers with proper boundary handling
@@ -799,22 +885,36 @@ function renderBufferedContent() {
     const mainContent = separated.mainContent || '';
     const thinkingContent = separated.thinkingContent || '';
 
-    // Update main content FIRST
-    if (mainContent) {
+    // CRITICAL FIX: Ensure we have content to render before continuing
+    console.log('[renderBufferedContent] Content length:', mainContent.length);
+    if (mainContent.length > 0) {
+      // CRITICAL FIX: Find the content div within the container
+      const contentTarget = messageContainer.querySelector('.message-content') || messageContainer;
+
       const processedMain = deepSeekProcessor.processDeepSeekResponse(mainContent);
 
       // Only scroll periodically to reduce jitter
       const shouldScroll = (Date.now() - lastScrollTimestamp > SCROLL_INTERVAL_MS) && !errorState;
 
-      renderContentEfficiently(messageContainer, processedMain, {
-        scroll: shouldScroll,
-        scrollOptions: { behavior: shouldScroll ? 'smooth' : 'auto' }
-      });
+      // CRITICAL FIX: Direct text rendering fallback before trying efficient renderer
+      if (processedMain.length < 1000 && !/<[a-z][\s\S]*>/i.test(processedMain)) {
+        contentTarget.textContent = processedMain;
+        contentTarget.__previousHtml = processedMain;
+        console.log('[renderBufferedContent] Used direct textContent rendering');
+      } else {
+        // Try normal rendering
+        renderContentEfficiently(contentTarget, processedMain, {
+          scroll: shouldScroll,
+          scrollOptions: { behavior: shouldScroll ? 'smooth' : 'auto' }
+        });
+      }
 
       if (shouldScroll) {
         lastScrollTimestamp = Date.now();
         showStreamingProgressIndicator(messageContainer);
       }
+    } else {
+      console.log('[renderBufferedContent] No main content to render yet');
     }
 
     // Handle thinking content separately to prevent layout thrashing
@@ -847,23 +947,36 @@ function renderBufferedContent() {
 /**
  * Cleans up streaming state and stores the final assistant message.
  */
+/**
+ * Cleans up streaming state and stores the final assistant message.
+ */
 async function cleanupStreaming(modelName) {
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
     animationFrameId = null;
   }
+
   try {
-    // CORRECTED: Use dynamic import() instead of static import
+    // Remove typing indicators
     const { removeTypingIndicator } = await import('./ui/notificationManager.js');
     removeTypingIndicator();
     removeStreamingProgressIndicator();
+
+    // Finalize the streaming container
+    if (messageContainer) {
+      finalizeStreamingContainer(messageContainer);
+    }
+  } catch (error) {
+    console.error('[cleanupStreaming] Error cleaning up indicators:', error);
   } finally {
     document.querySelectorAll('.typing-indicator').forEach(el => el.remove());
     document.querySelectorAll('.streaming-progress').forEach(el => el.remove());
   }
+
+  // Store message in database
   if (mainTextBuffer && messageContainer) {
     try {
-      const conversationId = await getSessionId(); // TODO: Update to get actual conversation ID when available
+      const conversationId = await getSessionId();
       if (!conversationId) {
         console.error('No valid conversation ID found — cannot store message.');
       } else {
@@ -900,3 +1013,59 @@ function getReasoningEffortSetting() {
   }
   return 'medium';
 }
+
+// Add this function to streaming.js
+
+/**
+ * For debugging rendering issues - call from browser console
+ */
+window.debugStreamingState = function () {
+  console.log('--- STREAMING DEBUG INFO ---');
+  console.log('Main buffer length:', mainTextBuffer?.length || 0);
+  console.log('Main buffer content:', mainTextBuffer?.substring(0, 100) + '...');
+  console.log('Thinking buffer length:', thinkingTextBuffer?.length || 0);
+  console.log('Current message container:', messageContainer?.id || 'none');
+  console.log('Current message container content:', messageContainer?.innerHTML?.substring(0, 100) || 'none');
+
+  // Count streaming containers
+  const containers = document.querySelectorAll('.assistant-message[data-streaming="true"]');
+  console.log('Active streaming containers:', containers.length);
+
+  containers.forEach((container, i) => {
+    console.log(`Container ${i} ID:`, container.id || 'no-id');
+    console.log(`Container ${i} content length:`, container.textContent?.length || 0);
+    console.log(`Container ${i} visibility:`,
+      window.getComputedStyle(container).visibility,
+      window.getComputedStyle(container).display);
+  });
+
+  // Check if any CSS might be hiding content
+  const styleSheets = document.styleSheets;
+  let hidingRules = [];
+
+  try {
+    for (let i = 0; i < styleSheets.length; i++) {
+      const rules = styleSheets[i].cssRules || styleSheets[i].rules;
+      if (!rules) continue;
+
+      for (let j = 0; j < rules.length; j++) {
+        const rule = rules[j];
+        if (rule.selectorText &&
+          (rule.selectorText.includes('.assistant-message') ||
+            rule.selectorText.includes('.message'))) {
+          if (rule.style.display === 'none' ||
+            rule.style.visibility === 'hidden' ||
+            rule.style.opacity === '0') {
+            hidingRules.push(rule.selectorText);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.log('Error checking CSS rules:', e);
+  }
+
+  console.log('CSS rules that might hide content:', hidingRules);
+
+  return 'Debug info logged to console';
+};

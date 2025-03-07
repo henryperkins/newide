@@ -43,8 +43,7 @@ export function ensureMessageContainer() {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return null;
 
-  // Check for an assistant message with data-streaming attribute, which
-  // we use to track the active streaming container
+  // Check for an assistant message with data-streaming attribute
   let messageContainer = chatHistory.querySelector('.assistant-message[data-streaming="true"]');
 
   // If no active streaming container, create a new one at the END of chat history
@@ -55,14 +54,37 @@ export function ensureMessageContainer() {
     messageContainer.setAttribute('aria-live', 'polite');
     messageContainer.setAttribute('data-streaming', 'true');
 
+    // Add unique ID to track this container
+    messageContainer.id = `message-${Date.now()}`;
+
     // Add timestamp to ensure proper ordering when conversations are loaded
     messageContainer.dataset.timestamp = Date.now();
 
+    // CRITICAL FIX: Set important styles to ensure visibility
+    messageContainer.style.display = 'block';
+    messageContainer.style.minHeight = '40px';
+    messageContainer.style.opacity = '1';
+    messageContainer.style.visibility = 'visible';
+
+    // Add debug class to help troubleshoot
+    messageContainer.classList.add('debug-streaming-container');
+
+    // CRITICAL FIX: Create a content div to ensure text is properly contained
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.style.width = '100%';
+    contentDiv.style.minHeight = '20px';
+    contentDiv.innerHTML = ''; // Start with empty content
+    messageContainer.appendChild(contentDiv);
+
     // Append to the END of chat history to maintain proper message order
     chatHistory.appendChild(messageContainer);
+
+    console.log('[ensureMessageContainer] Created new container:', messageContainer.id);
   }
 
-  return messageContainer;
+  // Return the actual content div within the container
+  return messageContainer.querySelector('.message-content') || messageContainer;
 }
 
 /**
@@ -115,9 +137,9 @@ export function removeStreamingProgressIndicator() {
 export function finalizeStreamingContainer(container) {
   if (container && container.hasAttribute('data-streaming')) {
     container.removeAttribute('data-streaming');
+    console.log('[finalizeStreamingContainer] Finalized container:', container.id);
   }
 }
-
 /**
  * Displays an error indicator in the message container if streaming is interrupted.
  * Also calls a notification callback for user feedback.

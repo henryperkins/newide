@@ -561,3 +561,13 @@
     overflow: hidden;
   }
 }
+
+/* Override any CSS that might be hiding message content */
+.assistant-message[data-streaming="true"],
+.assistant-message[data-streaming="true"]>div,
+.message-content {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 20px !important;
+}
