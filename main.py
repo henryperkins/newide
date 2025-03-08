@@ -54,19 +54,23 @@ sentry_sdk.init(
 )
 
 @db_validation_lifespan
-async def lifespan(app: FastAPI):
+def lifespan(app: FastAPI):
     """
     Combined lifespan that runs both db validation and other startup tasks.
     The db_validation_lifespan is used as a decorator to run validation first.
     """
-    # Initialize the database schema
-    await init_database()
-    
-    # Initialize client pool
-    from clients import init_client_pool
-    await init_client_pool()
-    
-    yield
+    from contextlib import asynccontextmanager
+    @asynccontextmanager
+    async def _inner():
+        # Initialize the database schema
+        await init_database()
+
+        # Initialize client pool
+        from clients import init_client_pool
+        await init_client_pool()
+        yield None
+
+    return _inner()
 
 # Resolve absolute path to the static directory
 STATIC_DIR = Path(__file__).parent / "static"

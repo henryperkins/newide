@@ -5,7 +5,7 @@ from time import perf_counter
 from typing import Optional, List, Dict, Any
 import os
 import re
-
+from services.tracing_utils import trace_function, profile_block
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import insert, text
 from azure.ai.inference import ChatCompletionsClient
@@ -17,6 +17,7 @@ from logging_config import logger
 import config
 from config import is_deepseek_model, is_o_series_model
 from models import Conversation
+
 from pydantic_models import ChatMessage
 from azure.core.credentials import AzureKeyCredential
 import sentry_sdk
@@ -157,7 +158,7 @@ def prepare_model_parameters(
     return params
 
 
-@sentry_sdk.trace()
+@trace_function(op="file.context", name="get_file_context")
 async def get_file_context(
     db_session: AsyncSession, file_ids: List[str], use_search: bool = False
 ) -> Optional[str]:
@@ -182,9 +183,7 @@ async def get_file_context(
         # If Azure Search is enabled, use it to get content
         if use_search:
             try:
-                with sentry_sdk.start_span(
-                    description="Azure Search Context Retrieval"
-                ):
+                with profile_block(description="Azure Search Context Retrieval", op="search.context"):
                     from services.azure_search_service import AzureSearchService
                     from models import UploadedFile
 
@@ -239,7 +238,7 @@ async def get_file_context(
                 # Fall back to direct file content retrieval
 
         # Get the file contents directly from database
-        with sentry_sdk.start_span(description="DB File Content Retrieval"):
+        with profile_block(description="DB File Content Retrieval", op="db.query"):
             file_contents = []
             for file_id in file_ids:
                 result = await db_session.execute(
@@ -278,7 +277,7 @@ async def get_file_context(
             return None
 
         # Format the context string
-        with sentry_sdk.start_span(description="Format Context String"):
+        with profile_block(description="Format Context String", op="text.format"):
             context = "## Document Context\n\n"
             for file_info in file_contents:
                 # Add file information
@@ -312,7 +311,7 @@ async def get_file_context(
         return None
 
 
-@sentry_sdk.trace()
+@trace_function(op="chat.process", name="process_chat_message")
 async def process_chat_message(
     chat_message: Any,
     db_session: AsyncSession,
@@ -328,7 +327,7 @@ async def process_chat_message(
     )
 
     try:
-        with sentry_sdk.start_span(description="Fetch Model Configs"):
+        with profile_block(description="Fetch Model Configs", op="model.config"):
             try:
                 model_configs = await fetch_model_configs(db_session)
                 if model_name not in model_configs:
@@ -341,7 +340,7 @@ async def process_chat_message(
         is_o_series = is_o_series_model(model_name)
 
         # Set params based on model
-        with sentry_sdk.start_span(description="Prepare Model Parameters"):
+        with profile_block(description="Prepare Model Parameters", op="model.params"):
             if is_deepseek:
                 params = {
                     "messages": chat_message.messages,
@@ -369,9 +368,7 @@ async def process_chat_message(
         # Handle file context integration
         if chat_message.include_files and chat_message.file_ids:
             try:
-                with sentry_sdk.start_span(
-                    description="File Context Integration"
-                ):
+                with profile_block(description="File Context Integration", op="file.integration"):
                     file_context = await get_file_context(
                         db_session, chat_message.file_ids, False
                     )
@@ -388,9 +385,7 @@ async def process_chat_message(
 
         # Make the model call and handle responses
         try:
-            with sentry_sdk.start_span(
-                description=f"Model API Call ({model_name})"
-            ):
+            with profile_block(description=f"Model API Call ({model_name})", op="model.api"):
                 if is_deepseek:
                     client = ChatCompletionsClient(
                         endpoint=os.environ["AZURE_INFERENCE_ENDPOINT"],
@@ -418,7 +413,7 @@ async def process_chat_message(
                             max_tokens=params["max_tokens"],
                         )
 
-            with sentry_sdk.start_span(description="Process Model Response"):
+            with profile_block(description="Process Model Response", op="response.process"):
                 content = (
                     response.choices[0].message.content if response.choices else ""
                 )
@@ -488,7 +483,7 @@ async def process_chat_message(
         processing_time = perf_counter() - start_time
 
         # Store conversation
-        with sentry_sdk.start_span(description="Save Conversation"):
+        with profile_block(description="Save Conversation", op="db.save"):
             await save_conversation(
                 db_session=db_session,
                 session_id=session_id,
@@ -548,7 +543,7 @@ async def fetch_conversation_history(
     return [{"role": row.role, "content": row.content} for row in rows]
 
 
-@sentry_sdk.trace()
+@trace_function(op="chat.save", name="save_conversation")
 async def save_conversation(
     db_session: AsyncSession,
     session_id: str,

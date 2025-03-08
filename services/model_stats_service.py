@@ -50,7 +50,7 @@ class ModelStatsService:
 
         async with self._buffer_lock:
             self._buffer.append(stats)
-            
+        
         if len(self._buffer) >= 50:
             try:
                 await self._flush_buffer()
@@ -102,7 +102,7 @@ class ModelStatsService:
     async def _persist_fallback(self, batch):
         async with aiofiles.open(self._fallback_dir / "pending.json", "a") as f:
             await f.write(json.dumps([ob.__dict__ for ob in batch]) + "\n")
-            
+
     async def startup(self):
         """Recover any fallback data on service start"""
         try:
@@ -360,3 +360,40 @@ class ModelStatsService:
 
         except Exception as e:
             raise Exception(f"Failed to get token usage trend: {str(e)}")
+
+    async def get_aggregated_model_stats(self, model: str, start_time: datetime, end_time: datetime, interval: str) -> List[Dict[str, Any]]:
+        """
+        Get model statistics aggregated by time interval
+
+        Args:
+            model: Model name
+            start_time: Start time for stats
+            end_time: End time for stats
+            interval: Time interval for aggregation ('hour', 'day', etc)
+        """
+        query = """
+            SELECT 
+                date_trunc(:interval, timestamp) as time_bucket,
+                COUNT(*) as request_count,
+                AVG(total_tokens) as avg_tokens,
+                SUM(prompt_tokens) as sum_prompt_tokens,
+                SUM(completion_tokens) as sum_completion_tokens,
+                SUM(total_tokens) as sum_total_tokens
+            FROM model_usage_stats
+            WHERE model = :model
+              AND timestamp BETWEEN :start_time AND :end_time
+            GROUP BY time_bucket
+            ORDER BY time_bucket
+        """
+
+        result = await self.db.execute(
+            text(query),
+            {
+                "model": model,
+                "start_time": start_time,
+                "end_time": end_time,
+                "interval": interval
+            }
+        )
+        
+        return [dict(row) for row in result.mappings()]

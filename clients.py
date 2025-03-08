@@ -2,7 +2,7 @@
 
 import os
 import logging
-from typing import Dict, Optional, Any, Union, List
+from typing import Dict, Optional, Any, Union, List, TYPE_CHECKING
 from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +11,16 @@ from azure.ai.inference import ChatCompletionsClient
 from azure.core.credentials import AzureKeyCredential
 
 import config
-from logging_config import logger
 
+# Use standard logging initially to avoid circular imports
+logger = logging.getLogger(__name__)
+
+# Import logger from logging_config later in the file after everything is defined
+# This avoids the circular import issue
+
+# Type alias for client objects
+AzureAIClient = Union[AzureOpenAI, AsyncAzureOpenAI, ChatCompletionsClient]
+ModelConfigDict = Dict[str, Any]
 
 class ModelRegistry:
     """Centralized registry for model configurations and client creation"""
@@ -214,11 +222,22 @@ class ClientPool:
             # Fall back to default models
             self._model_configs = ModelRegistry.create_default_models()
 
-    def _create_client(self, model_id: str, model_config: Dict[str, Any]):
+
+    def _create_client(self, model_id: str, model_config: Dict[str, Any]) -> AzureAIClient:
         """Create the appropriate client based on model type"""
+        if not model_id:
+            raise ValueError("model_id cannot be None")
+        # Ensure AZURE_INFERENCE_CREDENTIAL is non-null for DeepSeek  
+        
         if config.is_deepseek_model(model_id):
             # Construct endpoint EXACTLY as per documentation
-            endpoint = config.AZURE_INFERENCE_ENDPOINT.rstrip('/')
+            endpoint = config.AZURE_INFERENCE_ENDPOINT
+            if not config.AZURE_INFERENCE_CREDENTIAL:
+                raise ValueError("AZURE_INFERENCE_CREDENTIAL is required for DeepSeek models")
+            if not endpoint:
+                raise ValueError("AZURE_INFERENCE_ENDPOINT is required for DeepSeek models")
+            
+            endpoint = endpoint.rstrip('/')
             
             # Validate endpoint format for DeepSeek
             if "/chat/completions" in endpoint:
@@ -233,16 +252,22 @@ class ClientPool:
                 read_timeout=300.0  # Increased timeout for longer responses
             )
         elif config.is_o_series_model(model_id):
+            api_key = config.AZURE_OPENAI_API_KEY
+            if not api_key:
+                raise ValueError("AZURE_OPENAI_API_KEY is required for O-series models")
+            
+            azure_endpoint = model_config.get("azure_endpoint")
+            if not azure_endpoint:
+                raise ValueError("azure_endpoint is required in model_config for O-series models")
+                
             return AzureOpenAI(
-                api_key=config.AZURE_OPENAI_API_KEY,
-                azure_endpoint=model_config.get("azure_endpoint"),
+                api_key=api_key,
+                azure_endpoint=azure_endpoint,
                 api_version=model_config["api_version"],
                 default_headers={
                     "reasoning-effort": model_config.get("reasoning_effort", "medium"),
                     "x-ms-json-response": "true",
-                    "x-ms-reasoning-effort": model_config.get(
-                        "reasoning_effort", "medium"
-                    ),
+                    "x-ms-reasoning-effort": model_config.get("reasoning_effort", "medium"),
                 },
                 max_retries=config.O_SERIES_MAX_RETRIES,
                 timeout=model_config.get("base_timeout", 120.0),
@@ -250,23 +275,18 @@ class ClientPool:
         else:
             # Create Azure OpenAI client for other models
             api_key = config.AZURE_OPENAI_API_KEY
+            if not api_key:
+                raise ValueError("AZURE_OPENAI_API_KEY is required")
+                
             endpoint = model_config.get("azure_endpoint", config.AZURE_OPENAI_ENDPOINT)
-            api_version = model_config.get(
-                "api_version", config.AZURE_OPENAI_API_VERSION
-            )
-
-            # Ensure endpoint has protocol
-            if endpoint and not endpoint.startswith(("http://", "https://")):
-                endpoint = f"https://{endpoint}"
-
-            logger.info(f"Creating Azure OpenAI client for {model_id} at {endpoint}")
+            if not endpoint:
+                raise ValueError("azure_endpoint is required (either in model_config or AZURE_OPENAI_ENDPOINT)")
+            # Return a properly instantiated AzureOpenAI client
             return AzureOpenAI(
                 api_key=api_key,
-                api_version=api_version,
+                api_version=model_config.get("api_version", config.AZURE_OPENAI_API_VERSION),
                 azure_endpoint=endpoint,
-                azure_deployment=model_id,
-                max_retries=config.O_SERIES_MAX_RETRIES,
-                timeout=model_config.get("base_timeout", 60.0),
+                timeout=model_config.get("base_timeout", 120.0),
             )
 
     def get_client(self, model_id: Optional[str] = None):
@@ -397,8 +417,7 @@ class ClientPool:
 
 
 # Singleton access functions
-_client_pool = None
-
+_client_pool: Optional[ClientPool] = None
 
 async def get_client_pool(db_session: Optional[AsyncSession] = None) -> ClientPool:
     """Get the ClientPool singleton"""
@@ -421,22 +440,20 @@ async def init_client_pool(db_session: Optional[AsyncSession] = None):
     await get_client_pool(db_session)
 
 
-# Fix in the get_model_client_dependency function for DeepSeek-R1 client configuration
-
-
 async def get_model_client_dependency(
     model_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     FastAPI dependency that returns a model client wrapped in a dict.
     This helps avoid serialization issues with complex client objects.
-
+    
     Args:
         model_name: Optional model name to get client for. If None, uses default.
-
+        
     Returns:
         Dict with "client" key containing the client object and "model_config" with configuration
     """
+    # Existing implementation remains the same
     try:
         # Get model type for later use
         model_type = "standard"
@@ -493,7 +510,7 @@ async def get_model_client_dependency(
         client = AzureOpenAI(
             api_key=config.AZURE_OPENAI_API_KEY,
             api_version="2025-02-01-preview",
-            azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
+            azure_endpoint=config.AZURE_OPENAI_ENDPOINT or "",
         )
         return {
             "client": client,
@@ -503,3 +520,10 @@ async def get_model_client_dependency(
     except Exception as e:
         logger.error(f"Error in get_model_client_dependency: {str(e)}")
         return {"client": None, "error": str(e)}
+    
+try:
+    from logging_config import logger
+except ImportError:
+    # Keep using the standard logger if import fails
+    pass
+

@@ -156,7 +156,8 @@ async def compare_models(
     
     # Get stats for each model
     comparison = {}
-    for model_name in config.MODEL_CONFIGS.keys():
+    model_configs = getattr(config, 'MODELS', getattr(config, 'MODEL_CONFIG', {}))
+    for model_name in model_configs.keys():
         if interval:
             stats = await stats_service.get_aggregated_model_stats(
                 model=model_name,
@@ -230,7 +231,8 @@ async def get_usage_summary(
     }
 
     # Get stats for each model
-    for model_name in config.MODEL_CONFIGS.keys():
+    model_configs = getattr(config, 'MODELS', getattr(config, 'MODEL_CONFIG', {}))
+    for model_name in model_configs.keys():
         # Last 24 hours
         day_stats = await stats_service.get_model_stats(
             model=model_name,

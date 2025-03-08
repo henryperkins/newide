@@ -225,21 +225,17 @@ O_SERIES_INPUT_TOKEN_LIMIT = 200000  # Input token limit for o-series models
 O_SERIES_OUTPUT_TOKEN_LIMIT = 100000  # Output token limit for o-series models
 
 
-# Utility functions to check model types
-def is_deepseek_model(model_name: str) -> bool:
-    """Check if the model is a DeepSeek model based on name."""
+def is_deepseek_model(model_name: Optional[str]) -> bool:
+    """Check if the model is a DeepSeek model"""
     if not model_name:
         return False
-    model_lower = model_name.lower()
-    return "deepseek" in model_lower or model_lower == "DeepSeek-R1"
+    return "deepseek" in model_name.lower()
 
-
-def is_o_series_model(model_name: str) -> bool:
-    """Check if the model is an o-series model (o1, o3-mini, etc.)."""
+def is_o_series_model(model_name: Optional[str]) -> bool:
+    """Check if the model is an O-series model"""
     if not model_name:
         return False
-    model_lower = model_name.lower()
-    return model_lower.startswith("o1") or model_lower.startswith("o3")
+    return model_name.lower().startswith("o1") or "oseries" in model_name.lower()
 
 
 # Validate DeepSeek endpoint exists

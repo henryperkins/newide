@@ -12,6 +12,7 @@ try:
     SENTRY_AVAILABLE = True
 except ImportError:
     SENTRY_AVAILABLE = False
+    sentry_sdk = None  # Define as None for type checking
 
 # Create logs directory if it doesn't exist
 if not os.path.exists("logs"):
@@ -36,21 +37,25 @@ class JsonLogFormatter(logging.Formatter):
             log_record["exception"] = self.formatException(record.exc_info)
             
             # Send exception to Sentry if available
-            if SENTRY_AVAILABLE:
+            if SENTRY_AVAILABLE and sentry_sdk is not None:
                 sentry_sdk.capture_exception(record.exc_info[1])
         
-        # Add extra fields from record
-        if hasattr(record, "extra") and record.extra:
-            log_record.update(record.extra)
+        # Add extra fields from record safely
+        extra = getattr(record, "extra", None)
+        if extra:
+            log_record.update(extra)
             
         # Add trace context if available in the record
-        if hasattr(record, "trace_id") and record.trace_id:
-            log_record["trace_id"] = record.trace_id
-        if hasattr(record, "span_id") and record.span_id:
-            log_record["span_id"] = record.span_id
+        trace_id = getattr(record, "trace_id", None)
+        if trace_id:
+            log_record["trace_id"] = trace_id
+            
+        span_id = getattr(record, "span_id", None)
+        if span_id:
+            log_record["span_id"] = span_id
         
         # Add to Sentry breadcrumbs if available and level is warning or higher
-        if SENTRY_AVAILABLE and record.levelno >= logging.WARNING:
+        if SENTRY_AVAILABLE and sentry_sdk is not None and record.levelno >= logging.WARNING:
             sentry_sdk.add_breadcrumb(
                 category=record.name,
                 message=record.getMessage(),
@@ -92,7 +97,7 @@ class StructuredLogger(logging.Logger):
             logger.context.update(context)
         return logger
         
-    def _log(self, level, msg, args, exc_info=None, extra=None, stack_info=False, trace_id=None, span_id=None):
+    def _log(self, level, msg, args, exc_info=None, extra=None, stack_info=False, stacklevel=1, **kwargs):
         """Override _log to include context in extra."""
         if extra is None:
             extra = {}
@@ -101,6 +106,10 @@ class StructuredLogger(logging.Logger):
         if self.context:
             extra.update(self.context)
             
+        # Get trace context from kwargs
+        trace_id = kwargs.get('trace_id')
+        span_id = kwargs.get('span_id')
+        
         # Add trace context if available
         if trace_id:
             extra["trace_id"] = trace_id
@@ -108,7 +117,7 @@ class StructuredLogger(logging.Logger):
             extra["span_id"] = span_id
             
         # Get current Sentry trace context, if available
-        if SENTRY_AVAILABLE:
+        if SENTRY_AVAILABLE and sentry_sdk is not None:
             current_span = sentry_sdk.Hub.current.scope.span
             if current_span and not trace_id:
                 extra["trace_id"] = current_span.trace_id
@@ -117,9 +126,9 @@ class StructuredLogger(logging.Logger):
         # Store extra fields in the record for the formatter
         if extra:
             record_extra = {"extra": extra}
-            super()._log(level, msg, args, exc_info, record_extra, stack_info)
+            super()._log(level, msg, args, exc_info, record_extra, stack_info, stacklevel)
         else:
-            super()._log(level, msg, args, exc_info, extra, stack_info)
+            super()._log(level, msg, args, exc_info, extra, stack_info, stacklevel)
 
 # Register the custom logger class
 logging.setLoggerClass(StructuredLogger)

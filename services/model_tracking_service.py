@@ -12,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import logging
 import sentry_sdk
+# Import the proper tracing utilities
+from services.tracing_utils import trace_function, profile_block
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,9 @@ class ModelTrackingService:
         self.active_transitions = {}
         self.transition_lock = asyncio.Lock()
 
-    @sentry_sdk.trace(tags={"operation": "model_switch", "phase": "start"})
+    # Replace the incorrect trace decorator
+    @trace_function(op="model.transition", name="track_model_switch", 
+                   operation="model_switch", phase="start")
     async def track_model_switch(
         self,
         session_id: uuid.UUID,
@@ -66,7 +70,9 @@ class ModelTrackingService:
             "status": "in_progress",
         }
 
-    @sentry_sdk.trace(tags={"operation": "model_switch", "phase": "complete"})
+    # Replace the incorrect trace decorator
+    @trace_function(op="model.transition", name="complete_model_switch", 
+                   operation="model_switch", phase="complete")
     async def complete_model_switch(
         self,
         tracking_id: str,
@@ -103,9 +109,9 @@ class ModelTrackingService:
 
         # Record the transition in the database
         try:
-            with sentry_sdk.start_profiling_span(
-                description="DB Insert Model Transition"
-            ):
+            # Replace start_profiling_span with profile_block
+            with profile_block(description="DB Insert Model Transition", 
+                               op="db.insert", table="model_transitions"):
                 await self.db.execute(
                     text(
                         """
@@ -144,9 +150,9 @@ class ModelTrackingService:
 
             if success:
                 # Update the session's last_model
-                with sentry_sdk.start_profiling_span(
-                    description="Update Session Model"
-                ):
+                # Replace start_profiling_span with profile_block
+                with profile_block(description="Update Session Model", 
+                                  op="db.update", table="sessions"):
                     await self.db.execute(
                         text(
                             """
@@ -193,76 +199,17 @@ class ModelTrackingService:
                 "error": str(e),
             }
 
-    async def get_transition_stats(
-        self,
-        from_model: Optional[str] = None,
-        to_model: Optional[str] = None,
-        session_id: Optional[uuid.UUID] = None,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-    ) -> Dict[str, Any]:
-        """
-        Get statistics about model transitions
-        """
-        params = {}
-        query = """
-            SELECT 
-                from_model, 
-                to_model, 
-                AVG(duration_ms) as avg_duration,
-                COUNT(*) as total_count,
-                SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as success_count,
-                SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failure_count
-            FROM model_transitions
-            WHERE 1=1
-        """
-
-        if from_model:
-            query += " AND from_model = :from_model"
-            params["from_model"] = from_model
-
-        if to_model:
-            query += " AND to_model = :to_model"
-            params["to_model"] = to_model
-
-        if session_id:
-            query += " AND session_id = :session_id"
-            params["session_id"] = session_id
-
-        if start_time:
-            query += " AND timestamp >= :start_time"
-            params["start_time"] = start_time
-
-        if end_time:
-            query += " AND timestamp <= :end_time"
-            params["end_time"] = end_time
-
-        query += " GROUP BY from_model, to_model"
-
-        result = await self.db.execute(text(query), params)
-        rows = [dict(row) for row in result.mappings()]
-
-        return {
-            "transitions": rows,
-            "total_transitions": sum(row["total_count"] for row in rows),
-            "success_rate": sum(row["success_count"] for row in rows)
-            / max(1, sum(row["total_count"] for row in rows)),
-            "avg_duration_overall": sum(
-                row["avg_duration"] * row["total_count"] for row in rows
-            )
-            / max(1, sum(row["total_count"] for row in rows)),
-        }
-
-    @sentry_sdk.trace(tags={"operation": "model_usage", "type": "session_usage"})
+    # For the get_model_usage_by_session method, use trace_function too
+    @trace_function(op="model.stats", name="get_model_usage_by_session", 
+                   operation="model_usage", type="session_usage")
     async def get_model_usage_by_session(self, session_id: uuid.UUID) -> Dict[str, Any]:
         """
         Get model usage timeline for a specific session with optimized queries
         """
         try:
             # Use a single query with LEFT JOINs for better performance
-            with sentry_sdk.start_profiling_span(
-                description="Combined Session Usage Query"
-            ):
+            with profile_block(description="Combined Session Usage Query", 
+                              op="db.query", query_type="select"):
                 combined_query = text(
                     """
                     WITH base_transitions AS (
@@ -322,7 +269,8 @@ class ModelTrackingService:
                 )
 
             # Process the results
-            with sentry_sdk.start_profiling_span(description="Process Usage Results"):
+            with profile_block(description="Process Usage Results", 
+                              op="data.processing"):
                 rows = result.fetchall()
                 data = {
                     "session_id": session_id,
@@ -349,31 +297,3 @@ class ModelTrackingService:
                 "usage": [],
                 "conversations": [],
             }
-
-    async def cleanup_stale_transitions(self, older_than_minutes: int = 30) -> int:
-        """
-        Clean up stale transition tracking records
-        """
-        cutoff_time = time.time() - (older_than_minutes * 60)
-        count = 0
-
-        async with self.transition_lock:
-            stale_ids = [
-                tracking_id
-                for tracking_id, transition in self.active_transitions.items()
-                if transition["start_time"] < cutoff_time
-            ]
-
-            for tracking_id in stale_ids:
-                transition = self.active_transitions.pop(tracking_id)
-                count += 1
-
-                # Log stale transition
-                logger.warning(
-                    f"Cleaned up stale transition {tracking_id}: "
-                    f"{transition['from_model']} -> {transition['to_model']} "
-                    f"for session {transition['session_id']} "
-                    f"(started {int(time.time() - transition['start_time'])}s ago)"
-                )
-
-        return count

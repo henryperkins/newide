@@ -14,9 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timedelta, timezone
-from fastapi import HTTPException, APIRouter
-
-router = APIRouter()
+from fastapi import HTTPException
 
 Base = declarative_base()
 
@@ -43,7 +41,7 @@ class Session(Base):
 
     def check_rate_limit(self):
         """Check if session exceeds rate limit (10 requests/minute)"""
-        if self.request_count >= 10:
+        if self.request_count is not None and isinstance(self.request_count, int) and self.request_count >= 10:
             # Get timezone-aware current time
             now = datetime.now(timezone.utc)
             one_minute_ago = now - timedelta(minutes=1)
@@ -71,7 +69,8 @@ class Session(Base):
         one_minute_ago = now - timedelta(minutes=1)
 
         if (
-            self.last_request
+            self.last_request is not None
+            and isinstance(self.last_request, datetime)
             and self.last_request.astimezone(timezone.utc) < one_minute_ago
         ):
             # Reset counter if more than a minute has passed

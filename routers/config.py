@@ -60,7 +60,7 @@ async def get_current_model(
 
         session = await SessionManager.get_session(session_id, db_session)
 
-        if not session or not session.last_model:
+        if session is None or getattr(session, "last_model", None) is None:
             # No model set in session yet
             client_pool = await get_client_pool(db_session)
             models = client_pool.get_all_models()
@@ -179,36 +179,6 @@ async def get_models(db_session: AsyncSession = Depends(get_db_session)):
         logger.error(f"Error in get_models: {str(e)}")
         # Return default models from ModelRegistry
         return ModelRegistry.create_default_models()
-
-
-@router.get("/models/debug", tags=["debug"])
-async def debug_models(db_session: AsyncSession = Depends(get_db_session)):
-    """Debug endpoint to check model configurations"""
-    try:
-        # Get client pool
-        client_pool = await get_client_pool(db_session)
-
-        # Get raw config from config service
-        config_service = ConfigService(db_session)
-        raw_config = await config_service.get_config("model_configs")
-
-        # Get environment settings
-        import config
-
-        return {
-            "status": "ok",
-            "client_pool_models": client_pool.get_all_models(),
-            "db_models": raw_config,
-            "env_defaults": {
-                "AZURE_OPENAI_ENDPOINT": config.AZURE_OPENAI_ENDPOINT,
-                "AZURE_INFERENCE_ENDPOINT": config.AZURE_INFERENCE_ENDPOINT,
-                "default_model": config.AZURE_OPENAI_DEPLOYMENT_NAME,
-            },
-        }
-    except Exception as e:
-        import traceback
-
-        return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}
 
 
 @router.get("/models/{model_id}", response_model=None)
@@ -440,7 +410,7 @@ async def update_config(
     Update a configuration specified by key.
     """
     # If we need the config key for validation
-    update.value = ConfigUpdate.validate_value(update.value, {})
+    update.value = ConfigUpdate.validate_value(v=update.value, values={"value": update.value})
     success = await config_service.set_config(
         key, update.value, update.description, update.is_secret
     )
