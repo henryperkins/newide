@@ -61,7 +61,7 @@ async def get_current_session(
                     result = await db_session.execute(stmt)
                     session = result.scalar_one_or_none()
 
-                if session:
+                    if session:
                     return {
                         "id": str(session.id),
                         "created_at": (
