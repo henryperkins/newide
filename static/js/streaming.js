@@ -210,8 +210,7 @@ export function streamChatResponse(
       }
     }
 
-    // For DeepSeek models, only enable thinking mode for specific user preference
-    const thinkingModeEnabled = localStorage.getItem('enableThinkingMode') === 'true';
+    // Removed thinking mode toggle code
 
     const apiUrl = `${window.location.origin}/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
     const fullUrl = apiUrl + '&' + params.toString();
@@ -226,11 +225,7 @@ export function streamChatResponse(
         headers['x-ms-thinking-format'] = "html";
         headers['x-ms-streaming-version'] = "2024-05-01-preview";
         
-        // CRITICAL FIX: Pass thinking mode setting to the API
-        if (thinkingModeEnabled) {
-          headers['x-ms-thinking-mode'] = "enabled";
-          console.log("[streamChatResponse] Thinking mode enabled in headers");
-        }
+        // Removed thinking mode code
         
         console.log("[streamChatResponse] Adding DeepSeek-R1 required headers");
       }

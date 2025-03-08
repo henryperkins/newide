@@ -478,34 +478,42 @@ export function renderAssistantMessage(content, isThinking = false) {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return;
 
-  const currentModel = document.getElementById('model-select')?.value || window.modelManager?.getCurrentModelId() || 'Unknown';
-
   const el = document.createElement('div');
   el.className = `message assistant-message ${isThinking ? 'thinking-message' : ''}`;
   el.setAttribute('role', 'log');
   el.setAttribute('aria-live', 'polite');
 
+  // MODIFIED CODE: Extract thinking content instead of removing it
+  let mainContent = content;
+  let thinkingContent = '';
+
   if (content.includes('<think>')) {
-    content = deepSeekProcessor.replaceThinkingBlocks(content);
+    // Extract thinking content
+    const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
+    if (thinkMatches) {
+      thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
+
+      // Remove thinking tags from main content
+      mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+    }
   }
 
-  const markdown = renderMarkdown(content);
+  // Render main content
+  const markdown = renderMarkdown(mainContent);
   const processedContent = processCodeBlocks(markdown);
+  el.innerHTML = processedContent;
 
-  // Add model name display with Tailwind classes
-  el.innerHTML = `
-    ${processedContent}
-    <div class="font-mono text-xs text-gray-400/80 dark:text-gray-500 mt-2 transition-opacity opacity-70 hover:opacity-100"
-         aria-label="Current model: ${currentModel}">
-      Model: ${currentModel}
-    </div>
-  `;
+  // If we have thinking content, add a separate thinking container
+  if (thinkingContent) {
+    const thinkingContainer = deepSeekProcessor.renderThinkingContainer(el, thinkingContent);
+  }
 
   chatHistory.appendChild(el);
   highlightCode(el);
   setTimeout(() => {
     el.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, 100);
+
   if (!isThinking) storeChatMessage('assistant', content);
 }
 

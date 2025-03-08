@@ -222,7 +222,7 @@ async function initApplication() {
     initConversationControls();
     initFontSizeControls();
     initTokenUsageDisplay();
-    initThinkingModeToggle();
+    /* Removed initThinkingModeToggle call */
     enhanceAccessibility();
     detectTouchCapability();
     registerKeyboardShortcuts();
@@ -701,29 +701,7 @@ function initTokenUsageDisplay() {
 /**
  * Initialize the thinking mode toggle
  */
-function initThinkingModeToggle() {
-  const thinkingModeToggle = document.getElementById('enable-thinking-mode');
-  if (thinkingModeToggle) {
-    // Check if previously enabled
-    const thinkingModeEnabled = localStorage.getItem('enableThinkingMode') === 'true';
-    thinkingModeToggle.checked = thinkingModeEnabled;
-
-    // Set up event listener to save preference
-    safeAddEventListener(thinkingModeToggle, 'change', e => {
-      localStorage.setItem('enableThinkingMode', e.target.checked);
-      console.log('Thinking mode ' + (e.target.checked ? 'enabled' : 'disabled'));
-
-      // Show notification about change
-      import('./ui/notificationManager.js').then(module => {
-        module.showNotification(
-          `Thinking mode ${e.target.checked ? 'enabled' : 'disabled'}. This affects DeepSeek models only.`,
-          'info',
-          3000
-        );
-      });
-    });
-  }
-}
+/* Removed the initThinkingModeToggle function and all references to enableThinkingMode */
 
 /**
  * Register global keyboard shortcuts
