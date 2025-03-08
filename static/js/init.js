@@ -153,16 +153,21 @@ async function initApplication() {
   console.log('Initializing application...');
 
   try {
-    // Initialize Sentry with Session Replay early
-    initSentry({
-      dsn: window.SENTRY_DSN || 'https://d815bc9d689a9255598e0007ae5a2f67@o4508070823395328.ingest.us.sentry.io/4508935977238528',
-      environment: window.SENTRY_ENVIRONMENT || 'development',
-      release: window.SENTRY_RELEASE || '1.0.0',
-      tracesSampleRate: 1.0,
-      replaysSessionSampleRate: 0.1, // Record 10% of sessions
-      replaysOnErrorSampleRate: 1.0, // Record 100% of sessions with errors
-      maskAllInputs: true, // Mask all input fields for privacy
-    });
+    // Initialize Sentry with Session Replay only if not already initialized
+    // Using the isSentryInitialized flag from sentryInit.js to prevent multiple initializations
+    if (typeof window.Sentry === 'undefined' || !window.Sentry._initialized) {
+      initSentry({
+        dsn: window.SENTRY_DSN || 'https://d815bc9d689a9255598e0007ae5a2f67@o4508070823395328.ingest.us.sentry.io/4508935977238528',
+        environment: window.SENTRY_ENVIRONMENT || 'development',
+        release: window.SENTRY_RELEASE || '1.0.0',
+        tracesSampleRate: 1.0,
+        replaysSessionSampleRate: 0.1, // Record 10% of sessions
+        replaysOnErrorSampleRate: 1.0, // Record 100% of sessions with errors
+        maskAllInputs: true, // Mask all input fields for privacy
+      });
+    } else {
+      console.log('Sentry already initialized, skipping initialization in initApplication');
+    }
     
     // Add initial breadcrumb
     captureMessage('Application initialization started', 'info');

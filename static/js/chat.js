@@ -509,46 +509,54 @@ export function renderAssistantMessage(content, isThinking = false) {
   if (!isThinking) storeChatMessage('assistant', content);
 }
 
-async function storeChatMessage(role, content) {
-  try {
-    const currentSessionId = await getSessionId();
-    // Ensure required fields are present
-    if (!currentSessionId || !role || !content) {
-      console.error('[storeChatMessage] Missing required fields:', {
+  async function storeChatMessage(role, content) {
+    try {
+      const currentSessionId = await getSessionId();
+      // Ensure required fields are present and have valid values
+      if (!currentSessionId) {
+        console.error('[storeChatMessage] Missing session_id');
+        return;
+      }
+      if (!role) {
+        console.error('[storeChatMessage] Missing role');
+        return;
+      }
+      
+      // CRITICAL FIX: Provide default content to avoid errors
+      const finalContent = content || ' ';
+      if (!content) {
+        console.warn('[storeChatMessage] Empty content provided, using space character');
+      }
+      
+      // All required fields are now validated individually
+      console.log('[storeChatMessage] Sending message to server:', {
         session_id: currentSessionId,
         role,
-        content
+        content: finalContent.substring(0, 50) + (finalContent.length > 50 ? '...' : '')
       });
-      return;
-    }
-    console.log('[storeChatMessage] Sending message to server:', {
-      session_id: currentSessionId,
-      role,
-      content: content.substring(0, 50) + (content.length > 50 ? '...' : '')
-    });
 
-    try {
-      // Changed endpoint to match router implementation
-      const response = await fetchWithRetry(
-        `${window.location.origin}/api/chat/conversations/${currentSessionId}/messages`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role, content })
-        },
-        3
-      );
+      try {
+        // Changed endpoint to match router implementation
+        const response = await fetchWithRetry(
+          `${window.location.origin}/api/chat/conversations/${currentSessionId}/messages`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role, content: finalContent })
+          },
+          3
+        );
 
-      if (!response.ok) {
-        const text = await response.text();
-        console.error('[storeChatMessage] Server error:', response.status, text);
-        throw new Error(`Server returned ${response.status}: ${text}`);
+        if (!response.ok) {
+          const text = await response.text();
+          console.error('[storeChatMessage] Server error:', response.status, text);
+          throw new Error(`Server returned ${response.status}: ${text}`);
+        }
+
+        console.log('[storeChatMessage] Message stored successfully');
+      } catch (err) {
+        console.warn('Failed to store message in backend:', err);
       }
-
-      console.log('[storeChatMessage] Message stored successfully');
-    } catch (err) {
-      console.warn('Failed to store message in backend:', err);
-    }
 
     // Also store in localStorage as backup
     try {

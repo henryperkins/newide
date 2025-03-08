@@ -805,7 +805,7 @@ async def generate_stream_chunks(
 
     try:
         # Identify model types
-        with sentry_sdk.start_profiling_span(description="Prepare Streaming Request"):
+        with sentry_sdk.start_span(op="request.prepare", description="Prepare Streaming Request"):
             is_deepseek = is_deepseek_model(model_name)
             is_o_series = is_o_series_model(model_name)
 
@@ -968,9 +968,14 @@ async def generate_stream_chunks(
             yield sse_json({"error": str(e)})
             return
 
-        # Final chunk with a "stop" reason
-        yield sse_json({"choices": [{"finish_reason": "stop"}]})
-        yield "event: complete\ndata: done\n\n"
+        # Final chunk with a "stop" reason and token usage
+        yield sse_json({
+            "choices": [{"finish_reason": "stop"}],
+            "usage": usage_data  # Include token usage in the final response
+        })
+        
+        # Send a completion event with the usage data
+        yield f"event: complete\ndata: {json.dumps(usage_data)}\n\n"
 
         # Record usage statistics based on token counting
         with sentry_sdk.start_span(op="usage.record", description="Record Usage Statistics") as span:

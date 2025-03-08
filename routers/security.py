@@ -2,7 +2,11 @@ from fastapi.security import APIKeyHeader, HTTPBearer
 import config
 from fastapi import Depends, HTTPException
 from typing import Optional
+import uuid
+import logging
 from errors import create_error_response
+
+logger = logging.getLogger(__name__)
 
 security = HTTPBearer()
 api_key_header = APIKeyHeader(name="api-key")

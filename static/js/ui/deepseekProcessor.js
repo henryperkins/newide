@@ -24,33 +24,69 @@
  * @returns {Object} updated { mainTextBuffer, thinkingTextBuffer, chunkBuffer, isThinking }
  */
 function processChunkAndUpdateBuffers(data, chunkBuffer, mainTextBuffer, thinkingTextBuffer, isThinking) {
-  if (!data.choices || data.choices.length === 0) {
-    return { mainTextBuffer, thinkingTextBuffer, chunkBuffer, isThinking };
-  }
+  // CRITICAL FIX: Handle both structured choices format and direct text format
+  console.log('[processChunkAndUpdateBuffers] Processing data:', 
+    JSON.stringify(data).substring(0, 100));
+    
+  // Handle the choices format (standard OpenAI format)
+  if (data.choices && data.choices.length > 0) {
+    data.choices.forEach(choice => {
+      // Each token
+      if (choice.delta && choice.delta.content) {
+        const text = choice.delta.content;
+        chunkBuffer += text;
 
-  data.choices.forEach(choice => {
-    // Each token
-    if (choice.delta && choice.delta.content) {
-      const text = choice.delta.content;
-      chunkBuffer += text;
+        // Let processStreamingChunk do the <think> splitting
+        const result = processStreamingChunk(chunkBuffer, isThinking, mainTextBuffer, thinkingTextBuffer);
+        mainTextBuffer = result.mainBuffer;
+        thinkingTextBuffer = result.thinkingBuffer;
+        isThinking = result.isThinking;
+        chunkBuffer = result.remainingChunk;
+      }
 
-      // Let processStreamingChunk do the <think> splitting
+      // If server signals the end
+      if (choice.finish_reason) {
+        if (chunkBuffer) {
+          mainTextBuffer += chunkBuffer;
+          chunkBuffer = '';
+        }
+        isThinking = false; // turn off chain-of-thought at final chunk
+      }
+    });
+  } 
+  // CRITICAL FIX: Handle the text-direct format (e.g., {"text":"Okay"})
+  else if (data.text !== undefined) {
+    console.log('[processChunkAndUpdateBuffers] Processing text format:', data.text);
+    
+    // Add the text to the chunk buffer
+    const text = data.text || '';
+    chunkBuffer += text;
+    
+    // Process the chunk and update buffers
+    const result = processStreamingChunk(chunkBuffer, isThinking, mainTextBuffer, thinkingTextBuffer);
+    mainTextBuffer = result.mainBuffer;
+    thinkingTextBuffer = result.thinkingBuffer;
+    isThinking = result.isThinking;
+    chunkBuffer = result.remainingChunk;
+    
+    console.log('[processChunkAndUpdateBuffers] Updated mainBuffer length:', mainTextBuffer.length);
+  } 
+  // If we don't recognize the format, attempt to interpret as text
+  else if (data.usage) {
+    console.log('[processChunkAndUpdateBuffers] Ignoring usage data:', data.usage);
+    // Do nothing
+  } else {
+    console.warn('[processChunkAndUpdateBuffers] Unrecognized data format:', data);
+    if (typeof data === 'object' && !Array.isArray(data)) {
+      const fallbackText = String(data) || '';
+      chunkBuffer += fallbackText;
       const result = processStreamingChunk(chunkBuffer, isThinking, mainTextBuffer, thinkingTextBuffer);
       mainTextBuffer = result.mainBuffer;
       thinkingTextBuffer = result.thinkingBuffer;
       isThinking = result.isThinking;
       chunkBuffer = result.remainingChunk;
     }
-
-    // If server signals the end
-    if (choice.finish_reason) {
-      if (chunkBuffer) {
-        mainTextBuffer += chunkBuffer;
-        chunkBuffer = '';
-      }
-      isThinking = false; // turn off chain-of-thought at final chunk
-    }
-  });
+  }
 
   return { mainTextBuffer, thinkingTextBuffer, chunkBuffer, isThinking };
 }
@@ -65,6 +101,17 @@ function processChunkAndUpdateBuffers(data, chunkBuffer, mainTextBuffer, thinkin
  * @returns {Object} { mainBuffer, thinkingBuffer, isThinking, remainingChunk }
  */
 function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, thinkingBuffer) {
+  // CRITICAL FIX: Add detailed debug logging for thinking blocks
+  console.log('[processStreamingChunk] Processing:', {
+    bufferLength: chunkBuffer?.length || 0,
+    isThinking: isThinking,
+    mainBufferLength: mainBuffer?.length || 0,
+    thinkingBufferLength: thinkingBuffer?.length || 0,
+    bufferSample: chunkBuffer?.substring(0, 20) || '',
+    hasThinkTag: chunkBuffer?.includes('<think>') || false,
+    hasCloseThinkTag: chunkBuffer?.includes('</think>') || false
+  });
+
   const result = {
     mainBuffer: mainBuffer || '',
     thinkingBuffer: thinkingBuffer || '',
@@ -81,10 +128,13 @@ function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, thinkingBuff
       if (closeIdx === -1) {
         // Not found, so everything goes into chain-of-thought
         result.thinkingBuffer += buffer;
+        console.log('[processStreamingChunk] Added to thinking buffer (no close tag):', buffer.substring(0, 50) + '...');
         buffer = '';
       } else {
         // Found it
         result.thinkingBuffer += buffer.substring(0, closeIdx);
+        console.log('[processStreamingChunk] Added to thinking buffer (found close tag):', 
+                   buffer.substring(0, closeIdx).substring(0, 50) + '...');
         result.isThinking = false;
         buffer = buffer.substring(closeIdx + 8); // skip </think>
       }
@@ -94,20 +144,32 @@ function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, thinkingBuff
       if (openIdx === -1) {
         // No opening tag found => all user-visible
         result.mainBuffer += buffer;
+        console.log('[processStreamingChunk] Added to main buffer (no open tag):', 
+                   buffer.substring(0, 50) + '...');
         buffer = '';
       } else {
         // <think> found
         if (openIdx > 0) {
-          result.mainBuffer += buffer.substring(0, openIdx);
+          const beforeThink = buffer.substring(0, openIdx);
+          result.mainBuffer += beforeThink;
+          console.log('[processStreamingChunk] Added to main buffer (before think tag):', 
+                     beforeThink.substring(0, 50) + '...');
         }
         result.isThinking = true;
         buffer = buffer.substring(openIdx + 7); // skip <think>
+        console.log('[processStreamingChunk] Found <think> tag, switching to thinking mode');
       }
     }
   }
 
   // We consumed the entire chunk. No leftover partial text remains
   result.remainingChunk = '';
+
+  console.log('[processStreamingChunk] Final result:', {
+    mainBufferLength: result.mainBuffer.length,
+    thinkingBufferLength: result.thinkingBuffer.length,
+    isThinking: result.isThinking
+  });
 
   return result;
 }
@@ -187,39 +249,121 @@ function markdownToHtml(text) {
  * @returns {HTMLElement | null} The thinking container DOM node
  */
 function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
-  if (!parentContainer) return null;
+  console.log('[renderThinkingContainer] Called with thinking text length:', 
+              thinkingText?.length || 0,
+              'text sample:', thinkingText?.substring(0, 30) || '');
+              
+  if (!parentContainer) {
+    console.error('[renderThinkingContainer] No parent container provided');
+    return null;
+  }
+
+  // CRITICAL FIX: Ensure we have some thinking text
+  if (!thinkingText || thinkingText.trim() === '') {
+    console.warn('[renderThinkingContainer] Empty thinking text provided');
+    thinkingText = '(processing...)'; // Placeholder text
+  }
 
   // Look for existing container only if we're not forcing a new one
   let thinkingContainer = null;
   if (!options.createNew) {
     thinkingContainer = parentContainer.querySelector('.thinking-pre');
+    console.log('[renderThinkingContainer] Found existing container:', !!thinkingContainer);
   }
 
   if (!thinkingContainer || options.createNew) {
     // If not found or createNew is true, create a new container
+    console.log('[renderThinkingContainer] Creating new thinking container');
+    
     const wrapper = document.createElement('div');
     wrapper.className = 'thinking-safe-wrapper'; // Add a wrapper class
+
+    // CRITICAL FIX: Make sure wrapper is visible
+    wrapper.style.display = 'block';
+    wrapper.style.visibility = 'visible';
+    wrapper.style.marginTop = '10px';
 
     // Create unique container with timestamp to avoid conflicts
     const uniqueId = 'thinking-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
     wrapper.setAttribute('data-id', uniqueId);
 
-    wrapper.innerHTML = createThinkingBlockHTML(thinkingText);
+    try {
+      wrapper.innerHTML = createThinkingBlockHTML(thinkingText);
+    } catch (err) {
+      console.error('[renderThinkingContainer] Error creating HTML:', err);
+      // Fallback to a simpler HTML structure if the fancy one fails
+      wrapper.innerHTML = `
+        <div class="bg-gray-100 dark:bg-gray-800 p-3 rounded mt-2">
+          <div><strong>Chain of Thought:</strong></div>
+          <pre class="thinking-pre whitespace-pre-wrap mt-2">${thinkingText}</pre>
+        </div>
+      `;
+    }
+    
+    // CRITICAL FIX: Add container before appending to ensure it's visible
+    console.log('[renderThinkingContainer] Appending to parent container');
     parentContainer.appendChild(wrapper);
 
     thinkingContainer = wrapper.querySelector('.thinking-pre');
+    
+    if (!thinkingContainer) {
+      console.error('[renderThinkingContainer] Failed to find .thinking-pre in the newly created container!');
+      // Create one directly if it doesn't exist
+      thinkingContainer = document.createElement('pre');
+      thinkingContainer.className = 'thinking-pre whitespace-pre-wrap';
+      thinkingContainer.textContent = thinkingText;
+      wrapper.appendChild(thinkingContainer);
+    }
 
     // Initialize toggling
-    const thinkingProcess = wrapper.querySelector('.thinking-process');
-    initializeThinkingToggle(thinkingProcess);
+    try {
+      const thinkingProcess = wrapper.querySelector('.thinking-process');
+      if (thinkingProcess) {
+        initializeThinkingToggle(thinkingProcess);
+      }
+    } catch (toggleErr) {
+      console.warn('[renderThinkingContainer] Error initializing toggle:', toggleErr);
+    }
 
+    // CRITICAL FIX: Set explicit styles on the container to ensure visibility
+    if (thinkingContainer) {
+      thinkingContainer.style.display = 'block';
+      thinkingContainer.style.visibility = 'visible';
+      thinkingContainer.style.minHeight = '20px';
+      thinkingContainer.style.opacity = '1';
+    }
+
+    console.log('[renderThinkingContainer] New container created:', !!thinkingContainer);
+    
     // Return the thinking container element
     return thinkingContainer;
   } else {
     // If it exists and we're not creating new, just update the text
-    const sanitizedContent = DOMPurify.sanitize(markdownToHtml(thinkingText));
-    thinkingContainer.innerHTML = sanitizedContent;
+    console.log('[renderThinkingContainer] Updating existing container');
+    try {
+      const sanitizedContent = window.DOMPurify ? 
+        window.DOMPurify.sanitize(markdownToHtml(thinkingText)) : 
+        markdownToHtml(thinkingText);
+        
+      // CRITICAL FIX: Set content and make it visible
+      thinkingContainer.innerHTML = sanitizedContent || '(processing...)';
+      thinkingContainer.style.display = 'block';
+      thinkingContainer.style.visibility = 'visible';
+      
+      // Make sure the parent elements are visible too
+      let parent = thinkingContainer.parentElement;
+      while (parent && parent !== parentContainer) {
+        parent.style.display = 'block';
+        parent.style.visibility = 'visible';
+        parent = parent.parentElement;
+      }
+    } catch (updateErr) {
+      console.error('[renderThinkingContainer] Error updating container:', updateErr);
+      // Fallback to simple text assignment
+      thinkingContainer.textContent = thinkingText;
+    }
   }
+  
   return thinkingContainer;
 }
 
@@ -227,15 +371,49 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
  * Builds the HTML snippet for the chain-of-thought block with a toggle.
  */
 function createThinkingBlockHTML(thinkingText) {
-  const sanitized = DOMPurify.sanitize(markdownToHtml(thinkingText));
+  console.log('[createThinkingBlockHTML] Creating HTML for thinking text length:', 
+               thinkingText?.length || 0);
+               
+  // Safe default if no thinking text is provided
+  if (!thinkingText) {
+    thinkingText = '(processing...)';
+  }
+  
+  let sanitized;
+  try {
+    // First apply markdown formatting
+    const formattedText = markdownToHtml(thinkingText);
+    
+    // Then sanitize if DOMPurify is available
+    sanitized = window.DOMPurify ? 
+                window.DOMPurify.sanitize(formattedText, {
+                  ALLOWED_TAGS: ['br', 'b', 'i', 'strong', 'em', 'code', 'pre', 'h1', 'h2', 'h3'],
+                  KEEP_CONTENT: true
+                }) : 
+                formattedText;
+  } catch (error) {
+    console.error('[createThinkingBlockHTML] Error formatting/sanitizing:', error);
+    // Fallback to plain text if markdown/sanitizing fails
+    sanitized = thinkingText
+      .replace(/</g, '<')
+      .replace(/>/g, '>')
+      .replace(/\n/g, '<br>');
+  }
+  
+  // Create the HTML with explicit styles to ensure visibility
   return `
-    <div class="thinking-process" role="region" aria-label="Chain of Thought" data-collapsed="false">
-      <div class="thinking-header thinking-toggle" aria-expanded="true">
-        <span class="toggle-icon">▼</span>
+    <div class="thinking-process" role="region" aria-label="Chain of Thought" 
+         data-collapsed="false" style="display:block; visibility:visible; margin-top:10px;">
+      <div class="thinking-header thinking-toggle" aria-expanded="true" 
+           style="cursor:pointer; padding:6px; background-color:rgba(0,0,0,0.05); 
+                  border-radius:4px 4px 0 0; display:flex; align-items:center;">
+        <span class="toggle-icon" style="margin-right:4px;">▼</span>
         <span class="font-medium ml-1">Chain of Thought</span>
       </div>
-      <div class="thinking-content">
-        <pre class="thinking-pre">${sanitized}</pre>
+      <div class="thinking-content" style="display:block; visibility:visible; padding:8px; 
+                   background-color:rgba(0,0,0,0.03); border-radius:0 0 4px 4px;">
+        <pre class="thinking-pre" style="white-space:pre-wrap; margin:0; padding:0; 
+                 font-family:monospace; min-height:20px; display:block; visibility:visible;">${sanitized}</pre>
         <div class="bg-gradient-to-t from-transparent to-white/50 dark:to-gray-800/50 h-8"></div>
       </div>
     </div>
@@ -325,3 +503,20 @@ export const deepSeekProcessor = {
     return { text: '' };
   },
 };
+
+// Define a top-level function for token usage display updates
+function updateTokenUsageDisplay(usageData) {
+  console.log('[updateTokenUsageDisplay] Updating token usage display:', usageData);
+  const usageElem = document.getElementById('tokenUsageDisplay');
+  if (!usageElem) {
+    console.warn('[updateTokenUsageDisplay] No #tokenUsageDisplay element found in the DOM');
+    return;
+  }
+  // Use normal string concatenation to avoid TS parser issues
+  usageElem.innerText = "Prompt Tokens: " + (usageData.prompt_tokens || 0)
+    + " | Completion Tokens: " + (usageData.completion_tokens || 0)
+    + " | Total: " + (usageData.total_tokens || 0);
+}
+
+// Add updateTokenUsageDisplay to the exported deepSeekProcessor object
+deepSeekProcessor.updateTokenUsageDisplay = updateTokenUsageDisplay;

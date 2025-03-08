@@ -1,17 +1,71 @@
 // sentryInit.js - Sentry initialization and configuration for frontend
 
-const { Sentry, BrowserTracing, Replay } = window;
+// Get Sentry from window or create a stub
+let Sentry, BrowserTracing, Replay;
+
+// Flag to prevent multiple initializations
+let isSentryInitialized = false;
+
+// Initialize variables safely
+function getSentryObjects() {
+  if (typeof window.Sentry !== 'undefined') {
+    Sentry = window.Sentry;
+    BrowserTracing = window.Sentry.BrowserTracing;
+    Replay = window.Sentry.Replay;
+    return true;
+  }
+  
+  // Create stubs for missing objects
+  if (typeof Sentry === 'undefined') {
+    // Create stub Sentry object with no-op methods if not available
+    Sentry = {
+      init: () => {},
+      captureException: () => {},
+      captureMessage: () => {},
+      startTransaction: () => ({ finish: () => {} }),
+      getCurrentHub: () => ({ configureScope: () => {}, getScope: () => ({ getTransaction: () => null }) }),
+      setTags: () => {},
+      setUser: () => {},
+      setTag: () => {},
+      setExtra: () => {},
+      addBreadcrumb: () => {},
+      _initialized: false
+    };
+    console.warn("Using Sentry stub - real monitoring disabled");
+    return false;
+  }
+  
+  return false;
+}
 
 /**
  * Initialize Sentry with Session Replay for the frontend
  * @param {Object} options - Configuration options
  */
 export function initSentry(options = {}) {
+  // Get or create Sentry objects
+  const hasSentry = getSentryObjects();
+  
+  // Prevent multiple initializations
+  if (isSentryInitialized) {
+    console.log('Sentry already initialized, skipping duplicate initialization');
+    return Sentry;
+  }
+  
+  // If no real Sentry is available, return the stub
+  if (!hasSentry) {
+    console.warn("Sentry SDK not loaded. Using stub implementation.");
+    return Sentry;
+  }
+  
+  // Ensure we have a valid release value
+  const release = options.release || window.SENTRY_RELEASE || 'newide@1.0.0';
+  
   // Default configuration
   const config = {
-    dsn: options.dsn || window.SENTRY_DSN, // Fallback to global variable if available
+    dsn: options.dsn || window.SENTRY_DSN || 'https://d815bc9d689a9255598e0007ae5a2f67@o4508070823395328.ingest.us.sentry.io/4508935977238528',
     environment: options.environment || 'development',
-    release: options.release || '1.0.0',
+    release: release,
     
     // Performance monitoring
     tracesSampleRate: options.tracesSampleRate || 1.0,
@@ -21,19 +75,7 @@ export function initSentry(options = {}) {
     replaysOnErrorSampleRate: options.replaysOnErrorSampleRate || 1.0, // Record 100% of sessions with errors
     
     // Additional options
-    integrations: [
-      ...(typeof BrowserTracing === "function" ? [new BrowserTracing()] : []),
-      ...(typeof Replay === "function"
-        ? [
-            new Replay({
-              // Replay configuration
-              maskAllText: options.maskAllText || false,
-              blockAllMedia: options.blockAllMedia || false,
-              maskAllInputs: options.maskAllInputs !== undefined ? options.maskAllInputs : true,
-            }),
-          ]
-        : []),
-    ],
+    integrations: [],
     
     // Before send hook to filter sensitive data
     beforeSend: (event) => {
@@ -41,14 +83,38 @@ export function initSentry(options = {}) {
       return event;
     }
   };
+  
+  // Add BrowserTracing if available
+  if (typeof BrowserTracing === "function") {
+    config.integrations.push(new BrowserTracing());
+  }
+  
+  // Only add Replay if it exists and we haven't initialized Sentry yet
+  if (typeof Replay === "function") {
+    config.integrations.push(
+      new Replay({
+        // Replay configuration
+        maskAllText: options.maskAllText || false,
+        blockAllMedia: options.blockAllMedia || false,
+        maskAllInputs: options.maskAllInputs !== undefined ? options.maskAllInputs : true,
+      })
+    );
+  }
 
-  // Initialize Sentry
-  if (typeof Sentry !== 'undefined') {
+  try {
+    // Check for existing initialization on the Sentry object itself
+    if (Sentry._initialized) {
+      console.log('Sentry already initialized (detected via Sentry._initialized)');
+      return Sentry;
+    }
+    
     Sentry.init(config);
-    console.log('Sentry initialized with Session Replay');
-  } else {
-    console.warn("Sentry is not found on window. Skipping init.");
-    return;
+    isSentryInitialized = true;
+    // Set a direct flag on the Sentry object for cross-module detection
+    Sentry._initialized = true;
+    console.log('Sentry initialized successfully');
+  } catch (error) {
+    console.error('Error initializing Sentry:', error);
   }
   
   // Add custom context if provided

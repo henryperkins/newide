@@ -225,6 +225,13 @@ export function streamChatResponse(
       if (isDeepSeek) {
         headers['x-ms-thinking-format'] = "html";
         headers['x-ms-streaming-version'] = "2024-05-01-preview";
+        
+        // CRITICAL FIX: Pass thinking mode setting to the API
+        if (thinkingModeEnabled) {
+          headers['x-ms-thinking-mode'] = "enabled";
+          console.log("[streamChatResponse] Thinking mode enabled in headers");
+        }
+        
         console.log("[streamChatResponse] Adding DeepSeek-R1 required headers");
       }
 
@@ -495,15 +502,34 @@ export function streamChatResponse(
           if (e.data && e.data !== 'done') {
             try {
               const completionData = JSON.parse(e.data);
-              if (completionData.usage) {
-                console.log('Received token usage data:', completionData.usage);
+              
+              // CRITICAL FIX: Create default usage data if none provided by the server
+              let usageData = completionData.usage;
+              
+              if (!usageData) {
+                console.log('[onCompleteCallback] No usage data provided, creating estimates');
+                
+                // Create token count estimates based on message and response lengths
+                usageData = {
+                  prompt_tokens: Math.max(Math.round(messageContent.length / 4), 1),
+                  completion_tokens: Math.max(Math.round(mainTextBuffer.length / 4), 1),
+                  total_tokens: 0
+                };
+                
+                // Calculate total and add to the usage data
+                usageData.total_tokens = usageData.prompt_tokens + usageData.completion_tokens;
+                console.log('[onCompleteCallback] Created estimated usage data:', usageData);
+              }
+              
+              if (usageData) {
+                console.log('Token usage data:', usageData);
 
-                // Enhance the token usage data with any timing metrics
+                // Enhance the token usage data with timing metrics
                 const enhancedUsage = {
-                  ...completionData.usage,
-                  // Include streaming performance metrics if available
+                  ...usageData,
+                  // Include streaming performance metrics
                   latency: (performance.now() - streamStartTime).toFixed(0),
-                  tokens_per_second: calculateTokensPerSecond(completionData.usage)
+                  tokens_per_second: calculateTokensPerSecond(usageData)
                 };
 
                 console.log('Enhanced token usage with timing metrics:', enhancedUsage);
@@ -907,7 +933,13 @@ function renderBufferedContent() {
       // CRITICAL FIX: Find the content div within the container
       const contentTarget = messageContainer.querySelector('.message-content') || messageContainer;
 
+      // Modified approach: Use a balanced method that preserves both content types
+      // Regular user-visible content gets the thinking blocks removed for clean display
       const processedMain = deepSeekProcessor.processDeepSeekResponse(mainContent);
+      
+      // Log what's happening with content processing for debugging
+      console.log('[renderBufferedContent] Original content length:', mainContent.length, 
+                  'Processed content length:', processedMain.length);
 
       // Only scroll periodically to reduce jitter
       const shouldScroll = (Date.now() - lastScrollTimestamp > SCROLL_INTERVAL_MS) && !errorState;
@@ -935,12 +967,14 @@ function renderBufferedContent() {
 
     // Handle thinking content separately to prevent layout thrashing
     if (thinkingTextBuffer) {
+      console.log('[renderBufferedContent] Handling thinking content, length:', thinkingTextBuffer.length);
+      
       // Make sure we have a dedicated container for the current thinking block
       if (!thinkingContainers[currentMessageId]) {
+        console.log('[renderBufferedContent] Creating new thinking container for message:', currentMessageId);
         thinkingContainers[currentMessageId] = deepSeekProcessor.renderThinkingContainer(
           messageContainer,
-          thinkingTextBuffer,
-          { createNew: true }
+          thinkingTextBuffer
         );
       }
 
@@ -950,9 +984,43 @@ function renderBufferedContent() {
         // Update content in the correct container
         const thinkingPre = thinkingContainer.querySelector('.thinking-pre');
         if (thinkingPre) {
-          const sanitized = DOMPurify ? DOMPurify.sanitize(thinkingTextBuffer) : thinkingTextBuffer;
-          thinkingPre.innerHTML = sanitized;
+          // CRITICAL FIX: Sanitize and apply simple markdown formatting
+          try {
+            console.log('[renderBufferedContent] Updating thinking content. Sample:', 
+                       thinkingTextBuffer.substring(0, 50) + '...');
+            
+            // Apply minimal markdown formatting for better readability
+            const formattedThinking = thinkingTextBuffer
+              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+              .replace(/\*(.*?)\*/g, '<em>$1</em>')
+              .replace(/`([^`]+)`/g, '<code>$1</code>')
+              .replace(/\n/g, '<br>');
+            
+            const sanitized = DOMPurify ? DOMPurify.sanitize(formattedThinking, {
+              ALLOWED_TAGS: ['br', 'b', 'i', 'strong', 'em', 'code', 'pre'],
+              KEEP_CONTENT: true
+            }) : formattedThinking;
+            
+            // Set the content and make sure it's visible
+            thinkingPre.innerHTML = sanitized || '(processing...)';
+            thinkingPre.style.display = 'block';
+            thinkingPre.style.minHeight = '20px';
+            
+            // Make sure the thinking container itself is visible
+            const thinkingContent = thinkingContainer.closest('.thinking-content');
+            if (thinkingContent) {
+              thinkingContent.style.display = 'block';
+            }
+          } catch (err) {
+            console.error('[renderBufferedContent] Error updating thinking content:', err);
+            // Fallback to text content if sanitization fails
+            thinkingPre.textContent = thinkingTextBuffer;
+          }
+        } else {
+          console.warn('[renderBufferedContent] No .thinking-pre element found in container');
         }
+      } else {
+        console.warn('[renderBufferedContent] No valid thinking container found');
       }
     }
   } catch (err) {
@@ -987,12 +1055,27 @@ async function cleanupStreaming(modelName) {
   }
 
   // Store message in database
-  if (mainTextBuffer && messageContainer) {
+  if (messageContainer) {
     try {
       const conversationId = await getSessionId();
       if (!conversationId) {
         console.error('No valid conversation ID found — cannot store message.');
       } else {
+        // CRITICAL FIX: Include both mainTextBuffer and thinkingTextBuffer in the final message
+        // This ensures chain-of-thought content is preserved in the stored message
+        let finalContent = mainTextBuffer || ' ';  // Use a space if buffer is empty
+        
+        // If we have thinking content, make sure it's included in the final message
+        if (thinkingTextBuffer && thinkingTextBuffer.trim()) {
+          console.log('[cleanupStreaming] Including thinking content in final message, length:', thinkingTextBuffer.length);
+          // Don't remove the thinking tags so they can be rendered properly when retrieved
+          finalContent = finalContent.includes('<think>') ? 
+            finalContent : // Thinking blocks already included in main buffer
+            finalContent + (finalContent ? '\n\n' : '') + '<think>' + thinkingTextBuffer + '</think>';
+        }
+        
+        console.log('[cleanupStreaming] Storing complete message with content length:', finalContent.length);
+        
         await fetchWithRetry(
           window.location.origin + `/api/chat/conversations/${conversationId}/messages`,
           {
@@ -1000,7 +1083,7 @@ async function cleanupStreaming(modelName) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               role: 'assistant',
-              content: mainTextBuffer,
+              content: finalContent,
               model: modelName || 'DeepSeek-R1'
             })
           }
