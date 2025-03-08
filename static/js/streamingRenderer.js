@@ -71,10 +71,13 @@ export function renderContentEfficiently(container, newHTML, options = {}) {
       container.style.minHeight = '20px';
 
       // Use appropriate method based on content type
-      if (newHTML.length < 1000 && !/<[a-z][\s\S]*>/i.test(newHTML)) {
+      // FIXED: Don't limit by content length - render the full content regardless of size
+      if (!/<[a-z][\s\S]*>/i.test(newHTML)) {
         container.textContent = newHTML;
+        console.log(`[renderContentEfficiently] Rendered ${newHTML.length} chars as text`);
       } else {
         container.innerHTML = newHTML;
+        console.log(`[renderContentEfficiently] Rendered ${newHTML.length} chars as HTML`);
       }
     }
 

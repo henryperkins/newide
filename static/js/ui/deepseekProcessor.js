@@ -127,14 +127,16 @@ function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, thinkingBuff
       const closeIdx = buffer.indexOf('</think>');
       if (closeIdx === -1) {
         // Not found, so everything goes into chain-of-thought
+        // FIXED: Don't truncate logs or thinking content
         result.thinkingBuffer += buffer;
-        console.log('[processStreamingChunk] Added to thinking buffer (no close tag):', buffer.substring(0, 50) + '...');
+        console.log('[processStreamingChunk] Added to thinking buffer (no close tag):', 
+                   `[${buffer.length} chars total]`);
         buffer = '';
       } else {
         // Found it
         result.thinkingBuffer += buffer.substring(0, closeIdx);
         console.log('[processStreamingChunk] Added to thinking buffer (found close tag):', 
-                   buffer.substring(0, closeIdx).substring(0, 50) + '...');
+                   `[${buffer.substring(0, closeIdx).length} chars]`);
         result.isThinking = false;
         buffer = buffer.substring(closeIdx + 8); // skip </think>
       }
@@ -145,7 +147,7 @@ function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, thinkingBuff
         // No opening tag found => all user-visible
         result.mainBuffer += buffer;
         console.log('[processStreamingChunk] Added to main buffer (no open tag):', 
-                   buffer.substring(0, 50) + '...');
+                   `[${buffer.length} chars total]`);
         buffer = '';
       } else {
         // <think> found
@@ -153,7 +155,7 @@ function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, thinkingBuff
           const beforeThink = buffer.substring(0, openIdx);
           result.mainBuffer += beforeThink;
           console.log('[processStreamingChunk] Added to main buffer (before think tag):', 
-                     beforeThink.substring(0, 50) + '...');
+                     `[${beforeThink.length} chars]`);
         }
         result.isThinking = true;
         buffer = buffer.substring(openIdx + 7); // skip <think>
@@ -400,21 +402,23 @@ function createThinkingBlockHTML(thinkingText) {
       .replace(/\n/g, '<br>');
   }
   
-  // Create the HTML with explicit styles to ensure visibility
+  // Create the HTML with explicit styles to ensure visibility and NO truncation
   return `
     <div class="thinking-process" role="region" aria-label="Chain of Thought" 
-         data-collapsed="false" style="display:block; visibility:visible; margin-top:10px;">
+         data-collapsed="false" style="display:block; visibility:visible; margin-top:10px; max-height:none; overflow:visible;">
       <div class="thinking-header thinking-toggle" aria-expanded="true" 
            style="cursor:pointer; padding:6px; background-color:rgba(0,0,0,0.05); 
                   border-radius:4px 4px 0 0; display:flex; align-items:center;">
         <span class="toggle-icon" style="margin-right:4px;">▼</span>
-        <span class="font-medium ml-1">Chain of Thought</span>
+        <span class="font-medium ml-1">Chain of Thought (${sanitized.length} chars)</span>
       </div>
       <div class="thinking-content" style="display:block; visibility:visible; padding:8px; 
-                   background-color:rgba(0,0,0,0.03); border-radius:0 0 4px 4px;">
+                   background-color:rgba(0,0,0,0.03); border-radius:0 0 4px 4px;
+                   max-height:none; overflow:visible;">
         <pre class="thinking-pre" style="white-space:pre-wrap; margin:0; padding:0; 
-                 font-family:monospace; min-height:20px; display:block; visibility:visible;">${sanitized}</pre>
-        <div class="bg-gradient-to-t from-transparent to-white/50 dark:to-gray-800/50 h-8"></div>
+                 font-family:monospace; min-height:20px; display:block; visibility:visible;
+                 max-height:none; overflow:visible; text-overflow:clip;">${sanitized}</pre>
+        <!-- Removed gradient overlay that might hide content -->
       </div>
     </div>
   `;

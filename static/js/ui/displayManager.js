@@ -495,12 +495,14 @@ function createAssistantMessageElement(content) {
   let thinkingContent = '';
 
   if (content.includes('<think>')) {
-    // Extract thinking content
-    const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
-    if (thinkMatches) {
-      thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
-      mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
-    }
+  // Extract thinking content - FIXED: Don't truncate or limit content
+  const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
+  if (thinkMatches) {
+    // Process all thinking blocks, preserving full content
+    thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
+    console.log(`[createAssistantMessageElement] Extracted thinking content: ${thinkingContent.length} chars`);
+    mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+  }
   }
 
   // Process main content

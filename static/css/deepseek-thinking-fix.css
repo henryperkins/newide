@@ -1,71 +1,62 @@
 /**
- * DeepSeek thinking blocks formatting fix
+ * DeepSeek Thinking Block CSS Fix
  * 
- * These styles ensure proper rendering of thinking blocks
- * when they contain HTML-like content
+ * This CSS ensures that thinking blocks are properly displayed
+ * without truncation or height limits.
  */
 
-/* Fix for thinking blocks showing raw HTML */
-
-/* Thinking process container */
-
-/* Thinking header */
-
-/* Thinking content animations */
-
-/* Remove any raw HTML fragment styling that might be occurring */
-.thinking-pre div[data-collapsed],
-.thinking-pre div[aria-label],
-.thinking-pre div.thinking-header,
-.thinking-pre div.thinking-content,
-.thinking-pre button.thinking-toggle,
-.thinking-pre span.toggle-icon,
-.thinking-pre span.font-medium,
-.thinking-pre div.thinking-gradient {
-  display: inline;
-  padding: 0;
-  margin: 0;
-  background: none;
-  border: none;
-  box-shadow: none;
-}
-
-/* Override font for code blocks within thinking content */
-.thinking-pre code,
-.thinking-pre .inline-code {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.85em;
-  padding: 2px 4px;
-  border-radius: 3px;
-  background-color: rgba(0, 0, 0, 0.05);
-}
-
-.dark .thinking-pre code,
-.dark .thinking-pre .inline-code {
-  background-color: theme('colors.dracula.foreground');
-}
-
-/* Ensure thinking blocks don't bleed outside container */
+/* Main thinking process container */
 .thinking-process {
-  overflow: auto;
-  max-width: 100%;
+  display: block !important;
+  visibility: visible !important;
+  margin-top: 10px;
+  max-height: none !important;
+  overflow: visible !important;
 }
 
-/* Add a wrapper class to control DOM creation behavior */
-.thinking-safe-wrapper pre,
-.thinking-safe-wrapper code {
-  display: block;
-  white-space: pre-wrap;
+/* Thinking content container */
+.thinking-content {
+  display: block !important;
+  visibility: visible !important;
+  padding: 8px;
+  background-color: rgba(0,0,0,0.03);
+  border-radius: 0 0 4px 4px;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+/* Pre element containing the thinking text */
+.thinking-pre {
+  white-space: pre-wrap !important;
+  margin: 0;
+  padding: 0;
+  font-family: monospace;
+  min-height: 20px;
+  display: block !important;
+  visibility: visible !important;
+  overflow: visible !important;
+  max-height: none !important;
+  text-overflow: clip !important;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+/* Fallback thinking container */
+.thinking-fallback pre {
+  max-height: none !important;
+  overflow: visible !important;
+  white-space: pre-wrap !important;
   word-break: break-word;
 }
 
-/* Fix for nested thinking blocks */
-.thinking-process .thinking-process {
-  margin: 0.5rem 0;
-  padding-left: 1rem;
-  border-left: 2px solid theme('colors.dracula.purple');
+/* Make sure details elements expand fully */
+.thinking-block details[open] {
+  max-height: none !important;
+  overflow: visible !important;
 }
 
-.dark .thinking-process .thinking-process {
-  border-left: 2px solid theme('colors.dracula.purple');
+/* Remove any height limitations in the details summary content */
+.thinking-block details[open] pre {
+  max-height: none !important;
+  overflow: visible !important;
 }

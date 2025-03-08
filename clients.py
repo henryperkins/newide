@@ -235,7 +235,7 @@ class ClientPool:
         elif config.is_o_series_model(model_id):
             return AzureOpenAI(
                 api_key=config.AZURE_OPENAI_API_KEY,
-                azure_endpoint=model_config.get("azure_endpoint")
+                azure_endpoint=model_config.get("azure_endpoint"),
                 api_version=model_config["api_version"],
                 default_headers={
                     "reasoning-effort": model_config.get("reasoning_effort", "medium"),

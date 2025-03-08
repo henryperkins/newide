@@ -131,6 +131,7 @@ async def get_model_usage_trend(
 @router.get("/comparison")
 async def compare_models(
     period: str = Query("24h", description="Time period (e.g., '1h', '24h', '7d', '30d')"),
+    interval: Optional[str] = Query(None, description="Aggregation interval (e.g., '1h', '5m')"),
     db: AsyncSession = Depends(get_db_session)
 ):
     """
