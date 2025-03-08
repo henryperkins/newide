@@ -963,9 +963,6 @@ function renderBufferedContent() {
 /**
  * Cleans up streaming state and stores the final assistant message.
  */
-/**
- * Cleans up streaming state and stores the final assistant message.
- */
 async function cleanupStreaming(modelName) {
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
