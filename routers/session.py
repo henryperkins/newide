@@ -83,7 +83,9 @@ async def get_current_session(
                         }
                 except (ValueError, TypeError) as e:
                     return {"id": None, "message": f"Invalid session ID format: {str(e)}"}
-
+        except Exception as e:
+            logger.error(f"Error retrieving session by ID: {str(e)}")
+            
         # Try to get session from SessionManager if no explicit session_id
         from session_utils import SessionManager
 
