@@ -2,8 +2,8 @@
 from typing import List, Dict, Any, Optional
 import os
 import asyncio
-import logging
 import json
+import time
 from io import BytesIO
 from datetime import datetime
 import tiktoken
@@ -12,11 +12,14 @@ import mimetypes
 import config
 from azure.core.exceptions import HttpResponseError
 
-# Import error handling
+# Import error handling and tracing utilities
 from errors import create_error_response
+from services.tracing_utils import trace_function, trace_file_operation, trace_block, profile_block
+from logging_config import get_logger
+import sentry_sdk
 
-# Setup logging
-logger = logging.getLogger(__name__)
+# Setup enhanced logging
+logger = get_logger(__name__)
 
 # For file type handling - conditional imports to handle missing dependencies
 try:
@@ -72,6 +75,7 @@ ALLOWED_EXTENSIONS = {
 _token_count_cache = {}
 
 
+@trace_function(op="file.process", name="process_uploaded_file")
 async def process_uploaded_file(
     file_content: bytes, filename: str, model_name: str
 ) -> Dict[str, Any]:
@@ -90,40 +94,79 @@ async def process_uploaded_file(
     Raises:
         ValueError: If the file type is unsupported or the file is too large.
     """
-    # Validate file extension
-    file_extension = os.path.splitext(filename)[1].lower()
-    if file_extension not in ALLOWED_EXTENSIONS:
-        raise ValueError(f"Unsupported file type: {file_extension}")
-
-    # Check file size
-    max_size = config.settings.MAX_FILE_SIZE
-    if len(file_content) > max_size:
-        raise ValueError(
-            f"File too large: {len(file_content)} bytes. Maximum allowed: {max_size} bytes"
-        )
-
-    # Determine file type and extract text
-    file_size = len(file_content)
-    mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-
+    # Create a transaction for this file processing operation
+    transaction = sentry_sdk.start_transaction(
+        name=f"process_file_{os.path.splitext(filename)[1].lower()[1:]}",
+        op="file.process"
+    )
+    
+    sentry_sdk.set_tag("file.name", filename)
+    sentry_sdk.set_tag("model.name", model_name)
+    
+    start_time = time.time()
+    
     try:
+        # Validate file extension
+        file_extension = os.path.splitext(filename)[1].lower()
+        if file_extension not in ALLOWED_EXTENSIONS:
+            error_msg = f"Unsupported file type: {file_extension}"
+            logger.warning(error_msg, extra={"filename": filename, "file_type": file_extension})
+            sentry_sdk.set_tag("error.type", "unsupported_file_type")
+            raise ValueError(error_msg)
+
+        # Check file size
+        file_size = len(file_content)
+        max_size = config.settings.MAX_FILE_SIZE
+        if file_size > max_size:
+            error_msg = f"File too large: {file_size} bytes. Maximum allowed: {max_size} bytes"
+            logger.warning(error_msg, extra={"filename": filename, "file_size": file_size, "max_size": max_size})
+            sentry_sdk.set_tag("error.type", "file_too_large")
+            raise ValueError(error_msg)
+
+        # Set file metadata in transaction
+        transaction.set_data("file.size", file_size)
+        transaction.set_data("file.type", file_extension)
+        
+        # Determine file type and extract text
+        mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        transaction.set_data("file.mime_type", mime_type)
+
         # Extract text based on file type
-        if file_extension in [".txt", ".md", ".json", ".js", ".py", ".html", ".css"]:
-            text_content = file_content.decode("utf-8", errors="replace")
-        elif file_extension == ".pdf" and PDF_SUPPORTED:
-            text_content = await extract_pdf_text(file_content)
-        elif file_extension in [".docx", ".doc"] and DOCX_SUPPORTED:
-            text_content = await extract_docx_text(file_content)
-        else:
-            # Fallback for unsupported types - try basic text extraction
-            try:
+        with trace_block("Text Extraction", op="file.extract_text", file_type=file_extension) as span:
+            if file_extension in [".txt", ".md", ".json", ".js", ".py", ".html", ".css"]:
                 text_content = file_content.decode("utf-8", errors="replace")
-            except UnicodeDecodeError:
-                raise ValueError(f"Unsupported or binary file type: {file_extension}")
+                span.set_data("extraction_method", "direct_decode")
+            elif file_extension == ".pdf" and PDF_SUPPORTED:
+                text_content = await extract_pdf_text(file_content)
+                span.set_data("extraction_method", "pdf_parser")
+            elif file_extension in [".docx", ".doc"] and DOCX_SUPPORTED:
+                text_content = await extract_docx_text(file_content)
+                span.set_data("extraction_method", "docx_parser")
+            else:
+                # Fallback for unsupported types - try basic text extraction
+                try:
+                    text_content = file_content.decode("utf-8", errors="replace")
+                    span.set_data("extraction_method", "fallback_decode")
+                except UnicodeDecodeError:
+                    error_msg = f"Unsupported or binary file type: {file_extension}"
+                    span.set_data("extraction_success", False)
+                    span.set_data("error.type", "binary_file")
+                    raise ValueError(error_msg)
+            
+            span.set_data("extraction_success", True)
+            span.set_data("text_length", len(text_content))
 
         # Count tokens in the extracted text
-        token_count = await count_tokens(text_content, model_name)
-        logger.info(f"File {filename} contains approximately {token_count} tokens")
+        with trace_block("Token Counting", op="nlp.token_count", model=model_name) as span:
+            token_count = await count_tokens(text_content, model_name)
+            span.set_data("token_count", token_count)
+            logger.info(
+                f"File {filename} contains approximately {token_count} tokens",
+                extra={"filename": filename, "token_count": token_count, "model": model_name}
+            )
+        
+        # Set token count in transaction
+        transaction.set_data("token_count", token_count)
 
         # Determine if chunking is needed
         is_o_series = (
@@ -131,42 +174,57 @@ async def process_uploaded_file(
             and "preview" not in model_name
         )
         max_tokens = MAX_TOKENS_PER_FILE if is_o_series else 4096
+        transaction.set_data("max_tokens", max_tokens)
 
         # Initialize chunks list
         chunks = []
 
-        # Truncate if too large and no chunking capability
-        if token_count > max_tokens and not LANGCHAIN_SUPPORTED:
-            logger.warning(
-                f"File {filename} exceeds token limit and langchain not available"
-            )
-            # Truncate text (simple approach)
-            encoding = tiktoken.get_encoding("cl100k_base")
-            tokens = encoding.encode(text_content)
+        # Perform chunking or truncation if needed
+        with trace_block("Text Processing", op="text.process") as span:
+            if token_count > max_tokens and not LANGCHAIN_SUPPORTED:
+                logger.warning(
+                    f"File {filename} exceeds token limit and langchain not available",
+                    extra={"filename": filename, "token_count": token_count, "max_tokens": max_tokens}
+                )
+                # Truncate text (simple approach)
+                with profile_block("Text Truncation") as profile_span:
+                    encoding = tiktoken.get_encoding("cl100k_base")
+                    tokens = encoding.encode(text_content)
 
-            # Leave room for truncation message
-            safe_token_limit = max_tokens - 100
-            truncated_tokens = tokens[:safe_token_limit]
-            text_content = (
-                encoding.decode(truncated_tokens)
-                + "\n[Content truncated to fit model context window]"
-            )
+                    # Leave room for truncation message
+                    safe_token_limit = max_tokens - 100
+                    truncated_tokens = tokens[:safe_token_limit]
+                    text_content = (
+                        encoding.decode(truncated_tokens)
+                        + "\n[Content truncated to fit model context window]"
+                    )
 
-            # Recalculate token count
-            token_count = await count_tokens(text_content, model_name)
-            chunks = [text_content]
+                    # Recalculate token count
+                    token_count = await count_tokens(text_content, model_name)
+                    chunks = [text_content]
+                    span.set_data("process_type", "truncation")
+                    span.set_data("original_tokens", len(tokens))
+                    span.set_data("truncated_tokens", len(truncated_tokens))
 
-        elif token_count > DEFAULT_CHUNK_SIZE:
-            # Split into chunks for better context management
-            chunks = await chunk_text(text_content, DEFAULT_CHUNK_SIZE, model_name)
-            logger.info(f"Split {filename} into {len(chunks)} chunks")
+            elif token_count > DEFAULT_CHUNK_SIZE:
+                # Split into chunks for better context management
+                with profile_block("Text Chunking") as profile_span:
+                    chunks = await chunk_text(text_content, DEFAULT_CHUNK_SIZE, model_name)
+                    span.set_data("process_type", "chunking")
+                    span.set_data("chunk_count", len(chunks))
+                    logger.info(
+                        f"Split {filename} into {len(chunks)} chunks",
+                        extra={"filename": filename, "chunk_count": len(chunks)}
+                    )
 
-        else:
-            # File fits in one chunk
-            chunks = [text_content]
+            else:
+                # File fits in one chunk
+                chunks = [text_content]
+                span.set_data("process_type", "single_chunk")
+                span.set_data("chunk_count", 1)
 
         # Prepare response
-        return {
+        result = {
             "original_text": text_content,
             "text_chunks": chunks,
             "token_count": token_count,
@@ -179,29 +237,52 @@ async def process_uploaded_file(
                 "chunks": len(chunks),
                 "processed_time": datetime.now().isoformat(),
                 "model": model_name,
+                "processing_time_ms": int((time.time() - start_time) * 1000)
             },
         }
+        
+        transaction.set_data("success", True)
+        transaction.set_data("chunk_count", len(chunks))
+        transaction.set_data("processing_time", time.time() - start_time)
+        return result
 
     except Exception as e:
-        logger.exception(f"Error processing file {filename}: {e}")
+        # Capture the exception for Sentry
+        sentry_sdk.capture_exception(e)
+        
+        logger.exception(
+            f"Error processing file {filename}: {e}",
+            extra={"filename": filename, "error": str(e)}
+        )
+        
+        # Set error information in transaction
+        transaction.set_data("success", False)
+        transaction.set_data("error.type", e.__class__.__name__)
+        transaction.set_data("error.message", str(e))
+        
         # Return error information
         return {
             "original_text": f"Error processing file: {str(e)}",
             "text_chunks": [f"Error processing file: {str(e)}"],
             "token_count": 0,
             "chunk_count": 1,
-            "file_type": file_extension,
-            "mime_type": mime_type,
+            "file_type": file_extension if 'file_extension' in locals() else None,
+            "mime_type": mime_type if 'mime_type' in locals() else None,
             "error": str(e),
             "metadata": {
                 "filename": filename,
-                "size": file_size,
+                "size": len(file_content),
                 "error": str(e),
                 "processed_time": datetime.now().isoformat(),
+                "processing_time_ms": int((time.time() - start_time) * 1000)
             },
         }
+    finally:
+        # Finish the transaction
+        transaction.finish()
 
 
+@trace_file_operation("pdf_read")
 async def extract_pdf_text(file_content: bytes) -> str:
     """
     Extract text from PDF file using PyPDF2.
@@ -213,30 +294,84 @@ async def extract_pdf_text(file_content: bytes) -> str:
         str: Extracted text from the PDF, page by page.
     """
     if not PDF_SUPPORTED:
+        logger.warning("PDF extraction requested but PyPDF2 not installed")
+        sentry_sdk.add_breadcrumb(
+            category="file",
+            message="PDF extraction not available - missing PyPDF2",
+            level="warning"
+        )
         return "[PDF extraction not available - install PyPDF2]"
 
-    def _extract() -> str:
-        try:
-            pdf_file = BytesIO(file_content)
-            reader = PyPDF2.PdfReader(pdf_file)
-            text = []
+    # Create a span for the PDF extraction process
+    with sentry_sdk.start_span(op="file.extract_pdf", description="PDF Text Extraction") as span:
+        start_time = time.time()
+        span.set_data("file_size", len(file_content))
+        
+        def _extract() -> str:
+            try:
+                pdf_file = BytesIO(file_content)
+                reader = PyPDF2.PdfReader(pdf_file)
+                text = []
+                
+                # Update span with PDF metadata
+                try:
+                    metadata = reader.metadata
+                    if metadata:
+                        span.set_data("pdf.title", metadata.get("/Title", ""))
+                        span.set_data("pdf.author", metadata.get("/Author", ""))
+                        span.set_data("pdf.creator", metadata.get("/Creator", ""))
+                except Exception:
+                    pass  # Ignore metadata extraction errors
+                
+                # Set page count in span
+                page_count = len(reader.pages)
+                span.set_data("pdf.page_count", page_count)
+                
+                # Track empty pages
+                empty_pages = 0
+                
+                # Extract text from each page with page numbers
+                for i, page in enumerate(reader.pages):
+                    with sentry_sdk.start_span(op="pdf.extract_page", description=f"Extract Page {i+1}") as page_span:
+                        page_start = time.time()
+                        page_text = page.extract_text() or ""
+                        
+                        if page_text.strip():  # Only add non-empty pages
+                            text.append(f"--- Page {i+1} ---\n{page_text}")
+                            page_span.set_data("page.text_length", len(page_text))
+                            page_span.set_data("page.empty", False)
+                        else:
+                            empty_pages += 1
+                            page_span.set_data("page.empty", True)
+                        
+                        page_span.set_data("duration_seconds", time.time() - page_start)
+                        
+                span.set_data("pdf.empty_pages", empty_pages)
+                result = "\n\n".join(text)
+                span.set_data("total_text_length", len(result))
+                return result
 
-            # Extract text from each page with page numbers
-            for i, page in enumerate(reader.pages):
-                page_text = page.extract_text() or ""
-                if page_text.strip():  # Only add non-empty pages
-                    text.append(f"--- Page {i+1} ---\n{page_text}")
-            return "\n\n".join(text)
+            except Exception as e:
+                error_msg = f"PDF extraction error: {str(e)}"
+                logger.exception(error_msg)
+                sentry_sdk.capture_exception(e)
+                span.set_data("success", False)
+                span.set_data("error.type", e.__class__.__name__)
+                span.set_data("error.message", str(e))
+                return f"[PDF extraction error: {str(e)}]"
 
-        except Exception as e:
-            logger.exception(f"PDF extraction error: {e}")
-            return f"[PDF extraction error: {e}]"
+        loop = asyncio.get_event_loop()
+        with profile_block("PDF_Extraction") as profile_span:
+            extracted_text = await loop.run_in_executor(None, _extract)
+        
+        # Record final stats
+        span.set_data("duration_seconds", time.time() - start_time)
+        span.set_data("success", True)
+        
+        return extracted_text
 
-    loop = asyncio.get_event_loop()
-    extracted_text = await loop.run_in_executor(None, _extract)
-    return extracted_text
 
-
+@trace_file_operation("docx_read")
 async def extract_docx_text(file_content: bytes) -> str:
     """
     Extract text from DOCX file using docx2txt.
@@ -248,20 +383,62 @@ async def extract_docx_text(file_content: bytes) -> str:
         str: Extracted text from the DOCX.
     """
     if not DOCX_SUPPORTED:
+        logger.warning("DOCX extraction requested but docx2txt not installed")
+        sentry_sdk.add_breadcrumb(
+            category="file",
+            message="DOCX extraction not available - missing docx2txt",
+            level="warning"
+        )
         return "[DOCX extraction not available - install docx2txt]"
 
-    def _extract() -> str:
-        try:
-            docx_file = BytesIO(file_content)
-            text = docx2txt.process(docx_file)
-            return text or "[Empty document or extraction failed]"
-        except Exception as e:
-            logger.exception(f"DOCX extraction error: {e}")
-            return f"[DOCX extraction error: {e}]"
+    # Create a span for the DOCX extraction process
+    with sentry_sdk.start_span(op="file.extract_docx", description="DOCX Text Extraction") as span:
+        start_time = time.time()
+        span.set_data("file_size", len(file_content))
+        
+        def _extract() -> str:
+            try:
+                docx_file = BytesIO(file_content)
+                with profile_block("DOCX_Process"):
+                    text = docx2txt.process(docx_file)
+                
+                # Check for empty document
+                is_empty = not text or not text.strip()
+                
+                # Record statistics about the extracted text
+                span.set_data("text_length", len(text) if text else 0)
+                span.set_data("is_empty", is_empty)
+                
+                if not is_empty:
+                    span.set_data("line_count", text.count('\n') + 1)
+                    span.set_data("word_count", len(text.split()))
+                
+                return text or "[Empty document or extraction failed]"
+            except Exception as e:
+                error_msg = f"DOCX extraction error: {str(e)}"
+                logger.exception(error_msg)
+                sentry_sdk.capture_exception(e)
+                span.set_data("success", False)
+                span.set_data("error.type", e.__class__.__name__)
+                span.set_data("error.message", str(e))
+                return f"[DOCX extraction error: {str(e)}]"
 
-    loop = asyncio.get_event_loop()
-    extracted_text = await loop.run_in_executor(None, _extract)
-    return extracted_text
+        loop = asyncio.get_event_loop()
+        extracted_text = await loop.run_in_executor(None, _extract)
+        
+        # Record final stats
+        span.set_data("duration_seconds", time.time() - start_time)
+        span.set_data("success", True)
+        
+        # Add a breadcrumb for successful extraction
+        sentry_sdk.add_breadcrumb(
+            category="file",
+            message=f"DOCX extraction completed in {time.time() - start_time:.2f}s",
+            level="info",
+            data={"text_length": len(extracted_text)}
+        )
+        
+        return extracted_text
 
 
 async def chunk_text(
