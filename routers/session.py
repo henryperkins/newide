@@ -45,72 +45,67 @@ async def get_current_session(
     db_session: AsyncSession = Depends(get_db_session),
 ):
     """Get current session information"""
-    with sentry_sdk.start_span(op="get_current_session"):
-        try:
+    try:
+        with sentry_sdk.start_span(op="get_current_session"):
             # Use explicit session_id if provided
             if session_id:
                 # Validate UUID format
                 try:
                     session_uuid = uuid.UUID(session_id)
-
-                    # Query for session directly
                     from sqlalchemy import select
                     from models import Session
 
                     stmt = select(Session).where(Session.id == session_uuid)
                     result = await db_session.execute(stmt)
-                    session = result.scalar_one_or_none()
+                    session_obj = result.scalar_one_or_none()
 
-                    if session:
+                    if session_obj:
                         return {
-                            "id": str(session.id),
+                            "id": str(session_obj.id),
                             "created_at": (
-                                session.created_at.isoformat()
-                                if session.created_at is not None
+                                session_obj.created_at.isoformat()
+                                if session_obj.created_at
                                 else None
                             ),
                             "last_activity": (
-                                session.last_activity.isoformat()
-                                if session.last_activity is not None
+                                session_obj.last_activity.isoformat()
+                                if session_obj.last_activity
                                 else None
                             ),
                             "expires_at": (
-                                session.expires_at.isoformat()
-                                if session.expires_at is not None
+                                session_obj.expires_at.isoformat()
+                                if session_obj.expires_at
                                 else None
                             ),
-                            "last_model": session.last_model,
+                            "last_model": session_obj.last_model,
                         }
+
                 except (ValueError, TypeError) as e:
                     return {"id": None, "message": f"Invalid session ID format: {str(e)}"}
-        except Exception as e:
-            logger.error(f"Error retrieving session by ID: {str(e)}")
-            
-        # Try to get session from SessionManager if no explicit session_id
-        from session_utils import SessionManager
 
-        session = await SessionManager.get_session_from_request(request, db_session)
+            # If no explicit session_id or not found, try SessionManager
+            session_obj = await SessionManager.get_session_from_request(request, db_session)
 
-        if session:
+            if session_obj:
+                return {
+                    "id": str(session_obj.id),
+                    "created_at": (
+                        session_obj.created_at.isoformat() if session_obj.created_at else None
+                    ),
+                    "last_activity": (
+                        session_obj.last_activity.isoformat() if session_obj.last_activity else None
+                    ),
+                    "expires_at": (
+                        session_obj.expires_at.isoformat() if session_obj.expires_at else None
+                    ),
+                    "last_model": session_obj.last_model,
+                }
+
             return {
-                "id": str(session.id),
-                "created_at": (
-                    session.created_at.isoformat() if session.created_at else None
-                ),
-                "last_activity": (
-                    session.last_activity.isoformat() if session.last_activity else None
-                ),
-                "expires_at": (
-                    session.expires_at.isoformat() if session.expires_at else None
-                ),
-                "last_model": session.last_model,
+                "id": None,
+                "message": "No active session. Call '/api/session/create' to generate a new session.",
             }
 
-        return {
-            "id": None,
-            "message": "No active session. Call '/api/session/create' to generate a new session.",
-        }
-        
     except Exception as e:
         logger.exception(f"Error in get_current_session: {str(e)}")
         return {
@@ -128,39 +123,40 @@ async def create_session(
     client_wrapper: dict = Depends(get_model_client_dependency),  # Add this parameter
 ):
     """Create a new session"""
-    with sentry_sdk.start_span(op="create_session"):
-        from session_utils import SessionManager
-
-        # Extract client from the wrapper
-    azure_client = client_wrapper.get("client") if client_wrapper else None
-
     try:
-        # Create a new session
-        new_session = await SessionManager.create_session(db_session)
+        with sentry_sdk.start_span(op="create_session"):
+            from session_utils import SessionManager
 
-        # Initialize session services in background
-        if azure_client:
-            background_tasks.add_task(
-                initialize_session_services, str(new_session.id), azure_client
+            # Extract client from the wrapper
+            azure_client = client_wrapper.get("client") if client_wrapper else None
+
+            # Create a new session
+            new_session = await SessionManager.create_session(db_session)
+
+            # Initialize session services in background
+            if azure_client:
+                background_tasks.add_task(
+                    initialize_session_services, str(new_session.id), azure_client
+                )
+
+            response = JSONResponse(
+                {
+                    "session_id": str(new_session.id),
+                    "created_at": new_session.created_at.isoformat(),
+                    "expires_in": config.SESSION_TIMEOUT_MINUTES * 60,
+                    "expires_at": new_session.expires_at.isoformat(),
+                },
+                status_code=201,
             )
+            response.set_cookie(
+                key="session_id",
+                value=str(new_session.id),
+                httponly=True,
+                secure=True,
+                samesite="None",
+            )
+            return response
 
-        response = JSONResponse(
-            {
-                "session_id": str(new_session.id),
-                "created_at": new_session.created_at.isoformat(),
-                "expires_in": config.SESSION_TIMEOUT_MINUTES * 60,
-                "expires_at": new_session.expires_at.isoformat(),
-            },
-            status_code=201,
-        )
-        response.set_cookie(
-            key="session_id",
-            value=str(new_session.id),
-            httponly=True,
-            secure=True,
-            samesite="None",
-        )
-        return response
     except Exception as e:
         logger.error(f"Error creating session: {str(e)}")
         if "rate limit" in str(e).lower():
@@ -180,26 +176,31 @@ async def refresh_session(
     request: Request, db_session: AsyncSession = Depends(get_db_session)
 ):
     """Refresh session expiration time"""
-    with sentry_sdk.start_span(op="refresh_session"):
-        session = await SessionManager.get_session_from_request(
-            request, db_session, require_valid=True
-        )
-
-    # Extend session if found
-    if session:
-        success = await SessionManager.extend_session(session.id, db_session)
-        if success:
-            response = JSONResponse(session_to_response(session), status_code=200)
-            response.set_cookie(
-                key="session_id",
-                value=str(session.id),
-                httponly=True,
-                secure=True,
-                samesite="None",
+    try:
+        with sentry_sdk.start_span(op="refresh_session"):
+            session_obj = await SessionManager.get_session_from_request(
+                request, db_session, require_valid=True
             )
-            return response
 
-    raise HTTPException(status_code=400, detail="Failed to refresh session")
+            # Extend session if found
+            if session_obj:
+                success = await SessionManager.extend_session(session_obj.id, db_session)
+                if success:
+                    response = JSONResponse(session_to_response(session_obj), status_code=200)
+                    response.set_cookie(
+                        key="session_id",
+                        value=str(session_obj.id),
+                        httponly=True,
+                        secure=True,
+                        samesite="None",
+                    )
+                    return response
+
+            raise HTTPException(status_code=400, detail="Failed to refresh session")
+
+    except Exception as e:
+        logger.exception(f"Error refreshing session: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error refreshing session")
 
 
 @router.post("/model", response_model=SessionInfoResponse)
@@ -208,25 +209,29 @@ async def update_session_model(
     request: Request, db_session: AsyncSession = Depends(get_db_session)
 ):
     """Update the model associated with a session"""
-    with sentry_sdk.start_span(op="update_session_model"):
-        session = await SessionManager.get_session_from_request(
-            request, db_session, require_valid=True
-        )
+    try:
+        with sentry_sdk.start_span(op="update_session_model"):
+            session_obj = await SessionManager.get_session_from_request(
+                request, db_session, require_valid=True
+            )
 
-    # Get model from request body
-    body = await request.json()
-    model = body.get("model")
+            # Get model from request body
+            body = await request.json()
+            model = body.get("model")
 
-    if not model:
-        return {"status": "error", "message": "Model name is required"}
+            if not model:
+                return {"status": "error", "message": "Model name is required"}
 
-    # Update session model
-    success = await SessionManager.update_session_model(session.id, model, db_session)
+            # Update session model
+            success = await SessionManager.update_session_model(session_obj.id, model, db_session)
+            if success:
+                return session_to_response(session_obj)
 
-    if success:
-        return session_to_response(session)
+            raise HTTPException(status_code=400, detail="Failed to update session model")
 
-    raise HTTPException(status_code=400, detail="Failed to update session model")
+    except Exception as e:
+        logger.exception(f"Error updating session model: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error updating session model")
 
 
 def session_to_response(session) -> SessionResponse:

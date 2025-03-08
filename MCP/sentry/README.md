@@ -96,12 +96,17 @@ If you encounter issues with the Sentry MCP server:
 
 ## Current Status
 
-There is currently an issue with the Sentry MCP server where it cannot find the 'mcp' module despite it being installed. This might be due to a version mismatch or a packaging issue.
+The Sentry MCP server has been successfully installed and configured. If you encounter issues, make sure that:
 
-To resolve this issue, you might need to:
-1. Try reinstalling the mcp-server-sentry package
-2. Check for any version conflicts between the mcp package and mcp-server-sentry
-3. Contact the package maintainers for support
+1. You're using the Python interpreter from the project's virtual environment
+2. The MCP configuration file points to the correct Python interpreter path
+3. Both `mcp` and `mcp-server-sentry` packages are installed in the virtual environment
+
+You can verify your installation by running the verification script:
+```bash
+source /home/azureuser/newide/venv/bin/activate
+python /home/azureuser/newide/MCP/sentry/verify_mcp_install.py
+```
 
 ## Additional Resources
 
