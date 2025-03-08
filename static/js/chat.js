@@ -478,41 +478,58 @@ export function renderAssistantMessage(content, isThinking = false) {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return;
 
+  console.log("Rendering message:", {
+    contentLength: content?.length || 0,
+    hasThinking: content?.includes('<think>') || false,
+    sample: content?.substring(0, 50) || ''
+  });
+
   const el = document.createElement('div');
-  el.className = `message assistant-message ${isThinking ? 'thinking-message' : ''}`;
+  el.className = 'message assistant-message';
   el.setAttribute('role', 'log');
-  el.setAttribute('aria-live', 'polite');
 
-  // MODIFIED CODE: Extract thinking content instead of removing it
-  let mainContent = content;
-  let thinkingContent = '';
+  try {
+    // Extract thinking content properly
+    let mainContent = content || '';
+    let thinkingContent = '';
 
-  if (content.includes('<think>')) {
-    // Extract thinking content
-    const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
-    if (thinkMatches) {
-      thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
-
-      // Remove thinking tags from main content
-      mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+    if (content && content.includes('<think>')) {
+      const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
+      if (thinkMatches) {
+        console.log("Found thinking blocks:", thinkMatches.length);
+        thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
+        mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+      }
     }
+
+    // Render main content first
+    el.innerHTML = renderMarkdown(mainContent);
+    chatHistory.appendChild(el);
+
+    // If we have thinking content, create a visible thinking container
+    if (thinkingContent) {
+      console.log("Creating thinking container with content length:", thinkingContent.length);
+
+      // Create a simple visible container (fallback approach)
+      const thinkingDiv = document.createElement('div');
+      thinkingDiv.className = 'thinking-fallback mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded';
+      thinkingDiv.innerHTML = `
+        <details open>
+          <summary class="font-medium cursor-pointer">Chain of Thought</summary>
+          <pre class="whitespace-pre-wrap mt-2">${thinkingContent}</pre>
+        </details>
+      `;
+      el.appendChild(thinkingDiv);
+    }
+
+    highlightCode(el);
+    el.scrollIntoView({ behavior: 'smooth' });
+
+  } catch (error) {
+    console.error("Error rendering message:", error);
+    el.textContent = content || "Error rendering message";
+    chatHistory.appendChild(el);
   }
-
-  // Render main content
-  const markdown = renderMarkdown(mainContent);
-  const processedContent = processCodeBlocks(markdown);
-  el.innerHTML = processedContent;
-
-  // If we have thinking content, add a separate thinking container
-  if (thinkingContent) {
-    const thinkingContainer = deepSeekProcessor.renderThinkingContainer(el, thinkingContent);
-  }
-
-  chatHistory.appendChild(el);
-  highlightCode(el);
-  setTimeout(() => {
-    el.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, 100);
 
   if (!isThinking) storeChatMessage('assistant', content);
 }

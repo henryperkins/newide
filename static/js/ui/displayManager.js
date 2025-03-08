@@ -490,18 +490,39 @@ function createAssistantMessageElement(content) {
   el.setAttribute('role', 'log');
   el.setAttribute('aria-live', 'polite');
 
-  let processed = content.includes('<think>')
-    ? deepSeekProcessor.replaceThinkingBlocks(content)
-    : content;
+  // Extract main content and thinking content
+  let mainContent = content;
+  let thinkingContent = '';
 
-  const md = renderMarkdown(processed);
+  if (content.includes('<think>')) {
+    // Extract thinking content
+    const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
+    if (thinkMatches) {
+      thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
+      mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+    }
+  }
+
+  // Process main content
+  const md = renderMarkdown(mainContent);
   const enhanced = processCodeBlocks(md);
   const lazy = processImagesForLazyLoading(enhanced);
 
-  el.innerHTML = `
-    ${lazy}
-    <!-- Removed model reference to avoid currentModel error -->
-  `;
+  el.innerHTML = lazy;
+
+  // Add thinking content if present
+  if (thinkingContent) {
+    const thinkingDiv = document.createElement('div');
+    thinkingDiv.className = 'thinking-block mt-2';
+    thinkingDiv.innerHTML = `
+      <details open>
+        <summary class="cursor-pointer p-2 bg-gray-100 dark:bg-gray-800 rounded font-medium">Chain of Thought</summary>
+        <pre class="p-2 whitespace-pre-wrap bg-gray-50 dark:bg-gray-900 rounded mt-1">${thinkingContent}</pre>
+      </details>
+    `;
+    el.appendChild(thinkingDiv);
+  }
+
   messageCache.set(cacheKey, el.cloneNode(true));
   return el;
 }
