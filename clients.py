@@ -229,14 +229,9 @@ class ClientPool:
                 endpoint=endpoint,
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
                 api_version="2024-05-01-preview",
-                headers={
-                    "x-ms-thinking-format": "html",
-                    "x-ms-streaming-version": "2024-05-01-preview"
-                },
-                connection_timeout=30.0,
-                read_timeout=180.0  # Increased timeout for longer responses
+                connection_timeout=60.0,
+                read_timeout=300.0  # Increased timeout for longer responses
             )
-    # Rest of the function remains unchanged
         elif config.is_o_series_model(model_id):
             return AzureOpenAI(
                 api_key=config.AZURE_OPENAI_API_KEY,

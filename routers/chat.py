@@ -911,13 +911,22 @@ async def generate_stream_chunks(
                         # Use asyncio.sleep to allow other tasks to run
                         await asyncio.sleep(0)
 
-                else:
-                    # Azure AI Inference ChatCompletionsClient (for DeepSeek models)
-                    logger.info(f"Using ChatCompletionsClient with model: {model_name}")
-
-                    # For ChatCompletionsClient, create the streaming response
-                    stream_response = client.complete(**params)
-
+                    # For DeepSeek models, explicitly pass parameters instead of unpacking
+                    if is_deepseek:
+                        stream_response = client.complete(
+                            messages=params["messages"],
+                            temperature=0.5,
+                            max_tokens=config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
+                            stream=True,
+                            model="DeepSeek-R1",
+                            headers={
+                                "x-ms-thinking-format": "html",
+                                "x-ms-streaming-version": "2024-05-01-preview"
+                            }
+                        )
+                    else:
+                        # For other models, use the params dictionary
+                        stream_response = client.complete(**params)
                     # The StreamingChatCompletions object is synchronously iterable
                     for chunk in stream_response:
                         # Extract content from chunk
