@@ -835,6 +835,10 @@ async def generate_stream_chunks(
                     {
                         "temperature": 0.5,
                         "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
+                        "headers": {
+                            "x-ms-thinking-format": "html",
+                            "x-ms-streaming-version": "2024-05-01-preview",
+                        }
                     }
                 )
             elif is_o_series:
@@ -912,12 +916,7 @@ async def generate_stream_chunks(
                     logger.info(f"Using ChatCompletionsClient with model: {model_name}")
 
                     # For ChatCompletionsClient, create the streaming response
-                    stream_response = client.complete(
-                        messages=messages,
-                        temperature=0.5 if is_deepseek else params.get("temperature", 0.7),
-                        max_tokens=params.get("max_tokens", 4096),
-                        stream=True,
-                    )
+                    stream_response = client.complete(**params)
 
                     # The StreamingChatCompletions object is synchronously iterable
                     for chunk in stream_response:
