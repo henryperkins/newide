@@ -40,12 +40,12 @@ async def initialize_session_services(session_id: str, azure_client: Any):
 @router.get("")
 @sentry_sdk.trace
 async def get_current_session(
-    with sentry_sdk.start_span(op="get_current_session"):
     request: Request,
     session_id: Optional[str] = None,  # Add explicit query parameter
     db_session: AsyncSession = Depends(get_db_session),
 ):
     """Get current session information"""
+    with sentry_sdk.start_span(op="get_current_session"):
     try:
         # Use explicit session_id if provided
         if session_id:
@@ -120,12 +120,12 @@ async def get_current_session(
 @router.post("/create")
 @sentry_sdk.trace
 async def create_session(
-    with sentry_sdk.start_span(op="create_session"):
     background_tasks: BackgroundTasks,
     db_session: AsyncSession = Depends(get_db_session),
     client_wrapper: dict = Depends(get_model_client_dependency),  # Add this parameter
 ):
     """Create a new session"""
+    with sentry_sdk.start_span(op="create_session"):
     from session_utils import SessionManager
 
     # Extract client from the wrapper
@@ -174,10 +174,10 @@ async def create_session(
 @router.post("/refresh", response_model=SessionResponse)
 @sentry_sdk.trace
 async def refresh_session(
-    with sentry_sdk.start_span(op="refresh_session"):
     request: Request, db_session: AsyncSession = Depends(get_db_session)
 ):
     """Refresh session expiration time"""
+    with sentry_sdk.start_span(op="refresh_session"):
     session = await SessionManager.get_session_from_request(
         request, db_session, require_valid=True
     )
@@ -202,10 +202,10 @@ async def refresh_session(
 @router.post("/model", response_model=SessionInfoResponse)
 @sentry_sdk.trace
 async def update_session_model(
-    with sentry_sdk.start_span(op="update_session_model"):
     request: Request, db_session: AsyncSession = Depends(get_db_session)
 ):
     """Update the model associated with a session"""
+    with sentry_sdk.start_span(op="update_session_model"):
     session = await SessionManager.get_session_from_request(
         request, db_session, require_valid=True
     )
