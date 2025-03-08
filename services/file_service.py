@@ -187,7 +187,7 @@ async def process_uploaded_file(
                     extra={"filename": filename, "token_count": token_count, "max_tokens": max_tokens}
                 )
                 # Truncate text (simple approach)
-                with profile_block("Text Truncation") as profile_span:
+                with sentry_sdk.start_span(op="text.truncate", description="Text Truncation") as span:
                     encoding = tiktoken.get_encoding("cl100k_base")
                     tokens = encoding.encode(text_content)
 
@@ -208,7 +208,7 @@ async def process_uploaded_file(
 
             elif token_count > DEFAULT_CHUNK_SIZE:
                 # Split into chunks for better context management
-                with profile_block("Text Chunking") as profile_span:
+                with sentry_sdk.start_span(op="text.chunk", description="Text Chunking") as span:
                     chunks = await chunk_text(text_content, DEFAULT_CHUNK_SIZE, model_name)
                     span.set_data("process_type", "chunking")
                     span.set_data("chunk_count", len(chunks))
@@ -361,7 +361,7 @@ async def extract_pdf_text(file_content: bytes) -> str:
                 return f"[PDF extraction error: {str(e)}]"
 
         loop = asyncio.get_event_loop()
-        with profile_block("PDF_Extraction") as profile_span:
+        with sentry_sdk.start_span(op="file.extract_pdf", description="Extract PDF Content") as span:
             extracted_text = await loop.run_in_executor(None, _extract)
         
         # Record final stats
@@ -399,7 +399,7 @@ async def extract_docx_text(file_content: bytes) -> str:
         def _extract() -> str:
             try:
                 docx_file = BytesIO(file_content)
-                with profile_block("DOCX_Process"):
+                with sentry_sdk.start_span(op="file.process_docx", description="Process DOCX"):
                     text = docx2txt.process(docx_file)
                 
                 # Check for empty document

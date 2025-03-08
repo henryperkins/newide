@@ -694,7 +694,7 @@ async def chat_sse(
         await SSE_SEMAPHORE.acquire()
     try:
         # Validate session
-        with sentry_sdk.start_profiling_span(description="Validate Session"):
+        with sentry_sdk.start_span(op="session.validate", description="Validate Session") as span:
             sel_stmt = select(Session).where(Session.id == session_id)
             sess_res = await db.execute(sel_stmt)
             session_db = sess_res.scalar_one_or_none()
@@ -702,7 +702,7 @@ async def chat_sse(
                 raise HTTPException(status_code=404, detail="Session not found")
 
         # Retrieve model client
-        with sentry_sdk.start_profiling_span(description=f"Get Model Client ({model})"):
+        with sentry_sdk.start_span(op="model.client", description=f"Get Model Client ({model})") as span:
             try:
                 client_wrapper = await get_model_client_dependency(model)
 
@@ -855,7 +855,7 @@ async def generate_stream_chunks(
         # Create streaming request based on client type
         try:
             # Handle differences in client APIs
-            with sentry_sdk.start_profiling_span(description=f"Stream Model Response ({model_name})"):
+            with sentry_sdk.start_span(op="model.stream", description=f"Stream Model Response ({model_name})") as span:
                 if hasattr(client, "chat") and hasattr(client.chat, "completions"):
                     # OpenAI-style client (for O-series models)
                     logger.info(f"Using OpenAI-style client with model: {model_name}")
@@ -974,7 +974,7 @@ async def generate_stream_chunks(
         yield "event: complete\ndata: done\n\n"
 
         # Record usage statistics based on token counting
-        with sentry_sdk.start_profiling_span(description="Record Usage Statistics"):
+        with sentry_sdk.start_span(op="usage.record", description="Record Usage Statistics") as span:
             prompt_tokens = 0
             completion_tokens = 0
 

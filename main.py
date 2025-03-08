@@ -31,7 +31,7 @@ sentry_sdk.init(
     
     # Performance monitoring
     traces_sample_rate=config.settings.SENTRY_TRACES_SAMPLE_RATE,
-    profiles_sample_rate=config.settings.SENTRY_PROFILES_SAMPLE_RATE,
+    enable_tracing=True,
     
     # Data management
     max_breadcrumbs=config.settings.SENTRY_MAX_BREADCRUMBS,
@@ -40,8 +40,6 @@ sentry_sdk.init(
     
     # Error reporting behavior
     attach_stacktrace=config.settings.SENTRY_ATTACH_STACKTRACE,
-    # request_bodies is not a valid option, using http_proxy instead as an example
-    http_proxy=None,
     
     # Integrations
     integrations=[

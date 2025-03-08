@@ -144,18 +144,19 @@ def trace_block(description: str, op: str, **data: Any):
             span.set_data("duration_seconds", duration)
 
 @contextmanager
-def profile_block(description: str, **data: Any):
+def profile_block(description: str, op: str = "code.profile", **data: Any):
     """
     Context manager for profiling a block of code.
     
     Args:
         description: Description of the operation
+        op: Operation type
         data: Additional data to add to the span
         
     Yields:
-        The Sentry profiling span
+        The Sentry span
     """
-    with sentry_sdk.start_profiling_span(description=description) as span:
+    with sentry_sdk.start_span(op=op, description=description) as span:
         # Set span data
         for key, value in data.items():
             span.set_data(key, value)
