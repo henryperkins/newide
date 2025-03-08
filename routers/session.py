@@ -54,12 +54,12 @@ async def get_current_session(
                     session_uuid = uuid.UUID(session_id)
 
                     # Query for session directly
-                from sqlalchemy import select
-                from models import Session
+                    from sqlalchemy import select
+                    from models import Session
 
-                stmt = select(Session).where(Session.id == session_uuid)
-                result = await db_session.execute(stmt)
-                session = result.scalar_one_or_none()
+                    stmt = select(Session).where(Session.id == session_uuid)
+                    result = await db_session.execute(stmt)
+                    session = result.scalar_one_or_none()
 
                 if session:
                     return {
