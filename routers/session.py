@@ -17,6 +17,7 @@ from logging_config import logger
 from typing import Optional, Any
 import config
 import uuid
+import sentry_sdk
 
 # Import the SessionManager - using explicit import to avoid circular imports
 from session_utils import SessionManager
@@ -37,6 +38,7 @@ async def initialize_session_services(session_id: str, azure_client: Any):
 
 
 @router.get("")
+@sentry_sdk.trace(name="get_current_session")
 async def get_current_session(
     request: Request,
     session_id: Optional[str] = None,  # Add explicit query parameter
@@ -115,6 +117,7 @@ async def get_current_session(
 
 
 @router.post("/create")
+@sentry_sdk.trace(name="create_session")
 async def create_session(
     background_tasks: BackgroundTasks,
     db_session: AsyncSession = Depends(get_db_session),
@@ -167,6 +170,7 @@ async def create_session(
 
 
 @router.post("/refresh", response_model=SessionResponse)
+@sentry_sdk.trace(name="refresh_session")
 async def refresh_session(
     request: Request, db_session: AsyncSession = Depends(get_db_session)
 ):
@@ -193,6 +197,7 @@ async def refresh_session(
 
 
 @router.post("/model", response_model=SessionInfoResponse)
+@sentry_sdk.trace(name="update_session_model")
 async def update_session_model(
     request: Request, db_session: AsyncSession = Depends(get_db_session)
 ):
