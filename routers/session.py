@@ -49,11 +49,11 @@ async def get_current_session(
         try:
             # Use explicit session_id if provided
             if session_id:
-            # Validate UUID format
-            try:
-                session_uuid = uuid.UUID(session_id)
+                # Validate UUID format
+                try:
+                    session_uuid = uuid.UUID(session_id)
 
-                # Query for session directly
+                    # Query for session directly
                 from sqlalchemy import select
                 from models import Session
 
