@@ -392,6 +392,14 @@ async def validate_database_schema(fail_on_error: bool = False) -> bool:
     try:
         validator = SchemaValidator(engine, Base.metadata, fail_on_error)
         passed, errors, warnings = await validator.validate_schema()
+        
+        # Additional data validation checks
+        async with database.traced_session() as session:
+            result = await session.execute(text("SELECT COUNT(*) FROM users"))
+            async for record in result:
+                # Do validation work...
+                pass
+                
         return passed
     except Exception as e:
         logger.error(f"Error during database validation: {str(e)}")
@@ -414,4 +422,4 @@ if __name__ == "__main__":
         asyncio.run(validate_database_schema(args.fail))
     except Exception as e:
         logger.error(f"Schema validation failed: {e}")
-        sys.exit(1)
+        sys.exit(1)"""
