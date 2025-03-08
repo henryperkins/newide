@@ -48,7 +48,7 @@ async def get_current_session(
     with sentry_sdk.start_span(op="get_current_session"):
         try:
             # Use explicit session_id if provided
-        if session_id:
+            if session_id:
             # Validate UUID format
             try:
                 session_uuid = uuid.UUID(session_id)
@@ -128,7 +128,7 @@ async def create_session(
     with sentry_sdk.start_span(op="create_session"):
         from session_utils import SessionManager
 
-    # Extract client from the wrapper
+        # Extract client from the wrapper
     azure_client = client_wrapper.get("client") if client_wrapper else None
 
     try:
@@ -179,8 +179,8 @@ async def refresh_session(
     """Refresh session expiration time"""
     with sentry_sdk.start_span(op="refresh_session"):
         session = await SessionManager.get_session_from_request(
-        request, db_session, require_valid=True
-    )
+            request, db_session, require_valid=True
+        )
 
     # Extend session if found
     if session:
@@ -207,8 +207,8 @@ async def update_session_model(
     """Update the model associated with a session"""
     with sentry_sdk.start_span(op="update_session_model"):
         session = await SessionManager.get_session_from_request(
-        request, db_session, require_valid=True
-    )
+            request, db_session, require_valid=True
+        )
 
     # Get model from request body
     body = await request.json()
