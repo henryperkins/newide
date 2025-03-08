@@ -81,6 +81,8 @@ async def get_current_session(
                         ),
                         "last_model": session.last_model,
                     }
+                except (ValueError, TypeError) as e:
+                    return {"id": None, "message": f"Invalid session ID format: {str(e)}"}
             except (ValueError, TypeError) as e:
                 return {"id": None, "message": f"Invalid session ID format: {str(e)}"}
 
