@@ -110,6 +110,7 @@ async def get_current_session(
             "id": None,
             "message": "No active session. Call '/api/session/create' to generate a new session.",
         }
+        
     except Exception as e:
         logger.exception(f"Error in get_current_session: {str(e)}")
         return {
