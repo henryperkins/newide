@@ -62,25 +62,25 @@ async def get_current_session(
                     session = result.scalar_one_or_none()
 
                     if session:
-                    return {
-                        "id": str(session.id),
-                        "created_at": (
-                            session.created_at.isoformat()
-                            if session.created_at is not None
-                            else None
-                        ),
-                        "last_activity": (
-                            session.last_activity.isoformat()
-                            if session.last_activity is not None
-                            else None
-                        ),
-                        "expires_at": (
-                            session.expires_at.isoformat()
-                            if session.expires_at is not None
-                            else None
-                        ),
-                        "last_model": session.last_model,
-                    }
+                        return {
+                            "id": str(session.id),
+                            "created_at": (
+                                session.created_at.isoformat()
+                                if session.created_at is not None
+                                else None
+                            ),
+                            "last_activity": (
+                                session.last_activity.isoformat()
+                                if session.last_activity is not None
+                                else None
+                            ),
+                            "expires_at": (
+                                session.expires_at.isoformat()
+                                if session.expires_at is not None
+                                else None
+                            ),
+                            "last_model": session.last_model,
+                        }
                 except (ValueError, TypeError) as e:
                     return {"id": None, "message": f"Invalid session ID format: {str(e)}"}
             except (ValueError, TypeError) as e:
