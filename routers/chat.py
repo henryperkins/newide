@@ -839,6 +839,10 @@ async def generate_stream_chunks(
                             "x-ms-thinking-format": "html",
                             "x-ms-streaming-version": "2024-05-01-preview",
                         }
+                        "headers": {
+                            "x-ms-thinking-format": "html",
+                            "x-ms-streaming-version": "2024-05-01-preview",
+                        }
                     }
                 )
             elif is_o_series:
