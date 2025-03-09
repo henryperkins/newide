@@ -14,6 +14,7 @@
   position: relative;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: none !important; /* Override max-height */
   animation: fadeIn 0.5s ease forwards;
   transform-origin: top;
   max-width: 100%;
@@ -57,7 +58,7 @@
   cursor: pointer;
   padding: 0.25rem 0;
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -138,12 +139,15 @@
 .thinking-pre {
   margin: 0;
   white-space: pre-wrap;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'JetBrains Mono', 'Courier New', Courier, monospace;
   font-size: 0.875rem;
   line-height: 1.5;
   color: oklch(32% 0.02 276);
+  letter-spacing: 0.02em; /* Added letter spacing */
   overflow-y: auto;
-  max-height: 300px;
+  /* max-height: 300px; */
+  max-height: none !important; /* Override max-height */
+  max-height: none !important; /* Override max-height */
   transition: color 0.3s ease;
 }
 

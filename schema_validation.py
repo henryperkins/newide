@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 # Import models and engine from project
 from models import Base
 from database import engine
+import database
 
 class SchemaValidator:
     """
@@ -396,9 +397,10 @@ async def validate_database_schema(fail_on_error: bool = False) -> bool:
         # Additional data validation checks
         async with database.traced_session() as session:
             result = await session.execute(text("SELECT COUNT(*) FROM users"))
-            async for record in result:
-                # Do validation work...
-                pass
+            # Fix: convert CursorResult to scalar value
+            count = result.scalar()
+            if count is not None:
+                logger.debug(f"Found {count} users in database")
                 
         return passed
     except Exception as e:
@@ -422,4 +424,4 @@ if __name__ == "__main__":
         asyncio.run(validate_database_schema(args.fail))
     except Exception as e:
         logger.error(f"Schema validation failed: {e}")
-        sys.exit(1)"""
+        sys.exit(1)

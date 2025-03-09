@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi import Depends
+from contextlib import asynccontextmanager
 
 from init_db import init_database
 from routers.session import router as session_router
@@ -53,24 +54,30 @@ sentry_sdk.init(
     before_breadcrumb=lambda breadcrumb, hint: breadcrumb,  # Hook to modify breadcrumbs
 )
 
+@asynccontextmanager
+async def database_lifespan(app: FastAPI):
+    """Database initialization lifespan"""
+    # Initialize the database schema
+    await init_database()
+    
+    # Initialize client pool
+    from clients import init_client_pool
+    await init_client_pool()
+    
+    yield
+    
+    # Cleanup code (if any) goes here
+    pass
+
 @db_validation_lifespan
-def lifespan(app: FastAPI):
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     """
     Combined lifespan that runs both db validation and other startup tasks.
     The db_validation_lifespan is used as a decorator to run validation first.
     """
-    from contextlib import asynccontextmanager
-    @asynccontextmanager
-    async def _inner():
-        # Initialize the database schema
-        await init_database()
-
-        # Initialize client pool
-        from clients import init_client_pool
-        await init_client_pool()
-        yield None
-
-    return _inner()
+    async with database_lifespan(app):
+        yield
 
 # Resolve absolute path to the static directory
 STATIC_DIR = Path(__file__).parent / "static"

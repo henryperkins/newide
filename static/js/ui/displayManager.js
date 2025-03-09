@@ -476,7 +476,18 @@ export function renderAssistantMessage(content, skipScroll = false, skipStore = 
   return messageElement;
 }
 
-function createAssistantMessageElement(content) {
+function createAssistantMessageElement(response) {
+  // Handle either a raw string or an object with { content, deepseek_thinking }
+  let content = '';
+  let deepSeekThinking = '';
+
+  if (typeof response === 'object' && response !== null) {
+    content = response.content ?? '';
+    deepSeekThinking = response.deepseek_thinking ?? '';
+  } else {
+    content = String(response);
+  }
+
   // Use a single cache key for all models to avoid losing old messages when switching models:
   const snippet = content.substring(0, 40).replace(/\`/g, '').replace(/[\r\n]/g, ' ');
   const cacheKey = `assistant-${snippet}`;
@@ -490,19 +501,23 @@ function createAssistantMessageElement(content) {
   el.setAttribute('role', 'log');
   el.setAttribute('aria-live', 'polite');
 
-  // Extract main content and thinking content
+  // Extract main content and thinking content from <think> tags, if any
   let mainContent = content;
   let thinkingContent = '';
 
-  if (content.includes('<think>')) {
-  // Extract thinking content - FIXED: Don't truncate or limit content
-  const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
-  if (thinkMatches) {
-    // Process all thinking blocks, preserving full content
-    thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
-    console.log(`[createAssistantMessageElement] Extracted thinking content: ${thinkingContent.length} chars`);
-    mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
-  }
+  // If server provided a separate deepseek_thinking field, use it
+  // Otherwise, fallback to extracting <think> blocks
+  if (deepSeekThinking) {
+    thinkingContent = deepSeekThinking;
+    console.log('[createAssistantMessageElement] Found deepseek_thinking from server:', thinkingContent.length, 'chars');
+  } else if (content.includes('<think>')) {
+    // Extract thinking blocks
+    const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
+    if (thinkMatches) {
+      thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
+      console.log('[createAssistantMessageElement] Extracted thinking from <think> tags, length:', thinkingContent.length);
+      mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+    }
   }
 
   // Process main content
@@ -512,7 +527,7 @@ function createAssistantMessageElement(content) {
 
   el.innerHTML = lazy;
 
-  // Add thinking content if present
+  // If we have chain-of-thought text, render it
   if (thinkingContent) {
     const thinkingDiv = document.createElement('div');
     thinkingDiv.className = 'thinking-block mt-2';

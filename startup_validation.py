@@ -31,18 +31,20 @@ def db_validation_lifespan(lifespan_func):
     
     Example usage:
         @db_validation_lifespan
+        @asynccontextmanager
         async def lifespan(app: FastAPI):
             # Your startup logic here
             yield
     """
     @functools.wraps(lifespan_func)
+    @asynccontextmanager
     async def wrapped_lifespan(app: FastAPI):
         # Get validation settings from environment or config
         fail_on_error = os.getenv("DB_VALIDATION_FAIL_ON_ERROR", "false").lower() == "true"
         check_migrations_flag = os.getenv("DB_CHECK_MIGRATIONS", "true").lower() == "true"
         
-        # Schema validation errors
         validation_errors = []
+        schema_valid = False
         
         try:
             # Create migrations directory if it doesn't exist
@@ -55,7 +57,6 @@ def db_validation_lifespan(lifespan_func):
             if check_migrations_flag:
                 logger.info("Checking database migrations...")
                 try:
-                    # Use the simplified migration checker
                     migrations_up_to_date = await check_database()
                     if not migrations_up_to_date:
                         message = "Database schema is inconsistent with ORM models."
@@ -78,6 +79,7 @@ def db_validation_lifespan(lifespan_func):
                 message = f"Error during database validation: {str(e)}"
                 validation_errors.append(message)
                 logger.error(message)
+                schema_valid = False
             
             # If there are validation errors and we should fail, raise exception
             if validation_errors and fail_on_error:
@@ -86,28 +88,25 @@ def db_validation_lifespan(lifespan_func):
                 raise RuntimeError(error_message)
             
             # Validation passed or errors were ignored
-            if not validation_errors:
+            if schema_valid and not validation_errors:
                 logger.info("Database validation passed successfully.")
             else:
                 logger.warning("Database validation had issues, but continuing anyway.")
             
-            # Call the original lifespan function
-            async for value in lifespan_func(app):
-                yield value
+            # Properly yield control to the wrapped async context manager
+            async with lifespan_func(app):
+                yield
                 
         except Exception as e:
             logger.error(f"Error during database validation: {str(e)}")
             if fail_on_error:
                 raise
             
-            # If not failing on error, still run the original lifespan
             logger.warning("Continuing despite validation errors...")
-            
-            # Add small delay to ensure logs are visible
             await asyncio.sleep(0.5)
             
-            async for value in lifespan_func(app):
-                yield value
+            async with lifespan_func(app):
+                yield
     
     return wrapped_lifespan
 

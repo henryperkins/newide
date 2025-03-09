@@ -175,6 +175,7 @@ module.exports = {
     },
   },
   plugins: [
+    require('@tailwindcss/typography'),
     function ({ addComponents }) {
       addComponents({
         '.btn': {

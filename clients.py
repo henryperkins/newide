@@ -230,26 +230,17 @@ class ClientPool:
         # Ensure AZURE_INFERENCE_CREDENTIAL is non-null for DeepSeek  
         
         if config.is_deepseek_model(model_id):
-            # Construct endpoint EXACTLY as per documentation
             endpoint = config.AZURE_INFERENCE_ENDPOINT
-            if not config.AZURE_INFERENCE_CREDENTIAL:
-                raise ValueError("AZURE_INFERENCE_CREDENTIAL is required for DeepSeek models")
             if not endpoint:
                 raise ValueError("AZURE_INFERENCE_ENDPOINT is required for DeepSeek models")
+                
+            # Remove any trailing /chat/completions from endpoint
+            endpoint = endpoint.rstrip('/').replace('/chat/completions', '')
             
-            endpoint = endpoint.rstrip('/')
-            
-            # Validate endpoint format for DeepSeek
-            if "/chat/completions" in endpoint:
-                endpoint = endpoint.replace("/chat/completions", "")
-                logger.warning(f"Removed /chat/completions from endpoint: {endpoint}")
-
             return ChatCompletionsClient(
                 endpoint=endpoint,
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-                api_version="2024-05-01-preview",
-                connection_timeout=60.0,
-                read_timeout=300.0  # Increased timeout for longer responses
+                api_version="2024-05-01-preview"
             )
         elif config.is_o_series_model(model_id):
             api_key = config.AZURE_OPENAI_API_KEY

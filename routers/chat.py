@@ -194,10 +194,9 @@ async def get_conversation_messages(
         archived = False
         title_val = "Untitled Conversation"
         if messages:
-            pinned = messages[0].pinned
-            archived = messages[0].archived
-            if messages[0].title:
-                title_val = messages[0].title
+            pinned = bool(messages[0].pinned)
+            archived = bool(messages[0].archived)
+            title_val = messages[0].title or "Untitled Conversation"
 
         return {
             "conversation_id": str(conversation_id),
@@ -210,7 +209,7 @@ async def get_conversation_messages(
                     "id": m.id,
                     "role": m.role,
                     "content": m.content,
-                    "timestamp": m.timestamp.isoformat() if m.timestamp else None,
+                    "timestamp": m.timestamp.isoformat() if m.timestamp is not None else None,
                 }
                 for m in messages
             ],
@@ -569,19 +568,17 @@ async def chat_sse(
     session_id: UUID,
     model: str,
     message: str,
-    reasoning_effort: str = "medium",  # only used by O-series
+    reasoning_effort: str = "medium",  # used by O-series
     db: AsyncSession = Depends(get_db_session),
 ):
     """
     Stream chat completions using Server-Sent Events (SSE).
     """
     logger.info(f"SSE streaming request: model={model}, session_id={session_id}")
-
-    # Tag model & session in Sentry
     sentry_sdk.set_tag("model", model)
     sentry_sdk.set_tag("session_id", str(session_id))
 
-    # If it's DeepSeek, validate required headers
+    # If it's DeepSeek, verify special headers
     if is_deepseek_model(model):
         with sentry_sdk.start_span(op="Validate DeepSeek Headers"):
             required_headers = {
@@ -604,20 +601,20 @@ async def chat_sse(
 
     try:
         # Validate session
-        sel_stmt = select(Session).where(Session.id == session_id)
-        sess_res = await db.execute(sel_stmt)
-        session_db = sess_res.scalar_one_or_none()
+        stmt = select(Session).where(Session.id == session_id)
+        res = await db.execute(stmt)
+        session_db = res.scalar_one_or_none()
         if not session_db:
             raise HTTPException(status_code=404, detail="Session not found")
 
-        # Retrieve model client
+        # Retrieve the correct client
         client_wrapper = await get_model_client_dependency(model)
         if client_wrapper.get("error"):
             raise HTTPException(
                 status_code=500,
                 detail=f"Error initializing model client: {client_wrapper['error']}"
             )
-        client = client_wrapper.get("client")
+        client = client_wrapper["client"]
         supports_streaming = client_wrapper.get("supports_streaming", True)
         if not client or not supports_streaming:
             raise HTTPException(status_code=400, detail="Model doesn't support streaming")
@@ -645,22 +642,12 @@ async def chat_sse(
     except Exception as exc:
         logger.exception(f"Error in chat_sse: {exc}")
         sentry_sdk.capture_exception(exc)
-        # If it’s an HTTPException, re-raise it to return the appropriate status
         if isinstance(exc, HTTPException):
             raise exc
         raise HTTPException(status_code=500, detail=str(exc))
     finally:
-        # Release semaphore if it's DeepSeek
         if is_deepseek_model(model):
             SSE_SEMAPHORE.release()
-
-
-def _sse_format(data: Dict[str, Any]) -> str:
-    """
-    Small helper to format SSE lines:
-      data: {...}\n\n
-    """
-    return "data: " + json.dumps(data) + "\n\n"
 
 
 async def generate_stream_chunks(
@@ -672,187 +659,115 @@ async def generate_stream_chunks(
     session_id: UUID,
     client: Any,
 ) -> AsyncIterator[str]:
-    """
-    Async generator yielding SSE data from streaming model responses,
-    ensuring the final chunk (and usage data) is sent to the client.
-    """
+    """Async generator yielding SSE data from streaming model responses."""
     full_content = ""
     usage_data: Dict[str, Any] = {}
-    stream_start_time = time.time()
-
-    # Build messages array based on model type
-    is_deepseek = is_deepseek_model(model_name)
-    is_o_series = is_o_series_model(model_name)
-
-    if is_o_series:
-        # O-series uses "developer" role as system
-        messages = [
-            {"role": "developer", "content": "You are a helpful assistant."},
-            {"role": "user", "content": message},
-        ]
-    else:
-        messages = [{"role": "user", "content": message}]
-
-    # Common streaming params
-    params: Dict[str, Any] = {
-        "messages": messages,
-        "stream": True,
-    }
-
-    # Add model-specific parameters
-    if is_deepseek:
-        # DeepSeek ignores 'reasoning_effort'
-        params.update({
-            "temperature": 0.5,
-            "max_tokens": DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
-            "headers": {
-                "x-ms-thinking-format": "html",
-                "x-ms-streaming-version": "2024-05-01-preview"
-            },
-            "model": "DeepSeek-R1",  # or use model_name if your client expects that
-        })
-    elif is_o_series:
-        # O-series uses reasoning_effort
-        params.update({
-            "max_completion_tokens": O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
-            "reasoning_effort": reasoning_effort,
-        })
-    else:
-        # Generic fallback
-        params.update({
-            "temperature": 0.7,
-            "max_tokens": 4096,
-        })
-
-    # Attempt to open the streaming call
+    
     try:
-        logger.info(f"Starting streaming request to model={model_name}")
-        if is_o_series:
-            stream_response = client.chat.completions.create(model=model_name, **params)
-        elif is_deepseek:
-            # Some clients require explicit .complete
-            stream_response = client.complete(
-                messages=params["messages"],
-                temperature=params["temperature"],
-                max_tokens=params["max_tokens"],
-                stream=True,
-                model=params["model"],
-                headers=params["headers"],
-            )
-        else:
-            # Generic fallback
-            stream_response = client.complete(**params)
-
-    except Exception as e:
-        logger.exception(f"Error initiating streaming request: {e}")
-        yield _sse_format({"error": str(e)})
-        return
-
-    # Iterate over the chunks
-    try:
-        async for chunk in _model_chunks_async(stream_response):
-            if await request.is_disconnected():
-                logger.info(f"Client disconnected; stopping SSE for session={session_id}")
-                break
-
-            chunk_text = ""
-            # Attempt to parse text from chunk
-            try:
-                if hasattr(chunk, "choices") and chunk.choices:
-                    choice = chunk.choices[0]
-                    # Some libraries use choice.delta["content"], others choice.text
-                    if hasattr(choice, "delta") and "content" in choice.delta:
-                        chunk_text = choice.delta["content"]
-                    elif hasattr(choice, "text"):
-                        chunk_text = choice.text
-                elif isinstance(chunk, dict):
-                    # If it's dict-based, parse as needed
-                    pass
-            except Exception as parse_exc:
-                logger.warning(f"Chunk parse error: {parse_exc}")
-
-            # Accumulate the text
-            full_content += chunk_text
-
-            # Stream chunk to front end
-            yield _sse_format({
-                "choices": [
-                    {
-                        "delta": {"content": chunk_text},
-                        "finish_reason": None,
-                    }
-                ],
-                "model": model_name,
-            })
-
-            await asyncio.sleep(0)  # yield control
-
-        # Once streaming is done or user disconnected, compute usage
-        prompt_text = "\n".join(m["content"] for m in messages)
-        prompt_tokens = count_tokens(prompt_text, model_name)
-        completion_tokens = count_tokens(full_content, model_name)
-        usage_data = {
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "total_tokens": prompt_tokens + completion_tokens,
+        is_deepseek = is_deepseek_model(model_name)
+        is_o_series = is_o_series_model(model_name)
+        
+        # Initialize model parameters
+        params = {
+            "messages": [{"role": "user", "content": message}],
+            "stream": True  # Enable streaming
         }
-
-        duration = time.time() - stream_start_time
-        logger.info(
-            f"Model={model_name} SSE completed in {duration:.2f}s. "
-            f"prompt={prompt_tokens}, completion={completion_tokens}"
-        )
-
-        # Record usage
-        stats_service = ModelStatsService(db)
-        await stats_service.record_usage(
-            model=model_name,
-            session_id=session_id,
-            usage=usage_data,
-        )
-
-        # Store conversation (user + entire assistant response)
-        # Optionally strip <think> blocks if you don't want them visible
+        
+        # Add model-specific settings
+        if is_deepseek:
+            params.update({
+                "max_tokens": 131072,
+                "temperature": 0.5,
+                "model": model_name,
+                "headers": {
+                    "x-ms-thinking-format": "html", 
+                    "x-ms-streaming-version": "2024-05-01-preview"
+                }
+            })
+            # For DeepSeek, use complete() directly and iterate over the response
+            stream_response = client.complete(**params)
+            # Iterate over the response chunks synchronously 
+            for chunk in stream_response:
+                if await request.is_disconnected():
+                    break
+                    
+                chunk_text = ""
+                if hasattr(chunk, "choices") and chunk.choices:
+                    delta = chunk.choices[0].delta
+                    if hasattr(delta, "content"):
+                        chunk_text = delta.content or ""
+                        full_content += chunk_text
+                        
+                yield f"data: {json.dumps({'text': chunk_text})}\n\n"
+                
+        elif is_o_series:
+            params.update({
+                "max_completion_tokens": O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
+                "reasoning_effort": reasoning_effort
+            })
+            # O-series uses different client
+            stream_response = await client.chat.completions.create(**params)
+            async for chunk in stream_response:
+                if await request.is_disconnected():
+                    break
+                    
+                if hasattr(chunk.choices[0], "delta"):
+                    delta = chunk.choices[0].delta
+                    if hasattr(delta, "content"):
+                        chunk_text = delta.content or ""
+                        full_content += chunk_text
+                        yield f"data: {json.dumps({'text': chunk_text})}\n\n"
+        else:
+            # Default OpenAI-style client
+            stream_response = await client.chat.completions.create(**params)
+            async for chunk in stream_response:
+                if await request.is_disconnected():
+                    break
+                    
+                if hasattr(chunk.choices[0], "delta"):
+                    delta = chunk.choices[0].delta
+                    if hasattr(delta, "content"):
+                        chunk_text = delta.content or ""
+                        full_content += chunk_text
+                        yield f"data: {json.dumps({'text': chunk_text})}\n\n"
+        
+        # Send completion messages
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        
+        # Calculate and send usage stats
+        usage_data = {
+            "prompt_tokens": count_tokens(message, model_name),
+            "completion_tokens": count_tokens(full_content, model_name),
+            "total_tokens": count_tokens(message, model_name) + count_tokens(full_content, model_name)
+        }
+        
+        yield f"event: complete\ndata: {json.dumps(usage_data)}\n\n"
+        
+        # Save conversation
         await save_conversation(
             db_session=db,
-            session_id=session_id,
+            session_id=str(session_id),
             model_name=model_name,
             user_text=message,
             assistant_text=full_content,
-            formatted_assistant_text=full_content,  # optionally remove <think> here
-            raw_response=None,
+            formatted_assistant_text=full_content,
+            raw_response=None
         )
 
-        # Send final SSE chunk with finish_reason=stop
-        yield _sse_format({
-            "choices": [
-                {
-                    "message": {
-                        "role": "assistant",
-                        "content": full_content,
-                    },
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": usage_data,
-        })
-        # Fire a 'complete' event too
-        yield f"event: complete\ndata: {json.dumps(usage_data)}\n\n"
-
     except Exception as exc:
-        logger.exception(f"Error streaming chunks: {exc}")
-        yield _sse_format({"error": str(exc)})
+        logger.exception(f"Error in generate_stream_chunks: {exc}")
+        yield f"data: {json.dumps({'error': str(exc)})}\n\n"
 
 
 async def _model_chunks_async(stream_response):
     """
     Helper to yield chunks in async form.
-    If the library is synchronous, wrap it in asyncio.to_thread().
+    The azure-ai-inference ChatCompletionsClient returns an async iterator if stream=True.
     """
-    # For an async library:
-    async for chunk in stream_response:
-        yield chunk
-
-    # For a synchronous library, you might do:
-    # for chunk in await asyncio.to_thread(lambda: list(stream_response)):
-    #     yield chunk
+    if hasattr(stream_response, "__aiter__"):
+        async for chunk in stream_response:
+            yield chunk
+    else:
+        # Fallback if the response is not async for some reason
+        for chunk in stream_response:
+            yield chunk

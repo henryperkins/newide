@@ -1,14 +1,6 @@
-# routers/session.py
-from fastapi import (
-    APIRouter,
-    Depends,
-    BackgroundTasks,
-    Request,
-    HTTPException,
-    Response,
-)
+from fastapi import APIRouter, Depends, BackgroundTasks, Request, HTTPException, Response
 from fastapi.responses import JSONResponse
-from pydantic_models import SessionResponse, SessionInfoResponse, ErrorResponse
+from pydantic_models import SessionResponse, SessionInfoResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db_session
 from services.azure_search_service import AzureSearchService
@@ -17,9 +9,9 @@ from logging_config import logger
 from typing import Optional, Any
 import config
 import uuid
-import sentry_sdk
+from services.tracing_utils import trace_function, profile_block
 
-# Import the SessionManager - using explicit import to avoid circular imports
+# Import the SessionManager
 from session_utils import SessionManager
 
 router = APIRouter()
@@ -38,15 +30,15 @@ async def initialize_session_services(session_id: str, azure_client: Any):
 
 
 @router.get("")
-@sentry_sdk.trace
+@trace_function(op="session.get", name="get_current_session")
 async def get_current_session(
     request: Request,
-    session_id: Optional[str] = None,  # Add explicit query parameter
+    session_id: Optional[str] = None,
     db_session: AsyncSession = Depends(get_db_session),
 ):
     """Get current session information"""
     try:
-        with sentry_sdk.start_span(op="get_current_session"):
+        with profile_block(description="Get Current Session", op="session.retrieve"):
             # Use explicit session_id if provided
             if session_id:
                 # Validate UUID format
@@ -116,28 +108,32 @@ async def get_current_session(
 
 
 @router.post("/create")
-@sentry_sdk.trace
+@trace_function(op="session.create", name="create_session")
 async def create_session(
     background_tasks: BackgroundTasks,
     db_session: AsyncSession = Depends(get_db_session),
-    client_wrapper: dict = Depends(get_model_client_dependency),  # Add this parameter
+    client_wrapper: dict = Depends(get_model_client_dependency),
 ):
     """Create a new session"""
     try:
-        with sentry_sdk.start_span(op="create_session"):
+        with profile_block(description="Create New Session", op="session.create") as span:
             from session_utils import SessionManager
 
             # Extract client from the wrapper
             azure_client = client_wrapper.get("client") if client_wrapper else None
+            span.set_data("has_azure_client", azure_client is not None)
 
             # Create a new session
             new_session = await SessionManager.create_session(db_session)
+            span.set_data("session_id", str(new_session.id))
 
             # Initialize session services in background
             if azure_client:
-                background_tasks.add_task(
-                    initialize_session_services, str(new_session.id), azure_client
-                )
+                with profile_block(description="Initialize Services", op="session.init_services") as init_span:
+                    init_span.set_data("azure_deployment", getattr(azure_client, "azure_deployment", "unknown"))
+                    background_tasks.add_task(
+                        initialize_session_services, str(new_session.id), azure_client
+                    )
 
             response = JSONResponse(
                 {
@@ -155,6 +151,8 @@ async def create_session(
                 secure=True,
                 samesite="None",
             )
+            
+            span.set_data("success", True)
             return response
 
     except Exception as e:
@@ -169,29 +167,28 @@ async def create_session(
             status_code=500, detail=f"Failed to create session: {str(e)}"
         )
 
-
-@router.post("/refresh", response_model=SessionResponse)
-@sentry_sdk.trace
+@router.post("/refresh", response_model=SessionResponse) 
+@trace_function(op="session.refresh", name="refresh_session")
 async def refresh_session(
-    request: Request, db_session: AsyncSession = Depends(get_db_session)
+    request: Request,
+    db_session: AsyncSession = Depends(get_db_session)
 ):
     """Refresh session expiration time"""
     try:
-        with sentry_sdk.start_span(op="refresh_session"):
+        with profile_block(description="Refresh Session", op="session.refresh"):
             session_obj = await SessionManager.get_session_from_request(
                 request, db_session, require_valid=True
             )
 
-            # Extend session if found
             if session_obj:
                 success = await SessionManager.extend_session(session_obj.id, db_session)
                 if success:
-                    response = JSONResponse(session_to_response(session_obj), status_code=200)
+                    response = JSONResponse(session_to_response(session_obj))
                     response.set_cookie(
                         key="session_id",
                         value=str(session_obj.id),
                         httponly=True,
-                        secure=True,
+                        secure=True, 
                         samesite="None",
                     )
                     return response
@@ -202,15 +199,15 @@ async def refresh_session(
         logger.exception(f"Error refreshing session: {str(e)}")
         raise HTTPException(status_code=500, detail="Error refreshing session")
 
-
 @router.post("/model", response_model=SessionInfoResponse)
-@sentry_sdk.trace
+@trace_function(op="session.update_model", name="update_session_model") 
 async def update_session_model(
-    request: Request, db_session: AsyncSession = Depends(get_db_session)
+    request: Request,
+    db_session: AsyncSession = Depends(get_db_session)
 ):
     """Update the model associated with a session"""
     try:
-        with sentry_sdk.start_span(op="update_session_model"):
+        with profile_block(description="Update Session Model", op="session.update_model"):
             session_obj = await SessionManager.get_session_from_request(
                 request, db_session, require_valid=True
             )
@@ -232,8 +229,7 @@ async def update_session_model(
     except Exception as e:
         logger.exception(f"Error updating session model: {str(e)}")
         raise HTTPException(status_code=500, detail="Error updating session model")
-
-
+    
 def session_to_response(session) -> SessionResponse:
     """Convert a Session model to a SessionResponse model"""
     if not session:

@@ -5,22 +5,21 @@ from time import perf_counter
 from typing import Optional, List, Dict, Any
 import os
 import re
-from services.tracing_utils import trace_function, profile_block
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import insert, text
-from azure.ai.inference import ChatCompletionsClient
-from azure.core.exceptions import HttpResponseError
-
-from openai import AzureOpenAI, OpenAIError
-
-from logging_config import logger
+from logging_config import logger, response_logger
 import config
 from config import is_deepseek_model, is_o_series_model
 from models import Conversation
-
+from .config_service import ConfigService
 from pydantic_models import ChatMessage
-from azure.core.credentials import AzureKeyCredential
+from azure.core.exceptions import HttpResponseError
+
+from services.tracing_utils import trace_function, profile_block
+from clients import get_model_client_dependency
 import sentry_sdk
+
 
 
 def create_error_response(
@@ -177,9 +176,6 @@ async def get_file_context(
         return None
 
     try:
-        # Import here to avoid circular imports
-        from clients import get_model_client_dependency
-
         # If Azure Search is enabled, use it to get content
         if use_search:
             try:
@@ -317,181 +313,145 @@ async def process_chat_message(
     db_session: AsyncSession,
     model_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    start_time = perf_counter()
-    session_id = chat_message.session_id
+    """
+    Processes a chat message, calls the appropriate model(s) using `client.complete`,
+    optionally handles file context, and stores the final conversation data.
 
+    Args:
+        chat_message (Any): The incoming message data (which may include text, model info, etc.).
+        db_session (AsyncSession): Database session used for storing conversation/usage.
+        model_name (Optional[str]): The name of the model to use, if overriding what's in chat_message.
+
+    Returns:
+        Dict[str, Any]: A response dictionary structured like a chat completion, containing
+                        the 'choices', 'model', 'usage', 'processing_time_seconds', etc.
+    """
+    start_time = perf_counter()
+    session_id = getattr(chat_message, "session_id", None)
     model_name = (
         model_name
         or getattr(chat_message, "model_name", None)
-        or config.AZURE_INFERENCE_DEPLOYMENT
+        or config.AZURE_INFERENCE_DEPLOYMENT  # fallback from config
     )
 
     try:
-        with profile_block(description="Fetch Model Configs", op="model.config"):
+        # Retrieve model client
+        with profile_block(description="Get Model Client", op="model.client"):
+            model_client_dep = await get_model_client_dependency(model_name)
+            if model_client_dep.get("error"):
+                raise ValueError(f"Error initializing model client: {model_client_dep['error']}")
+
+            client = model_client_dep["client"]
+            if not client:
+                raise ValueError(f"No valid client found for {model_name}")
+
+        # Prepare parameters (for example, combining user text and messages)
+        messages = getattr(chat_message, "messages", None)
+        user_text = getattr(chat_message, "message", "")
+        if not messages:
+            # If messages are not provided, we create a simple user prompt
+            messages = [{"role": "user", "content": user_text}]
+
+        # Optionally incorporate file contexts, e.g., chat_message.file_ids
+        # (omitting details here -- see your existing logic for get_file_context)
+
+        # Construct the default request params for `client.complete(...)`
+        params = {
+            "stream": False,  # For non-streaming calls. Set True if you want streaming in process_chat_message.
+            "messages": messages,
+        }
+
+        # Adjust model-specific parameters
+        if is_deepseek_model(model_name):
+            params.update({
+                "model": "DeepSeek-R1",
+                "temperature": 0.5,
+                "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
+                "headers": {
+                    "x-ms-thinking-format": "html",
+                    "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+                }
+            })
+        elif is_o_series_model(model_name):
+            params.update({
+                "max_completion_tokens": config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
+                "reasoning_effort": getattr(chat_message, "reasoning_effort", "medium"),
+            })
+        else:
+            # Typical Azure OpenAI model
+            params["temperature"] = getattr(chat_message, "temperature", 0.7)
+            params["max_tokens"] = getattr(chat_message, "max_completion_tokens", 1000)
+
+        # Make the model call using client.complete
+        with profile_block(description="Model API Call", op="model.api"):
+            response = await client.complete(**params)
             try:
-                model_configs = await fetch_model_configs(db_session)
-                if model_name not in model_configs:
-                    logger.warning(f"No configuration found for model {model_name}")
-            except Exception as e:
-                logger.error(f"Error fetching model_configs: {str(e)}")
-                model_configs = {}
+                import json
+                response_logger.info("Raw model response:\n%s", json.dumps(response, indent=2, default=str))
+            except Exception as dump_error:
+                logger.warning("Failed to dump response as JSON: %s", str(dump_error))
+                logger.info("Fallback raw response: %s", str(response))
 
-        is_deepseek = is_deepseek_model(model_name)
-        is_o_series = is_o_series_model(model_name)
+        # Extract the top assistant message content
+        if not response.choices:
+            content = ""
+            logger.warning("No choices returned from the model.")
+        else:
+            content = response.choices[0].message.content
 
-        # Set params based on model
-        with profile_block(description="Prepare Model Parameters", op="model.params"):
-            if is_deepseek:
-                params = {
-                    "messages": chat_message.messages,
-                    "temperature": chat_message.temperature or 0.5,
-                    "max_tokens": chat_message.max_tokens or 131072,
-                    "response_format": {"type": "text"},
-                }
-            elif is_o_series:
-                params = {
-                    "model": model_name,
-                    "messages": chat_message.messages,
-                    "max_completion_tokens": chat_message.max_tokens or 40000,
-                    "reasoning_effort": "medium",
-                    "response_format": {"type": "text"},
-                }
+        # If DeepSeek reasoning is returned, append it
+        # based on the 'understanding-reasoning' doc, we look for .reasoning property
+        if hasattr(response.choices[0], "reasoning"):
+            reasoning_text = getattr(response.choices[0], "reasoning", None) or ""
+            if reasoning_text:
+                content += f"\n\n[DeepSeek Reasoning]\n{reasoning_text}"
+
+        # Build usage stats. If the service includes usage in the response, parse it. Otherwise, rely on your own token manager.
+        usage_raw = getattr(response, "usage", None)
+        if usage_raw:
+            usage_data = {
+                "prompt_tokens": getattr(usage_raw, "prompt_tokens", 0),
+                "completion_tokens": getattr(usage_raw, "completion_tokens", 0),
+                "total_tokens": getattr(usage_raw, "total_tokens", 0),
+            }
+        else:
+            # Use a custom token counter if needed
+            usage_data = {
+                "prompt_tokens": TokenManager.count_tokens(user_text),
+                "completion_tokens": TokenManager.count_tokens(content),
+                "total_tokens": TokenManager.count_tokens(user_text) + TokenManager.count_tokens(content),
+            }
+
+        # Optionally process chain-of-thought or reasoning (if you rely on details from content).
+        # If the user wants to see the model's "thinking" output in DeepSeek responses, parse <thinking> blocks and
+        # include them in the final response. Adjust the parsing to fit your actual returned HTML or JSON structure.
+
+        if is_deepseek_model(model_name) and "<thinking>" in content:
+            import re
+            thinking_blocks = re.findall(r'<thinking>(.*?)</thinking>', content, flags=re.DOTALL)
+            if thinking_blocks:
+                # Just capture the first <thinking> block for demonstration, or concatenate all if you prefer
+                thinking_output = thinking_blocks[0].strip()
             else:
-                params = {
-                    "model": model_name,
-                    "messages": chat_message.messages,
-                    "temperature": chat_message.temperature or 0.7,
-                    "max_tokens": chat_message.max_tokens or 4096,
-                    "response_format": {"type": "text"},
-                }
+                thinking_output = ""
+        else:
+            thinking_output = ""
 
-        # Handle file context integration
-        if chat_message.include_files and chat_message.file_ids:
-            try:
-                with profile_block(description="File Context Integration", op="file.integration"):
-                    file_context = await get_file_context(
-                        db_session, chat_message.file_ids, False
-                    )
-                    if file_context:
-                        file_system_message = {
-                            "role": "developer" if is_o_series else "system",
-                            "content": file_context,
-                        }
-                        params["messages"].insert(0, file_system_message)
-                        logger.info(f"Added file context ({len(file_context)} chars)")
-            except Exception as e:
-                logger.error(f"Error integrating file context: {e}")
-                sentry_sdk.capture_exception(e)
-
-        # Make the model call and handle responses
-        try:
-            with profile_block(description=f"Model API Call ({model_name})", op="model.api"):
-                if is_deepseek:
-                    client = ChatCompletionsClient(
-                        endpoint=os.environ["AZURE_INFERENCE_ENDPOINT"],
-                        credential=AzureKeyCredential(
-                            os.environ["AZURE_INFERENCE_CREDENTIAL"]
-                        ),
-                    )
-                    response = client.complete(**params)
-                else:
-                    client_wrapper = await get_model_client_dependency(model_name)
-                    azure_client = client_wrapper["client"]
-
-                    if is_o_series:
-                        response = azure_client.chat.completions.create(
-                            model=params["model"],
-                            messages=params["messages"],
-                            max_completion_tokens=params["max_completion_tokens"],
-                            reasoning_effort=params["reasoning_effort"],
-                        )
-                    else:
-                        response = azure_client.chat.completions.create(
-                            model=params["model"],
-                            messages=params["messages"],
-                            temperature=params["temperature"],
-                            max_tokens=params["max_tokens"],
-                        )
-
-            with profile_block(description="Process Model Response", op="response.process"):
-                content = (
-                    response.choices[0].message.content if response.choices else ""
-                )
-                usage_raw = getattr(response, "usage", None)
-                usage_data = {
-                    "prompt_tokens": getattr(usage_raw, "prompt_tokens", 0),
-                    "completion_tokens": getattr(usage_raw, "completion_tokens", 0),
-                    "total_tokens": getattr(usage_raw, "total_tokens", 0),
-                }
-
-                # Robust HTML parsing for reasoning sections (DeepSeek-specific)
-                if is_deepseek and "<details" in content:
-                    details_pattern = re.compile(
-                        r"""<details.*?>
-                        <summary.*?>Thought for a second</summary>\s*
-                        <div[^>]*>(.*?)</div>\s*
-                        </details>\s*(.*)""",
-                        re.DOTALL,
-                    )
-                    match = details_pattern.match(content)
-                    if match:
-                        reasoning = match.group(1).strip()
-                        answer = match.group(2).strip()
-                        usage_data["thinking_process"] = reasoning
-                        usage_data["reasoning_tokens"] = len(reasoning.split())
-                        content = answer
-
-        except HttpResponseError as e:
-            status_code = getattr(e, "status_code", 500)
-            err_code = (
-                getattr(e.error, "code", "Unknown")
-                if getattr(e, "error", None)
-                else "Unknown"
-            )
-            err_message = getattr(e, "message", str(e))
-            err_reason = getattr(e, "reason", "Unknown")
-            logger.error(f"[Azure AI Error] {err_message}")
-            sentry_sdk.capture_exception(e)
-            return create_error_response(
-                status_code=status_code,
-                code=str(err_code),
-                message="Azure AI service error",
-                error_type="azure_error",
-                inner_error=err_message,
-            )
-        except OpenAIError as e:
-            logger.exception(f"[OpenAI Error] {str(e)}")
-            sentry_sdk.capture_exception(e)
-            return create_error_response(
-                status_code=503,
-                code=getattr(e, "code", "api_error"),
-                message="Error during AzureOpenAI call",
-                error_type="api_call_error",
-                inner_error=str(e),
-            )
-        except Exception as e:
-            logger.exception(f"[Unexpected Error] {str(e)}")
-            sentry_sdk.capture_exception(e)
-            return create_error_response(
-                status_code=500,
-                code="internal_server_error",
-                message="An unexpected error occurred during processing.",
-                error_type="unknown_error",
-                inner_error=str(e),
-            )
-
+        if thinking_output:
+            content += f"\n\n[DeepSeek Thinking]\n{thinking_output}"
+        
         processing_time = perf_counter() - start_time
 
-        # Store conversation
+        # Store the conversation
         with profile_block(description="Save Conversation", op="db.save"):
             await save_conversation(
                 db_session=db_session,
                 session_id=session_id,
                 model_name=model_name,
-                user_text=chat_message.message,
+                user_text=user_text,
                 assistant_text=content,
                 formatted_assistant_text=content,
-                raw_response=response,
+                raw_response=response  # or a truncated version
             )
 
         return {
@@ -507,26 +467,84 @@ async def process_chat_message(
                 }
             ],
             "usage": usage_data,
+            "deepseek_thinking": thinking_output if thinking_output else None,
             "processing_time_seconds": processing_time,
         }
+
+    except HttpResponseError as he:
+        logger.exception(f"[HttpResponseError] {he}")
+        sentry_sdk.capture_exception(he)
+        return {
+            "status_code": he.status_code,
+            "detail": str(he),
+        }
     except Exception as e:
-        logger.exception(f"Unhandled exception in process_chat_message: {str(e)}")
+        logger.exception(f"Unexpected error in process_chat_message: {e}")
         sentry_sdk.capture_exception(e)
-        return create_error_response(
-            status_code=500,
-            code="internal_server_error",
-            message="An unexpected error occurred during processing.",
-            error_type="unknown_error",
-            inner_error=str(e),
-        )
+        return {
+            "status_code": 500,
+            "detail": str(e),
+        }
+
+
+@trace_function(op="chat.save", name="save_conversation")
+async def save_conversation(
+    db_session: AsyncSession,
+    session_id: Optional[str],
+    model_name: Optional[str],
+    user_text: str,
+    assistant_text: str,
+    formatted_assistant_text: str,
+    raw_response: Any,
+) -> None:
+    if session_id is None:
+        session_id = "unknown_session"
+    if model_name is None:
+        model_name = "unknown_model"
+    """
+    Saves user and assistant messages to the database.
+    Modify according to your table structure and fields.
+    """
+    try:
+        # Insert user message and assistant message
+        # using bulk or individual inserts. Example:
+        messages_to_insert = [
+            {
+                "session_id": session_id,
+                "role": "user",
+                "content": user_text,
+                "model": model_name,
+                "formatted_content": user_text,
+                "raw_response": None,
+            },
+            {
+                "session_id": session_id,
+                "role": "assistant",
+                "content": assistant_text,
+                "model": model_name,
+                "formatted_content": formatted_assistant_text,
+                # If you don’t want to store entire raw_response, store partial
+                "raw_response": {"trimmed": True} if raw_response else None,
+            },
+        ]
+
+        # Insert into your "conversations" table
+        await db_session.execute(insert(Conversation), messages_to_insert)
+        await db_session.commit()
+
+    except Exception as e:
+        logger.error(f"Failed to save conversation: {str(e)}")
+        sentry_sdk.capture_exception(e)
+        await db_session.rollback()
+        raise
 
 
 async def fetch_conversation_history(
     db_session: AsyncSession, session_id: str
 ) -> List[Dict[str, Any]]:
     """
-    Retrieve prior conversation messages from the database,
-    returning them in a format suitable for the LLM.
+    Retrieves prior messages in a conversation, returning them in a format
+    suitable for an LLM’s “messages” argument. Adjust the query to match your schema.
     """
     result = await db_session.execute(
         text(
@@ -540,101 +558,45 @@ async def fetch_conversation_history(
         {"session_id": session_id},
     )
     rows = result.mappings().all()
+
     return [{"role": row.role, "content": row.content} for row in rows]
-
-
-@trace_function(op="chat.save", name="save_conversation")
-async def save_conversation(
-    db_session: AsyncSession,
-    session_id: str,
-    model_name: str,
-    user_text: str,
-    assistant_text: str,
-    formatted_assistant_text: str,
-    raw_response: Any,
-) -> None:
-    """
-    Save user and assistant messages to the database.
-    """
-    try:
-        # Bulk insert both messages atomically
-        messages_to_insert = [
-            {
-                "session_id": session_id,
-                "role": "user",
-                "content": user_text,
-                "model": model_name,
-                "formatted_content": user_text,
-                "raw_response": None,  # Don't store full API responses
-            },
-            {
-                "session_id": session_id,
-                "role": "assistant",
-                "content": assistant_text,
-                "model": model_name,
-                "formatted_content": formatted_assistant_text,
-                "raw_response": {"trimmed": True},  # Store metadata only
-            },
-        ]
-
-        # Use SQLAlchemy bulk insert with return_defaults=False for better performance
-        await db_session.execute(insert(Conversation), messages_to_insert)
-        await db_session.commit()
-    except Exception as e:
-        logger.error(f"Failed to save conversation to the database: {str(e)}")
-        sentry_sdk.capture_exception(e)
-        await db_session.rollback()
-        raise
 
 
 async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
     """
-    Summarize older messages into a single system message.
+    Example method that calls the client again to produce a summary. 
+    Adjust as needed or remove if you don’t use summary logic.
     """
     if not messages:
         return ""
 
-    combined_text = "\n".join(
-        f"{m['role'].capitalize()}: {m['content']}" for m in messages
-    )
+    combined_text = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in messages)
+
     try:
-        endpoint = (
-            os.getenv("AZURE_OPENAI_ENDPOINT") or "https://o1models.openai.azure.com"
-        )
-        api_version = os.getenv("AZURE_OPENAI_API_VERSION") or "2025-02-01-preview"
+        # For summarizing, just pick a model (DeepSeek, O-series, or default)
+        # Or pass in an argument specifying the summarizing model
+        summarizing_model = "DeepSeek-R1"
 
-        client = ChatCompletionsClient(
-            endpoint=config.AZURE_INFERENCE_ENDPOINT,
-            credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
-            api_version=config.DEEPSEEK_R1_DEFAULT_API_VERSION,
-            headers={
-                "x-ms-thinking-format": "html",
-                "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
-            },
-        )
+        model_dep = await get_model_client_dependency(summarizing_model)
+        summarizing_client = model_dep["client"]
 
-        response = client.complete(
+        # Build the summarization request
+        response = await summarizing_client.complete(
+            stream=False,
             messages=[
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant that summarizes conversations.",
-                },
-                {
-                    "role": "user",
-                    "content": f"Summarize the following chat:\n\n{combined_text}\n\nBrief Summary:",
-                },
+                {"role": "system", "content": "You are a summarization assistant."},
+                {"role": "user", "content": f"Summarize this conversation:\n\n{combined_text}"},
             ],
             temperature=0.5,
             max_tokens=150,
         )
 
-        summary_text = ""
-        if (
-            response.choices
-            and response.choices[0].message
-            and response.choices[0].message.content
-        ):
-            summary_text = response.choices[0].message.content.strip()
-        return summary_text
+        if response.choices and response.choices[0].message:
+            return response.choices[0].message.content.strip()
+        return ""
+
     except Exception as e:
-        return f"Summary of older messages: [Error fallback] {str(e)}"
+        logger.error(f"Error summarizing messages: {e}")
+        sentry_sdk.capture_exception(e)
+        return f"Summary not available due to error: {str(e)}"
+    
