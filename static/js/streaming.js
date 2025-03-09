@@ -893,58 +893,36 @@ function renderBufferedContent() {
 
     // Simple approach: Clear the container's content but preserve the container itself
     if (messageContainer) {
-      // Find the main content container or create one if it doesn't exist
-      let contentDiv = messageContainer.querySelector('.message-content');
-      if (!contentDiv) {
-        contentDiv = document.createElement('div');
-        contentDiv.className = 'message-content';
-        contentDiv.style.width = '100%';
-        contentDiv.style.minHeight = '20px';
-        contentDiv.style.display = 'block';
-        contentDiv.style.opacity = '1';
-        contentDiv.style.visibility = 'visible';
-        
-        // Clear container and add our content div
-        messageContainer.innerHTML = '';
-        messageContainer.appendChild(contentDiv);
-      }
+      // Start with a clean slate but preserve the container
+      messageContainer.innerHTML = '';
       
-      // Clean up the main buffer to remove JSON artifacts
-      let cleanedMainBuffer = mainTextBuffer || "";
-      
-      // Remove any trailing JSON objects that might be present
-      cleanedMainBuffer = cleanedMainBuffer.replace(/\s*\{"type"\s*:\s*"done".*?\}\s*$/g, "");
-      
-      // Use the renderContentEfficiently function for the main content
-      renderContentEfficiently(contentDiv, cleanedMainBuffer.trim(), {
-        scroll: Date.now() - lastScrollTimestamp > SCROLL_INTERVAL_MS && !errorState,
-      });
-      
-      // For thinking content, delegate to the deepSeekProcessor module
-      // which is specifically designed to handle this consistently
+      // Place the chain-of-thought block above the main response, and try adding minimal spaces
       if (thinkingTextBuffer && thinkingTextBuffer.trim()) {
-        // Remove any existing thinking containers first
-        const existingContainers = messageContainer.querySelectorAll('.thinking-container, .thinking-process, .thinking-safe-wrapper, .chain-of-thought-block');
-        if (existingContainers.length > 0) {
-          console.log(`[renderBufferedContent] Removing ${existingContainers.length} existing thinking containers`);
-          existingContainers.forEach(container => container.remove());
-        }
-        
         try {
-          // Use the deepSeekProcessor to render thinking content
+          let rawCotText = thinkingTextBuffer.trim();
+          
+          // Attempt a minimal pass to insert spaces where words are jammed together
+          // 1) Insert space after punctuation if missing
+          // 2) Insert space between a lowercase char and uppercase char (camelCase fix)
+          // 3) Optionally add newlines after sentence punctuation
+          let spacedCot = rawCotText
+            .replace(/([^\s])([.,!?;:])([^\s])/g, '$1$2 $3') // space after punctuation if missing
+            .replace(/([a-z])([A-Z])/g, '$1 $2') // fix camelCase
+            .replace(/([\.\?!])([A-Z])/g, '$1 $2'); // space after sentence end if missing
+          
+          // Now render the COT
           if (typeof deepSeekProcessor !== 'undefined' && deepSeekProcessor.renderThinkingContainer) {
-            console.log('[renderBufferedContent] Using deepSeekProcessor to render thinking content');
-            deepSeekProcessor.renderThinkingContainer(messageContainer, thinkingTextBuffer, { createNew: true });
+            deepSeekProcessor.renderThinkingContainer(messageContainer, spacedCot, { createNew: true });
           } else {
-            // Fallback to simpler approach if deepSeekProcessor is unavailable
-            console.log('[renderBufferedContent] Using fallback for thinking content rendering');
+            // Fallback: just create a minimal container
             const thinkingDiv = document.createElement('div');
-            thinkingDiv.className = 'thinking-container mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded';
+            thinkingDiv.className = 'thinking-container mt-2 mb-4 p-2 bg-gray-100 dark:bg-gray-800 rounded';
             thinkingDiv.setAttribute('data-cot-id', Date.now());
+            
             thinkingDiv.innerHTML = `
               <details open>
                 <summary class="font-medium cursor-pointer">Chain of Thought</summary>
-                <div class="markdown-content mt-2">${renderMarkdown(thinkingTextBuffer)}</div>
+                <div class="markdown-content mt-2">${renderMarkdown(spacedCot)}</div>
               </details>
             `;
             messageContainer.appendChild(thinkingDiv);
@@ -953,6 +931,43 @@ function renderBufferedContent() {
         } catch (renderError) {
           console.error('[renderBufferedContent] Error rendering thinking content:', renderError);
         }
+      }
+      
+      // Now add the main content container
+      let contentDiv = document.createElement('div');
+      contentDiv.className = 'message-content';
+      contentDiv.style.width = '100%';
+      contentDiv.style.minHeight = '20px';
+      contentDiv.style.display = 'block';
+      contentDiv.style.opacity = '1';
+      contentDiv.style.visibility = 'visible';
+      messageContainer.appendChild(contentDiv);
+      
+      // Clean up the main buffer to remove JSON artifacts
+      let cleanedMainBuffer = mainTextBuffer || "";
+      
+      // Remove any trailing JSON objects that might be present
+      cleanedMainBuffer = cleanedMainBuffer.replace(/\s*\{"type"\s*:\s*"done".*?\}\s*$/g, "");
+      
+      // Process main content with markdown
+      try {
+        // For main content, convert to markdown first to ensure proper formatting
+        let formattedMainContent = renderMarkdown(cleanedMainBuffer.trim());
+        
+        // Use the renderContentEfficiently function for the main content
+        renderContentEfficiently(contentDiv, formattedMainContent, {
+          scroll: Date.now() - lastScrollTimestamp > SCROLL_INTERVAL_MS && !errorState,
+        });
+        
+        // Apply syntax highlighting
+        highlightCode(contentDiv);
+      } catch (markdownError) {
+        console.error('[renderBufferedContent] Error rendering markdown for main content:', markdownError);
+        
+        // Fallback to plain text if markdown rendering fails
+        renderContentEfficiently(contentDiv, cleanedMainBuffer.trim(), {
+          scroll: Date.now() - lastScrollTimestamp > SCROLL_INTERVAL_MS && !errorState,
+        });
       }
     }
   } catch (err) {

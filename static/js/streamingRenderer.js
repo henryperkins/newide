@@ -45,20 +45,8 @@ export function renderContentEfficiently(container, newHTML, options = {}) {
           remainder.length, 'chars', 
           remainder.substring(0, 20) + '...');
         
-        // SIMPLER DIRECT APPROACH
-        // Check if we're dealing with HTML content
-        if (/<[a-z][\s\S]*>/i.test(remainder)) {
-          // For HTML content
-          container.innerHTML = newHTML; // Use full content to avoid HTML parsing issues
-        } else {
-          // For plain text, direct append is more efficient
-          if (container.textContent === oldHTML) {
-            container.textContent = newHTML;
-          } else {
-            // Fallback if textContent doesn't match our reference
-            container.innerHTML = newHTML;
-          }
-        }
+        // Always treat remainder as new HTML content
+        container.innerHTML = newHTML;
 
         console.log('[renderContentEfficiently] Appended new content');
       }

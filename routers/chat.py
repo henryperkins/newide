@@ -566,11 +566,17 @@ async def create_chat_completion(
 async def chat_sse(
     request: Request,
     session_id: UUID,
-    model: str,
-    message: str,
+    model: str = "",
+    message: str = "",
     reasoning_effort: str = "medium",  # used by O-series
     db: AsyncSession = Depends(get_db_session),
 ):
+    # Explicitly validate that 'model' and 'message' were provided
+    if not model or not message:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required arguments: 'message' and 'model' must be non-empty."
+        )
     """
     Stream chat completions using Server-Sent Events (SSE).
     """
@@ -605,7 +611,12 @@ async def chat_sse(
         res = await db.execute(stmt)
         session_db = res.scalar_one_or_none()
         if not session_db:
-            raise HTTPException(status_code=404, detail="Session not found")
+            # Automatically create a session if the provided session_id doesn't exist
+            new_session = Session(id=session_id)
+            db.add(new_session)
+            await db.commit()
+            session_db = new_session
+            logger.info(f"Automatically created new Session with id={session_id}")
 
         # Retrieve the correct client
         client_wrapper = await get_model_client_dependency(model)
@@ -675,15 +686,13 @@ async def generate_stream_chunks(
         
         # Add model-specific settings
         if is_deepseek:
-            params.update({
-                "max_tokens": 131072,
-                "temperature": 0.5,
-                "model": model_name,
-                "headers": {
-                    "x-ms-thinking-format": "html", 
-                    "x-ms-streaming-version": "2024-05-01-preview"
-                }
-            })
+            params["max_tokens"] = 131072  # type: ignore
+            params["temperature"] = 0.5  # type: ignore
+            params["model"] = model_name  # type: ignore
+            params["headers"] = {  # type: ignore
+                "x-ms-thinking-format": "html",
+                "x-ms-streaming-version": "2024-05-01-preview"
+            }
             # For DeepSeek, use complete() directly and iterate over the response
             stream_response = client.complete(**params)
             # Iterate over the response chunks synchronously 
@@ -701,10 +710,9 @@ async def generate_stream_chunks(
                 yield f"data: {json.dumps({'text': chunk_text})}\n\n"
                 
         elif is_o_series:
-            params.update({
-                "max_completion_tokens": O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
-                "reasoning_effort": reasoning_effort
-            })
+            # Suppress Pylance type issues by forcing these entries to Any
+            params["max_completion_tokens"] = int(O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS)  # type: ignore
+            params["reasoning_effort"] = str(reasoning_effort)  # type: ignore
             # O-series uses different client
             stream_response = await client.chat.completions.create(**params)
             async for chunk in stream_response:

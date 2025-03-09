@@ -64,7 +64,13 @@
     /* Header height & input area */
   }
 
+  /* Fix for text-size-adjust compatibility issue */
+  :host,
   html {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     @apply antialiased text-dark-900 dark:text-white;
     font-size: 16px;
     transition: background-color 300ms ease, color 300ms ease;
@@ -209,8 +215,8 @@
     }
 
     .conversation-button.touch-target {
-      min-height: auto;
-      min-width: auto;
+      min-height: unset; /* Replace 'auto' with 'unset' for better Firefox compatibility */
+      min-width: unset;  /* Consistent behavior */
       @apply px-2 py-1 text-sm;
     }
   }
@@ -504,6 +510,17 @@
    Utilities Layer
    ========================================================================= */
 @layer utilities {
+  /* Fix for ARIA hidden elements containing focusable elements */
+  [aria-hidden="true"] a,
+  [aria-hidden="true"] button,
+  [aria-hidden="true"] input,
+  [aria-hidden="true"] select,
+  [aria-hidden="true"] textarea,
+  [aria-hidden="true"] [tabindex]:not([tabindex="-1"]) {
+    /* Hide focusable elements inside aria-hidden containers */
+    display: none !important;
+  }
+
   .auto-resize-textarea {
     @apply resize-none overflow-hidden;
     max-height: 9.375rem;

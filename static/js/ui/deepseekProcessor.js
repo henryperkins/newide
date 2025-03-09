@@ -76,20 +76,14 @@ function processChunkAndUpdateBuffers(data, chunkBuffer, mainTextBuffer, thinkin
     console.log('[processChunkAndUpdateBuffers] Ignoring usage data:', data.usage);
     // Do nothing
   } else {
-    console.warn('[processChunkAndUpdateBuffers] Unrecognized data format:', data);
-    if (typeof data === 'object' && !Array.isArray(data)) {
-      const fallbackText = String(data) || '';
-      chunkBuffer += fallbackText;
-      const result = processStreamingChunk(chunkBuffer, isThinking, mainTextBuffer, thinkingTextBuffer);
-      mainTextBuffer = result.mainBuffer;
-      thinkingTextBuffer = result.thinkingBuffer;
-      isThinking = result.isThinking;
-      chunkBuffer = result.remainingChunk;
-    }
+      console.warn('[processChunkAndUpdateBuffers] Unrecognized data format:', data);
+      if (typeof data === 'object' && !Array.isArray(data)) {
+        // Skip appending raw JSON to the chunk buffer to avoid showing it in the output
+        console.warn('[processChunkAndUpdateBuffers] Skipping unknown object to prevent raw JSON display.');
+      }
   }
-
   return { mainTextBuffer, thinkingTextBuffer, chunkBuffer, isThinking };
-}
+  }
 
 /**
  * Splits text into user-visible vs. chain-of-thought by scanning <think>...</think>.
@@ -234,16 +228,29 @@ function replaceThinkingBlocks(content) {
 function markdownToHtml(text) {
   if (!text) return '';
   
-  // Pre-process the text to ensure proper spacing
+  // IMPROVED: More thorough pre-processing to ensure proper spacing
   let processedText = text
     // Add space after punctuation if missing
     .replace(/([,\.\?!;:])([A-Za-z0-9])/g, '$1 $2')
     // Fix spacing between words (camelCase or missing spaces)
     .replace(/([a-z])([A-Z])/g, '$1 $2')
+    // Fix spaces between words (when they're missing entirely)
+    .replace(/([a-zA-Z])([a-zA-Z])/g, function(match, p1, p2) {
+      // Only add space if the characters are different words
+      // This heuristic isn't perfect but helps with common spacing issues
+      if (p1.toLowerCase() !== p1 && p2.toLowerCase() === p2) {
+        return p1 + ' ' + p2; // Likely word boundary
+      }
+      return match; // Keep as is
+    })
     // Ensure proper line breaks
-    .replace(/([^\n])\n([^\n])/g, '$1\n\n$2');
+    .replace(/([^\n])\n([^\n])/g, '$1\n\n$2')
+    // Add paragraph breaks around bullets if missing
+    .replace(/([^\n])\n([\-\*] )/g, '$1\n\n$2')
+    // Fix inconsistent bullet point spacing
+    .replace(/^[\-\*](?!\s)/gm, '- ');
   
-  // Apply markdown formatting
+  // IMPROVED: More robust markdown formatting
   return processedText
     // Headers
     .replace(/### (.*?)(\n|$)/g, '<h3>$1</h3>\n')
@@ -251,17 +258,23 @@ function markdownToHtml(text) {
     .replace(/# (.*?)(\n|$)/g, '<h1>$1</h1>\n')
     // Bold and italic
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.*?)__/g, '<strong>$1</strong>') // Alternative bold syntax
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/_(.*?)_/g, '<em>$1</em>') // Alternative italic syntax
     // Code blocks with language support
     .replace(/```([a-z]*)\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
     // Inline code
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    // Lists
-    .replace(/^\s*[\-\*]\s+(.*?)$/gm, '<li>$1</li>')
+    // Lists (with better handling)
+    .replace(/^(\s*)[\-\*]\s+(.*?)$/gm, '$1<li>$2</li>')
+    // Wrap lists in <ul> tags
+    .replace(/(<li>.*?<\/li>)\n(?!\s*<li>)/gs, '<ul>$1</ul>\n')
     // Paragraphs
-    .replace(/\n\n(.*?)(\n\n|$)/g, '<p>$1</p>')
+    .replace(/\n\n([^<\n].*?)(?=\n\n|$)/gs, '\n<p>$1</p>\n')
+    // Links
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
     // Line breaks (after handling paragraphs)
-    .replace(/\n/g, '<br>');
+    .replace(/\n(?!<\/?(h[1-6]|ul|li|code|pre|p|strong|em|a))/g, '<br>');
 }
 
 /**
@@ -274,21 +287,43 @@ function markdownToHtml(text) {
  * @returns {HTMLElement | null} The thinking container DOM node
  */
 function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
-  console.log('[renderThinkingContainer] Called with thinking text length:', 
-              thinkingText?.length || 0,
-              'text sample:', thinkingText || '');
-              
+  console.log('[renderThinkingContainer] Called with thinking text length:',
+             thinkingText?.length || 0,
+             'text sample:', thinkingText?.substring(0, 30) || '');
+             
   if (!parentContainer) {
     console.error('[renderThinkingContainer] No parent container provided');
     return null;
   }
 
-  // CRITICAL FIX: Ensure we have some thinking text
+  // IMPROVED: Ensure we have some thinking text and preprocess it
   if (!thinkingText || thinkingText.trim() === '') {
     console.warn('[renderThinkingContainer] Empty thinking text provided');
     thinkingText = '(processing...)'; // Placeholder text
+  } else {
+    // Process thinking text to fix spacing
+    thinkingText = thinkingText
+      // Add space after punctuation if missing
+      .replace(/([,\.\?!;:])([A-Za-z0-9])/g, '$1 $2')
+      // Remove extra spaces
+      .replace(/\s{2,}/g, ' ')
+      // Add space between words if missing (camelCase)
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      // Fix spaces between words (when they're missing entirely)
+      .replace(/([a-zA-Z])([a-zA-Z])/g, function(match, p1, p2) {
+        // Only add space if the characters are different words
+        if (p1.toLowerCase() !== p1 && p2.toLowerCase() === p2) {
+          return p1 + ' ' + p2; // Likely word boundary
+        }
+        return match; // Keep as is
+      })
+      // Ensure proper line breaks for bullets
+      .replace(/([^\n])\n([\-\*] )/g, '$1\n\n$2')
+      // Fix inconsistent bullet point spacing
+      .replace(/^[\-\*](?!\s)/gm, '- ');
   }
 
+  // IMPROVED: Put thinking container at the beginning of the parent
   // Look for existing container only if we're not forcing a new one
   let thinkingContainer = null;
   if (!options.createNew) {
@@ -303,10 +338,11 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
     const wrapper = document.createElement('div');
     wrapper.className = 'thinking-safe-wrapper'; // Add a wrapper class
 
-    // CRITICAL FIX: Make sure wrapper is visible
+    // CRITICAL FIX: Make sure wrapper is visible and positioned first
     wrapper.style.display = 'block';
     wrapper.style.visibility = 'visible';
-    wrapper.style.marginTop = '10px';
+    wrapper.style.marginBottom = '16px';
+    wrapper.style.order = '-1'; // Ensure it appears before other content
 
     // Create unique container with timestamp to avoid conflicts
     const uniqueId = 'thinking-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
@@ -316,12 +352,15 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
       wrapper.innerHTML = createThinkingBlockHTML(thinkingText);
     } catch (err) {
       console.error('[renderThinkingContainer] Error creating HTML:', err);
-      // Fallback to a simpler HTML structure if the fancy one fails
+      // Improved fallback with better styling
       wrapper.innerHTML = `
-        <div class="thinking-container bg-gray-100 dark:bg-gray-800 p-3 rounded mt-2">
+        <div class="thinking-container bg-gray-100 dark:bg-gray-800 p-3 rounded mb-4"
+             style="display:block !important; visibility:visible !important; margin-bottom:16px !important; order:-1 !important;">
           <div style="color: #111827; font-weight: bold;">Chain of Thought:</div>
           <div class="thinking-pre markdown-content whitespace-pre-wrap mt-2"
-               style="color: #111827; font-family: 'JetBrains Mono', monospace;">${thinkingText}</div>
+               style="color: #111827; font-family: 'JetBrains Mono', monospace; white-space:pre-wrap !important; word-break:break-word;">
+            ${typeof renderMarkdown === 'function' ? renderMarkdown(thinkingText) : thinkingText.replace(/\n/g, '<br>')}
+          </div>
         </div>
         <style>
           .dark .thinking-pre.markdown-content {
@@ -334,9 +373,14 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
       `;
     }
     
-    // CRITICAL FIX: Add container before appending to ensure it's visible
-    console.log('[renderThinkingContainer] Appending to parent container');
-    parentContainer.appendChild(wrapper);
+    // CRITICAL FIX: Insert at the beginning of the parent container
+    if (parentContainer.firstChild) {
+      parentContainer.insertBefore(wrapper, parentContainer.firstChild);
+      console.log('[renderThinkingContainer] Inserted at beginning of parent container');
+    } else {
+      parentContainer.appendChild(wrapper);
+      console.log('[renderThinkingContainer] Appended to empty parent container');
+    }
 
     thinkingContainer = wrapper.querySelector('.thinking-pre');
     
@@ -349,7 +393,7 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
       wrapper.appendChild(thinkingContainer);
     }
 
-    // Initialize toggling
+    // Initialize toggling if needed
     try {
       const thinkingProcess = wrapper.querySelector('.thinking-process');
       if (thinkingProcess) {
@@ -365,6 +409,8 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
       thinkingContainer.style.visibility = 'visible';
       thinkingContainer.style.minHeight = '20px';
       thinkingContainer.style.opacity = '1';
+      thinkingContainer.style.whiteSpace = 'pre-wrap';
+      thinkingContainer.style.wordBreak = 'break-word';
     }
 
     console.log('[renderThinkingContainer] New container created:', !!thinkingContainer);
@@ -383,10 +429,24 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
         sanitizedContent = markdownToHtml(thinkingText);
       }
       
+      // Apply syntax highlighting if available and appropriate
+      if (typeof highlightCode === 'function' && sanitizedContent.includes('<code')) {
+        try {
+          // Create a temporary element to highlight code blocks
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = sanitizedContent;
+          highlightCode(tempDiv);
+          sanitizedContent = tempDiv.innerHTML;
+        } catch (highlightError) {
+          console.warn('[renderThinkingContainer] Code highlighting failed:', highlightError);
+        }
+      }
+      
       // Sanitize if DOMPurify is available
       if (window.DOMPurify) {
         sanitizedContent = window.DOMPurify.sanitize(sanitizedContent, {
-          ALLOWED_TAGS: ['br', 'b', 'i', 'strong', 'em', 'code', 'pre', 'h1', 'h2', 'h3', 'p', 'ul', 'ol', 'li', 'div', 'span'],
+          ALLOWED_TAGS: ['br', 'b', 'i', 'strong', 'em', 'code', 'pre', 'h1', 'h2', 'h3', 'p', 'ul', 'ol', 'li', 'div', 'span', 'a'],
+          ALLOWED_ATTR: ['class', 'style', 'href', 'target'],
           KEEP_CONTENT: true
         });
       }
@@ -395,17 +455,33 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
       thinkingContainer.innerHTML = sanitizedContent || '(processing...)';
       thinkingContainer.style.display = 'block';
       thinkingContainer.style.visibility = 'visible';
+      thinkingContainer.style.whiteSpace = 'pre-wrap';
+      thinkingContainer.style.wordBreak = 'break-word';
       
       // Add markdown-content class if it doesn't have it
       if (!thinkingContainer.classList.contains('markdown-content')) {
         thinkingContainer.classList.add('markdown-content');
       }
       
-      // Make sure the parent elements are visible too
+      // Make sure the parent elements are visible and positioned correctly
       let parent = thinkingContainer.parentElement;
       while (parent && parent !== parentContainer) {
         parent.style.display = 'block';
         parent.style.visibility = 'visible';
+        
+        // If it's a direct wrapper, ensure it appears before other content
+        if (parent.classList.contains('thinking-safe-wrapper') ||
+            parent.classList.contains('thinking-container')) {
+          parent.style.order = '-1';
+          parent.style.marginBottom = '16px';
+          
+          // Ensure it's at the beginning of its parent
+          const grandparent = parent.parentElement;
+          if (grandparent && grandparent.firstChild !== parent) {
+            grandparent.insertBefore(parent, grandparent.firstChild);
+          }
+        }
+        
         parent = parent.parentElement;
       }
     } catch (updateErr) {
@@ -430,11 +506,26 @@ function createThinkingBlockHTML(thinkingText) {
     thinkingText = '(processing...)';
   }
   
-  // Ensure the thinking text has proper spacing
+  // IMPROVED: More thorough text processing to fix spacing issues
   thinkingText = thinkingText
-    .replace(/([,\.\?!;:])/g, '$1 ') // Add space after punctuation if missing
-    .replace(/\s{2,}/g, ' ')        // Remove extra spaces
-    .replace(/([A-Za-z])([A-Z])/g, '$1 $2'); // Add space between words if missing (camelCase)
+    // Add space after punctuation if missing
+    .replace(/([,\.\?!;:])([A-Za-z0-9])/g, '$1 $2')
+    // Remove extra spaces
+    .replace(/\s{2,}/g, ' ')
+    // Add space between words if missing (camelCase)
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    // Fix spaces between words (when they're missing entirely)
+    .replace(/([a-zA-Z])([a-zA-Z])/g, function(match, p1, p2) {
+      // Only add space if the characters are different words
+      if (p1.toLowerCase() !== p1 && p2.toLowerCase() === p2) {
+        return p1 + ' ' + p2; // Likely word boundary
+      }
+      return match; // Keep as is
+    })
+    // Ensure proper line breaks for bullets
+    .replace(/([^\n])\n([\-\*] )/g, '$1\n\n$2')
+    // Fix inconsistent bullet point spacing
+    .replace(/^[\-\*](?!\s)/gm, '- ');
   
   let sanitizedContent;
   try {
@@ -447,10 +538,24 @@ function createThinkingBlockHTML(thinkingText) {
       sanitizedContent = markdownToHtml(thinkingText);
     }
     
+    // Apply syntax highlighting if available and appropriate
+    if (typeof highlightCode === 'function' && sanitizedContent.includes('<code')) {
+      try {
+        // Create a temporary element to highlight code blocks
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = sanitizedContent;
+        highlightCode(tempDiv);
+        sanitizedContent = tempDiv.innerHTML;
+      } catch (highlightError) {
+        console.warn('[createThinkingBlockHTML] Code highlighting failed:', highlightError);
+      }
+    }
+    
     // Sanitize if DOMPurify is available
     if (window.DOMPurify) {
       sanitizedContent = window.DOMPurify.sanitize(sanitizedContent, {
-        ALLOWED_TAGS: ['br', 'b', 'i', 'strong', 'em', 'code', 'pre', 'h1', 'h2', 'h3', 'p', 'ul', 'ol', 'li', 'div', 'span'],
+        ALLOWED_TAGS: ['br', 'b', 'i', 'strong', 'em', 'code', 'pre', 'h1', 'h2', 'h3', 'p', 'ul', 'ol', 'li', 'div', 'span', 'a'],
+        ALLOWED_ATTR: ['class', 'style', 'href', 'target'],
         KEEP_CONTENT: true
       });
     }
@@ -464,24 +569,45 @@ function createThinkingBlockHTML(thinkingText) {
       .replace(/\n/g, '<br>');
   }
   
-  // Create the HTML with explicit styles to ensure visibility and NO truncation
-  // Using both thinking-pre for compatibility and markdown-content for styling
+  // IMPROVED: Create the HTML with explicit styles to ensure visibility and NO truncation
+  // Added priority styles to ensure proper display across all screen sizes
   return `
     <div class="thinking-container mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded"
          role="region" aria-label="Chain of Thought" data-cot-id="${Date.now()}"
-         style="display:block; visibility:visible; margin-top:10px; max-height:none; overflow:visible;">
+         style="display:block !important; visibility:visible !important; position:relative !important;
+                margin:10px 0 16px 0 !important; max-height:none !important; overflow:visible !important;
+                z-index:10 !important; order:-1 !important;">
       <details open>
-        <summary class="font-medium cursor-pointer" style="display:flex; align-items:center;">
+        <summary class="font-medium cursor-pointer" style="display:flex; align-items:center; font-weight:600;">
           Chain of Thought
         </summary>
         <div class="thinking-pre markdown-content mt-2" style="margin-top:8px; padding:8px;
-                   display:block; visibility:visible; max-height:none; overflow:visible;
-                   color: #111827; font-family: 'JetBrains Mono', monospace;">
+                   display:block !important; visibility:visible !important; max-height:none !important;
+                   overflow:visible !important; word-break:break-word !important; white-space:pre-wrap !important;
+                   font-family:'JetBrains Mono', monospace, sans-serif; line-height:1.5;">
           ${sanitizedContent}
         </div>
         <style>
           .dark .thinking-pre.markdown-content {
             color: #f3f4f6 !important; /* Light gray for dark mode */
+          }
+          .thinking-pre.markdown-content code {
+            background-color: rgba(0,0,0,0.05);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'JetBrains Mono', monospace, sans-serif;
+          }
+          .dark .thinking-pre.markdown-content code {
+            background-color: rgba(255,255,255,0.1);
+          }
+          .thinking-pre.markdown-content pre {
+            background-color: rgba(0,0,0,0.05);
+            padding: 8px;
+            border-radius: 5px;
+            overflow-x: auto;
+          }
+          .dark .thinking-pre.markdown-content pre {
+            background-color: rgba(0,0,0,0.3);
           }
         </style>
       </details>
