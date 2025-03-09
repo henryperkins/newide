@@ -484,7 +484,7 @@ function renderUserMessage(content) {
 
 export function renderAssistantMessage(content, isThinking = false) {
   const chatHistory = document.getElementById('chat-history');
-  if (!chatHistory) return;
+  if (!chatHistory) return null;
 
   console.log("Rendering message:", {
     contentLength: content?.length || 0,
@@ -492,54 +492,116 @@ export function renderAssistantMessage(content, isThinking = false) {
     sample: content?.substring(0, 50) || ''
   });
 
+  try {
+    // Create a unique ID for this message to ensure proper tracking
+    const messageId = Date.now().toString() + '-' + Math.floor(Math.random() * 10000);
+    
+    // First clean any JSON artifacts that might be in the content
+    let cleanedContent = content;
+    if (typeof cleanedContent === 'string') {
+      cleanedContent = cleanedContent.replace(/\s*\{"type"\s*:\s*"done".*?\}\s*$/g, "");
+    }
+    
+    // Process the assistant message using the displayManager if available
+    let messageElement;
+    if (window.displayManager?.createAssistantMessageElement) {
+      console.log('[renderAssistantMessage] Using displayManager for rendering');
+      messageElement = window.displayManager.createAssistantMessageElement(cleanedContent);
+    } else {
+      console.log('[renderAssistantMessage] Using fallback renderer');
+      messageElement = createAssistantMessageElementFallback(cleanedContent);
+    }
+    
+    // Set ID on message element
+    messageElement.setAttribute('data-id', messageId);
+    
+    // Add to chat history
+    chatHistory.appendChild(messageElement);
+    
+    // Apply syntax highlighting
+    highlightCode(messageElement);
+    
+    // Scroll into view
+    messageElement.scrollIntoView({ behavior: 'smooth' });
+
+    // Store message if it's not a thinking update
+    if (!isThinking) storeChatMessage('assistant', cleanedContent);
+    
+    return messageElement;
+  } catch (error) {
+    console.error("Error rendering message:", error);
+    const el = document.createElement('div');
+    el.className = 'message assistant-message';
+    el.setAttribute('role', 'log');
+    el.textContent = content || "Error rendering message";
+    chatHistory.appendChild(el);
+    return el;
+  }
+}
+
+// Fallback function if displayManager isn't loaded yet
+function createAssistantMessageElementFallback(response) {
+  let content = '';
+  if (typeof response === 'object' && response !== null && response.content) {
+    content = String(response.content);
+  } else {
+    content = String(response);
+  }
+
   const el = document.createElement('div');
   el.className = 'message assistant-message';
   el.setAttribute('role', 'log');
+  el.setAttribute('aria-live', 'polite');
 
-  try {
-    // Extract thinking content properly
-    let mainContent = content || '';
-    let thinkingContent = '';
+  // Extract thinking content properly
+  let mainContent = content || '';
+  let thinkingContent = '';
 
-    if (content && content.includes('<think>')) {
-      const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
-      if (thinkMatches) {
-        console.log("Found thinking blocks:", thinkMatches.length);
-        thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
-        mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
-      }
+  if (content && content.includes('<think>')) {
+    const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
+    if (thinkMatches) {
+      console.log("Found thinking blocks:", thinkMatches.length);
+      thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
+      mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
     }
-
-    // Render main content first
-    el.innerHTML = renderMarkdown(mainContent);
-    chatHistory.appendChild(el);
-
-    // If we have thinking content, create a visible thinking container
-    if (thinkingContent) {
-      console.log("Creating thinking container with content length:", thinkingContent.length);
-
-      // Create a simple visible container (fallback approach)
-      const thinkingDiv = document.createElement('div');
-      thinkingDiv.className = 'thinking-fallback mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded';
-      thinkingDiv.innerHTML = `
-        <details open>
-          <summary class="font-medium cursor-pointer">Chain of Thought</summary>
-          <pre class="whitespace-pre-wrap mt-2">${thinkingContent}</pre>
-        </details>
-      `;
-      el.appendChild(thinkingDiv);
-    }
-
-    highlightCode(el);
-    el.scrollIntoView({ behavior: 'smooth' });
-
-  } catch (error) {
-    console.error("Error rendering message:", error);
-    el.textContent = content || "Error rendering message";
-    chatHistory.appendChild(el);
   }
 
-  if (!isThinking) storeChatMessage('assistant', content);
+  // Create a content div to match the streaming renderer structure
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'message-content';
+  contentDiv.style.width = '100%';
+  contentDiv.style.minHeight = '20px';
+  contentDiv.style.display = 'block';
+  contentDiv.style.opacity = '1';
+  contentDiv.style.visibility = 'visible';
+  
+  // Process and sanitize main content
+  contentDiv.innerHTML = renderMarkdown(mainContent.trim());
+  el.appendChild(contentDiv);
+
+  // Add thinking content if present - use deepSeekProcessor if available
+  if (thinkingContent && thinkingContent.trim()) {
+    try {
+      if (typeof deepSeekProcessor !== 'undefined' && deepSeekProcessor.renderThinkingContainer) {
+        deepSeekProcessor.renderThinkingContainer(el, thinkingContent.trim(), { createNew: true });
+      } else {
+        const thinkingDiv = document.createElement('div');
+        thinkingDiv.className = 'thinking-container mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded';
+        thinkingDiv.setAttribute('data-cot-id', Date.now());
+        thinkingDiv.innerHTML = `
+          <details open>
+            <summary class="font-medium cursor-pointer">Chain of Thought</summary>
+            <div class="markdown-content mt-2">${renderMarkdown(thinkingContent)}</div>
+          </details>
+        `;
+        el.appendChild(thinkingDiv);
+      }
+    } catch (error) {
+      console.error('[createAssistantMessageElementFallback] Error rendering thinking content:', error);
+    }
+  }
+
+  return el;
 }
 
   async function storeChatMessage(role, content) {

@@ -890,41 +890,71 @@ function renderBufferedContent() {
     console.log(
       `[renderBufferedContent] Buffers - Main: ${mainTextBuffer.length}, Thinking: ${thinkingTextBuffer.length}`
     );
-// First parse out any <Chain-of-Thought> blocks from the main text buffer
-let combinedContent = mainTextBuffer || "";
-const chainRegex = /<Chain-of-Thought>\s*([\s\S]*?)\s*<\/Chain-of-Thought>/gm;
-let chainParts = [];
-let normalText = combinedContent;
 
-let match;
-while ((match = chainRegex.exec(combinedContent)) !== null) {
-  chainParts.push(match[1].trim());
-  normalText = normalText.replace(match[0], '');
-}
-
-// Now render the remaining text without chain-of-thought
-renderContentEfficiently(messageContainer, normalText.trim(), {
-  scroll:
-    Date.now() - lastScrollTimestamp > SCROLL_INTERVAL_MS && !errorState,
-});
-
-// Render each chain-of-thought block as a separate section
-if (chainParts.length > 0) {
-  // Combine all chain-of-thought parts into a single block, remove \n, parse as Markdown
-  const finalCOT = chainParts.join("\\n").replace(/\\n/g, '\n');
-  const renderedCOT = renderMarkdown(finalCOT);
-  const block = document.createElement("div");
-  block.className = "chain-of-thought-block mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded markdown-content";
-  block.innerHTML = `
-    <details open>
-      <summary class="font-medium cursor-pointer">Chain of Thought</summary>
-      ${renderedCOT}
-    </details>
-  `;
-  messageContainer.appendChild(block);
-  highlightCode(block);
-}
-
+    // Simple approach: Clear the container's content but preserve the container itself
+    if (messageContainer) {
+      // Find the main content container or create one if it doesn't exist
+      let contentDiv = messageContainer.querySelector('.message-content');
+      if (!contentDiv) {
+        contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        contentDiv.style.width = '100%';
+        contentDiv.style.minHeight = '20px';
+        contentDiv.style.display = 'block';
+        contentDiv.style.opacity = '1';
+        contentDiv.style.visibility = 'visible';
+        
+        // Clear container and add our content div
+        messageContainer.innerHTML = '';
+        messageContainer.appendChild(contentDiv);
+      }
+      
+      // Clean up the main buffer to remove JSON artifacts
+      let cleanedMainBuffer = mainTextBuffer || "";
+      
+      // Remove any trailing JSON objects that might be present
+      cleanedMainBuffer = cleanedMainBuffer.replace(/\s*\{"type"\s*:\s*"done".*?\}\s*$/g, "");
+      
+      // Use the renderContentEfficiently function for the main content
+      renderContentEfficiently(contentDiv, cleanedMainBuffer.trim(), {
+        scroll: Date.now() - lastScrollTimestamp > SCROLL_INTERVAL_MS && !errorState,
+      });
+      
+      // For thinking content, delegate to the deepSeekProcessor module
+      // which is specifically designed to handle this consistently
+      if (thinkingTextBuffer && thinkingTextBuffer.trim()) {
+        // Remove any existing thinking containers first
+        const existingContainers = messageContainer.querySelectorAll('.thinking-container, .thinking-process, .thinking-safe-wrapper, .chain-of-thought-block');
+        if (existingContainers.length > 0) {
+          console.log(`[renderBufferedContent] Removing ${existingContainers.length} existing thinking containers`);
+          existingContainers.forEach(container => container.remove());
+        }
+        
+        try {
+          // Use the deepSeekProcessor to render thinking content
+          if (typeof deepSeekProcessor !== 'undefined' && deepSeekProcessor.renderThinkingContainer) {
+            console.log('[renderBufferedContent] Using deepSeekProcessor to render thinking content');
+            deepSeekProcessor.renderThinkingContainer(messageContainer, thinkingTextBuffer, { createNew: true });
+          } else {
+            // Fallback to simpler approach if deepSeekProcessor is unavailable
+            console.log('[renderBufferedContent] Using fallback for thinking content rendering');
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.className = 'thinking-container mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded';
+            thinkingDiv.setAttribute('data-cot-id', Date.now());
+            thinkingDiv.innerHTML = `
+              <details open>
+                <summary class="font-medium cursor-pointer">Chain of Thought</summary>
+                <div class="markdown-content mt-2">${renderMarkdown(thinkingTextBuffer)}</div>
+              </details>
+            `;
+            messageContainer.appendChild(thinkingDiv);
+            highlightCode(thinkingDiv);
+          }
+        } catch (renderError) {
+          console.error('[renderBufferedContent] Error rendering thinking content:', renderError);
+        }
+      }
+    }
   } catch (err) {
     console.error("[renderBufferedContent] Error:", err);
     const debugInfo = {
@@ -977,13 +1007,21 @@ async function cleanupStreaming(modelName) {
       if (!conversationId) {
         console.error("No valid conversation ID found — cannot store message.");
       } else {
-        let finalContent = mainTextBuffer || " ";
+        // Format the final content consistently
+        let finalContent = mainTextBuffer?.trim() || " ";
+        
+        // Only add thinking content if it exists and isn't empty
         if (thinkingTextBuffer && thinkingTextBuffer.trim()) {
           console.log(
             `[cleanupStreaming] Including thinking content, length: ${thinkingTextBuffer.length}`
           );
-          finalContent =
-            finalContent + `\n\n<think>${thinkingTextBuffer}</think>`;
+          
+          // Format with a consistent pattern: main content followed by think blocks
+          finalContent = finalContent + `\n\n<think>${thinkingTextBuffer.trim()}</think>`;
+          
+          // Double-check we haven't duplicated think tags
+          finalContent = finalContent.replace(/<think><think>/g, '<think>');
+          finalContent = finalContent.replace(/<\/think><\/think>/g, '</think>');
         }
 
         console.log(
@@ -997,6 +1035,7 @@ async function cleanupStreaming(modelName) {
           );
         }
 
+        // Store the message with the model information
         await fetchWithRetry(
           window.location.origin +
           `/api/chat/conversations/${conversationId}/messages`,

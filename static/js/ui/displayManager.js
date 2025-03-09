@@ -477,9 +477,6 @@ export function renderAssistantMessage(content, skipScroll = false, skipStore = 
 }
 
 function createAssistantMessageElement(response) {
-  // Unify chain-of-thought rendering in deepseekProcessor.
-  // No separate chain-of-thought logic here.
-
   let content = '';
   if (typeof response === 'object' && response !== null && response.content) {
     content = String(response.content);
@@ -487,28 +484,86 @@ function createAssistantMessageElement(response) {
     content = String(response);
   }
 
-  // Use a single cache key for all models
-  const snippet = content.substring(0, 40).replace(/\`/g, '').replace(/[\r\n]/g, ' ');
-  const cacheKey = `assistant-${snippet}`;
+  // Log the content for debugging
+  console.log("Processing assistant message:", {
+    contentLength: content?.length || 0,
+    hasThinking: content?.includes('<think>') || false,
+    sample: content?.substring(0, 50) || ''
+  });
 
-  if (messageCache.has(cacheKey)) {
-    return messageCache.get(cacheKey).cloneNode(true);
-  }
+  // Don't use caching for now as it might be causing issues with duplicate content
+  // Create a unique ID for this message instance
+  const messageId = `msg-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
   const el = document.createElement('div');
   el.className = 'message assistant-message';
   el.setAttribute('role', 'log');
   el.setAttribute('aria-live', 'polite');
+  el.setAttribute('data-id', messageId);
 
-  // Process and sanitize main content only
-  const md = renderMarkdown(content);
+  // Extract thinking content properly
+  let mainContent = content || '';
+  let thinkingContent = '';
+
+  if (content && content.includes('<think>')) {
+    const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
+    if (thinkMatches) {
+      console.log("Found thinking blocks:", thinkMatches.length);
+      thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
+      mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+      
+      // Clean up any trailing JSON objects that might have been added
+      mainContent = mainContent.replace(/\s*\{"type"\s*:\s*"done".*?\}\s*$/g, "");
+    }
+  }
+
+  // Process and sanitize main content
+  const md = renderMarkdown(mainContent.trim());
   const enhanced = processCodeBlocks(md);
   const lazy = processImagesForLazyLoading(enhanced);
-  el.innerHTML = lazy;
+  
+  // Create a content div to match the streaming renderer structure
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'message-content';
+  contentDiv.style.width = '100%';
+  contentDiv.style.minHeight = '20px';
+  contentDiv.style.display = 'block';
+  contentDiv.style.opacity = '1';
+  contentDiv.style.visibility = 'visible';
+  contentDiv.innerHTML = lazy;
+  
+  el.appendChild(contentDiv);
 
-  messageCache.set(cacheKey, el.cloneNode(true));
+  // Add thinking content if present - use deepSeekProcessor if available for consistency
+  if (thinkingContent && thinkingContent.trim()) {
+    try {
+      if (typeof deepSeekProcessor !== 'undefined' && deepSeekProcessor.renderThinkingContainer) {
+        console.log('[displayManager] Using deepSeekProcessor to render thinking content');
+        deepSeekProcessor.renderThinkingContainer(el, thinkingContent.trim(), { createNew: true });
+      } else {
+        console.log('[displayManager] Using built-in thinking renderer');
+        const thinkingDiv = document.createElement('div');
+        thinkingDiv.className = 'thinking-container mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded';
+        thinkingDiv.setAttribute('data-cot-id', Date.now());
+        thinkingDiv.innerHTML = `
+          <details open>
+            <summary class="font-medium cursor-pointer">Chain of Thought</summary>
+            <div class="markdown-content mt-2">${renderMarkdown(thinkingContent)}</div>
+          </details>
+        `;
+        el.appendChild(thinkingDiv);
+      }
+    } catch (error) {
+      console.error('[displayManager] Error rendering thinking content:', error);
+    }
+  }
+
   return el;
 }
+
+// Make createAssistantMessageElement available globally for consistency between modules
+window.displayManager = window.displayManager || {};
+window.displayManager.createAssistantMessageElement = createAssistantMessageElement;
 
 function processCodeBlocks(html) {
   return html.replace(

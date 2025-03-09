@@ -164,19 +164,31 @@ export function debugRenderingStatus(container, newHTML) {
   console.log('Container path:', path.join(' > '));
 }
 
-// Stub export in case streaming.js tries to import from here:
+// Stub export redirecting to the central implementation
 export function renderThinkingContainer(container, thinkingContent, processor) {
-  console.warn('[renderThinkingContainer] Called fallback stub. Please use deepSeekProcessor.renderThinkingContainer for chain-of-thought logic.');
+  console.warn('[renderThinkingContainer] Redirecting to deepSeekProcessor implementation');
   
-  // CRITICAL FIX: Basic fallback implementation to ensure thinking content is at least visible
+  // Directly forward to the deepSeekProcessor implementation
+  if (typeof deepSeekProcessor !== 'undefined' && deepSeekProcessor.renderThinkingContainer) {
+    return deepSeekProcessor.renderThinkingContainer(container, thinkingContent, { createNew: true });
+  }
+  
+  // Only if deepSeekProcessor is not available, use a minimal fallback
+  console.error('[renderThinkingContainer] deepSeekProcessor not available, using minimal fallback');
   if (container && thinkingContent) {
     try {
+      // Process the thinking content to ensure proper spacing
+      let processedContent = thinkingContent
+        .replace(/([,\.\?!;:])([A-Za-z0-9])/g, '$1 $2') // Add space after punctuation
+        .replace(/([a-z])([A-Z])/g, '$1 $2'); // Add space between camelCase words
+      
       const thinkingDiv = document.createElement('div');
       thinkingDiv.className = 'thinking-fallback';
+      thinkingDiv.setAttribute('data-cot-id', Date.now());
       thinkingDiv.innerHTML = `<div class="p-2 bg-gray-100 dark:bg-gray-800 rounded mt-2 mb-2">
         <details>
           <summary class="cursor-pointer">Chain of Thought</summary>
-          <pre class="p-2 whitespace-pre-wrap">${thinkingContent}</pre>
+          <pre class="p-2 whitespace-pre-wrap">${processedContent}</pre>
         </details>
       </div>`;
       

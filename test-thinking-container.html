@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thinking Container Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .message { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .assistant-message { background-color: #f9f9f9; }
+        .dark-mode { background-color: #222; color: #fff; }
+        .dark-mode .assistant-message { background-color: #333; }
+        button { margin: 5px; padding: 8px 12px; }
+        .bg-gray-100 { background-color: #f3f4f6; }
+        .dark\:bg-gray-800 { background-color: #1f2937; }
+        .dark-mode .bg-gray-100 { background-color: #374151; }
+        .dark-mode .dark\:bg-gray-800 { background-color: #111827; }
+        .rounded { border-radius: 0.375rem; }
+        .mt-2 { margin-top: 0.5rem; }
+        .p-2 { padding: 0.5rem; }
+        .font-medium { font-weight: 500; }
+        .thinking-pre { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Thinking Container Test</h1>
+    <button id="toggle-theme">Toggle Dark Mode</button>
+    <button id="test-render">Test Render Thinking Container</button>
+    
+    <div id="chat-history">
+        <div class="message assistant-message" id="test-message">
+            <div>This is a test message. Click "Test Render Thinking Container" to add a thinking container.</div>
+        </div>
+    </div>
+
+    <script>
+        // Mock DOMPurify for testing
+        window.DOMPurify = {
+            sanitize: (content) => content
+        };
+
+        // Mock renderMarkdown
+        function renderMarkdown(text) {
+            return text.replace(/\n/g, '<br>');
+        }
+        window.renderMarkdown = renderMarkdown;
+
+        // Import the necessary function
+        const deepSeekProcessor = {
+            renderThinkingContainer: function(parentContainer, thinkingText, options = {}) {
+                console.log('[renderThinkingContainer] Called with thinking text length:', 
+                           thinkingText?.length || 0,
+                           'text sample:', thinkingText || '');
+                           
+                if (!parentContainer) {
+                    console.error('[renderThinkingContainer] No parent container provided');
+                    return null;
+                }
+
+                // CRITICAL FIX: Ensure we have some thinking text
+                if (!thinkingText || thinkingText.trim() === '') {
+                    console.warn('[renderThinkingContainer] Empty thinking text provided');
+                    thinkingText = '(processing...)'; // Placeholder text
+                }
+
+                // Look for existing container only if we're not forcing a new one
+                let thinkingContainer = null;
+                if (!options.createNew) {
+                    thinkingContainer = parentContainer.querySelector('.thinking-pre');
+                    console.log('[renderThinkingContainer] Found existing container:', !!thinkingContainer);
+                }
+
+                if (!thinkingContainer || options.createNew) {
+                    // If not found or createNew is true, create a new container
+                    console.log('[renderThinkingContainer] Creating new thinking container');
+                    
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'thinking-safe-wrapper'; // Add a wrapper class
+
+                    // CRITICAL FIX: Make sure wrapper is visible
+                    wrapper.style.display = 'block';
+                    wrapper.style.visibility = 'visible';
+                    wrapper.style.marginTop = '10px';
+
+                    // Create unique container with timestamp to avoid conflicts
+                    const uniqueId = 'thinking-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+                    wrapper.setAttribute('data-id', uniqueId);
+
+                    try {
+                        wrapper.innerHTML = createThinkingBlockHTML(thinkingText);
+                    } catch (err) {
+                        console.error('[renderThinkingContainer] Error creating HTML:', err);
+                        // Fallback to a simpler HTML structure if the fancy one fails
+                        wrapper.innerHTML = `
+                            <div class="thinking-container bg-gray-100 dark:bg-gray-800 p-3 rounded mt-2">
+                                <div><strong>Chain of Thought:</strong></div>
+                                <pre class="thinking-pre whitespace-pre-wrap mt-2">${thinkingText}</pre>
+                            </div>
+                        `;
+                    }
+                    
+                    // CRITICAL FIX: Add container before appending to ensure it's visible
+                    console.log('[renderThinkingContainer] Appending to parent container');
+                    parentContainer.appendChild(wrapper);
+
+                    thinkingContainer = wrapper.querySelector('.thinking-pre');
+                    
+                    if (!thinkingContainer) {
+                        console.error('[renderThinkingContainer] Failed to find .thinking-pre in the newly created container!');
+                        // Create one directly if it doesn't exist
+                        thinkingContainer = document.createElement('pre');
+                        thinkingContainer.className = 'thinking-pre whitespace-pre-wrap';
+                        thinkingContainer.textContent = thinkingText;
+                        wrapper.appendChild(thinkingContainer);
+                    }
+
+                    // CRITICAL FIX: Set explicit styles on the container to ensure visibility
+                    if (thinkingContainer) {
+                        thinkingContainer.style.display = 'block';
+                        thinkingContainer.style.visibility = 'visible';
+                        thinkingContainer.style.minHeight = '20px';
+                        thinkingContainer.style.opacity = '1';
+                    }
+
+                    console.log('[renderThinkingContainer] New container created:', !!thinkingContainer);
+                    
+                    // Return the thinking container element
+                    return thinkingContainer;
+                } else {
+                    // If it exists and we're not creating new, just update the text
+                    console.log('[renderThinkingContainer] Updating existing container');
+                    try {
+                        const sanitizedContent = window.DOMPurify ? 
+                            window.DOMPurify.sanitize(renderMarkdown(thinkingText)) : 
+                            renderMarkdown(thinkingText);
+                            
+                        // CRITICAL FIX: Set content and make it visible
+                        thinkingContainer.innerHTML = sanitizedContent || '(processing...)';
+                        thinkingContainer.style.display = 'block';
+                        thinkingContainer.style.visibility = 'visible';
+                    } catch (updateErr) {
+                        console.error('[renderThinkingContainer] Error updating container:', updateErr);
+                        // Fallback to simple text assignment
+                        thinkingContainer.textContent = thinkingText;
+                    }
+                }
+                
+                return thinkingContainer;
+            }
+        };
+
+        function createThinkingBlockHTML(thinkingText) {
+            if (!thinkingText) {
+                thinkingText = '(processing...)';
+            }
+            
+            // Ensure the thinking text has proper spacing
+            thinkingText = thinkingText
+                .replace(/([,\.\?!;:])/g, '$1 ') // Add space after punctuation if missing
+                .replace(/\s{2,}/g, ' ')        // Remove extra spaces
+                .replace(/([A-Za-z])([A-Z])/g, '$1 $2'); // Add space between words if missing (camelCase)
+
+            let sanitizedContent;
+            try {
+                // Use the application's markdown renderer
+                sanitizedContent = renderMarkdown(thinkingText);
+            } catch (error) {
+                console.error('Error formatting/sanitizing:', error);
+                // Fallback to plain text with line breaks preserved
+                sanitizedContent = thinkingText
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/\n/g, '<br>');
+            }
+            
+            // Create the HTML with explicit styles to ensure visibility and NO truncation
+            return `
+                <div class="thinking-container mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded"
+                    role="region" aria-label="Chain of Thought" data-cot-id="${Date.now()}"
+                    style="display:block; visibility:visible; margin-top:10px; max-height:none; overflow:visible;">
+                <details open>
+                    <summary class="font-medium cursor-pointer" style="display:flex; align-items:center;">
+                    Chain of Thought
+                    </summary>
+                    <pre class="thinking-pre whitespace-pre-wrap mt-2" style="white-space:pre-wrap; margin-top:8px; padding:8px;
+                            display:block; visibility:visible; max-height:none; overflow:visible;">${sanitizedContent}</pre>
+                </details>
+                </div>
+            `;
+        }
+
+        // Event listeners
+        document.getElementById('toggle-theme').addEventListener('click', function() {
+            document.body.classList.toggle('dark-mode');
+        });
+
+        document.getElementById('test-render').addEventListener('click', function() {
+            const testMessage = document.getElementById('test-message');
+            const thinkingText = "This is a test of the thinking container.\n\nI'm thinking about how to solve this problem:\n1. First identify the issue\n2. Then fix the class structure\n3. Make sure all selectors are consistent";
+            
+            deepSeekProcessor.renderThinkingContainer(testMessage, thinkingText, {createNew: true});
+        });
+    </script>
+</body>
+</html>
