@@ -107,7 +107,7 @@ function processStreamingChunk(chunkBuffer, isThinking, mainBuffer, thinkingBuff
     isThinking: isThinking,
     mainBufferLength: mainBuffer?.length || 0,
     thinkingBufferLength: thinkingBuffer?.length || 0,
-    bufferSample: chunkBuffer?.substring(0, 20) || '',
+    bufferSample: chunkBuffer || '',
     hasThinkTag: chunkBuffer?.includes('<think>') || false,
     hasCloseThinkTag: chunkBuffer?.includes('</think>') || false
   });
@@ -253,7 +253,7 @@ function markdownToHtml(text) {
 function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
   console.log('[renderThinkingContainer] Called with thinking text length:', 
               thinkingText?.length || 0,
-              'text sample:', thinkingText?.substring(0, 30) || '');
+              'text sample:', thinkingText || '');
               
   if (!parentContainer) {
     console.error('[renderThinkingContainer] No parent container provided');

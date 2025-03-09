@@ -30,6 +30,7 @@ import {
   renderContentEfficiently,
   renderThinkingContainer as fallbackRenderThinkingContainer,
 } from "./streamingRenderer.js";
+import { renderMarkdown, highlightCode } from "./ui/markdownParser.js";
 
 // --- Global state variables ---
 let mainTextBuffer = "";
@@ -889,37 +890,41 @@ function renderBufferedContent() {
     console.log(
       `[renderBufferedContent] Buffers - Main: ${mainTextBuffer.length}, Thinking: ${thinkingTextBuffer.length}`
     );
+// First parse out any <Chain-of-Thought> blocks from the main text buffer
+let combinedContent = mainTextBuffer || "";
+const chainRegex = /<Chain-of-Thought>\s*([\s\S]*?)\s*<\/Chain-of-Thought>/gm;
+let chainParts = [];
+let normalText = combinedContent;
 
-    const mainContentToRender = mainTextBuffer || "";
-    renderContentEfficiently(messageContainer, mainContentToRender, {
-      scroll:
-        Date.now() - lastScrollTimestamp > SCROLL_INTERVAL_MS && !errorState,
-    });
+let match;
+while ((match = chainRegex.exec(combinedContent)) !== null) {
+  chainParts.push(match[1].trim());
+  normalText = normalText.replace(match[0], '');
+}
 
-    if (thinkingTextBuffer && thinkingTextBuffer.trim()) {
-      console.log(
-        `[renderBufferedContent] Rendering thinking content, length: ${thinkingTextBuffer.length}`
-      );
+// Now render the remaining text without chain-of-thought
+renderContentEfficiently(messageContainer, normalText.trim(), {
+  scroll:
+    Date.now() - lastScrollTimestamp > SCROLL_INTERVAL_MS && !errorState,
+});
 
-      let thinkingDiv = messageContainer.querySelector(".thinking-fallback");
-      if (!thinkingDiv) {
-        thinkingDiv = document.createElement("div");
-        thinkingDiv.className =
-          "thinking-fallback mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded";
-        thinkingDiv.innerHTML = `
-          <details open>
-            <summary class="font-medium cursor-pointer">Chain of Thought</summary>
-            <pre class="whitespace-pre-wrap mt-2 thinking-content">${thinkingTextBuffer}</pre>
-          </details>
-        `;
-        messageContainer.appendChild(thinkingDiv);
-      } else {
-        const thinkingContent = thinkingDiv.querySelector(".thinking-content");
-        if (thinkingContent) {
-          thinkingContent.textContent = thinkingTextBuffer;
-        }
-      }
-    }
+// Render each chain-of-thought block as a separate section
+if (chainParts.length > 0) {
+  // Combine all chain-of-thought parts into a single block, remove \n, parse as Markdown
+  const finalCOT = chainParts.join("\\n").replace(/\\n/g, '\n');
+  const renderedCOT = renderMarkdown(finalCOT);
+  const block = document.createElement("div");
+  block.className = "chain-of-thought-block mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded markdown-content";
+  block.innerHTML = `
+    <details open>
+      <summary class="font-medium cursor-pointer">Chain of Thought</summary>
+      ${renderedCOT}
+    </details>
+  `;
+  messageContainer.appendChild(block);
+  highlightCode(block);
+}
+
   } catch (err) {
     console.error("[renderBufferedContent] Error:", err);
     const debugInfo = {

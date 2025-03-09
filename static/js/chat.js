@@ -206,7 +206,15 @@ export async function sendMessage() {
   console.log('[sendMessage] Invoked with userInput:', userInput?.value);
   if (!userInput) return;
   const messageContent = userInput.value.trim();
-  if (!messageContent || isProcessing) return;
+  if (!messageContent) return;
+  // If another request is already in progress, abort it
+  if (isProcessing && currentController) {
+    currentController.abort();
+    currentController = null;
+    isProcessing = false;
+    removeTypingIndicator();
+    showNotification('Request aborted by user', 'warning');
+  }
   try {
     if (currentController) {
       currentController.abort();

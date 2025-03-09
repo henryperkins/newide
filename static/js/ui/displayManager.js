@@ -477,18 +477,17 @@ export function renderAssistantMessage(content, skipScroll = false, skipStore = 
 }
 
 function createAssistantMessageElement(response) {
-  // Handle either a raw string or an object with { content, deepseek_thinking }
-  let content = '';
-  let deepSeekThinking = '';
+  // Unify chain-of-thought rendering in deepseekProcessor.
+  // No separate chain-of-thought logic here.
 
-  if (typeof response === 'object' && response !== null) {
-    content = response.content ?? '';
-    deepSeekThinking = response.deepseek_thinking ?? '';
+  let content = '';
+  if (typeof response === 'object' && response !== null && response.content) {
+    content = String(response.content);
   } else {
     content = String(response);
   }
 
-  // Use a single cache key for all models to avoid losing old messages when switching models:
+  // Use a single cache key for all models
   const snippet = content.substring(0, 40).replace(/\`/g, '').replace(/[\r\n]/g, ' ');
   const cacheKey = `assistant-${snippet}`;
 
@@ -501,44 +500,11 @@ function createAssistantMessageElement(response) {
   el.setAttribute('role', 'log');
   el.setAttribute('aria-live', 'polite');
 
-  // Extract main content and thinking content from <think> tags, if any
-  let mainContent = content;
-  let thinkingContent = '';
-
-  // If server provided a separate deepseek_thinking field, use it
-  // Otherwise, fallback to extracting <think> blocks
-  if (deepSeekThinking) {
-    thinkingContent = deepSeekThinking;
-    console.log('[createAssistantMessageElement] Found deepseek_thinking from server:', thinkingContent.length, 'chars');
-  } else if (content.includes('<think>')) {
-    // Extract thinking blocks
-    const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
-    if (thinkMatches) {
-      thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
-      console.log('[createAssistantMessageElement] Extracted thinking from <think> tags, length:', thinkingContent.length);
-      mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
-    }
-  }
-
-  // Process main content
-  const md = renderMarkdown(mainContent);
+  // Process and sanitize main content only
+  const md = renderMarkdown(content);
   const enhanced = processCodeBlocks(md);
   const lazy = processImagesForLazyLoading(enhanced);
-
   el.innerHTML = lazy;
-
-  // If we have chain-of-thought text, render it
-  if (thinkingContent) {
-    const thinkingDiv = document.createElement('div');
-    thinkingDiv.className = 'thinking-block mt-2';
-    thinkingDiv.innerHTML = `
-      <details open>
-        <summary class="cursor-pointer p-2 bg-gray-100 dark:bg-gray-800 rounded font-medium">Chain of Thought</summary>
-        <pre class="p-2 whitespace-pre-wrap bg-gray-50 dark:bg-gray-900 rounded mt-1">${thinkingContent}</pre>
-      </details>
-    `;
-    el.appendChild(thinkingDiv);
-  }
 
   messageCache.set(cacheKey, el.cloneNode(true));
   return el;
