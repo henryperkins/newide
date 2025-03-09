@@ -66,6 +66,13 @@ def db_validation_lifespan(lifespan_func):
                     message = f"Error checking migrations: {str(e)}"
                     validation_errors.append(message)
                     logger.error(message)
+
+                    from migrate import get_alembic_config
+                    from alembic import command
+
+                    logger.info("Migrations are out of date. Running 'upgrade head' automatically...")
+                    alembic_cfg = get_alembic_config()
+                    command.upgrade(alembic_cfg, "head")
             
             # Validate database schema
             logger.info("Validating database schema against ORM models...")
