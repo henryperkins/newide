@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, BackgroundTasks, Request, HTTPException, Response
+from fastapi import APIRouter, Depends, BackgroundTasks, Request, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic_models import SessionResponse, SessionInfoResponse
 from sqlalchemy.ext.asyncio import AsyncSession

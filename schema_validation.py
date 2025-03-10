@@ -16,20 +16,20 @@ Features:
 import sys
 import logging
 import asyncio
-from typing import Dict, List, Set, Tuple, Optional, Any
+from typing import Dict, List, Tuple
 from sqlalchemy import inspect, MetaData, Table, Column, text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, AsyncConnection
-from sqlalchemy.sql.schema import Index
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncConnection
 import sqlalchemy.types as sqltypes
+
+from models import Base
+from database import engine
+import database
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Import models and engine from project
-from models import Base
-from database import engine
-import database
 
 class SchemaValidator:
     """
@@ -201,7 +201,7 @@ class SchemaValidator:
                     )
                 
                 # Check data type (basic compatibility check)
-                self._check_column_type(table_name, col_name, orm_column, db_column)
+                self._check_column_type(table_name, col_name, orm_column, dict(db_column))
             
             # Check for columns in database but not in ORM
             orm_column_names = {col.name for col in orm_table.columns}
@@ -425,3 +425,4 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Schema validation failed: {e}")
         sys.exit(1)
+

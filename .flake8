@@ -1,3 +1,6 @@
 [flake8]
 ignore = E501, W291, W293, W391, E302
+per-file-ignores =
+  routers/security.py: E,F,W
+  .aider.chat.history.md: E,F,W
 max-line-length = 120

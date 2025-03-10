@@ -2,14 +2,13 @@
 
 import uuid
 import time
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Union
 from datetime import datetime, timedelta, timezone
-from fastapi import Request, Cookie, HTTPException, Depends
+from fastapi import Request, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, text, func
+from sqlalchemy import select, update, func
 import sentry_sdk
 
-from database import get_db_session
 from models import Session
 import config
 from logging_config import get_logger

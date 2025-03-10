@@ -14,9 +14,9 @@ api_key_header = APIKeyHeader(name="api-key")
 # async def validate_auth(api_key: Optional[str] = Depends(api_key_header), token: Optional[str] = Depends(security)):
 #     pass  # Removed for pure JWT-based auth in chat endpoints
 
-import config
-from jose import jwt, JWTError
-
+# removing repeated import config
+from jose import jwt
+from jose.exceptions import JWTError, ExpiredSignatureError
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from models import User
 from database import get_db_session
@@ -54,6 +54,6 @@ async def get_current_user(
             return None
 
         return user
-    except (DecodeError, ExpiredSignatureError):
+    except (JWTError, ExpiredSignatureError):
         # Return None instead of raising an exception
         return None

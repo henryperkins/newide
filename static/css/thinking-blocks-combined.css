@@ -3,7 +3,7 @@
  * Styles for DeepSeek model's thinking process blocks
  * Extracted from tailwind.config.js and tailwind.css
  */
-
+ 
 /* Base styles for thinking process container */
 .thinking-process {
   margin: 1rem 0;
@@ -477,7 +477,7 @@
   letter-spacing: normal !important;
 }
 
-/* Add default paragraph spacing and inherit font for markdown blocks */
+ /* Add default paragraph spacing and inherit font for markdown blocks */
 .markdown-content,
 .thinking-pre.markdown-content {
   font-family: inherit;
@@ -799,4 +799,31 @@ message-content h3 {
 
 .deepseek-cot-block.new {
   animation: fade-in-up 0.3s ease forwards;
+}
+
+/* 
+ * Inserted override styles per request
+ */
+div.deepseek-cot-block {
+  position: relative !important;
+  margin: 0.5rem 0 !important;
+  border-radius: 0.5rem !important;
+  border: 1px solid var(--thinking-border, #7661c9) !important;
+  background-color: var(--thinking-bg, #f9f8fe) !important;
+  overflow: hidden !important;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+  display: block !important;
+  width: 100% !important;
+}
+
+/* Force visibility during streaming */
+[data-streaming="true"] .deepseek-cot-block {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Make sure animation works */
+.deepseek-cot-block .thought-icon.thinking {
+  animation: thinking-pulse 1.5s ease-in-out infinite !important;
 }

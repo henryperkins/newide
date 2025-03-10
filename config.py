@@ -79,7 +79,6 @@ class Settings(BaseSettings):
 
     # JWT Configuration
     
-    
     # Convert JWT_SECRET to a fallback, ensuring it's always str even if not set
     # so that Pydantic doesn't complain about str | None
     JWT_SECRET: str = Field(default_factory=lambda: os.getenv("JWT_SECRET") or "CHANGEME")
@@ -396,7 +395,7 @@ def get_azure_search_index_schema(index_name: str) -> dict:
     }
 
 
-def build_azure_openai_url(deployment_name: str = None, api_version: str = None) -> str:
+def build_azure_openai_url(deployment_name: str = "", api_version: str = "") -> str:
     """Build the Azure OpenAI API URL with support for different model types."""
     # Determine which endpoint to use based on the model
     if is_deepseek_model(deployment_name):
