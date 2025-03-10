@@ -16,6 +16,7 @@ import {
 import {
   showNotification,
   handleMessageError,
+  showTypingIndicator
 } from "./ui/notificationManager.js";
 import { deepSeekProcessor } from "./ui/deepseekProcessor.js";
 import {
@@ -127,11 +128,10 @@ function resetStreamingState() {
     connectionCheckIntervalId = null;
   }
 }
-
+ 
 /* ------------------------------------------------------------------
-   Main SSE: streamChatResponse
    ------------------------------------------------------------------ */
-export function streamChatResponse(
+function streamChatResponse(
   messageContent,
   sessionId,
   modelName = "DeepSeek-R1",
@@ -142,6 +142,11 @@ export function streamChatResponse(
 ) {
   resetStreamingState();
   streamStartTime = performance.now();
+  showTypingIndicator();
+  
+  // Ensure message container exists
+  messageContainer = ensureMessageContainer();
+
 
   return new Promise(async (resolve, reject) => {
     if (!sessionId) {
@@ -265,6 +270,18 @@ export function streamChatResponse(
         thinkingTextBuffer = finalizeResult.thinkingContent;
         isThinking = false;
 
+        // Transition animation to complete state before final render
+        if (messageContainer) {
+          const block = messageContainer.querySelector(".deepseek-cot-block");
+          if (block) {
+            const icon = block.querySelector(".thought-icon");
+            if (icon) {
+              icon.classList.remove("thinking");
+              icon.classList.add("complete");
+            }
+          }
+        }
+
         forceRender(); // final update
         cleanupStreaming(finalModelName)
           .then(() => resolve(true))
@@ -303,6 +320,18 @@ function processRawChunk(newText) {
       handleDataChunk(parsed);
     } catch (err) {
       console.error("Failed to parse SSE chunk:", err, seg);
+    }
+  }
+
+  // If we're starting to get chunks, start the animation
+  if (messageContainer) {
+    const block = messageContainer.querySelector(".deepseek-cot-block");
+    if (block) {
+      const icon = block.querySelector(".thought-icon");
+      if (icon) {
+        icon.classList.remove("complete");
+        icon.classList.add("thinking");
+      }
     }
   }
 
@@ -381,16 +410,22 @@ function renderBufferedContent() {
     }
     if (!messageContainer) return;
 
-    messageContainer.innerHTML = "";
+        messageContainer.innerHTML = "";
 
-    // 1) Chain of Thought
-    if (thinkingTextBuffer.trim()) {
-      deepSeekProcessor.renderThinkingContainer(
-        messageContainer,
-        thinkingTextBuffer,
-        { createNew: true }
-      );
-    }
+        // Set streaming state on message container
+        messageContainer.setAttribute('data-streaming', 'true');
+
+        // 1) Chain of Thought - always create container during streaming
+        const isFirstRender = !thinkingTextBuffer && !mainTextBuffer;
+        const isEndOfStream = !rollingBuffer && !isThinking;
+        deepSeekProcessor.renderThinkingContainer(
+          messageContainer,
+          thinkingTextBuffer,
+          { 
+            createNew: true,
+            isComplete: isFirstRender || isEndOfStream 
+          }
+        );
 
     // 2) Main user-visible content
     const contentDiv = document.createElement("div");
@@ -451,6 +486,12 @@ async function cleanupStreaming(modelName) {
     removeStreamingProgressIndicator();
 
     if (messageContainer) {
+      // Remove streaming state and cleanup transitions
+      messageContainer.removeAttribute('data-streaming');
+      const block = messageContainer.querySelector('.deepseek-cot-block');
+      if (block) {
+        block.removeAttribute('data-streaming');
+      }
       finalizeStreamingContainer(messageContainer);
     }
   } catch (err) {
@@ -498,5 +539,6 @@ async function cleanupStreaming(modelName) {
     } catch (storeErr) {
       console.warn("Error storing final content:", storeErr);
     }
-  }
+   }
 }
+export { streamChatResponse };

@@ -194,40 +194,74 @@ function replaceThinkingBlocks(content) {
 //
 
 /**
- * Minimal code to create a separate "Chain of Thought" section in the UI:
+ * Enhanced renderer for Chain of Thought sections with improved UI/UX
  */
 function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
   if (!parentContainer) {
     console.warn("[renderThinkingContainer] No parentContainer provided");
     return null;
   }
-  if (!thinkingText || !thinkingText.trim()) {
-    console.warn("[renderThinkingContainer] No thinking text to render");
-    return null;
-  }
+  // Allow empty initial content during streaming
+  const textToRender = thinkingText || "";
 
   // If "createNew" isn't explicitly false, default to true
   const shouldCreateNew = options.createNew !== false;
+  const isComplete = options.isComplete === true;
 
   let existing = parentContainer.querySelector(".deepseek-cot-block");
+  let wrapper = existing;
+  
   if (!existing && shouldCreateNew) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "deepseek-cot-block mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded";
+    wrapper = document.createElement("div");
+    wrapper.className = "deepseek-cot-block mt-2";
+    
     wrapper.innerHTML = `
       <details open>
-        <summary class="font-bold cursor-pointer">Chain of Thought</summary>
-        <div class="thinking-content mt-2"></div>
+        <summary class="thought-header">
+          <div class="header-content">
+            <svg xmlns="http://www.w3.org/2000/svg" class="thought-icon complete" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z" />
+            </svg>
+            <span class="thought-title">Chain of Thought</span>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" class="chevron-icon" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+          </svg>
+        </summary>
+        <div class="thinking-content"></div>
       </details>
     `;
+    
     parentContainer.insertBefore(wrapper, parentContainer.firstChild);
     existing = wrapper.querySelector(".thinking-content");
+    
+    // Add event listener to toggle chevron icon direction
+    const details = wrapper.querySelector("details");
+    const chevron = wrapper.querySelector(".chevron-icon");
+    details.addEventListener("toggle", () => {
+      chevron.classList.toggle("rotate-180", details.open);
+    });
   }
 
   if (!existing) return null; // no container to update
 
+  // Update thinking state
+  if (wrapper) {
+    const thoughtIcon = wrapper.querySelector(".thought-icon");
+    if (thoughtIcon) {
+      if (isComplete) {
+        thoughtIcon.classList.remove("thinking");
+        thoughtIcon.classList.add("complete");
+      } else {
+        thoughtIcon.classList.add("thinking");
+        thoughtIcon.classList.remove("complete");
+      }
+    }
+  }
+
   // Just do textContent or minimal sanitize
   // For more advanced formatting, parse markdown
-  existing.textContent = thinkingText;
+  existing.textContent = textToRender;
 
   return existing;
 }
@@ -271,13 +305,37 @@ function initializeExistingBlocks() {
       if (!thinkingContent.querySelector('details')) {
         const thinkingText = thinkingContent.textContent || '';
         
-        // Recreate with proper structure
+        // Recreate with proper enhanced structure
         thinkingContent.innerHTML = `
           <details open>
-            <summary class="font-bold cursor-pointer">Chain of Thought</summary>
-            <div class="thinking-content mt-2">${thinkingText}</div>
+            <summary class="thought-header">
+              <div class="header-content">
+                <svg xmlns="http://www.w3.org/2000/svg" class="thought-icon complete" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z" />
+                </svg>
+                <span class="thought-title">Chain of Thought</span>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" class="chevron-icon" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+            </summary>
+            <div class="thinking-content">${thinkingText}</div>
           </details>
         `;
+
+        // Add chevron animation
+        const details = thinkingContent.querySelector('details');
+        const chevron = thinkingContent.querySelector('.chevron-icon');
+        details.addEventListener("toggle", () => {
+          chevron.classList.toggle("rotate-180", details.open);
+        });
+
+        // Note: For existing blocks, we mark them as complete since they're already done
+        const thoughtIcon = thinkingContent.querySelector('.thought-icon');
+        if (thoughtIcon) {
+          thoughtIcon.classList.add('complete');
+          thoughtIcon.classList.remove('thinking');
+        }
       }
     } else {
       // Look for potential thinking content that may not be properly formatted
@@ -296,8 +354,12 @@ function initializeExistingBlocks() {
             thinkingText += content + '\n';
           });
           
-          // Create a new thinking container
-          renderThinkingContainer(messageContainer, thinkingText.trim(), { createNew: true });
+          // Create a new thinking container with the same appearance as initialized blocks
+          renderThinkingContainer(messageContainer, thinkingText.trim(), { 
+            createNew: true, 
+            isComplete: true,
+            className: "deepseek-cot-block mt-2" // Match the exact className
+          });
           
           // Optionally, clean the original message content
           const mainContentDiv = messageContainer.querySelector('.message-content');

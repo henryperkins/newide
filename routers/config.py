@@ -189,6 +189,24 @@ async def get_all_configs(
     }
 
 
+# ==================================================================================
+# Model Configuration Endpoints
+# (Move get_models ABOVE the dynamic route to avoid overshadowing)
+# ==================================================================================
+
+@router.get("/models", response_model=Dict[str, ModelConfigModel])
+async def get_models(db_session: AsyncSession = Depends(get_db_session)):
+    """Get all model configurations"""
+    try:
+        # Get models from client pool
+        client_pool = await get_client_pool(db_session)
+        return client_pool.get_all_models()
+    except Exception as e:
+        logger.error(f"Error in get_models: {str(e)}")
+        # Return default models from ModelRegistry
+        return ModelRegistry.create_default_models()
+
+
 @router.get("/{key}", response_model=None)
 async def get_config(key: str, config_service=Depends(get_config_service)) -> dict:
     """
@@ -225,23 +243,6 @@ async def update_config(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update config")
     return {"status": "updated"}
-
-
-# ==================================================================================
-# Model Configuration Endpoints
-# ==================================================================================
-
-@router.get("/models", response_model=Dict[str, ModelConfigModel])
-async def get_models(db_session: AsyncSession = Depends(get_db_session)):
-    """Get all model configurations"""
-    try:
-        # Get models from client pool
-        client_pool = await get_client_pool(db_session)
-        return client_pool.get_all_models()
-    except Exception as e:
-        logger.error(f"Error in get_models: {str(e)}")
-        # Return default models from ModelRegistry
-        return ModelRegistry.create_default_models()
 
 
 @router.get("/models/{model_id}", response_model=None)
@@ -592,7 +593,6 @@ async def switch_model_path(
             )
 
         return {"success": True, "model": model_id}
-
     except HTTPException:
         raise
     except Exception as e:

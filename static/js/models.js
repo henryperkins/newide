@@ -1,3 +1,5 @@
+// BEGIN FULL FILE CONTENT (de-duplicated createModelOnServer)
+
 import { showNotification, showConfirmDialog } from './ui/notificationManager.js';
 import { fetchWithErrorHandling, createCache, eventBus } from './utils/helpers.js';
 import { getModelAPIConfig, updateConfig } from './config.js';
@@ -769,6 +771,51 @@ class ModelManager {
             return Object.keys(this.modelConfigs)[0] || null;
         }
     }
+
+    /**
+     * Creates or updates a model on the server using a POST request.
+     * @param {string} modelId - The ID of the model to create.
+     * @param {Object} modelConfig - The configuration object for the model.
+     * @returns {Promise<Object>} The server response JSON if successful.
+     */
+    async createModelOnServer(modelId, modelConfig) {
+        // If there's already a pending action for this model, skip
+        if (this.pendingModelActions[modelId]) {
+            console.log('[createModelOnServer] Already pending creation for:', modelId, 'pendingAction:', this.pendingModelActions[modelId]);
+            return;
+        }
+
+        console.log('[createModelOnServer] Creating model on server:', modelId);
+        this.pendingModelActions[modelId] = 'create';
+
+        try {
+            const response = await fetch(`${window.location.origin}/api/config/models/${encodeURIComponent(modelId)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(modelConfig)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`[createModelOnServer] ${modelId} creation failed:`, errorText);
+                throw new Error(`Failed to create model ${modelId} on server: ${errorText}`);
+            }
+
+            const data = await response.json().catch(() => ({}));
+            this.modelConfigs[modelId] = modelConfig;
+            this.modelConfigCache.clear();
+            console.log(`[createModelOnServer] ${modelId} created successfully on server.`, data);
+            return data;
+        } catch (error) {
+            console.error(`[createModelOnServer] Error creating model ${modelId}:`, error);
+            throw error;
+        } finally {
+            delete this.pendingModelActions[modelId];
+        }
+    }
 }
 
+// Final export (single instance)
 export const modelManager = new ModelManager();
+
+// END FULL FILE CONTENT

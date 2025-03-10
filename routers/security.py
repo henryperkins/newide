@@ -15,12 +15,14 @@ api_key_header = APIKeyHeader(name="api-key")
 #     pass  # Removed for pure JWT-based auth in chat endpoints
 
 import config
-import jwt
+from jose import jwt, JWTError
+
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from models import User
 from database import get_db_session
 from fastapi import HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 async def get_current_user(
     db: AsyncSession = Depends(get_db_session),
@@ -48,10 +50,10 @@ async def get_current_user(
         result = await db.execute(stmt)
         user = result.scalar_one_or_none()
         
-        if not user or not user.is_active:
+        if not user or not bool(user.is_active):
             return None
 
         return user
-    except (jwt.DecodeError, jwt.ExpiredSignatureError):
+    except (DecodeError, ExpiredSignatureError):
         # Return None instead of raising an exception
         return None

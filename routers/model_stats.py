@@ -52,8 +52,15 @@ async def get_session_stats(
     Get usage statistics for a specific session.
     Optionally filter by model.
     """
+    try:
+        session_uuid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid session ID format"
+        )
     stats_service = ModelStatsService(db)
-    stats = await stats_service.get_session_stats(session_id, model)
+    stats = await stats_service.get_session_stats(session_uuid, model)
     return {
         "session_id": session_id,
         "stats": stats

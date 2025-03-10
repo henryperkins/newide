@@ -395,8 +395,8 @@ async def process_file_with_azure(
                 file_data = await db_session.get(UploadedFile, local_file_id)
                 if file_data:
                     azure_file_id = await file_service.create_azure_file(
-                        file_data.content,
-                        file_data.filename
+                        str(file_data.content or ""),
+                        str(file_data.filename or "")
                     )
                     # Create chunks from the file content
                     chunks = [{"content": file_data.content}]  # Adjust according to your needs
@@ -404,9 +404,9 @@ async def process_file_with_azure(
                     search_success = await search_service.upload_file_to_index(
                         session_id=session_id,
                         file_id=str(file_data.id),
-                        filename=file_data.filename,
-                        content=file_data.content,
-                        file_type=file_data.file_type,
+                        filename=str(file_data.filename),
+                        content=str(file_data.content),
+                        file_type=str(file_data.file_type),
                         chunks=chunks  # Add the required chunks parameter
                     )
                     # Get or create vector store
