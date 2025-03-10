@@ -251,6 +251,67 @@ function preprocessChunk(data) {
   return { text: "" };
 }
 
+/**
+ * Scans the DOM for existing assistant messages with thinking blocks
+ * and initializes them properly
+ */
+function initializeExistingBlocks() {
+  console.log("Initializing existing thinking blocks...");
+  
+  // Find all existing assistant message containers
+  const assistantMessages = document.querySelectorAll('.assistant-message');
+  
+  assistantMessages.forEach(messageContainer => {
+    // Check if this message has any thinking content
+    const thinkingContent = messageContainer.querySelector('.deepseek-cot-block');
+    
+    // If there's already a thinking block container, ensure it's properly formatted
+    if (thinkingContent) {
+      // Make sure it has the proper structure (details/summary)
+      if (!thinkingContent.querySelector('details')) {
+        const thinkingText = thinkingContent.textContent || '';
+        
+        // Recreate with proper structure
+        thinkingContent.innerHTML = `
+          <details open>
+            <summary class="font-bold cursor-pointer">Chain of Thought</summary>
+            <div class="thinking-content mt-2">${thinkingText}</div>
+          </details>
+        `;
+      }
+    } else {
+      // Look for potential thinking content that may not be properly formatted
+      // Check for text containing <think> tags
+      const messageText = messageContainer.textContent || '';
+      if (messageText.includes('<think>') && messageText.includes('</think>')) {
+        // Parse out the thinking content
+        const thinkMatches = messageText.match(/<think>([\s\S]*?)<\/think>/gi);
+        
+        if (thinkMatches && thinkMatches.length > 0) {
+          // Extract thinking content from all matches
+          let thinkingText = '';
+          thinkMatches.forEach(match => {
+            // Remove the opening and closing think tags
+            const content = match.replace(/<\/?think>/gi, '');
+            thinkingText += content + '\n';
+          });
+          
+          // Create a new thinking container
+          renderThinkingContainer(messageContainer, thinkingText.trim(), { createNew: true });
+          
+          // Optionally, clean the original message content
+          const mainContentDiv = messageContainer.querySelector('.message-content');
+          if (mainContentDiv) {
+            mainContentDiv.textContent = processDeepSeekResponse(messageText);
+          }
+        }
+      }
+    }
+  });
+  
+  console.log("Finished initializing thinking blocks");
+}
+
 //
 // 6) Export everything as a single object
 //
@@ -264,8 +325,12 @@ export const deepSeekProcessor = {
   processDeepSeekResponse,
   replaceThinkingBlocks,
 
+
   // UI rendering
   renderThinkingContainer,
+  
+  // Initialize existing blocks on page load
+  initializeExistingBlocks,
 
   // If streaming.js calls it:
   preprocessChunk,
