@@ -3,6 +3,14 @@ import uuid
 import time
 from time import perf_counter
 from typing import Optional, List, Dict, Any
+
+# Placeholder: Added code to store token usage in the database
+# For instance:
+# def record_token_usage(session_id: str, prompt_tokens: int, completion_tokens: int, reasoning_tokens: int):
+#     """
+#     Insert or update token usage data in the database.
+#     """
+#     pass
 import os
 import re
 
@@ -134,10 +142,10 @@ def prepare_model_parameters(
             if chat_message.temperature is not None
             else config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
         )
-        params["max_tokens"] = min(
-            params.get("max_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS),
-            config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
-        )
+        maybe_max_tokens = params.get("max_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS)
+        if not isinstance(maybe_max_tokens, (int, float)):
+            maybe_max_tokens = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+        params["max_tokens"] = int(min(maybe_max_tokens, config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS))
     elif is_o_series:
         params["max_completion_tokens"] = (
             chat_message.max_completion_tokens
@@ -441,6 +449,23 @@ async def process_chat_message(
             content += f"\n\n[DeepSeek Thinking]\n{thinking_output}"
         
         processing_time = perf_counter() - start_time
+
+        import uuid
+        from services.model_stats_service import ModelStatsService
+
+        # Convert session_id to a UUID or use a fallback if it's missing/invalid
+        try:
+            session_uuid = uuid.UUID(session_id) if session_id else uuid.UUID("00000000-0000-0000-0000-000000000000")
+        except:
+            session_uuid = uuid.UUID("00000000-0000-0000-0000-000000000000")
+
+        ms_service = ModelStatsService(db_session)
+        await ms_service.record_usage(
+            model=model_name,
+            session_id=session_uuid,
+            usage=usage_data,
+            metadata=None
+        )
 
         # Store the conversation
         with profile_block(description="Save Conversation", op="db.save"):

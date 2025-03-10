@@ -1,0 +1,641 @@
+/* 
+ * thinking-blocks.css
+ * Styles for DeepSeek model's thinking process blocks
+ * Extracted from tailwind.config.js and tailwind.css
+ */
+
+/* Base styles for thinking process container */
+.thinking-process {
+  margin: 1rem 0;
+  border: 1px solid oklch(86% 0.01 276);
+  border-radius: 0.5rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: none !important; /* Override max-height */
+  animation: fadeIn 0.5s ease forwards;
+  transform-origin: top;
+  max-width: 100%;
+}
+
+.dark .thinking-process {
+  border-color: theme('colors.dracula.comment');
+}
+
+.thinking-process:hover {
+  box-shadow: 0 4px 8px -1px rgba(0, 0, 0, 0.12),
+    0 2px 4px -1px rgba(0, 0, 0, 0.07);
+  transform: translateY(-1px);
+}
+
+/* Thinking header with improved visual hierarchy */
+.thinking-header {
+  background-color: oklch(97% 0.029 276 / 0.2);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid oklch(86% 0.01 276);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.dark .thinking-header {
+  background-color: theme('colors.dracula.currentLine');
+  border-bottom: 1px solid theme('colors.dracula.comment');
+}
+
+/* Thinking toggle button with improved accessibility and animations */
+.thinking-toggle {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  color: oklch(60% 0.135 276);
+  font-weight: 500;
+  transition: color 0.2s ease-in-out;
+  cursor: pointer;
+  padding: 0.25rem 0;
+  position: relative;
+  overflow-y: auto;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.thinking-toggle::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background-color: oklch(60% 0.135 276 / 0.3);
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+  transform-origin: right;
+}
+
+.thinking-toggle:hover::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+.thinking-toggle:hover {
+  color: oklch(52% 0.13 276);
+}
+
+.dark .thinking-toggle {
+  color: theme('colors.dracula.purple');
+}
+
+.dark .thinking-toggle:hover {
+  color: theme('colors.dracula.pink');
+}
+
+.dark .thinking-toggle::after {
+  background-color: theme('colors.dracula.purple');
+}
+
+.toggle-icon {
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Thinking content area with animations */
+.thinking-content {
+  background-color: oklch(97% 0.029 276 / 0.1);
+  padding: 1rem;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: block; /* Ensure proper toggle behavior */
+}
+
+.thinking-content[aria-expanded="false"] {
+  display: none;
+}
+
+.thinking-content[aria-expanded="true"] {
+  display: block;
+  animation: contentFadeIn 0.3s ease;
+}
+
+@keyframes contentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dark .thinking-content {
+  background-color: theme('colors.dracula.background');
+}
+
+/* Thinking pre with improved readability */
+.thinking-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: 'JetBrains Mono', 'Courier New', Courier, monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: oklch(32% 0.02 276);
+  letter-spacing: 0.02em; /* Added letter spacing */
+  overflow-y: auto;
+  /* max-height: 300px; */
+  max-height: none !important; /* Override max-height */
+  max-height: none !important; /* Override max-height */
+  transition: color 0.3s ease;
+}
+
+.dark .thinking-pre {
+  color: theme('colors.dracula.foreground');
+}
+
+/* Code blocks within thinking content */
+.thinking-pre .code-block {
+  margin: 1rem 0;
+  border-radius: 0.375rem;
+  overflow: hidden;
+  background-color: oklch(97% 0.01 276 / 0.3);
+  border: 1px solid oklch(86% 0.01 276);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.dark .thinking-pre .code-block {
+  background-color: theme('colors.dracula.currentLine');
+  border: 1px solid theme('colors.dracula.comment');
+}
+
+.thinking-pre .code-block-header {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  background-color: oklch(94% 0.048 276 / 0.2);
+  border-bottom: 1px solid oklch(86% 0.01 276);
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+.dark .thinking-pre .code-block-header {
+  color: theme('colors.dracula.purple');
+  background-color: theme('colors.dracula.background');
+  border-bottom: 1px solid theme('colors.dracula.comment');
+}
+
+.thinking-pre .code-block code {
+  display: block;
+  padding: 0.75rem 1rem;
+  white-space: pre-wrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  color: oklch(32% 0.02 276);
+  overflow-x: auto;
+  transition: color 0.3s ease;
+}
+
+.dark .thinking-pre .code-block code {
+  color: theme('colors.dracula.foreground');
+}
+
+/* Gradient overlay for long content */
+.thinking-gradient {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3rem;
+  background: linear-gradient(
+    to top,
+    rgba(248, 250, 252, 0.9) 0%,
+    rgba(248, 250, 252, 0) 100%
+  );
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.dark .thinking-gradient {
+  background: linear-gradient(
+    to top,
+    theme('colors.dracula.background') 0%,
+    rgba(40, 42, 54, 0) 100%
+  );
+}
+
+/* Collapsed state animations */
+.thinking-process[data-collapsed="true"] .toggle-icon {
+  transform: rotate(-90deg);
+}
+
+/* Pulse animation for new thinking blocks */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.thinking-process.new {
+  animation: fadeIn 0.5s ease forwards, pulse 1.5s ease-in-out 1;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4) }
+  50% { box-shadow: 0 0 0 4px rgba(99, 102, 241, 0) }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4) }
+}
+
+.thinking-process.new {
+  animation: fadeIn 0.5s ease forwards, pulse 1.5s ease-in-out 1;
+}
+
+/**
+ * Custom styling for thinking blocks
+ */
+
+/* Improved styling for thinking blocks */
+.thinking-block {
+  position: relative;
+  margin: 1rem 0;
+  border-radius: 0.5rem;
+  border: 1px solid var(--thinking-border, oklch(76% 0.12 276));
+  background-color: var(--thinking-bg, oklch(97% 0.01 276));
+  overflow: hidden;
+  transition: border-color 0.3s ease;
+}
+
+.dark .thinking-block {
+  --thinking-border: oklch(42% 0.12 276);
+  --thinking-bg: oklch(24% 0.02 276/0.3);
+}
+
+.thinking-container {
+  width: 100%;
+}
+
+.thinking-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: oklch(36% 0.095 276);
+  background: transparent;
+  text-align: left;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.dark .thinking-toggle {
+  color: oklch(89% 0.078 276);
+}
+
+.thinking-toggle:hover {
+  background-color: oklch(96% 0.02 276);
+}
+
+.dark .thinking-toggle:hover {
+  background-color: oklch(32% 0.02 276);
+}
+
+.toggle-icon {
+  transition: transform 0.3s ease;
+  display: inline-block;
+  width: 1rem;
+  text-align: center;
+}
+
+.thinking-content {
+  padding: 0 1rem 1rem 1rem;
+  overflow: hidden;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: oklch(36% 0.095 276/0.9);
+}
+
+.dark .thinking-content {
+  color: oklch(89% 0.078 276/0.9);
+}
+
+/* Legacy compatibility for old thinking blocks */
+.thinking-process {
+  border: 1px solid var(--thinking-border, oklch(76% 0.12 276));
+  background-color: var(--thinking-bg, oklch(97% 0.01 276));
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  overflow: hidden;
+}
+
+.dark .thinking-process {
+  --thinking-border: oklch(42% 0.12 276);
+  --thinking-bg: oklch(24% 0.02 276/0.3);
+}
+
+.thinking-header {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Make thinking content display properly on mobile */
+@media (max-width: 640px) {
+  .thinking-block {
+    margin: 0.75rem 0;
+  }
+  
+  .thinking-toggle {
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .thinking-content {
+    padding: 0 0.75rem 0.75rem 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  /* Legacy styles */
+  .thinking-process {
+    margin: 0.75rem 0;
+  }
+  
+  .thinking-header {
+    padding: 0.5rem 0.75rem;
+  }
+}
+
+/* Code blocks within thinking content */
+.thinking-content code {
+  font-family: 'JetBrains Mono', monospace;
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.15em 0.3em;
+  border-radius: 0.2em;
+}
+
+.dark .thinking-content code {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.thinking-content pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+
+.dark .thinking-content pre {
+  background-color: rgba(0, 0, 0, 0.25);
+}
+
+.thinking-content pre code {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+  display: block;
+}
+
+/* Animation for new thinking blocks */
+@keyframes thinking-highlight {
+  0% {
+    border-color: oklch(65% 0.2 276);
+    box-shadow: 0 0 0 2px oklch(65% 0.2 276 / 0.3);
+  }
+  50% {
+    border-color: var(--thinking-border, oklch(76% 0.12 276));
+    box-shadow: 0 0 0 0 transparent;
+  }
+  100% {
+    border-color: var(--thinking-border, oklch(76% 0.12 276));
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.thinking-block.new {
+  animation: thinking-highlight 2s ease-out;
+}
+
+.thinking-process.new {
+  animation: thinking-highlight 2s ease-out;
+}
+
+/* Make sure toggle focus states are visible */
+.thinking-toggle:focus-visible {
+  outline: 2px solid oklch(65% 0.2 276);
+  outline-offset: -2px;
+}
+
+/* 
+ * deepseek-thinking-fix.css
+ * Specific fixes for the chain of thought display in DeepSeek models
+ */
+
+/* Ensure thinking container appears above the main content */
+.assistant-message {
+  display: flex;
+  flex-direction: column;
+}
+
+.assistant-message .thinking-safe-wrapper,
+.assistant-message .thinking-container {
+  order: -1 !important; /* Force container to appear first */
+  margin-bottom: 16px !important;
+  position: relative;
+  z-index: 10;
+  width: 100%;
+}
+
+/* Fix word spacing issues in thinking content */
+.thinking-pre,
+.thinking-pre.markdown-content,
+.markdown-content,
+.thinking-content {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  word-spacing: normal !important;
+  letter-spacing: normal !important;
+}
+
+/* Add default paragraph spacing and inherit font for markdown blocks */
+.markdown-content,
+.thinking-pre.markdown-content {
+  font-family: inherit;
+  display: block;
+  margin: 0.5rem 0;
+}
+.markdown-content p {
+  margin: 0.5rem 0;
+}
+.markdown-content code,
+.markdown-content pre {
+  background-color: #f5f5f5;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-family: "JetBrains Mono", monospace, sans-serif;
+}
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  margin: 1rem 0 0.5rem 0;
+  font-weight: 600;
+}
+
+/* Fix spacing after punctuation */
+.thinking-pre::after,
+.thinking-content::after {
+  content: "";
+  white-space: normal;
+}
+
+/* Ensure markdown styling in thinking blocks */
+.thinking-pre.markdown-content h1,
+.thinking-pre.markdown-content h2,
+.thinking-pre.markdown-content h3 {
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.thinking-pre.markdown-content h1 {
+  font-size: 1.5rem;
+}
+
+.thinking-pre.markdown-content h2 {
+  font-size: 1.3rem;
+}
+
+.thinking-pre.markdown-content h3 {
+  font-size: 1.1rem;
+}
+
+.thinking-pre.markdown-content ul,
+.thinking-pre.markdown-content ol {
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.thinking-pre.markdown-content ul li,
+.thinking-pre.markdown-content ol li {
+  margin-bottom: 0.25rem;
+}
+
+/* Code blocks in thinking containers */
+.thinking-pre.markdown-content code {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.2rem;
+  font-family: 'JetBrains Mono', monospace, sans-serif;
+  font-size: 0.9em;
+}
+
+.dark .thinking-pre.markdown-content code {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.thinking-pre.markdown-content pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 1rem;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+
+.dark .thinking-pre.markdown-content pre {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.thinking-pre.markdown-content pre code {
+  background-color: transparent;
+  padding: 0;
+  display: block;
+}
+
+/* Ensure the main content has proper markdown styling */
+.message-content {
+  margin-top: 0 !important;
+}
+
+.message-content h1,
+.message-content h2,
+.message-content h3 {
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.message-content h1 {
+  font-size: 1.5rem;
+}
+
+.message-content h2 {
+  font-size: 1.3rem;
+}
+
+message-content h3 {
+  font-size: 1.1rem;
+}
+
+.message-content ul,
+.message-content ol {
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.message-content ul li,
+.message-content ol li {
+  margin-bottom: 0.25rem;
+}
+
+.message-content code {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.2rem;
+  font-family: 'JetBrains Mono', monospace, sans-serif;
+  font-size: 0.9em;
+}
+
+.dark .message-content code {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.message-content pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 1rem;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+
+.dark .message-content pre {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.message-content pre code {
+  background-color: transparent;
+  padding: 0;
+  display: block;
+}

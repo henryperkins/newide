@@ -280,7 +280,9 @@ class ModelStatsService:
                 """)
             )
             recent_row = recent_result.mappings().first()
-
+            if not recent_row:
+                recent_row = {"total_attempts": 0, "unique_sessions": 0}
+        
             # Get connection trend by hour
             trend_result = await self.db.execute(
                 text("""
@@ -294,7 +296,7 @@ class ModelStatsService:
                 """)
             )
             trend = [dict(row) for row in trend_result.mappings()]
-
+        
             return {
                 "concurrent_connections": concurrent,
                 "recent_attempts": {

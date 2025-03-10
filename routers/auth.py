@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from passlib.hash import bcrypt
-import jwt as pyjwt
+from jose import jwt
 from datetime import datetime, timedelta
 import time
 import uuid
@@ -210,7 +210,7 @@ async def login_user(
         # Verify password
         with trace_block("Verify Password", op="auth.verify_password") as span:
             verify_start = time.time()
-            valid_password = bcrypt.verify(form.password, user.hashed_password)
+            valid_password = bcrypt.verify(form.password, str(user.hashed_password))
             span.set_data("duration_seconds", time.time() - verify_start)
             span.set_data("password_valid", valid_password)
             
@@ -250,11 +250,11 @@ async def login_user(
                 "iat": datetime.utcnow(),
             }
             
-            token = pyjwt.encode(payload, config.settings.JWT_SECRET, algorithm="HS256")
+            token = jwt.encode(payload, config.settings.JWT_SECRET, algorithm="HS256")
             span.set_data("duration_seconds", time.time() - token_start)
             
         # Set user context for Sentry
-        set_user_context(user_id=str(user.id), email=user.email)
+        set_user_context(user_id=str(user.id), email=str(user.email))
         
         # Record successful login
         duration = time.time() - start_time

@@ -4,13 +4,12 @@ import { getModelAPIConfig, updateConfig } from './config.js';
 import { getSessionId } from './session.js';
 import { generateDefaultModelConfig, KNOWN_MODELS } from './utils/modelUtils.js';
 
-
 class ModelManager {
     constructor() {
         this.currentModel = 'DeepSeek-R1';
-        this.modelConfigs = {};
+        this.modelConfigs = {}; // Initialize modelConfigs to an empty object
         this.isInitialized = false;
-        this.pendingModelActions = {};
+        this.pendingModelActions = {}; // Initialize pendingModelActions to an empty object
         this.modelConfigCache = createCache(5 * 60 * 1000);
     }
 
@@ -93,6 +92,8 @@ class ModelManager {
                     Loading models...
                 </div>
             `;
+        } else {
+            listContainer.innerHTML = '';
         }
     }
 
@@ -210,11 +211,13 @@ class ModelManager {
                 e.stopPropagation();
                 btn.classList.add('transform', 'scale-95');
                 setTimeout(() => btn.classList.remove('transform', 'scale-95'), 150);
+
                 const modelId = btn.getAttribute('data-model-id');
                 if (this.currentModel === modelId) {
                     showNotification('Cannot delete the currently active model', 'warning');
                     return;
                 }
+
                 showConfirmDialog(
                     'Delete Model',
                     `Are you sure you want to delete the model "${modelId}"? This action cannot be undone.`,
@@ -268,7 +271,9 @@ class ModelManager {
             this.pendingModelActions[modelId] = 'delete';
             const modelCard = document.querySelector(`.card[data-model-id="${modelId}"]`);
             if (modelCard) modelCard.classList.add('opacity-50', 'pointer-events-none');
+
             const response = await fetch(`${window.location.origin}/api/config/models/${modelId}`, { method: 'DELETE' });
+
             delete this.pendingModelActions[modelId];
             if (modelCard) modelCard.classList.remove('opacity-50', 'pointer-events-none');
 
@@ -299,6 +304,7 @@ class ModelManager {
         const formMode = document.getElementById('model-form-mode');
         const formIdField = document.getElementById('model-form-id');
         const form = document.getElementById('model-form');
+
         if (!formContainer || !formTitle || !formMode || !formIdField || !form) return;
 
         form.reset();
@@ -367,8 +373,8 @@ class ModelManager {
             azure_endpoint: endpoint,
             api_version: document.getElementById('model-api-version').value.trim() || '2025-01-01-preview',
             max_tokens: parseInt(document.getElementById('model-max-tokens').value, 10) || 4096,
-            supports_temperature: document.getElementById('model-supports-temperature').checked,
             supports_streaming: document.getElementById('model-supports-streaming').checked,
+            supports_temperature: document.getElementById('model-supports-temperature').checked,
             supports_vision: document.getElementById('model-supports-vision').checked,
             base_timeout: 120.0,
             max_timeout: 300.0,
@@ -386,7 +392,8 @@ class ModelManager {
             const response = await fetch(`${window.location.origin}/api/config/models/${modelId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(modelData)
+                body: JSON.stringify(modelData),
+                cache: 'no-cache'
             });
             delete this.pendingModelActions[modelId];
             if (response.ok) {
@@ -516,7 +523,7 @@ class ModelManager {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                const errorMessage = errorData.detail || await response.text();
+                const errorMessage = errorData.detail || errorData.message || `Error: ${response.status} ${response.statusText}`;
                 throw new Error(`Failed to switch model: ${errorMessage}`);
             }
 
@@ -588,9 +595,8 @@ class ModelManager {
                 this.modelConfigs[id] = newConfig;
 
                 if (!this.pendingModelActions[id] && newConfig) {
-                    this.createModelOnServer(id, newConfig).catch(err =>
-                        console.warn(`Failed to create ${id} on server: ${err.message}`)
-                    );
+                    this.createModelOnServer(id, newConfig)
+                        .catch(err => console.error(`Failed to create ${id} on server: ${err.message}`));
                 }
             } else if (existingModel !== id) {
                 console.log(`Found model with different case: ${existingModel} vs ${id}`);
@@ -610,8 +616,6 @@ class ModelManager {
             const deepseekConfig = generateDefaultModelConfig('DeepSeek-R1', KNOWN_MODELS[1].modelApiConfig);
             if (deepseekConfig) {
                 this.modelConfigs['DeepSeek-R1'] = deepseekConfig;
-                this.createModelOnServer('DeepSeek-R1', deepseekConfig)
-                    .catch(err => console.error('DeepSeek creation failed:', err));
             }
         }
 
@@ -632,60 +636,6 @@ class ModelManager {
         }
 
         return this.modelConfigs;
-    }
-
-    async createModelOnServer(modelId, modelConfig) {
-        if (this.pendingModelActions[modelId]) {
-            console.log('[createModelOnServer] Already pending creation for:', modelId, 'pendingAction:', this.pendingModelActions[modelId]);
-            console.warn(`Creation of ${modelId} already in progress`);
-            return { status: "pending" };
-        }
-        try {
-            this.pendingModelActions[modelId] = 'create';
-            // If modelConfig is incomplete, fill in missing values with defaults
-            const defaultConfig = generateDefaultModelConfig(modelId, {
-                endpoint: modelConfig.azure_endpoint,
-                apiVersion: modelConfig.api_version,
-                maxTokens: modelConfig.max_tokens,
-                supportsStreaming: modelConfig.supports_streaming,
-                supportsTemperature: modelConfig.supports_temperature,
-                supportsVision: modelConfig.supports_vision
-            });
-
-            const completeConfig = {
-                ...defaultConfig,
-                ...modelConfig,
-                name: modelConfig.name || modelId,
-                max_tokens: Number(modelConfig.max_tokens || defaultConfig.max_tokens),
-                supports_streaming: Boolean(modelConfig.supports_streaming !== undefined ? modelConfig.supports_streaming : defaultConfig.supports_streaming),
-                supports_temperature: Boolean(modelConfig.supports_temperature !== undefined ? modelConfig.supports_temperature : defaultConfig.supports_temperature),
-                supports_vision: Boolean(modelConfig.supports_vision !== undefined ? modelConfig.supports_vision : defaultConfig.supports_vision),
-                base_timeout: Number(modelConfig.base_timeout || defaultConfig.base_timeout),
-                max_timeout: Number(modelConfig.max_timeout || defaultConfig.max_timeout),
-                token_factor: Number(modelConfig.token_factor || defaultConfig.token_factor)
-            };
-            const response = await fetch(`${window.location.origin}/api/config/models/${modelId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(completeConfig),
-                cache: 'no-cache'
-            });
-            delete this.pendingModelActions[modelId];
-            if (response.ok) {
-                this.modelConfigCache.set(modelId, completeConfig);
-                return await response.json();
-            } else {
-                const status = response.status;
-                if (status === 409) return { status: "exists", code: status };
-                const errorText = await response.text();
-                console.warn(`Server returned ${status} when creating model ${modelId}: ${errorText}`);
-                return { status: "error", code: status, message: errorText };
-            }
-        } catch (error) {
-            console.warn(`Network error creating model ${modelId}: ${error.message}`);
-            delete this.pendingModelActions[modelId];
-            return { status: "error", message: error.message };
-        }
     }
 
     async getModelConfig(modelId) {

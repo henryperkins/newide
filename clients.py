@@ -237,9 +237,13 @@ class ClientPool:
             # Remove any trailing /chat/completions from endpoint
             endpoint = endpoint.rstrip('/').replace('/chat/completions', '')
             
+            key = config.AZURE_INFERENCE_CREDENTIAL
+            if not key:
+                raise ValueError("AZURE_INFERENCE_CREDENTIAL is required for DeepSeek models")
+            
             return ChatCompletionsClient(
                 endpoint=endpoint,
-                credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
+                credential=AzureKeyCredential(key),
                 api_version="2024-05-01-preview"
             )
         elif config.is_o_series_model(model_id):

@@ -24,26 +24,26 @@ logger = get_logger(__name__)
 # For file type handling - conditional imports to handle missing dependencies
 try:
     import docx2txt
-
     DOCX_SUPPORTED = True
 except ImportError:
     DOCX_SUPPORTED = False
+    docx2txt = None  # explicitly define docx2txt as None
     logger.warning("docx2txt not installed - DOCX files won't be fully supported")
 
 try:
     import PyPDF2
-
     PDF_SUPPORTED = True
 except ImportError:
     PDF_SUPPORTED = False
+    PyPDF2 = None  # explicitly define PyPDF2 as None
     logger.warning("PyPDF2 not installed - PDF files won't be fully supported")
 
 try:
     from langchain.text_splitter import RecursiveCharacterTextSplitter
-
     LANGCHAIN_SUPPORTED = True
 except ImportError:
     LANGCHAIN_SUPPORTED = False
+    RecursiveCharacterTextSplitter = None  # explicitly define RecursiveCharacterTextSplitter as None
     logger.warning("langchain not installed - advanced text splitting unavailable")
 
 # Constants
@@ -94,6 +94,10 @@ async def process_uploaded_file(
     Raises:
         ValueError: If the file type is unsupported or the file is too large.
     """
+    file_extension: Optional[str] = None
+    mime_type: Optional[str] = None
+    start_time = time.time()
+    
     # Create a transaction for this file processing operation
     transaction = sentry_sdk.start_transaction(
         name=f"process_file_{os.path.splitext(filename)[1].lower()[1:]}",
@@ -102,8 +106,6 @@ async def process_uploaded_file(
     
     sentry_sdk.set_tag("file.name", filename)
     sentry_sdk.set_tag("model.name", model_name)
-    
-    start_time = time.time()
     
     try:
         # Validate file extension
@@ -266,8 +268,8 @@ async def process_uploaded_file(
             "text_chunks": [f"Error processing file: {str(e)}"],
             "token_count": 0,
             "chunk_count": 1,
-            "file_type": file_extension if 'file_extension' in locals() else None,
-            "mime_type": mime_type if 'mime_type' in locals() else None,
+            "file_type": file_extension,
+            "mime_type": mime_type,
             "error": str(e),
             "metadata": {
                 "filename": filename,
@@ -307,8 +309,11 @@ async def extract_pdf_text(file_content: bytes) -> str:
         start_time = time.time()
         span.set_data("file_size", len(file_content))
         
+        # Define _extract only when PyPDF2 is available
         def _extract() -> str:
             try:
+                if not PyPDF2:
+                    return "[PDF extraction not available - install PyPDF2]"
                 pdf_file = BytesIO(file_content)
                 reader = PyPDF2.PdfReader(pdf_file)
                 text = []
@@ -398,9 +403,17 @@ async def extract_docx_text(file_content: bytes) -> str:
         
         def _extract() -> str:
             try:
+                if docx2txt is None:
+                    return "[DOCX extraction not available - install docx2txt]"
+                    
                 docx_file = BytesIO(file_content)
                 with sentry_sdk.start_span(op="file.process_docx", description="Process DOCX"):
-                    text = docx2txt.process(docx_file)
+                    try:
+                        text = docx2txt.process(docx_file)
+                    except Exception as e:
+                        logger.exception(f"DOCX processing error: {str(e)}")
+                        sentry_sdk.capture_exception(e)
+                        text = ""
                 
                 # Check for empty document
                 is_empty = not text or not text.strip()
@@ -471,7 +484,7 @@ async def chunk_text(
         return [""]
 
     # Use LangChain for better splitting if available
-    if LANGCHAIN_SUPPORTED:
+    if LANGCHAIN_SUPPORTED and RecursiveCharacterTextSplitter is not None:
         # Calculate chars per token (approximate)
         chars_per_token = len(text) / max(1, await count_tokens(text, model_name))
         chars_per_chunk = int(max_tokens_per_chunk * chars_per_token)

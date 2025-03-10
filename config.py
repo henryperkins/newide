@@ -78,7 +78,11 @@ class Settings(BaseSettings):
     )
 
     # JWT Configuration
-    JWT_SECRET: str = os.getenv("JWT_SECRET")
+    
+    
+    # Convert JWT_SECRET to a fallback, ensuring it's always str even if not set
+    # so that Pydantic doesn't complain about str | None
+    JWT_SECRET: str = Field(default_factory=lambda: os.getenv("JWT_SECRET") or "CHANGEME")
 
     # Model configuration
     MODEL_REGISTRY_PATH: str = os.getenv(
@@ -396,11 +400,11 @@ def build_azure_openai_url(deployment_name: str = None, api_version: str = None)
     """Build the Azure OpenAI API URL with support for different model types."""
     # Determine which endpoint to use based on the model
     if is_deepseek_model(deployment_name):
-        endpoint = os.getenv("AZURE_INFERENCE_ENDPOINT")
+        endpoint = os.getenv("AZURE_INFERENCE_ENDPOINT", "")
         if not endpoint:
             raise ValueError("AZURE_INFERENCE_ENDPOINT environment variable is not set")
     else:
-        endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
         if not endpoint:
             raise ValueError("AZURE_OPENAI_ENDPOINT environment variable is not set")
 
@@ -436,12 +440,12 @@ def get_azure_credential(model_name: str = None) -> Union[str, AzureKeyCredentia
     For OpenAI models, returns the API key string.
     """
     if is_deepseek_model(model_name):
-        credential = os.getenv("AZURE_INFERENCE_CREDENTIAL")
+        credential = os.getenv("AZURE_INFERENCE_CREDENTIAL", "")
         if not credential:
-            raise ValueError(f"AZURE_INFERENCE_CREDENTIAL required for DeepSeek models")
+            raise ValueError("AZURE_INFERENCE_CREDENTIAL required for DeepSeek models")
         return AzureKeyCredential(credential)
     else:
-        api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
         if not api_key:
             raise ValueError("AZURE_OPENAI_API_KEY environment variable required")
         return api_key

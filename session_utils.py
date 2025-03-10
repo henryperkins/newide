@@ -295,7 +295,7 @@ class SessionManager:
             span.set_data("result", "valid")
             span.set_data("session_id", str(session.id))
             span.set_data("request_count", session.request_count)
-            span.set_data("created_at", session.created_at.isoformat() if session.created_at else None)
+            span.set_data("created_at", session.created_at.isoformat() if session.created_at is not None else None)
             span.set_data("duration_seconds", time.time() - span_start)
             
             # Add a breadcrumb for successful validation

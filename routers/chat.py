@@ -529,8 +529,13 @@ async def create_chat_completion(
         }
 
         # Store user & assistant messages in the conversation table
-        user_text = request.messages[-1]["content"]
-        assistant_text = response_data["choices"][0]["message"]["content"]
+        temp_user_dict = request.messages[-1]  # type: ignore
+        user_text = temp_user_dict.get("content", "") if isinstance(temp_user_dict, dict) else ""
+        
+        choices_list = response_data.get("choices", []) if isinstance(response_data, dict) else []
+        first_choice = choices_list[0] if isinstance(choices_list, list) and choices_list else {}
+        message_dict = first_choice.get("message", {}) if isinstance(first_choice, dict) else {}
+        assistant_text = message_dict.get("content", "") if isinstance(message_dict, dict) else ""
 
         from uuid import UUID
         user_msg = Conversation(

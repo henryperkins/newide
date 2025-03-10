@@ -8,6 +8,7 @@ import importlib.metadata
 import subprocess
 import sys
 import os
+import time
 
 def check_package_versions():
     """Check installed package versions."""
@@ -27,27 +28,24 @@ def check_package_versions():
 def try_start_server():
     """Try to start the Sentry MCP server."""
     print("\nAttempting to start the Sentry MCP server (will exit after 5 seconds):")
-    
+
     # The token is not valid but we're just testing if it can start
     cmd = [sys.executable, "-m", "mcp_server_sentry", "--auth-token", "test_token"]
-    
+    process = None
+
     try:
-        # Start the process and kill it after 5 seconds
         process = subprocess.Popen(
-            cmd, 
-            stdout=subprocess.PIPE, 
+            cmd,
+            stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
         )
-        
-        # Wait for 5 seconds and then terminate
-        import time
+
         time.sleep(5)
         process.terminate()
-        
+
         stdout, stderr = process.communicate(timeout=2)
-        
-        # Check if there were any import errors
+
         if "ModuleNotFoundError" in stderr or "ImportError" in stderr:
             print("✗ Server failed to start due to missing modules:")
             print(stderr)
@@ -55,15 +53,19 @@ def try_start_server():
         else:
             print("✓ Server started successfully (and was terminated after 5 seconds)")
             return True
-            
     except subprocess.TimeoutExpired:
-        process.kill()
+        if process:
+            process.kill()
         print("✓ Server is running (killed after timeout)")
         return True
     except Exception as e:
-        print(f"✗ Error starting server: {e}")
+        if process:
+            process.kill()
+        print(f"✗ Error during server startup process: {e}")
         return False
-
+    finally:
+        if process and process.poll() is None:
+            process.kill()
 def check_python_environment():
     """Check the Python environment."""
     print("\nChecking Python environment:")

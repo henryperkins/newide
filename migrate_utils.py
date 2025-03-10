@@ -155,8 +155,31 @@ async def check_database() -> bool:
         logger.error(f"Error checking database: {e}")
         return False
 
+# removed duplicate def check_database(): (removed)
+    """
+    Check if the database is consistent with the ORM models.
+    This is now an async function that calls the async check_database_consistency function.
+    """
+    # Ensure migrations directory exists (this doesn't interact with the DB)
+    try:
+        ensure_migrations_dir_exists()
+    except Exception as e:
+        logger.error(f"Error ensuring migrations directory exists: {e}")
+    
+    try:
+        is_consistent, inconsistencies = await check_database_consistency()
+        if not is_consistent:
+            logger.warning("Database schema is inconsistent with ORM models:")
+            for inconsistency in inconsistencies:
+                logger.warning(f"  - {inconsistency}")
+        return is_consistent
+    except Exception as e:
+        logger.error(f"Error checking database: {e}")
+        return False
+
 if __name__ == "__main__":
     """
     Run database check as a standalone script
     """
-    check_database()
+    import asyncio
+    asyncio.run(check_database())
