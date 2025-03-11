@@ -738,21 +738,35 @@ async def generate_stream_chunks(  # noqa: C901
                 "x-ms-thinking-format": "html",
                 "x-ms-streaming-version": "2024-05-01-preview"
             }
+            
+            # Log what we're about to call
+            logger.info(f"Calling DeepSeek client.complete with params: {params}")
+            
             # For DeepSeek, use complete() directly and iterate over the response
-            stream_response = await client.complete(**params)
-            # Iterate over the response chunks asynchronously
-            async for chunk in stream_response:
-                if await request.is_disconnected():
-                    break
+            try:
+                stream_response = await client.complete(**params)
+                logger.info("DeepSeek stream_response initiated successfully")
 
-                chunk_text = ""
-                if hasattr(chunk, "choices") and chunk.choices:
-                    delta = chunk.choices[0].delta
-                    if hasattr(delta, "content"):
-                        chunk_text = delta.content or ""
-                        full_content += chunk_text
-
-                yield f"data: {json.dumps({'text': chunk_text})}\n\n"
+                # Iterate over the response chunks
+                async for chunk in stream_response:
+                    if await request.is_disconnected():
+                        logger.info("Client disconnected, stopping stream")
+                        break
+                        
+                    chunk_text = ""
+                    if hasattr(chunk, "choices") and chunk.choices:
+                        delta = chunk.choices[0].delta
+                        if hasattr(delta, "content"):
+                            chunk_text = delta.content or ""
+                            full_content += chunk_text
+                            
+                    yield f"data: {json.dumps({'text': chunk_text})}\n\n"
+                    
+            except Exception as model_error:
+                logger.exception(f"Error in DeepSeek client.complete: {model_error}")
+                yield f"data: {json.dumps({'error': str(model_error)})}\n\n"
+                # Fall back to a simple response
+                yield f"data: {json.dumps({'text': 'Error generating streaming response. Please try again.'})}\n\n"
                 
         elif is_o_series:
             # Suppress Pylance type issues by forcing these entries to Any

@@ -208,6 +208,8 @@ class ClientPool:
         Either ChatCompletionsClient or AsyncAzureOpenAI.
         """
         if config.is_deepseek_model(model_id):
+            if config.AZURE_INFERENCE_CREDENTIAL is None:
+                raise ValueError("AZURE_INFERENCE_CREDENTIAL is missing from config")
             return ChatCompletionsClient(
                 endpoint=model_config["azure_endpoint"],
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
@@ -347,6 +349,9 @@ async def get_model_client_dependency(
         pool = await get_client_pool()
         client = pool.get_client(model_name)
         model_config = pool.get_model_config(model_name or config.AZURE_OPENAI_DEPLOYMENT_NAME)
+
+        if not model_config:
+            return {"client": None, "error": "No model configuration found."}
 
         return {
             "client": client,

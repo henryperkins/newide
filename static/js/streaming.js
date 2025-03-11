@@ -1,6 +1,6 @@
 /* 
  * streaming.js - Updated for DeepSeek-R1 chain-of-thought streaming
- *  - Enhanced logging and error handling for SSE.
+ *  - Enhanced logging, error handling, and Sentry instrumentation for SSE.
  */
 
 import { getSessionId, refreshSession } from "./session.js";
@@ -82,6 +82,7 @@ function calculateConnectionTimeout(modelName, messageLength) {
     timeout *= 2.0;
   }
 
+  // Increase timeout based on prompt length
   if (messageLength > 1000) {
     const lengthFactor = 1 + messageLength / 10000;
     timeout *= lengthFactor;
@@ -141,29 +142,136 @@ function streamChatResponse(
   streamStartTime = performance.now();
   showTypingIndicator();
 
+  let sentryTransaction; // Reference for the Sentry transaction
+
+  // Dynamically import Sentry to start a transaction
+  import("./sentryInit.js")
+    .then((sentry) => {
+      sentryTransaction = sentry.startTransaction(
+        "streamChatResponse",
+        "streaming",
+        {
+          model_name: modelName,
+          has_files: fileIds?.length > 0,
+          use_file_search: useFileSearch,
+        }
+      );
+      sentry.addBreadcrumb({
+        category: "streaming",
+        message: "Starting chat response streaming",
+        level: "info",
+        data: {
+          session_id: sessionId,
+          model: modelName,
+          message_length: messageContent?.length || 0,
+          file_count: fileIds?.length || 0
+        },
+      });
+    })
+    .catch((err) => console.error("Failed to load sentryInit for transaction:", err));
+
   messageContainer = ensureMessageContainer();
 
   return new Promise(async (resolve, reject) => {
     if (!sessionId) {
+      import("./sentryInit.js").then((sentry) => {
+        sentry.captureError(new Error("No valid sessionId for streaming"), {
+          context: "streaming.js",
+          tags: { streaming_stage: "initialization" },
+        });
+        if (sentryTransaction) sentryTransaction.finish();
+      });
       reject(new Error("No valid sessionId for streaming."));
       return;
     }
 
+    // Add a no-response timeout handler for initial SSE handshake
+    const noResponseTimer = setTimeout(() => {
+      console.warn("[streaming] Model taking too long to respond (no data).");
+
+      if (sentryTransaction) {
+        sentryTransaction.setData("result", "no_response_timeout");
+        sentryTransaction.setStatus("deadline_exceeded");
+      }
+
+      if (messageContainer) {
+        const statusDiv = document.createElement("div");
+        statusDiv.className =
+          "p-2 mb-2 text-amber-700 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-300 rounded";
+        statusDiv.innerHTML =
+          "<strong>Model taking longer than expected</strong><br>This may be due to high server load or an issue with the model.";
+        messageContainer.appendChild(statusDiv);
+
+        showNotification("Switching to non-streaming mode due to timeout", "warning");
+
+        import("./chat.js")
+          .then((chatModule) => {
+            chatModule
+              .fetchChatResponse(messageContent, sessionId, modelName, reasoningEffort)
+              .then((response) => {
+                if (response?.choices?.[0]?.message?.content) {
+                  statusDiv.remove();
+                  const assistantMessage = response.choices[0].message.content;
+                  chatModule.renderAssistantMessage(assistantMessage);
+
+                  if (response.usage) {
+                    updateTokenUsage(response.usage);
+                  }
+                  if (sentryTransaction) {
+                    sentryTransaction.setData("result", "fallback_success");
+                    sentryTransaction.setStatus("ok");
+                    sentryTransaction.finish();
+                  }
+                  resolve(true);
+                } else {
+                  if (sentryTransaction) {
+                    sentryTransaction.setData("result", "fallback_failed");
+                    sentryTransaction.setStatus("internal_error");
+                    sentryTransaction.finish();
+                  }
+                  reject(new Error("Failed to get response from fallback method"));
+                }
+              })
+              .catch((err) => {
+                if (sentryTransaction) {
+                  sentryTransaction.captureError(err, { context: "fallbackFetch" });
+                  sentryTransaction.setData("result", "fallback_error");
+                  sentryTransaction.setStatus("internal_error");
+                  sentryTransaction.finish();
+                }
+                reject(err);
+              });
+          })
+          .catch((err) => {
+            if (sentryTransaction) {
+              sentryTransaction.captureError(err, { context: "dynamicImportChat" });
+              sentryTransaction.setData("result", "chat_module_import_error");
+              sentryTransaction.setStatus("internal_error");
+              sentryTransaction.finish();
+            }
+            reject(err);
+          });
+      }
+    }, 30000); // 30 second handshake timeout
+
     const modelId = (modelName || "DeepSeek-R1").toLowerCase();
     if (!modelId) {
+      if (sentryTransaction) {
+        sentryTransaction.setStatus("invalid_argument");
+      }
       reject(new Error("Invalid model name"));
       return;
     }
 
     const params = new URLSearchParams();
     let finalModelName = modelName;
+
     if (finalModelName.trim().toLowerCase() === "deepseek-r1") {
-      finalModelName = "DeepSeek-R1"; 
+      finalModelName = "DeepSeek-R1";
       params.append("temperature", "0.5");
     }
     params.append("model", finalModelName);
     params.append("message", messageContent || "");
-    // params.append("session_id", sessionId);
 
     if (modelId.includes("o1") || modelId.includes("o3")) {
       params.append("reasoning_effort", reasoningEffort);
@@ -185,11 +293,10 @@ function streamChatResponse(
     const fullUrl = apiUrl + "?" + params.toString();
 
     try {
-      // If no AbortSignal is provided, create one for debug or manual cancellation
       if (!signal) {
         const controller = new AbortController();
         signal = controller.signal;
-        window.currentController = controller; // Debug handle in window
+        window.currentController = controller; // attach for debug
       }
 
       const headers = {
@@ -201,7 +308,6 @@ function streamChatResponse(
         headers["x-ms-streaming-version"] = "2024-05-01-preview";
       }
 
-      // Attempt session refresh
       try {
         await refreshSession(sessionId);
       } catch (refreshErr) {
@@ -214,20 +320,27 @@ function streamChatResponse(
       const response = await fetch(fullUrl, {
         headers,
         signal,
-        cache: 'no-cache'
+        cache: "no-cache"
       });
+
+      // We got some response from server, so cancel noResponseTimer
+      clearTimeout(noResponseTimer);
 
       console.log("[streaming] SSE response status:", response.status);
 
       if (!response.ok || !response.body) {
         let errorDetail = `HTTP error: ${response.status}`;
         try {
-          // Attempt to read any error text from the body
           const errorText = await response.text();
           errorDetail += ` - ${errorText}`;
           console.error("[streaming] SSE error response body:", errorText);
         } catch (err) {
           console.error("[streaming] Couldn't read error text:", err);
+        }
+
+        if (sentryTransaction) {
+          sentryTransaction.setData("status", response.status);
+          sentryTransaction.setStatus("internal_error");
         }
         throw new Error(errorDetail);
       }
@@ -261,6 +374,11 @@ function streamChatResponse(
           isStreamActive = false;
           reader.cancel();
           console.log("[streaming] SSE stream aborted via signal");
+
+          if (sentryTransaction) {
+            sentryTransaction.setStatus("cancelled");
+            sentryTransaction.finish();
+          }
         }, { once: true });
       }
 
@@ -268,7 +386,6 @@ function streamChatResponse(
       const readLoop = async () => {
         try {
           console.log("[streaming] Starting read loop");
-
           const { value, done } = await reader.read();
           if (done) {
             console.log("[streaming] Stream complete (done=true)");
@@ -276,7 +393,6 @@ function streamChatResponse(
             finalizeAndResolve();
             return;
           }
-
           const text = decoder.decode(value);
           console.log("[streaming] Received chunk:", text.substring(0, 50) + (text.length > 50 ? '...' : ''));
           processRawChunk(text);
@@ -284,7 +400,6 @@ function streamChatResponse(
           readLoop();
         } catch (err) {
           console.error("[streaming] Error in read loop:", err);
-
           if (err.name === "AbortError") {
             console.log("[streaming] Stream aborted by user");
           } else {
@@ -295,10 +410,7 @@ function streamChatResponse(
               status: err.status
             });
           }
-
           isStreamActive = false;
-
-          // Only present error if not in an error state
           if (!errorState) {
             handleStreamingError(err);
           }
@@ -312,18 +424,19 @@ function streamChatResponse(
         clearTimeout(connectionTimeoutId);
         clearInterval(connectionCheckIntervalId);
 
-        // Flush leftover data if any
         if (rollingBuffer) {
-          processRawChunk(""); 
+          processRawChunk("");
         }
 
-        // Final parse in case there's unclosed <think> content
-        const finalizeResult = deepSeekProcessor.finalizeChainOfThought(mainTextBuffer, thinkingTextBuffer, isThinking);
+        const finalizeResult = deepSeekProcessor.finalizeChainOfThought(
+          mainTextBuffer,
+          thinkingTextBuffer,
+          isThinking
+        );
         mainTextBuffer = finalizeResult.mainContent;
         thinkingTextBuffer = finalizeResult.thinkingContent;
         isThinking = false;
 
-        // Stop the "thinking" animation 
         if (messageContainer) {
           const block = messageContainer.querySelector(".deepseek-cot-block");
           if (block) {
@@ -335,13 +448,55 @@ function streamChatResponse(
           }
         }
 
-        forceRender(); 
+        forceRender();
+
+        // Mark transaction success if still open
+        import("./sentryInit.js").then((sentry) => {
+          if (sentryTransaction) {
+            sentryTransaction.setStatus("ok");
+            sentryTransaction.setData("result", "stream_completed");
+          }
+        });
+
         cleanupStreaming(finalModelName)
-          .then(() => resolve(true))
-          .catch((err) => reject(err));
+          .then(() => {
+            // Finally, finish the Sentry transaction
+            import("./sentryInit.js").then((sentry) => {
+              if (sentryTransaction) {
+                // Optionally record tokens usage or durations
+                sentryTransaction.setData("completion_tokens", tokenCount);
+                sentryTransaction.finish();
+              }
+            });
+            resolve(true);
+          })
+          .catch((err) => {
+            if (sentryTransaction) {
+              sentryTransaction.captureError(err, { context: "cleanupStreaming" });
+              sentryTransaction.setData("result", "cleanup_error");
+              sentryTransaction.setStatus("internal_error");
+              sentryTransaction.finish();
+            }
+            reject(err);
+          });
       }
     } catch (error) {
       console.error("[streaming] Caught top-level error:", error);
+
+      import("./sentryInit.js").then((sentry) => {
+        sentry.addBreadcrumb({
+          category: "streaming.error",
+          message: `Top-level error: ${error.message}`,
+          level: "error",
+        });
+        sentry.captureError(error, { context: "streamChatResponse" });
+        if (sentryTransaction) {
+          sentryTransaction.setData("result", "top_level_error");
+          sentryTransaction.setStatus("internal_error");
+          sentryTransaction.finish();
+        }
+      });
+
       handleStreamingError(error);
       reject(error);
     }
@@ -349,8 +504,8 @@ function streamChatResponse(
 }
 
 /* ------------------------------------------------------------------
-   processRawChunk: merges SSE text into rollingBuffer, 
-   splits by double newlines, extracts JSON, calls parseChainOfThought
+   processRawChunk: merges SSE text into rollingBuffer, splits by double newlines,
+   extracts JSON, calls parseChainOfThought
    ------------------------------------------------------------------ */
 function processRawChunk(newText) {
   rollingBuffer += newText;
@@ -365,11 +520,21 @@ function processRawChunk(newText) {
 
     const dataPart = seg.slice(5).trim();
     if (dataPart === "done") continue;
+
     try {
       const parsed = JSON.parse(dataPart);
       handleDataChunk(parsed);
     } catch (err) {
       console.error("[streaming] Failed to parse SSE chunk:", err, seg);
+
+      import("./sentryInit.js").then((sentry) => {
+        sentry.addBreadcrumb({
+          category: "streaming.error",
+          message: `Failed to parse SSE chunk: ${err.message}`,
+          level: "error",
+          data: { chunkSnippet: seg.substring(0, 100) },
+        });
+      });
     }
   }
 
@@ -392,7 +557,6 @@ function processRawChunk(newText) {
    handleDataChunk: parse SSE data content
    ------------------------------------------------------------------ */
 function handleDataChunk(data) {
-  // Reset the timeout on each valid chunk:
   if (connectionTimeoutId) {
     clearTimeout(connectionTimeoutId);
   }
@@ -401,8 +565,10 @@ function handleDataChunk(data) {
   if (typeof data.text === "string") {
     newText = data.text;
   } else if (
-    data.choices && data.choices[0] &&
-    data.choices[0].delta && data.choices[0].delta.content
+    data.choices &&
+    data.choices[0] &&
+    data.choices[0].delta &&
+    data.choices[0].delta.content
   ) {
     newText = data.choices[0].delta.content;
   }
@@ -470,6 +636,10 @@ function renderBufferedContent() {
     highlightCode(contentDiv);
   } catch (err) {
     console.error("[renderBufferedContent] Error:", err);
+
+    import("./sentryInit.js").then((sentry) => {
+      sentry.captureError(err, { context: "renderBufferedContent" });
+    });
   }
 }
 
@@ -491,10 +661,22 @@ function handleStreamingError(error) {
       messageContainer.appendChild(errBlock);
     }
 
+    import("./sentryInit.js").then((sentry) => {
+      sentry.captureError(error, {
+        context: "handleStreamingError",
+        tags: { error_stage: "streaming" },
+      });
+      sentry.addBreadcrumb({
+        category: "streaming.error",
+        message: `handleStreamingError triggered: ${error.message}`,
+        level: "error",
+      });
+    });
+
     utilsHandleStreamingError(error, showNotification, messageContainer);
     removeStreamingProgressIndicator();
     eventBus.publish("streamingError", {
-      error: error,
+      error,
       recoverable: false,
       modelName: document.getElementById("model-select")?.value || null,
     });
@@ -502,7 +684,7 @@ function handleStreamingError(error) {
 }
 
 /* ------------------------------------------------------------------
-   final cleanup
+   cleanupStreaming - called when the SSE completes or errors out
    ------------------------------------------------------------------ */
 async function cleanupStreaming(modelName) {
   if (animationFrameId) {
@@ -537,7 +719,7 @@ async function cleanupStreaming(modelName) {
         return;
       }
 
-      // Refresh the session to extend its validity
+      // Refresh session
       try {
         await refreshSession(sessionId);
       } catch (refreshErr) {
@@ -551,7 +733,6 @@ async function cleanupStreaming(modelName) {
 
       console.log(`[cleanupStreaming] Storing final content length: ${finalContent.length}`);
 
-      // If finalContent is empty, skip storing to avoid 400 error "Missing role or content"
       if (!finalContent.trim()) {
         console.warn("[cleanupStreaming] SSE returned no content, skipping store.");
         return;
@@ -565,7 +746,7 @@ async function cleanupStreaming(modelName) {
             "Content-Type": "application/json",
             Accept: "application/json",
             "X-Content-Length": String(finalContent.length),
-            "X-Session-ID": sessionId 
+            "X-Session-ID": sessionId,
           },
           body: JSON.stringify({
             role: "assistant",
@@ -574,9 +755,12 @@ async function cleanupStreaming(modelName) {
           }),
           timeout: Math.max(30000, finalContent.length / 100),
         }
-      ).catch(err => console.warn("Failed to store message:", err));
+      ).catch((err) => console.warn("Failed to store message:", err));
     } catch (storeErr) {
       console.warn("Error storing final content:", storeErr);
+      import("./sentryInit.js").then((sentry) => {
+        sentry.captureError(storeErr, { context: "cleanupStreamingStore" });
+      });
     }
   }
 }

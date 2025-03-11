@@ -432,7 +432,7 @@ def build_azure_openai_url(deployment_name: str = "", api_version: str = "") -> 
     return final_url
 
 
-def get_azure_credential(model_name: str = None) -> Union[str, AzureKeyCredential]:
+def get_azure_credential(model_name: Optional[str] = None) -> Union[str, AzureKeyCredential]:
     """
     Return the appropriate credential for the model.
     For DeepSeek models, returns AzureKeyCredential.

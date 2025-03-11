@@ -11,7 +11,12 @@ from pydantic_models import ChatMessage
 from models import Conversation
 from azure.core.exceptions import HttpResponseError
 
-from services.tracing_utils import trace_function, profile_block
+from services.tracing_utils import (
+    trace_function,
+    profile_block,
+    add_breadcrumb,
+    create_transaction
+)
 from clients import get_model_client_dependency
 
 class TokenManager:
@@ -138,11 +143,20 @@ async def get_file_context(  # noqa: C901
     if not file_ids:
         return None
 
+    # Add breadcrumb for file context retrieval
+    add_breadcrumb(
+        category="file.context",
+        message=f"Retrieving file context for {len(file_ids)} file(s)",
+        level="info",
+        file_ids=file_ids[:5] if len(file_ids) <= 5 else file_ids[:5] + ["..."],
+        use_search=use_search
+    )
+
     try:
         # If Azure Search is enabled, use it to get content
         if use_search:
             try:
-                with profile_block(description="Azure Search Context Retrieval", op="search.context"):
+                with profile_block(description="Azure Search Context Retrieval", op="search.context") as search_span:
                     from services.azure_search_service import AzureSearchService
 
                     file_result = await db_session.execute(
@@ -177,7 +191,7 @@ async def get_file_context(  # noqa: C901
                     )
 
                     if results:
-                        # Format search results
+                        search_span.set_data("results_count", len(results))
                         formatted_content = "## Document Context\n\n"
                         for i, result in enumerate(results):
                             formatted_content += f"### {result.get('filename')}\n"
@@ -190,8 +204,9 @@ async def get_file_context(  # noqa: C901
                 # Fall back to direct file content retrieval
 
         # Get the file contents directly from database
-        with profile_block(description="DB File Content Retrieval", op="db.query"):
+        with profile_block(description="DB File Content Retrieval", op="db.query") as db_span:
             file_contents = []
+            total_chars = 0
             for file_id in file_ids:
                 result = await db_session.execute(
                     text(
@@ -219,8 +234,18 @@ async def get_file_context(  # noqa: C901
                             "file_type": file_type,
                         }
                     )
+                    total_chars += len(content) if content else 0
+
+            db_span.set_data("files_retrieved", len(file_contents))
+            db_span.set_data("total_chars", total_chars)
 
         if not file_contents:
+            add_breadcrumb(
+                category="file.context",
+                message="No file contents found in DB",
+                level="warning",
+                file_ids=file_ids[:5]
+            )
             return None
 
         # Format the context string
@@ -260,7 +285,28 @@ async def process_chat_message(  # noqa: C901
     Processes a chat message, calls the appropriate model(s) using `client.complete`,
     optionally handles file context, and stores the final conversation data.
     """
-    start_time = perf_counter()
+    # Start a Sentry transaction to better track process_chat_message
+    transaction = sentry_sdk.start_transaction(
+        op="chat.process",
+        name="Process Chat Message"
+    )
+    # Tag the transaction for search/filter in Sentry
+    transaction.set_tag("model_name", model_name or "unknown")
+    session_id = getattr(chat_message, "session_id", "unknown")
+    transaction.set_tag("session_id", session_id)
+
+    with transaction.start_child(op="task", description="Initial Setup") as span:
+        start_time = perf_counter()
+        span.set_data("model_name", model_name or "unknown")
+        span.set_tag("session_id", session_id)
+        # Add breadcrumb for the start of chat processing
+        add_breadcrumb(
+            category="chat",
+            message=f"Starting chat processing for model {model_name}",
+            level="info",
+            session_id=session_id
+        )
+
     session_id = getattr(chat_message, "session_id", None)
     model_name = (
         str(model_name)
@@ -272,12 +318,26 @@ async def process_chat_message(  # noqa: C901
         model_name = "unknown_model"
 
     try:
-        with profile_block(description="Get Model Client", op="model.client"):
+        with profile_block(description="Get Model Client", op="model.client") as client_span:
             model_client_dep = await get_model_client_dependency(model_name)
             if model_client_dep.get("error"):
-                raise ValueError(f"Error initializing model client: {model_client_dep['error']}")
+                error_info = model_client_dep["error"]
+                client_span.set_data("error", error_info)
+                add_breadcrumb(
+                    category="model.client",
+                    message=f"Error initializing model client: {error_info}",
+                    level="error"
+                )
+                raise ValueError(f"Error initializing model client: {error_info}")
+
             client = model_client_dep["client"]
             if not client:
+                client_span.set_data("error", "No valid client found")
+                add_breadcrumb(
+                    category="model.client",
+                    message=f"No valid client found for {model_name}",
+                    level="error"
+                )
                 raise ValueError(f"No valid client found for {model_name}")
 
         messages = getattr(chat_message, "messages", None)
@@ -290,6 +350,7 @@ async def process_chat_message(  # noqa: C901
             "messages": messages,
         }
 
+        # Determine if it's a DeepSeek model or O-series
         from config import is_deepseek_model, is_o_series_model
 
         if is_deepseek_model(model_name):
@@ -311,8 +372,9 @@ async def process_chat_message(  # noqa: C901
             params["temperature"] = getattr(chat_message, "temperature", 0.7)
             params["max_tokens"] = getattr(chat_message, "max_completion_tokens", 1000)
 
-        with profile_block(description="Model API Call", op="model.api"):
+        with profile_block(description="Model API Call", op="model.api") as model_span:
             response = await client.complete(**params)
+            # Attempt to log raw response for debugging
             try:
                 import json
                 response_logger.info("Raw model response:\n%s", json.dumps(response, indent=2, default=str))
@@ -326,6 +388,7 @@ async def process_chat_message(  # noqa: C901
         else:
             content = response.choices[0].message.content
 
+        # If the model includes reasoning in the response
         if hasattr(response.choices[0], "reasoning"):
             reasoning_text = getattr(response.choices[0], "reasoning", None) or ""
             if reasoning_text:
@@ -345,6 +408,7 @@ async def process_chat_message(  # noqa: C901
                 "total_tokens": TokenManager.count_tokens(user_text) + TokenManager.count_tokens(content),
             }
 
+        # Some DeepSeek responses have <thinking> blocks
         if is_deepseek_model(model_name) and "<thinking>" in content:
             import re
             thinking_blocks = re.findall(r'<thinking>(.*?)</thinking>', content, flags=re.DOTALL)
@@ -362,6 +426,7 @@ async def process_chat_message(  # noqa: C901
 
         from services.model_stats_service import ModelStatsService
         import uuid
+
         try:
             session_uuid = uuid.UUID(session_id) if session_id else uuid.UUID("00000000-0000-0000-0000-000000000000")
         except Exception:
@@ -386,6 +451,13 @@ async def process_chat_message(  # noqa: C901
                 raw_response=response
             )
 
+        # Mark transaction success
+        transaction.set_data("success", True)
+        transaction.set_data("usage", usage_data)
+        transaction.set_data("processing_time_seconds", processing_time)
+        transaction.set_status("ok")
+        transaction.finish()
+
         return {
             "id": f"chatcmpl-{uuid.uuid4()}",
             "object": "chat.completion",
@@ -405,14 +477,45 @@ async def process_chat_message(  # noqa: C901
 
     except HttpResponseError as he:
         logger.exception(f"[HttpResponseError] {he}")
+        
+        with transaction.start_child(op="error", description="HTTP Response Error") as err_span:
+            err_span.set_data("error.type", he.__class__.__name__)
+            err_span.set_data("error.message", str(he))
+            err_span.set_data("error.status_code", getattr(he, "status_code", "unknown"))
+            err_span.set_data("model_name", model_name)
+
+        add_breadcrumb(
+            category="http.error",
+            message=f"HTTP error from model service: {he}",
+            level="error",
+            status_code=getattr(he, "status_code", "unknown"),
+            model_name=model_name
+        )
         sentry_sdk.capture_exception(he)
+        transaction.set_status("internal_error")
+        transaction.finish()
+
         return {
             "status_code": he.status_code,
             "detail": str(he),
         }
     except Exception as e:
         logger.exception(f"Unexpected error in process_chat_message: {e}")
+        
+        with transaction.start_child(op="error", description="Unexpected Error") as err_span:
+            err_span.set_data("error.type", e.__class__.__name__)
+            err_span.set_data("error.message", str(e))
+            err_span.set_data("model_name", model_name)
+
+        add_breadcrumb(
+            category="error",
+            message=f"Unexpected error in process_chat_message: {e}",
+            level="error"
+        )
         sentry_sdk.capture_exception(e)
+        transaction.set_status("internal_error")
+        transaction.finish()
+
         return {
             "status_code": 500,
             "detail": str(e),
