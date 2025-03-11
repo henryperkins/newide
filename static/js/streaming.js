@@ -551,6 +551,12 @@ async function cleanupStreaming(modelName) {
 
       console.log(`[cleanupStreaming] Storing final content length: ${finalContent.length}`);
 
+      // If finalContent is empty, skip storing to avoid 400 error "Missing role or content"
+      if (!finalContent.trim()) {
+        console.warn("[cleanupStreaming] SSE returned no content, skipping store.");
+        return;
+      }
+
       await fetchWithRetry(
         window.location.origin + `/api/chat/conversations/${sessionId}/messages`,
         {
