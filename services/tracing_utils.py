@@ -1,6 +1,7 @@
 """
 Utilities for distributed tracing and performance monitoring with Sentry.
 """
+import asyncio
 import functools
 import inspect
 import time
@@ -35,39 +36,79 @@ def trace_function(op: str, name: Optional[str] = None, **tags: str) -> Callable
         source_file = inspect.getsourcefile(func)
         source_line = inspect.getsourcelines(func)[1]
         
-        @functools.wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            with sentry_sdk.start_span(op=op, description=func_name) as span:
-                # Add source code context
-                if source_file:
-                    span.set_data("code.filepath", source_file)
-                    span.set_data("code.lineno", source_line)
-                    span.set_data("code.function", func.__name__)
-                    span.set_data("code.namespace", func.__module__)
-                
-                # Add custom tags
-                for tag_key, tag_value in tags.items():
-                    span.set_tag(tag_key, tag_value)
-                
-                start_time = time.time()
-                try:
-                    result = func(*args, **kwargs)
-                    span.set_data("success", True)
-                    return result
-                except Exception as e:
-                    span.set_data("success", False)
-                    span.set_data("error.type", e.__class__.__name__)
-                    span.set_data("error.message", str(e))
-                    raise
-                finally:
-                    duration = time.time() - start_time
-                    span.set_data("duration_seconds", duration)
-                    logger.info(
-                        f"Function {func_name} completed in {duration:.4f}s",
-                        extra={"duration": duration, "operation": op}
-                    )
+        # Check if the function is async
+        is_async = asyncio.iscoroutinefunction(func)
         
-        return cast(F, wrapper)
+        if is_async:
+            # Async wrapper for coroutine functions
+            @functools.wraps(func)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                with sentry_sdk.start_span(op=op, description=func_name) as span:
+                    # Add source code context
+                    if source_file:
+                        span.set_data("code.filepath", source_file)
+                        span.set_data("code.lineno", source_line)
+                        span.set_data("code.function", func.__name__)
+                        span.set_data("code.namespace", func.__module__)
+                    
+                    # Add custom tags
+                    for tag_key, tag_value in tags.items():
+                        span.set_tag(tag_key, tag_value)
+                    
+                    start_time = time.time()
+                    try:
+                        result = await func(*args, **kwargs)  # Use await here
+                        span.set_data("success", True)
+                        return result
+                    except Exception as e:
+                        span.set_data("success", False)
+                        span.set_data("error.type", e.__class__.__name__)
+                        span.set_data("error.message", str(e))
+                        raise
+                    finally:
+                        duration = time.time() - start_time
+                        span.set_data("duration_seconds", duration)
+                        logger.info(
+                            f"Function {func_name} completed in {duration:.4f}s",
+                            extra={"duration": duration, "operation": op}
+                        )
+            
+            return cast(F, async_wrapper)
+        else:
+            # Synchronous wrapper for regular functions
+            @functools.wraps(func)
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+                with sentry_sdk.start_span(op=op, description=func_name) as span:
+                    # Add source code context
+                    if source_file:
+                        span.set_data("code.filepath", source_file)
+                        span.set_data("code.lineno", source_line)
+                        span.set_data("code.function", func.__name__)
+                        span.set_data("code.namespace", func.__module__)
+                    
+                    # Add custom tags
+                    for tag_key, tag_value in tags.items():
+                        span.set_tag(tag_key, tag_value)
+                    
+                    start_time = time.time()
+                    try:
+                        result = func(*args, **kwargs)
+                        span.set_data("success", True)
+                        return result
+                    except Exception as e:
+                        span.set_data("success", False)
+                        span.set_data("error.type", e.__class__.__name__)
+                        span.set_data("error.message", str(e))
+                        raise
+                    finally:
+                        duration = time.time() - start_time
+                        span.set_data("duration_seconds", duration)
+                        logger.info(
+                            f"Function {func_name} completed in {duration:.4f}s",
+                            extra={"duration": duration, "operation": op}
+                        )
+            
+            return cast(F, sync_wrapper)
     
     return decorator
 

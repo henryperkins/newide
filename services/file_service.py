@@ -1,24 +1,22 @@
-# services/file_service.py
+"""
+Service for processing uploaded files, extracting text, counting tokens, and optionally chunking.
+"""
+
 from typing import List, Dict, Any, Optional
 import os
 import asyncio
-import json
 import time
 from io import BytesIO
 from datetime import datetime
 import tiktoken
-import base64
 import mimetypes
 import config
 from azure.core.exceptions import HttpResponseError
 
-# Import error handling and tracing utilities
-from errors import create_error_response
-from services.tracing_utils import trace_function, trace_file_operation, trace_block, profile_block
+from services.tracing_utils import trace_function, trace_file_operation, trace_block
 from logging_config import get_logger
 import sentry_sdk
 
-# Setup enhanced logging
 logger = get_logger(__name__)
 
 # For file type handling - conditional imports to handle missing dependencies
@@ -27,7 +25,7 @@ try:
     DOCX_SUPPORTED = True
 except ImportError:
     DOCX_SUPPORTED = False
-    docx2txt = None  # explicitly define docx2txt as None
+    docx2txt = None
     logger.warning("docx2txt not installed - DOCX files won't be fully supported")
 
 try:
@@ -35,7 +33,7 @@ try:
     PDF_SUPPORTED = True
 except ImportError:
     PDF_SUPPORTED = False
-    PyPDF2 = None  # explicitly define PyPDF2 as None
+    PyPDF2 = None
     logger.warning("PyPDF2 not installed - PDF files won't be fully supported")
 
 try:
@@ -43,13 +41,13 @@ try:
     LANGCHAIN_SUPPORTED = True
 except ImportError:
     LANGCHAIN_SUPPORTED = False
-    RecursiveCharacterTextSplitter = None  # explicitly define RecursiveCharacterTextSplitter as None
+    RecursiveCharacterTextSplitter = None
     logger.warning("langchain not installed - advanced text splitting unavailable")
 
 # Constants
-DEFAULT_CHUNK_SIZE = 4000  # Default tokens per chunk
+DEFAULT_CHUNK_SIZE = 4000   # Default tokens per chunk
 MAX_TOKENS_PER_FILE = 200000  # Maximum tokens for o-series models
-OVERLAP_SIZE = 200  # Token overlap between chunks
+OVERLAP_SIZE = 200          # Token overlap between chunks
 
 # Allowed file extensions for security
 ALLOWED_EXTENSIONS = {
@@ -76,8 +74,10 @@ _token_count_cache = {}
 
 
 @trace_function(op="file.process", name="process_uploaded_file")
-async def process_uploaded_file(
-    file_content: bytes, filename: str, model_name: str
+async def process_uploaded_file(  # noqa: C901
+    file_content: bytes,
+    filename: str,
+    model_name: str
 ) -> Dict[str, Any]:
     """
     Process an uploaded file based on its type.
@@ -120,8 +120,13 @@ async def process_uploaded_file(
         file_size = len(file_content)
         max_size = config.settings.MAX_FILE_SIZE
         if file_size > max_size:
-            error_msg = f"File too large: {file_size} bytes. Maximum allowed: {max_size} bytes"
-            logger.warning(error_msg, extra={"filename": filename, "file_size": file_size, "max_size": max_size})
+            error_msg = (
+                f"File too large: {file_size} bytes. Maximum allowed: {max_size} bytes"
+            )
+            logger.warning(
+                error_msg,
+                extra={"filename": filename, "file_size": file_size, "max_size": max_size}
+            )
             sentry_sdk.set_tag("error.type", "file_too_large")
             raise ValueError(error_msg)
 
@@ -189,7 +194,7 @@ async def process_uploaded_file(
                     extra={"filename": filename, "token_count": token_count, "max_tokens": max_tokens}
                 )
                 # Truncate text (simple approach)
-                with sentry_sdk.start_span(op="text.truncate", description="Text Truncation") as span:
+                with sentry_sdk.start_span(op="text.truncate", description="Text Truncation") as truncate_span:
                     encoding = tiktoken.get_encoding("cl100k_base")
                     tokens = encoding.encode(text_content)
 
@@ -204,16 +209,18 @@ async def process_uploaded_file(
                     # Recalculate token count
                     token_count = await count_tokens(text_content, model_name)
                     chunks = [text_content]
-                    span.set_data("process_type", "truncation")
-                    span.set_data("original_tokens", len(tokens))
-                    span.set_data("truncated_tokens", len(truncated_tokens))
+                    truncate_span.set_data("process_type", "truncation")
+                    truncate_span.set_data("original_tokens", len(tokens))
+                    truncate_span.set_data("truncated_tokens", len(truncated_tokens))
 
             elif token_count > DEFAULT_CHUNK_SIZE:
                 # Split into chunks for better context management
-                with sentry_sdk.start_span(op="text.chunk", description="Text Chunking") as span:
-                    chunks = await chunk_text(text_content, DEFAULT_CHUNK_SIZE, model_name)
-                    span.set_data("process_type", "chunking")
-                    span.set_data("chunk_count", len(chunks))
+                with sentry_sdk.start_span(op="text.chunk", description="Text Chunking") as chunk_span:
+                    chunks = await chunk_text(
+                        text_content, DEFAULT_CHUNK_SIZE, model_name
+                    )
+                    chunk_span.set_data("process_type", "chunking")
+                    chunk_span.set_data("chunk_count", len(chunks))
                     logger.info(
                         f"Split {filename} into {len(chunks)} chunks",
                         extra={"filename": filename, "chunk_count": len(chunks)}
@@ -285,7 +292,7 @@ async def process_uploaded_file(
 
 
 @trace_file_operation("pdf_read")
-async def extract_pdf_text(file_content: bytes) -> str:
+async def extract_pdf_text(file_content: bytes) -> str:  # noqa: C901
     """
     Extract text from PDF file using PyPDF2.
 
@@ -309,7 +316,6 @@ async def extract_pdf_text(file_content: bytes) -> str:
         start_time = time.time()
         span.set_data("file_size", len(file_content))
         
-        # Define _extract only when PyPDF2 is available
         def _extract() -> str:
             try:
                 if not PyPDF2:
@@ -335,14 +341,13 @@ async def extract_pdf_text(file_content: bytes) -> str:
                 # Track empty pages
                 empty_pages = 0
                 
-                # Extract text from each page with page numbers
                 for i, page in enumerate(reader.pages):
-                    with sentry_sdk.start_span(op="pdf.extract_page", description=f"Extract Page {i+1}") as page_span:
+                    with sentry_sdk.start_span(op="pdf.extract_page", description=f"Extract Page {i + 1}") as page_span:
                         page_start = time.time()
                         page_text = page.extract_text() or ""
                         
-                        if page_text.strip():  # Only add non-empty pages
-                            text.append(f"--- Page {i+1} ---\n{page_text}")
+                        if page_text.strip():
+                            text.append(f"--- Page {i + 1} ---\n{page_text}")
                             page_span.set_data("page.text_length", len(page_text))
                             page_span.set_data("page.empty", False)
                         else:
@@ -350,7 +355,7 @@ async def extract_pdf_text(file_content: bytes) -> str:
                             page_span.set_data("page.empty", True)
                         
                         page_span.set_data("duration_seconds", time.time() - page_start)
-                        
+                
                 span.set_data("pdf.empty_pages", empty_pages)
                 result = "\n\n".join(text)
                 span.set_data("total_text_length", len(result))
@@ -366,12 +371,12 @@ async def extract_pdf_text(file_content: bytes) -> str:
                 return f"[PDF extraction error: {str(e)}]"
 
         loop = asyncio.get_event_loop()
-        with sentry_sdk.start_span(op="file.extract_pdf", description="Extract PDF Content") as span:
+        with sentry_sdk.start_span(op="file.extract_pdf", description="Extract PDF Content") as extract_span:
             extracted_text = await loop.run_in_executor(None, _extract)
         
         # Record final stats
-        span.set_data("duration_seconds", time.time() - start_time)
-        span.set_data("success", True)
+        extract_span.set_data("duration_seconds", time.time() - start_time)
+        extract_span.set_data("success", True)
         
         return extracted_text
 
@@ -396,7 +401,6 @@ async def extract_docx_text(file_content: bytes) -> str:
         )
         return "[DOCX extraction not available - install docx2txt]"
 
-    # Create a span for the DOCX extraction process
     with sentry_sdk.start_span(op="file.extract_docx", description="DOCX Text Extraction") as span:
         start_time = time.time()
         span.set_data("file_size", len(file_content))
@@ -418,7 +422,6 @@ async def extract_docx_text(file_content: bytes) -> str:
                 # Check for empty document
                 is_empty = not text or not text.strip()
                 
-                # Record statistics about the extracted text
                 span.set_data("text_length", len(text) if text else 0)
                 span.set_data("is_empty", is_empty)
                 
@@ -443,7 +446,6 @@ async def extract_docx_text(file_content: bytes) -> str:
         span.set_data("duration_seconds", time.time() - start_time)
         span.set_data("success", True)
         
-        # Add a breadcrumb for successful extraction
         sentry_sdk.add_breadcrumb(
             category="file",
             message=f"DOCX extraction completed in {time.time() - start_time:.2f}s",
@@ -470,25 +472,19 @@ async def chunk_text(
     Returns:
         List[str]: A list of text chunks.
     """
-    is_o_series = model_name and any(m in model_name.lower() for m in ["o1-", "o3-"])
-
-    if is_o_series:
-        # Use larger chunks with semantic boundaries for o-series
-        max_tokens_per_chunk = 8000
-        chunk_separators = ["\n\n## ", "\n\n", "\n", ". "]
-    else:
-        # Use smaller chunks with syntax boundaries for other models
-        chunk_separators = ["\n\n", "\n", "; ", "} ", "{ ", "// "]
-
     if not text:
         return [""]
 
-    # Use LangChain for better splitting if available
+    # If we have LangChain installed, do a more advanced split
     if LANGCHAIN_SUPPORTED and RecursiveCharacterTextSplitter is not None:
         # Calculate chars per token (approximate)
-        chars_per_token = len(text) / max(1, await count_tokens(text, model_name))
-        chars_per_chunk = int(max_tokens_per_chunk * chars_per_token)
+        total_tokens_in_text = await count_tokens(text, model_name)
+        chars_per_token = len(text) / max(1, total_tokens_in_text)
         overlap_chars = int(OVERLAP_SIZE * chars_per_token)
+        # If it's an o-series model, increase chunk size
+        if model_name and any(m in model_name.lower() for m in ["o1-", "o3-"]):
+            max_tokens_per_chunk = 8000
+        chars_per_chunk = int(max_tokens_per_chunk * chars_per_token)
 
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=chars_per_chunk,
@@ -504,17 +500,19 @@ async def chunk_text(
         return chunks
 
     else:
-        # Fallback to simple splitting if LangChain not available
+        # Fallback to a simple token-based split if LangChain not available
         encoding = tiktoken.get_encoding("cl100k_base")
         tokens = encoding.encode(text)
         total_tokens = len(tokens)
         chunks = []
 
-        for i in range(0, total_tokens, max_tokens_per_chunk):
-            end = min(i + max_tokens_per_chunk, total_tokens)
-            chunk_tokens = tokens[i:end]
+        index = 0
+        while index < total_tokens:
+            end = min(index + max_tokens_per_chunk, total_tokens)
+            chunk_tokens = tokens[index:end]
             chunk_text = encoding.decode(chunk_tokens)
             chunks.append(chunk_text)
+            index = end
 
         return chunks
 
@@ -535,10 +533,7 @@ async def count_tokens(text: str, model: Optional[str] = None) -> int:
         return _token_count_cache[cache_key]
 
     try:
-        # Check if we're using an o-series model
-        is_o_series = model and any(m in model.lower() for m in ["o1-", "o3-"])
         encoding_name = "cl100k_base"  # Default for most modern models
-
         encoding = tiktoken.get_encoding(encoding_name)
         token_count = len(encoding.encode(text))
         _token_count_cache[cache_key] = token_count

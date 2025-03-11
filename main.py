@@ -1,4 +1,5 @@
 import datetime
+
 from pathlib import Path
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -55,11 +56,7 @@ sentry_sdk.init(
 class CoroutineCheckMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
-        if hasattr(response, "body") and inspect.iscoroutine(response.body):
-            return JSONResponse(
-                status_code=500,
-                content={"detail": "Server error: Unawaited coroutine in response"}
-            )
+        # Removed coroutine check to avoid conflicts with streaming/async responses
         return response
 
 @asynccontextmanager

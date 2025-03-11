@@ -1,9 +1,6 @@
 /* 
  * streaming.js - Updated for DeepSeek-R1 chain-of-thought streaming
- *
- * This version uses "rollingBuffer" to handle partial SSE data,
- * calls deepSeekProcessor.parseChainOfThought() to separate <think> blocks,
- * and merges leftover partial tags across chunk boundaries. 
+ *  - Enhanced logging and error handling for SSE.
  */
 
 import { getSessionId, refreshSession } from "./session.js";
@@ -38,7 +35,7 @@ import { renderMarkdown, highlightCode } from "./ui/markdownParser.js";
    ------------------------------------------------------------------ */
 let mainTextBuffer = "";
 let thinkingTextBuffer = "";
-let rollingBuffer = "";  // NEW: For partial chunk data
+let rollingBuffer = "";  // SSE partial data buffer
 let messageContainer = null;
 let isThinking = false;
 let lastRenderTimestamp = 0;
@@ -49,7 +46,7 @@ let connectionCheckIntervalId = null;
 let streamStartTime = 0;
 let tokenCount = 0;
 
-let currentMessageId = null; // for referencing a chain-of-thought container
+let currentMessageId = null;
 let thinkingContainers = {};
 
 const RENDER_INTERVAL_MS = 150;
@@ -67,8 +64,7 @@ function calculateTokensPerSecond(usage) {
   const elapsedMs = performance.now() - streamStartTime;
   if (elapsedMs <= 0) return 0;
   const totalTokens = usage.completion_tokens || 0;
-  const tokensPerSecond = (totalTokens / elapsedMs) * 1000;
-  return Math.min(tokensPerSecond, 1000); // safe upper limit
+  return Math.min((totalTokens / elapsedMs) * 1000, 1000);
 }
 
 /* ------------------------------------------------------------------
@@ -128,8 +124,9 @@ function resetStreamingState() {
     connectionCheckIntervalId = null;
   }
 }
- 
+
 /* ------------------------------------------------------------------
+   streamChatResponse
    ------------------------------------------------------------------ */
 function streamChatResponse(
   messageContent,
@@ -143,10 +140,8 @@ function streamChatResponse(
   resetStreamingState();
   streamStartTime = performance.now();
   showTypingIndicator();
-  
-  // Ensure message container exists
-  messageContainer = ensureMessageContainer();
 
+  messageContainer = ensureMessageContainer();
 
   return new Promise(async (resolve, reject) => {
     if (!sessionId) {
@@ -162,15 +157,14 @@ function streamChatResponse(
 
     const params = new URLSearchParams();
     let finalModelName = modelName;
-    // If user chose "DeepSeek-R1"
     if (finalModelName.trim().toLowerCase() === "deepseek-r1") {
       finalModelName = "DeepSeek-R1"; 
       params.append("temperature", "0.5");
     }
     params.append("model", finalModelName);
     params.append("message", messageContent || "");
+    params.append("session_id", sessionId);
 
-    // If O-series
     if (modelId.includes("o1") || modelId.includes("o3")) {
       params.append("reasoning_effort", reasoningEffort);
       params.append("response_format", "json_schema");
@@ -191,6 +185,13 @@ function streamChatResponse(
     const fullUrl = apiUrl + "?" + params.toString();
 
     try {
+      // If no AbortSignal is provided, create one for debug or manual cancellation
+      if (!signal) {
+        const controller = new AbortController();
+        signal = controller.signal;
+        window.currentController = controller; // Debug handle in window
+      }
+
       const headers = {
         "Content-Type": "application/json",
         "X-Session-ID": sessionId
@@ -200,18 +201,38 @@ function streamChatResponse(
         headers["x-ms-streaming-version"] = "2024-05-01-preview";
       }
 
-      // Try to refresh the session before streaming to extend its validity
+      // Attempt session refresh
       try {
         await refreshSession(sessionId);
       } catch (refreshErr) {
         console.warn("[streamChatResponse] Failed to refresh session:", refreshErr);
-        // Continue anyway as the SSE endpoint will validate the session
       }
 
-      const response = await fetch(fullUrl, { headers, signal });
+      console.log("[streaming] Connecting to SSE endpoint:", fullUrl);
+      console.log("[streaming] With headers:", headers);
+
+      const response = await fetch(fullUrl, {
+        headers,
+        signal,
+        cache: 'no-cache'
+      });
+
+      console.log("[streaming] SSE response status:", response.status);
+
       if (!response.ok || !response.body) {
-        throw new Error(`HTTP error: ${response.status}`);
+        let errorDetail = `HTTP error: ${response.status}`;
+        try {
+          // Attempt to read any error text from the body
+          const errorText = await response.text();
+          errorDetail += ` - ${errorText}`;
+          console.error("[streaming] SSE error response body:", errorText);
+        } catch (err) {
+          console.error("[streaming] Couldn't read error text:", err);
+        }
+        throw new Error(errorDetail);
       }
+
+      console.log("[streaming] SSE connection established");
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -220,7 +241,7 @@ function streamChatResponse(
       const connectionTimeoutMs = calculateConnectionTimeout(modelId, messageContent.length);
       connectionTimeoutId = setTimeout(() => {
         if (isStreamActive) {
-          console.warn(`Connection timed out after ${connectionTimeoutMs}ms`);
+          console.warn(`[streaming] Connection timed out after ${connectionTimeoutMs}ms`);
           isStreamActive = false;
           handleStreamingError(new Error("Connection timeout"));
           reader.cancel();
@@ -239,49 +260,70 @@ function streamChatResponse(
           clearInterval(connectionCheckIntervalId);
           isStreamActive = false;
           reader.cancel();
+          console.log("[streaming] SSE stream aborted via signal");
         }, { once: true });
       }
 
       // SSE read loop
       const readLoop = async () => {
         try {
+          console.log("[streaming] Starting read loop");
+
           const { value, done } = await reader.read();
           if (done) {
+            console.log("[streaming] Stream complete (done=true)");
             isStreamActive = false;
             finalizeAndResolve();
             return;
           }
 
           const text = decoder.decode(value);
+          console.log("[streaming] Received chunk:", text.substring(0, 50) + (text.length > 50 ? '...' : ''));
           processRawChunk(text);
 
-          readLoop(); 
+          readLoop();
         } catch (err) {
-          if (err.name !== "AbortError") {
+          console.error("[streaming] Error in read loop:", err);
+
+          if (err.name === "AbortError") {
+            console.log("[streaming] Stream aborted by user");
+          } else {
+            console.error("[streaming] Full error details:", {
+              name: err.name,
+              message: err.message,
+              stack: err.stack,
+              status: err.status
+            });
+          }
+
+          isStreamActive = false;
+
+          // Only present error if not in an error state
+          if (!errorState) {
             handleStreamingError(err);
           }
-          isStreamActive = false;
         }
       };
 
-      readLoop(); // start reading
+      // Start reading
+      readLoop();
 
       function finalizeAndResolve() {
         clearTimeout(connectionTimeoutId);
         clearInterval(connectionCheckIntervalId);
 
-        // Do a final parse with leftover data
+        // Flush leftover data if any
         if (rollingBuffer) {
-          processRawChunk(""); // flush leftover
+          processRawChunk(""); 
         }
 
-        // If chain-of-thought is still unclosed, handle it
+        // Final parse in case there's unclosed <think> content
         const finalizeResult = deepSeekProcessor.finalizeChainOfThought(mainTextBuffer, thinkingTextBuffer, isThinking);
         mainTextBuffer = finalizeResult.mainContent;
         thinkingTextBuffer = finalizeResult.thinkingContent;
         isThinking = false;
 
-        // Transition animation to complete state before final render
+        // Stop the "thinking" animation 
         if (messageContainer) {
           const block = messageContainer.querySelector(".deepseek-cot-block");
           if (block) {
@@ -293,12 +335,13 @@ function streamChatResponse(
           }
         }
 
-        forceRender(); // final update
+        forceRender(); 
         cleanupStreaming(finalModelName)
           .then(() => resolve(true))
           .catch((err) => reject(err));
       }
     } catch (error) {
+      console.error("[streaming] Caught top-level error:", error);
       handleStreamingError(error);
       reject(error);
     }
@@ -306,35 +349,31 @@ function streamChatResponse(
 }
 
 /* ------------------------------------------------------------------
-   processRawChunk: 
-   merges new SSE text into rollingBuffer, 
-   splits by SSE line, extracts JSON, calls parseChainOfThought
+   processRawChunk: merges SSE text into rollingBuffer, 
+   splits by double newlines, extracts JSON, calls parseChainOfThought
    ------------------------------------------------------------------ */
 function processRawChunk(newText) {
   rollingBuffer += newText;
 
-  // SSE messages are separated by double newlines
+  // SSE messages separated by double newlines
   const segments = rollingBuffer.split("\n\n");
   rollingBuffer = segments.pop() || "";
 
   for (let seg of segments) {
     seg = seg.trim();
-    if (!seg.startsWith("data:")) {
-      continue;
-    }
-    const dataPart = seg.slice(5).trim(); 
-    if (dataPart === "done") {
-      continue; 
-    }
+    if (!seg.startsWith("data:")) continue;
+
+    const dataPart = seg.slice(5).trim();
+    if (dataPart === "done") continue;
     try {
       const parsed = JSON.parse(dataPart);
       handleDataChunk(parsed);
     } catch (err) {
-      console.error("Failed to parse SSE chunk:", err, seg);
+      console.error("[streaming] Failed to parse SSE chunk:", err, seg);
     }
   }
 
-  // If we're starting to get chunks, start the animation
+  // Start "thinking" animation if not already
   if (messageContainer) {
     const block = messageContainer.querySelector(".deepseek-cot-block");
     if (block) {
@@ -349,15 +388,15 @@ function processRawChunk(newText) {
   scheduleRender();
 }
 
-/**
- * handleDataChunk:
- *   Convert recognized SSE data to text, feed into parseChainOfThought
- */
+/* ------------------------------------------------------------------
+   handleDataChunk: parse SSE data content
+   ------------------------------------------------------------------ */
 function handleDataChunk(data) {
-  // Reset connection timeout on each chunk
-  clearTimeout(connectionTimeoutId);
+  // Reset the timeout on each valid chunk:
+  if (connectionTimeoutId) {
+    clearTimeout(connectionTimeoutId);
+  }
 
-  // parse chunk for text
   let newText = "";
   if (typeof data.text === "string") {
     newText = data.text;
@@ -367,10 +406,9 @@ function handleDataChunk(data) {
   ) {
     newText = data.choices[0].delta.content;
   }
-  // Accumulate leftover text in rollingBuffer, parse it
+
   if (!newText) return;
 
-  // Our simpler approach:
   const parseResult = deepSeekProcessor.parseChainOfThought(
     newText,
     mainTextBuffer,
@@ -407,13 +445,6 @@ function forceRender() {
   lastRenderTimestamp = Date.now();
 }
 
-/**
- * renderBufferedContent: 
- *   1) ensure we have a container
- *   2) wipe it 
- *   3) render chain-of-thought block if any
- *   4) render main text
- */
 function renderBufferedContent() {
   try {
     if (!messageContainer) {
@@ -421,35 +452,22 @@ function renderBufferedContent() {
     }
     if (!messageContainer) return;
 
-        messageContainer.innerHTML = "";
+    messageContainer.innerHTML = "";
+    messageContainer.setAttribute("data-streaming", "true");
 
-        // Set streaming state on message container
-        messageContainer.setAttribute('data-streaming', 'true');
+    deepSeekProcessor.renderThinkingContainer(
+      messageContainer,
+      thinkingTextBuffer,
+      { createNew: true, isComplete: !rollingBuffer && !isThinking }
+    );
 
-        // 1) Chain of Thought - always create container during streaming
-        const isFirstRender = !thinkingTextBuffer && !mainTextBuffer;
-        const isEndOfStream = !rollingBuffer && !isThinking;
-        deepSeekProcessor.renderThinkingContainer(
-          messageContainer,
-          thinkingTextBuffer,
-          { 
-            createNew: true,
-            isComplete: isFirstRender || isEndOfStream 
-          }
-        );
-
-    // 2) Main user-visible content
     const contentDiv = document.createElement("div");
     contentDiv.className = "message-content";
     messageContainer.appendChild(contentDiv);
 
-    // Optionally markdown parse
     let cleaned = renderMarkdown(mainTextBuffer.trim());
-
-    // Insert content
     renderContentEfficiently(contentDiv, cleaned, { scroll: true });
     highlightCode(contentDiv);
-
   } catch (err) {
     console.error("[renderBufferedContent] Error:", err);
   }
@@ -497,11 +515,10 @@ async function cleanupStreaming(modelName) {
     removeStreamingProgressIndicator();
 
     if (messageContainer) {
-      // Remove streaming state and cleanup transitions
-      messageContainer.removeAttribute('data-streaming');
-      const block = messageContainer.querySelector('.deepseek-cot-block');
+      messageContainer.removeAttribute("data-streaming");
+      const block = messageContainer.querySelector(".deepseek-cot-block");
       if (block) {
-        block.removeAttribute('data-streaming');
+        block.removeAttribute("data-streaming");
       }
       finalizeStreamingContainer(messageContainer);
     }
@@ -512,7 +529,6 @@ async function cleanupStreaming(modelName) {
     document.querySelectorAll(".streaming-progress").forEach((el) => el.remove());
   }
 
-  // Optionally store final message content
   if (messageContainer) {
     try {
       const sessionId = await getSessionId();
@@ -520,25 +536,21 @@ async function cleanupStreaming(modelName) {
         console.error("No valid session ID to store message");
         return;
       }
-      
+
       // Refresh the session to extend its validity
       try {
         await refreshSession(sessionId);
       } catch (refreshErr) {
         console.warn("[cleanupStreaming] Failed to refresh session:", refreshErr);
-        // Continue anyway - message storage is more important
       }
-      
-      let finalContent = mainTextBuffer.trim() || "";
 
-      // If there's chain-of-thought leftover, place it in <think> block
+      let finalContent = mainTextBuffer.trim() || "";
       if (thinkingTextBuffer.trim()) {
         finalContent += `\n\n<think>${thinkingTextBuffer.trim()}</think>`;
       }
 
       console.log(`[cleanupStreaming] Storing final content length: ${finalContent.length}`);
 
-      // Store message in the conversation API with session ID in headers
       await fetchWithRetry(
         window.location.origin + `/api/chat/conversations/${sessionId}/messages`,
         {
@@ -547,19 +559,20 @@ async function cleanupStreaming(modelName) {
             "Content-Type": "application/json",
             Accept: "application/json",
             "X-Content-Length": String(finalContent.length),
-            "X-Session-ID": sessionId // Add session ID to headers for validation
+            "X-Session-ID": sessionId 
           },
           body: JSON.stringify({
             role: "assistant",
             content: finalContent,
             model: modelName || "DeepSeek-R1",
           }),
-          timeout: Math.max(30000, finalContent.length / 100)
+          timeout: Math.max(30000, finalContent.length / 100),
         }
       ).catch(err => console.warn("Failed to store message:", err));
     } catch (storeErr) {
       console.warn("Error storing final content:", storeErr);
     }
-   }
+  }
 }
+
 export { streamChatResponse };

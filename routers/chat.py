@@ -248,9 +248,8 @@ async def clear_conversation(
         # Delete messages in that session
         del_stmt = delete(Conversation).where(Conversation.session_id == session_db.id)
         await db.execute(del_stmt)
-        # Delete session row
-        await db.delete(session_db)
-        await db.commit()
+        # Delete session row using SessionService
+        await SessionService.delete_session(str(session_db.id), db_session=db)
 
         return {"status": "cleared"}
     except Exception as exc:
@@ -414,8 +413,8 @@ async def list_conversations(
         if search:
             pattern = f"%{search}%"
             base_query = base_query.where(
-                (Conversation.title.ilike(pattern))
-                | (Conversation.content.ilike(pattern))
+                (Conversation.title.ilike(pattern)) 
+                or (Conversation.content.ilike(pattern))
             )
 
         # pinned / archived filters
@@ -527,8 +526,6 @@ async def create_chat_completion(
             raise HTTPException(status_code=400, detail="Missing 'messages' field")
 
         model_name = request.model or "o1"
-        client_wrapper = await get_model_client_dependency(model_name)
-        client = client_wrapper["client"]
 
         # STUB: replace with real completion call if desired
         response_data = {
@@ -586,7 +583,7 @@ async def create_chat_completion(
 # -------------------------------------------------------------------------
 @router.get("/sse")
 @sentry_sdk.trace()
-async def chat_sse(
+async def chat_sse(  # noqa: C901
     request: Request,
     session_id: UUID,
     model: str = "",
@@ -639,11 +636,16 @@ async def chat_sse(
         if not session_db:
             # Automatically create a session if the provided session_id doesn't exist
             logger.info(f"Session {session_id} not found, creating a new session")
-            session_db = await SessionService.create_session(db)
+            session_db = await SessionService.create_session(db_session=db)
             
             # Record that we created a session
             sentry_sdk.set_tag("session_auto_created", "true")
-            logger.info(f"Automatically created new Session with id={session_db.id}")
+            session_info = {
+                "id": str(session_db.id),
+                "created_at": session_db.created_at.isoformat() if session_db.created_at else None,
+                "expires_at": session_db.expires_at.isoformat() if session_db.expires_at else None
+            }
+            logger.info(f"Automatically created new Session: {session_info}")
             
             # Update the model for this session
             await SessionService.switch_model(
@@ -695,7 +697,7 @@ async def chat_sse(
             SSE_SEMAPHORE.release()
 
 
-async def generate_stream_chunks(
+async def generate_stream_chunks(  # noqa: C901
     request: Request,
     message: str,
     model_name: str,

@@ -8,16 +8,126 @@ from clients import get_model_client_dependency
 from logging_config import logger
 from typing import Optional, Any
 from datetime import datetime, timedelta
+import json
 import config
 import uuid
-from services.tracing_utils import trace_function, profile_block
 import asyncio
 import sentry_sdk
-
-# Import the SessionService for unified session management
+from services.tracing_utils import trace_function, profile_block
 from services.session_service import SessionService
+from sqlalchemy import select, update
+from models import Session  # Ensure Session is imported at the top level
+
+"""
+Refactors to reduce flake8 complexity warnings, including 'update_session_model' 
+by splitting it into smaller helper functions.
+"""
+
+
+def serialize_datetime_objects(obj):
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
+
 
 router = APIRouter()
+
+
+def extract_session_id_from_request(request: Request, explicit_session_id: Optional[str] = None) -> Optional[str]:
+    """
+    Extracts the session_id from one of:
+      1. The explicit session_id parameter (if provided)
+      2. A cookie
+      3. Query parameters
+      4. The X-Session-ID header
+    Returns None if no valid session ID is found.
+    """
+    if explicit_session_id:
+        return explicit_session_id
+
+    # 1. Check cookie
+    cookie_session_id = request.cookies.get("session_id")
+    if cookie_session_id:
+        logger.debug(f"Got session_id from cookie: {cookie_session_id}")
+        return cookie_session_id
+
+    # 2. Check query parameters
+    if "session_id" in request.query_params:
+        query_session_id = request.query_params["session_id"]
+        logger.debug(f"Got session_id from query params: {query_session_id}")
+        return query_session_id
+
+    # 3. Check headers
+    header_session_id = request.headers.get("X-Session-ID")
+    if header_session_id:
+        logger.debug(f"Got session_id from header: {header_session_id}")
+        return header_session_id
+
+    return None
+
+
+def fetch_and_validate_session_id(raw_session_id: str) -> uuid.UUID:
+    """
+    Validate the session ID format and convert to UUID; raise HTTPException if invalid.
+    """
+    try:
+        return uuid.UUID(raw_session_id)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid session ID format: {raw_session_id}"
+        )
+
+
+def is_session_expired(session_obj: Session) -> bool:
+    """
+    Check if the given session has expired.
+    """
+    if session_obj.expires_at:
+        expires_at_naive = session_obj.expires_at.replace(tzinfo=None)
+        now = datetime.utcnow()
+        return expires_at_naive < now
+    return False
+
+
+async def parse_model_from_request(request: Request) -> str:
+    """
+    Parse the 'model' field from the JSON request body.
+    """
+    try:
+        body = await request.json()
+        model = body.get("model")
+        if not model:
+            raise HTTPException(
+                status_code=400,
+                detail="No 'model' field provided in request body."
+            )
+        return model
+    except Exception as json_error:
+        logger.error(f"Error parsing request body: {str(json_error)}")
+        raise HTTPException(status_code=400, detail="Invalid request body")
+
+
+async def retrieve_and_validate_session(db_session: AsyncSession, session_uuid: uuid.UUID) -> Session:
+    """
+    Fetch the session from the database, ensure it exists and is not expired.
+    """
+    stmt = select(Session).where(Session.id == session_uuid)
+    result = await db_session.execute(stmt)
+    session_obj = result.scalar_one_or_none()
+
+    if not session_obj:
+        raise HTTPException(
+            status_code=404,
+            detail="Session not found."
+        )
+
+    if is_session_expired(session_obj):
+        raise HTTPException(
+            status_code=401,
+            detail="Session has expired"
+        )
+    return session_obj
 
 
 async def initialize_session_services(session_id: str, azure_client: Any):
@@ -31,7 +141,7 @@ async def initialize_session_services(session_id: str, azure_client: Any):
             logger.info(f"Initializing Azure Search for DeepSeek-R1 session {session_id}")
             search_service = AzureSearchService(azure_client)
             await search_service.create_search_index(session_id)
-            
+
     except Exception as e:
         logger.error(f"Error initializing Azure services for session {session_id}: {str(e)}")
         # Don't rethrow - we don't want background task errors to affect the response
@@ -59,139 +169,32 @@ async def get_current_session(
     """Get current session information"""
     try:
         with profile_block(description="Get Current Session", op="session.retrieve"):
-            # Use explicit session_id if provided
-            if session_id:
-                # Validate UUID format
-                try:
-                    session_uuid = uuid.UUID(session_id)
-                    from sqlalchemy import select
-                    from models import Session
-
-                    stmt = select(Session).where(Session.id == session_uuid)
-                    result = await db_session.execute(stmt)
-                    session_obj = result.scalar_one_or_none()
-
-                    if session_obj:
-                        return {
-                            "id": str(session_obj.id),
-                            "created_at": (
-                                session_obj.created_at.isoformat()
-                                if session_obj.created_at
-                                else None
-                            ),
-                            "last_activity": (
-                                session_obj.last_activity.isoformat()
-                                if session_obj.last_activity
-                                else None
-                            ),
-                            "expires_at": (
-                                session_obj.expires_at.isoformat()
-                                if session_obj.expires_at
-                                else None
-                            ),
-                            "last_model": session_obj.last_model,
-                        }
-
-                except (ValueError, TypeError) as e:
-                    return {"id": None, "message": f"Invalid session ID format: {str(e)}"}
-
-            # If no explicit session_id or not found, try to extract session_id manually
-            try:
-                # Extract session_id from various sources manually
-                extracted_session_id = None
-                
-                # 1. Check cookie
-                cookie_session_id = request.cookies.get("session_id")
-                if cookie_session_id:
-                    extracted_session_id = cookie_session_id
-                    logger.debug(f"Got session_id from cookie: {extracted_session_id}")
-                
-                # 2. Check query parameters
-                if not extracted_session_id:
-                    query_params = request.query_params
-                    if "session_id" in query_params:
-                        extracted_session_id = query_params["session_id"]
-                        logger.debug(f"Got session_id from query params: {extracted_session_id}")
-                
-                # 3. Check headers
-                if not extracted_session_id:
-                    header_session_id = request.headers.get("X-Session-ID")
-                    if header_session_id:
-                        extracted_session_id = header_session_id
-                        logger.debug(f"Got session_id from header: {extracted_session_id}")
-                
-                # If no session_id found
-                if not extracted_session_id:
-                    return {
-                        "id": None,
-                        "message": "No active session. Call '/api/session/create' to generate a new session.",
-                    }
-                
-                # Validate the extracted session ID
-                try:
-                    session_uuid = uuid.UUID(extracted_session_id)
-                    
-                    # Query for the session directly
-                    from sqlalchemy import select
-                    from models import Session
-                    
-                    stmt = select(Session).where(Session.id == session_uuid)
-                    result = await db_session.execute(stmt)
-                    session_obj = result.scalar_one_or_none()
-                    
-                    if not session_obj:
-                        return {
-                            "id": None,
-                            "message": "Session not found or expired. Create a new session.",
-                        }
-                    
-                    # Check if session is expired
-                    if session_obj.expires_at:
-                        expires_at_naive = session_obj.expires_at.replace(tzinfo=None)
-                        now = datetime.utcnow()
-                        if expires_at_naive < now:
-                            return {
-                                "id": None,
-                                "message": "Session expired. Create a new session.",
-                            }
-                    
-                    # Update last activity using SQLAlchemy update
-                    from sqlalchemy import update
-                    
-                    await db_session.execute(
-                        update(Session)
-                        .where(Session.id == session_uuid)
-                        .values(last_activity=datetime.utcnow())
-                    )
-                    await db_session.commit()
-                    
-                    # Return formatted session info
-                    return {
-                        "id": str(session_obj.id),
-                        "created_at": (
-                            session_obj.created_at.isoformat() if session_obj.created_at else None
-                        ),
-                        "last_activity": (
-                            session_obj.last_activity.isoformat() if session_obj.last_activity else None
-                        ),
-                        "expires_at": (
-                            session_obj.expires_at.isoformat() if session_obj.expires_at else None
-                        ),
-                        "last_model": session_obj.last_model,
-                    }
-                    
-                except ValueError:
-                    return {
-                        "id": None,
-                        "message": f"Invalid session ID format: {extracted_session_id}",
-                    }
-            except Exception as e:
-                logger.exception(f"Error in get_session_from_request: {str(e)}")
+            extracted_session_id = extract_session_id_from_request(request, session_id)
+            if not extracted_session_id:
                 return {
                     "id": None,
-                    "error": str(e),
-                    "message": "Error retrieving session from request",
+                    "message": "No active session. Call '/api/session/create' to generate a new session.",
                 }
+
+            session_uuid = fetch_and_validate_session_id(extracted_session_id)
+
+            session_obj = await retrieve_and_validate_session(db_session, session_uuid)
+
+            # Update last_activity
+            await db_session.execute(
+                update(Session)
+                .where(Session.id == session_uuid)
+                .values(last_activity=datetime.utcnow())
+            )
+            await db_session.commit()
+
+            return {
+                "id": str(session_obj.id),
+                "created_at": session_obj.created_at.isoformat() if session_obj.created_at else None,
+                "last_activity": session_obj.last_activity.isoformat() if session_obj.last_activity else None,
+                "expires_at": session_obj.expires_at.isoformat() if session_obj.expires_at else None,
+                "last_model": session_obj.last_model,
+            }
 
     except Exception as e:
         logger.exception(f"Error in get_current_session: {str(e)}")
@@ -212,61 +215,35 @@ async def create_session(
     """Create a new session"""
     try:
         with profile_block(description="Create New Session", op="session.create") as span:
-            # Extract client from the wrapper
             azure_client = client_wrapper.get("client") if client_wrapper else None
             span.set_data("has_azure_client", azure_client is not None)
 
-            # Create a new session using the SessionService
             try:
-                # Generate a UUID for the new session first
-                session_id = uuid.uuid4()
-                logger.info(f"Creating new session with ID: {session_id}")
-                
-                # Create a basic session record
-                from models import Session
-                
-                # Calculate expiration time
-                session_timeout = config.SESSION_TIMEOUT_MINUTES
-                expires_at = datetime.utcnow() + timedelta(minutes=session_timeout)
-                
-                # Create session directly
-                new_session = Session(
-                    id=session_id,
-                    created_at=datetime.utcnow(),
-                    last_activity=datetime.utcnow(),
-                    expires_at=expires_at,
-                    request_count=0
-                )
-                
-                # Add to database and commit
-                db_session.add(new_session)
-                await db_session.commit()
-                await db_session.refresh(new_session)
-                
-                # Log success
+                new_session = await SessionService.create_session(db_session=db_session)
+                session_id = new_session.id
+
                 span.set_data("session_id", str(session_id))
                 logger.info(f"Successfully created session: {session_id}")
-                
-                # Initialize session services in background
+
                 if azure_client:
                     with profile_block(description="Initialize Services", op="session.init_services") as init_span:
                         init_span.set_data("azure_deployment", getattr(azure_client, "azure_deployment", "unknown"))
                         background_tasks.add_task(
                             initialize_session_services_sync, str(session_id), azure_client
                         )
-                
-                # Create the response
+
+                session_timeout = config.SESSION_TIMEOUT_MINUTES
+
                 response = JSONResponse(
                     {
                         "session_id": str(session_id),
                         "created_at": new_session.created_at.isoformat(),
                         "expires_in": session_timeout * 60,
-                        "expires_at": expires_at.isoformat(),
+                        "expires_at": new_session.expires_at.isoformat(),
                     },
                     status_code=201,
                 )
-                
-                # Set session cookie
+
                 response.set_cookie(
                     key="session_id",
                     value=str(session_id),
@@ -274,12 +251,11 @@ async def create_session(
                     secure=True,
                     samesite="none",
                 )
-                
+
                 span.set_data("success", True)
                 return response
             except Exception as e:
                 logger.error(f"Unexpected error in create_session: {str(e)}")
-                # Capture detailed error information
                 logger.exception("Full exception details:")
                 raise HTTPException(
                     status_code=500,
@@ -298,6 +274,7 @@ async def create_session(
             status_code=500, detail=f"Failed to create session: {str(e)}"
         )
 
+
 @router.post("/refresh", response_model=SessionResponse)
 @trace_function(op="session.refresh", name="refresh_session")
 async def refresh_session(
@@ -305,66 +282,23 @@ async def refresh_session(
     db_session: AsyncSession = Depends(get_db_session)
 ):
     """Refresh session expiration time"""
+
     try:
         with profile_block(description="Refresh Session", op="session.refresh"):
-            # Extract session ID from cookie, header, or query params
-            session_id = None
-            session_id = request.cookies.get("session_id")
-            if not session_id:
-                session_id = request.headers.get("X-Session-ID")
-            
-            if not session_id:
-                # Check query params
-                try:
-                    if "session_id" in request.query_params:
-                        session_id = request.query_params["session_id"]
-                except Exception:
-                    pass
-            
-            # If still no session ID, cannot continue
-            if not session_id:
+            extracted_session_id = extract_session_id_from_request(request)
+            if not extracted_session_id:
                 raise HTTPException(
                     status_code=400,
                     detail="No session ID provided. Set a session_id cookie or X-Session-ID header."
                 )
-            
-            # Validate session ID format
-            try:
-                session_uuid = uuid.UUID(session_id)
-            except ValueError:
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"Invalid session ID format: {session_id}"
-                )
-            
-            # Get session from database
-            from sqlalchemy import select
-            from models import Session
-            
-            stmt = select(Session).where(Session.id == session_uuid)
-            result = await db_session.execute(stmt)
-            session_obj = result.scalar_one_or_none()
-            
-            if not session_obj:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Session not found"
-                )
-            
-            # Check expiration
-            if session_obj.expires_at and session_obj.expires_at.replace(tzinfo=None) < datetime.utcnow():
-                raise HTTPException(
-                    status_code=401,
-                    detail="Session has expired"
-                )
-            
-            # Extend expiration
+
+            session_uuid = fetch_and_validate_session_id(extracted_session_id)
+
+            session_obj = await retrieve_and_validate_session(db_session, session_uuid)
+
             session_timeout = config.SESSION_TIMEOUT_MINUTES
             new_expires_at = datetime.utcnow() + timedelta(minutes=session_timeout)
-            
-            # Update session in database
-            from sqlalchemy import update
-            
+
             await db_session.execute(
                 update(Session)
                 .where(Session.id == session_uuid)
@@ -374,14 +308,22 @@ async def refresh_session(
                 )
             )
             await db_session.commit()
-            
-            # Refresh session object
+
             await db_session.refresh(session_obj)
-            
-            # Create response
+
             try:
                 session_response = session_to_response(session_obj)
-                response = JSONResponse(session_response)
+                session_dict = (
+                    session_response.dict()
+                    if hasattr(session_response, "dict")
+                    else session_response.model_dump()
+                )
+
+                # Use json.dumps with custom serializer to handle datetime objects
+                json_data = json.dumps(session_dict, default=serialize_datetime_objects)
+                
+                # Create response from pre-serialized JSON data
+                response = JSONResponse(content=json.loads(json_data))
                 response.set_cookie(
                     key="session_id",
                     value=str(session_obj.id),
@@ -397,9 +339,12 @@ async def refresh_session(
                     detail=f"Error processing session data: {str(resp_error)}"
                 )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Error refreshing session: {str(e)}")
         raise HTTPException(status_code=500, detail="Error refreshing session")
+
 
 @router.post("/model", response_model=SessionInfoResponse)
 @trace_function(op="session.update_model", name="update_session_model")
@@ -408,92 +353,46 @@ async def update_session_model(
     db_session: AsyncSession = Depends(get_db_session)
 ):
     """Update the model associated with a session"""
-    try:
-        with profile_block(description="Update Session Model", op="session.update_model"):
-            # Get session ID from various sources
-            session_id = None
-            session_id = request.cookies.get("session_id")
-            if not session_id:
-                session_id = request.headers.get("X-Session-ID")
-            
-            if not session_id:
+    with profile_block(description="Update Session Model", op="session.update_model"):
+        try:
+            # Extract or validate session ID
+            extracted_session_id = extract_session_id_from_request(request)
+            if not extracted_session_id:
                 raise HTTPException(
                     status_code=401,
                     detail="No session ID provided. Set a session_id cookie or X-Session-ID header."
                 )
-            
-            # Validate session ID format
-            try:
-                session_uuid = uuid.UUID(session_id)
-            except ValueError:
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"Invalid session ID format: {session_id}"
-                )
-            
-            # Get session from database
-            from sqlalchemy import select
-            from models import Session
-            
-            stmt = select(Session).where(Session.id == session_uuid)
-            result = await db_session.execute(stmt)
-            session_obj = result.scalar_one_or_none()
-            
-            if not session_obj:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Session not found"
-                )
-            
-            # Check if expired
-            if session_obj.expires_at and session_obj.expires_at.replace(tzinfo=None) < datetime.utcnow():
-                raise HTTPException(
-                    status_code=401,
-                    detail="Session has expired"
-                )
-            
-            # Get model from request body
-            try:
-                body = await request.json()
-                model = body.get("model")
-            except Exception as json_error:
-                logger.error(f"Error parsing request body: {str(json_error)}")
-                raise HTTPException(status_code=400, detail="Invalid request body")
 
-            if not model:
-                return {"status": "error", "message": "Model name is required"}
+            session_uuid = fetch_and_validate_session_id(extracted_session_id)
 
-            # Update session model directly in the database
-            from sqlalchemy import update
-            
-            try:
-                # Update the model and last activity
-                await db_session.execute(
-                    update(Session)
-                    .where(Session.id == session_uuid)
-                    .values(
-                        last_model=model,
-                        last_activity=datetime.utcnow()
-                    )
-                )
-                await db_session.commit()
-                
-                # Refresh session object to get updated data
-                await db_session.refresh(session_obj)
-                
-                # Return formatted response
-                return session_to_response(session_obj)
-            except Exception as update_error:
-                logger.exception(f"Error updating session model: {str(update_error)}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to update session model: {str(update_error)}"
-                )
+            # Retrieve session and ensure it's valid
+            session_obj = await retrieve_and_validate_session(db_session, session_uuid)
 
-    except Exception as e:
-        logger.exception(f"Error updating session model: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error updating session model")
-    
+            # Parse model from request
+            model = await parse_model_from_request(request)
+
+            # Update the session model
+            await db_session.execute(
+                update(Session)
+                .where(Session.id == session_uuid)
+                .values(
+                    last_model=model,
+                    last_activity=datetime.utcnow()
+                )
+            )
+            await db_session.commit()
+
+            await db_session.refresh(session_obj)
+
+            return session_to_response(session_obj)
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"Error updating session model: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error updating session model")
+
+
 def session_to_response(session) -> SessionResponse:
     """Convert a Session model to a SessionResponse model"""
     if not session:
