@@ -6,7 +6,7 @@
  * and merges leftover partial tags across chunk boundaries. 
  */
 
-import { getSessionId } from "./session.js";
+import { getSessionId, refreshSession } from "./session.js";
 import {
   updateTokenUsage,
   fetchWithRetry,
@@ -187,14 +187,25 @@ function streamChatResponse(
       }
     }
 
-    const apiUrl = `${window.location.origin}/api/chat/sse?session_id=${encodeURIComponent(sessionId)}`;
-    const fullUrl = apiUrl + "&" + params.toString();
+    const apiUrl = `${window.location.origin}/api/chat/sse`;
+    const fullUrl = apiUrl + "?" + params.toString();
 
     try {
-      const headers = { "Content-Type": "application/json" };
+      const headers = {
+        "Content-Type": "application/json",
+        "X-Session-ID": sessionId
+      };
       if (modelId.includes("deepseek")) {
         headers["x-ms-thinking-format"] = "html";
         headers["x-ms-streaming-version"] = "2024-05-01-preview";
+      }
+
+      // Try to refresh the session before streaming to extend its validity
+      try {
+        await refreshSession(sessionId);
+      } catch (refreshErr) {
+        console.warn("[streamChatResponse] Failed to refresh session:", refreshErr);
+        // Continue anyway as the SSE endpoint will validate the session
       }
 
       const response = await fetch(fullUrl, { headers, signal });
@@ -504,11 +515,20 @@ async function cleanupStreaming(modelName) {
   // Optionally store final message content
   if (messageContainer) {
     try {
-      const conversationId = await getSessionId();
-      if (!conversationId) {
+      const sessionId = await getSessionId();
+      if (!sessionId) {
         console.error("No valid session ID to store message");
         return;
       }
+      
+      // Refresh the session to extend its validity
+      try {
+        await refreshSession(sessionId);
+      } catch (refreshErr) {
+        console.warn("[cleanupStreaming] Failed to refresh session:", refreshErr);
+        // Continue anyway - message storage is more important
+      }
+      
       let finalContent = mainTextBuffer.trim() || "";
 
       // If there's chain-of-thought leftover, place it in <think> block
@@ -518,15 +538,16 @@ async function cleanupStreaming(modelName) {
 
       console.log(`[cleanupStreaming] Storing final content length: ${finalContent.length}`);
 
-      // do your POST store
+      // Store message in the conversation API with session ID in headers
       await fetchWithRetry(
-        window.location.origin + `/api/chat/conversations/${conversationId}/messages`,
+        window.location.origin + `/api/chat/conversations/${sessionId}/messages`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Accept: "application/json",
-            "X-Content-Length": String(finalContent.length)
+            "X-Content-Length": String(finalContent.length),
+            "X-Session-ID": sessionId // Add session ID to headers for validation
           },
           body: JSON.stringify({
             role: "assistant",

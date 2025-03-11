@@ -499,37 +499,47 @@ class ModelManager {
         try {
             showNotification(`Switching to ${modelId}...`, 'info');
             this.pendingModelActions[modelId] = 'switch';
+            
+            // Get a valid session ID
             const sessionId = await getSessionId();
+            if (!sessionId) {
+                throw new Error('No valid session ID available');
+            }
+            
             const modelConfig = this.modelConfigs[modelId];
             const modelType = modelConfig.model_type || 'standard';
 
-            const requestBody = {
-                model_id: modelId,
-                session_id: sessionId
-            };
-
-            // Include any relevant model-specific settings
-            if (modelType === 'o-series') {
-                requestBody.reasoning_effort = modelConfig.reasoning_effort || 'medium';
-            } else if (modelType === 'deepseek') {
-                requestBody.enable_thinking = modelConfig.enable_thinking !== false;
-            }
-
-            const response = await fetch(`${window.location.origin}/api/config/models/switch`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
-            });
-
+            // Import the switchSessionModel function from session.js
+            const { switchSessionModel } = await import('./session.js');
+            
+            // Use the dedicated session API to update the model
+            const success = await switchSessionModel(sessionId, modelId);
+            
             delete this.pendingModelActions[modelId];
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                const errorMessage = errorData.detail || errorData.message || `Error: ${response.status} ${response.statusText}`;
-                throw new Error(`Failed to switch model: ${errorMessage}`);
+            if (!success) {
+                throw new Error(`Failed to update session model to ${modelId}`);
             }
-
-            await response.json();
+            
+            // Also update configs for consistency
+            try {
+                // Legacy config endpoint for backward compatibility
+                const configResponse = await fetch(`${window.location.origin}/api/config/models/switch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model_id: modelId,
+                        session_id: sessionId
+                    })
+                });
+                
+                if (!configResponse.ok) {
+                    console.warn(`Legacy config model switch returned status ${configResponse.status}`);
+                }
+            } catch (configError) {
+                console.warn('Error updating legacy config endpoint:', configError);
+                // Continue anyway as the session update is the primary path
+            }
 
             // Update UI or config as needed
             this.currentModel = modelId;

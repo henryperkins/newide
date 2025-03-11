@@ -9,7 +9,7 @@ import { loadConversationFromDb, loadOlderMessages } from './ui/displayManager.j
 import { StatsDisplay } from './ui/statsDisplay.js';
 import fileManager from './fileManager.js';
 import { showNotification } from './ui/notificationManager.js';
-import { getSessionId, createNewConversation } from './session.js';
+import { getSessionId, createNewConversation, refreshSession } from './session.js';
 import { initSentry, captureError, captureMessage } from './sentryInit.js';
 
 // Configure DOMPurify
@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', initApplication);
 /**
  * Ensures a valid session exists before proceeding with app initialization
  * Handles 404 errors and other issues gracefully
+ * Uses the more reliable SessionService API endpoints
  */
 async function ensureValidSession() {
   try {
@@ -44,35 +45,31 @@ async function ensureValidSession() {
       return module.startTransaction('session_initialization', 'session');
     });
     
-    // Get or create a session ID - this function handles validation internally
-    // and will create a new session if the existing one is invalid
-    const sessionId = await getSessionId();
+    // Import the updated session functions
+    const { ensureValidSession: sessionValidation, refreshSession } = await import('./session.js');
+    
+    // Use the new centralized method that works with SessionService
+    const sessionId = await sessionValidation();
 
     if (!sessionId) {
       console.warn('Failed to get a valid session ID');
       captureMessage('Failed to get a valid session ID', 'warning');
 
-      // Try one more time with a fresh session
-      sessionStorage.removeItem('sessionId');
-      const newSessionId = await createNewConversation('New Conversation');
-
-      if (!newSessionId) {
-        // Show error notification but don't throw to allow the app to continue
-        showNotification(
-          'Unable to create a session. Some features may not work correctly.',
-          'warning',
-          10000,
-          [{ label: 'Refresh', onClick: () => window.location.reload() }]
-        );
-        console.error('Failed to create a new session after multiple attempts');
-        captureMessage('Failed to create a new session after multiple attempts', 'error');
-      } else {
-        console.log('Created new session after initial failure:', newSessionId);
-        captureMessage('Created new session after initial failure', 'info', { sessionId: newSessionId });
-      }
+      // Show error notification but don't throw to allow the app to continue
+      showNotification(
+        'Unable to create a session. Some features may not work correctly.',
+        'warning',
+        10000,
+        [{ label: 'Refresh', onClick: () => window.location.reload() }]
+      );
+      console.error('Failed to create a new session after multiple attempts');
+      captureMessage('Failed to create a new session after multiple attempts', 'error');
     } else {
       console.log('Session initialization successful:', sessionId);
       captureMessage('Session initialization successful', 'info', { sessionId });
+      
+      // Refresh the session to extend its validity
+      await refreshSession(sessionId);
     }
     
     // Finish the transaction

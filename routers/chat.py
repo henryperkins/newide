@@ -6,13 +6,12 @@ import uuid
 import json
 import time
 import asyncio
-from typing import Optional, Dict, Any, AsyncIterator, List
+from typing import Optional, Dict, Any, AsyncIterator
 from uuid import UUID
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 from sqlalchemy import select, delete, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 import sentry_sdk
@@ -24,10 +23,10 @@ from clients import get_model_client_dependency
 from pydantic_models import (
     CreateChatCompletionRequest,
 )
-from models import Conversation, Session, User
+from models import Conversation, User
 from routers.security import get_current_user
 from services.chat_service import save_conversation
-from services.model_stats_service import ModelStatsService
+from services.session_service import SessionService
 from utils import (
     count_tokens,
     is_o_series_model,
@@ -65,11 +64,13 @@ async def create_new_conversation(
         pinned = data.get("pinned", False)
         archived = data.get("archived", False)
 
-        # Create a brand-new Session (1 row per conversation).
-        session_id = uuid.uuid4()
-        new_session = Session(id=session_id)
-        db.add(new_session)
-        await db.flush()  # ensures new_session is persisted
+        # Create a brand-new Session (1 row per conversation) using SessionService
+        # Pass the user's ID if they're authenticated
+        user_id = str(current_user.id) if current_user else None
+        new_session = await SessionService.create_session(
+            db_session=db,
+            user_id=user_id
+        )
 
         # Create the initial Conversation row (the first message)
         timestamp = datetime.now(timezone.utc)
@@ -118,10 +119,13 @@ async def add_conversation_message(
         if not role or not content:
             raise HTTPException(status_code=400, detail="Missing role or content")
 
-        # Verify session exists
-        stmt = select(Session).where(Session.id == conversation_id)
-        res = await db.execute(stmt)
-        session_db = res.scalar_one_or_none()
+        # Verify session exists using SessionService
+        session_db = await SessionService.validate_session(
+            session_id=conversation_id,
+            db_session=db,
+            require_valid=False
+        )
+        
         if not session_db:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -156,10 +160,12 @@ async def get_conversation_messages(
     Returns pinned/archived/title from the first message row found.
     """
     try:
-        # Validate conversation
-        stmt = select(Session).where(Session.id == conversation_id)
-        res = await db.execute(stmt)
-        session_db = res.scalar_one_or_none()
+        # Validate conversation using SessionService
+        session_db = await SessionService.validate_session(
+            session_id=conversation_id,
+            db_session=db,
+            require_valid=False
+        )
         if not session_db:
             # Return an empty conversation instead of raising 404
             return {
@@ -230,10 +236,12 @@ async def clear_conversation(
     Deletes all messages for a given conversation (and the Session row if desired).
     """
     try:
-        # Validate session
-        sel_stmt = select(Session).where(Session.id == conversation_id)
-        sess_res = await db.execute(sel_stmt)
-        session_db = sess_res.scalar_one_or_none()
+        # Validate session using SessionService
+        session_db = await SessionService.validate_session(
+            session_id=conversation_id,
+            db_session=db,
+            require_valid=False
+        )
         if not session_db:
             return {"status": "cleared", "detail": "No conversation found"}
 
@@ -266,10 +274,12 @@ async def rename_conversation(
         if not new_title:
             raise HTTPException(status_code=400, detail="No 'title' provided")
 
-        # Validate session
-        sel_stmt = select(Session).where(Session.id == conversation_id)
-        sess_res = await db.execute(sel_stmt)
-        session_db = sess_res.scalar_one_or_none()
+        # Validate session using SessionService
+        session_db = await SessionService.validate_session(
+            session_id=conversation_id,
+            db_session=db,
+            require_valid=False
+        )
         if not session_db:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -308,10 +318,12 @@ async def pin_conversation(
         body = await request.json()
         pinned_val = body.get("pinned", True)
 
-        # Validate session
-        sel_stmt = select(Session).where(Session.id == conversation_id)
-        sess_res = await db.execute(sel_stmt)
-        session_db = sess_res.scalar_one_or_none()
+        # Validate session using SessionService
+        session_db = await SessionService.validate_session(
+            session_id=conversation_id,
+            db_session=db,
+            require_valid=False
+        )
         if not session_db:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -345,10 +357,12 @@ async def archive_conversation(
         data = await request.json()
         archived_val = data.get("archived", True)
 
-        # Validate session
-        sel_stmt = select(Session).where(Session.id == conversation_id)
-        sess_res = await db.execute(sel_stmt)
-        session_db = sess_res.scalar_one_or_none()
+        # Validate session using SessionService
+        session_db = await SessionService.validate_session(
+            session_id=conversation_id,
+            db_session=db,
+            require_valid=False
+        )
         if not session_db:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -469,10 +483,14 @@ async def store_conversation(
         if not session_id or not role or not content:
             raise HTTPException(status_code=400, detail="Missing required fields")
 
-        # Validate session
-        stmt = select(Session).where(Session.id == session_id)
-        res = await db.execute(stmt)
-        if not res.scalar_one_or_none():
+        # Validate session using SessionService
+        session = await SessionService.validate_session(
+            session_id=session_id,
+            db_session=db,
+            require_valid=False
+        )
+        
+        if not session:
             raise HTTPException(status_code=404, detail="Session not found")
 
         msg = Conversation(
@@ -611,17 +629,28 @@ async def chat_sse(
         await SSE_SEMAPHORE.acquire()
 
     try:
-        # Validate session
-        stmt = select(Session).where(Session.id == session_id)
-        res = await db.execute(stmt)
-        session_db = res.scalar_one_or_none()
+        # Validate session using the SessionService
+        session_db = await SessionService.validate_session(
+            session_id=session_id,
+            db_session=db,
+            require_valid=False
+        )
+        
         if not session_db:
             # Automatically create a session if the provided session_id doesn't exist
-            new_session = Session(id=session_id)
-            db.add(new_session)
-            await db.commit()
-            session_db = new_session
-            logger.info(f"Automatically created new Session with id={session_id}")
+            logger.info(f"Session {session_id} not found, creating a new session")
+            session_db = await SessionService.create_session(db)
+            
+            # Record that we created a session
+            sentry_sdk.set_tag("session_auto_created", "true")
+            logger.info(f"Automatically created new Session with id={session_db.id}")
+            
+            # Update the model for this session
+            await SessionService.switch_model(
+                session_id=str(session_db.id),
+                new_model=model,
+                db_session=db
+            )
 
         # Retrieve the correct client
         client_wrapper = await get_model_client_dependency(model)

@@ -54,13 +54,17 @@ export async function getSessionId() {
  */
 async function validateSession(sessionId) {
   try {
-    // Check if the session exists by trying to fetch the first message
+    // Check if the session exists by calling the dedicated session endpoint
     const response = await fetch(
-      `${window.location.origin}/api/chat/conversations/${sessionId}/messages?limit=1`
+      `${window.location.origin}/api/session?session_id=${encodeURIComponent(sessionId)}`
     );
 
-    // Return true only if we get a successful response
-    return response.ok;
+    if (!response.ok) return false;
+    
+    const data = await response.json();
+    
+    // Return true only if we get a successful response with a valid session ID
+    return data && data.id === sessionId;
   } catch (error) {
     // Don't throw errors - just return false to indicate invalid session
     console.warn(`[validateSession] Error validating session ${sessionId}:`, error);
@@ -69,8 +73,8 @@ async function validateSession(sessionId) {
 }
 
 /**
- * Create a new conversation session
- * @param {string} title - Optional conversation title
+ * Create a new session
+ * @param {string} title - Optional conversation title (for backward compatibility)
  * @returns {Promise<string|null>} New session ID or null on failure
  */
 export async function createNewConversation(title = "New Conversation", pinned = false, archived = false) {
@@ -78,30 +82,44 @@ export async function createNewConversation(title = "New Conversation", pinned =
     // First, explicitly clear any existing session ID to prevent reuse
     sessionStorage.removeItem("sessionId");
 
-    const response = await fetch(`${window.location.origin}/api/chat/conversations`, {
+    // Create a new session using the unified session API
+    const response = await fetch(`${window.location.origin}/api/session/create`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title,
-        pinned,
-        archived
-      })
+      headers: { 'Content-Type': 'application/json' }
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to create conversation: ${response.status} - ${errorText}`);
+      throw new Error(`Failed to create session: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    const newSessionId = data.conversation_id;
+    const newSessionId = data.session_id;
 
     // Store the new session ID
     sessionStorage.setItem("sessionId", newSessionId);
+    
+    // Also create an associated conversation with the provided title
+    // This ensures backward compatibility with code that expects a conversation
+    try {
+      await fetch(`${window.location.origin}/api/chat/conversations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: newSessionId,
+          title,
+          pinned,
+          archived
+        })
+      });
+    } catch (convError) {
+      console.warn('Failed to create conversation record for session:', convError);
+      // Continue anyway as we have a valid session
+    }
 
     return newSessionId;
   } catch (error) {
-    console.error('Failed to create conversation:', error);
+    console.error('Failed to create session:', error);
     return null;
   }
 }
@@ -112,6 +130,66 @@ export async function createNewConversation(title = "New Conversation", pinned =
  */
 export function setLastUserMessage(message) {
   sessionStorage.setItem('lastUserMessage', message);
+}
+
+/**
+ * Update the model associated with a session
+ * @param {string} sessionId - Session ID to update
+ * @param {string} modelName - New model name to set
+ * @returns {Promise<boolean>} Success status
+ */
+export async function switchSessionModel(sessionId, modelName) {
+  if (!sessionId || !modelName) {
+    console.error('[switchSessionModel] Missing required parameters');
+    return false;
+  }
+  
+  try {
+    const response = await fetch(`${window.location.origin}/api/session/model`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Session-ID': sessionId
+      },
+      body: JSON.stringify({ model: modelName })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.warn(`[switchSessionModel] Failed to update session model: ${response.status}`, errorData);
+      return false;
+    }
+    
+    console.log(`[switchSessionModel] Successfully updated session model to ${modelName}`);
+    return true;
+  } catch (error) {
+    console.error('[switchSessionModel] Error updating session model:', error);
+    return false;
+  }
+}
+
+/**
+ * Ensure we have a valid session, creating a new one if necessary
+ * @returns {Promise<string|null>} Valid session ID or null if all attempts fail
+ */
+export async function ensureValidSession() {
+  // First try to get and validate existing session
+  let sessionId = sessionStorage.getItem("sessionId");
+  
+  if (sessionId) {
+    const isValid = await validateSession(sessionId);
+    if (isValid) {
+      // Refresh the session to extend its validity
+      await refreshSession(sessionId);
+      return sessionId;
+    }
+    
+    // Clear invalid session
+    sessionStorage.removeItem("sessionId");
+  }
+  
+  // Create a new session if needed
+  return await createNewConversation();
 }
 
 /**
@@ -128,6 +206,36 @@ export async function initializeSession() {
     return false;
   } catch (error) {
     console.error('Failed to initialize session:', error);
+    return false;
+  }
+}
+
+/**
+ * Refresh the current session to extend its validity
+ * @param {string} sessionId - Session ID to refresh
+ * @returns {Promise<boolean>} Success status
+ */
+export async function refreshSession(sessionId) {
+  if (!sessionId) return false;
+  
+  try {
+    const response = await fetch(`${window.location.origin}/api/session/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Session-ID': sessionId
+      }
+    });
+    
+    if (!response.ok) {
+      console.warn(`[refreshSession] Failed to refresh session ${sessionId}: ${response.status}`);
+      return false;
+    }
+    
+    console.log(`[refreshSession] Successfully refreshed session ${sessionId}`);
+    return true;
+  } catch (error) {
+    console.error('[refreshSession] Error refreshing session:', error);
     return false;
   }
 }

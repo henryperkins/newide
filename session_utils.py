@@ -1,7 +1,9 @@
-# session_utils.py - Session management utilities
+# session_utils.py - Session management utilities (DEPRECATED)
+# WARNING: This module is deprecated. Please use services.session_service.SessionService instead.
 
 import uuid
 import time
+import warnings
 from typing import Optional, Union
 from datetime import datetime, timedelta, timezone
 from fastapi import Request, HTTPException
@@ -18,7 +20,7 @@ from services.tracing_utils import trace_function, trace_block, add_breadcrumb
 logger = get_logger(__name__)
 
 class SessionManager:
-    """Centralized session management logic"""
+    """Centralized session management logic (DEPRECATED)"""
     
     @staticmethod
     async def get_session_from_request(
@@ -27,6 +29,8 @@ class SessionManager:
         require_valid: bool = False
     ) -> Optional[Session]:
         """
+        DEPRECATED: Use SessionService.get_session_from_request instead.
+        
         Extract and validate session from request.
         
         Args:
@@ -40,6 +44,12 @@ class SessionManager:
         Raises:
             HTTPException: If require_valid is True and session is invalid
         """
+        warnings.warn(
+            "SessionManager.get_session_from_request is deprecated. Use SessionService.get_session_from_request instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         # Create a span for session validation
         with sentry_sdk.start_span(op="session.validate", description="Validate Session") as span:
             span_start = time.time()
@@ -320,7 +330,17 @@ class SessionManager:
         session_id: Union[str, uuid.UUID],
         db_session: AsyncSession
     ) -> Optional[Session]:
-        """Get a session by ID"""
+        """
+        DEPRECATED: Use SessionService.validate_session instead.
+        
+        Get a session by ID
+        """
+        warnings.warn(
+            "SessionManager.get_session is deprecated. Use SessionService.validate_session instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         try:
             # Convert string to UUID if needed
             if isinstance(session_id, str):
@@ -335,7 +355,17 @@ class SessionManager:
             
     @staticmethod
     async def create_session(db_session: AsyncSession) -> Session:
-        """Create a new session"""
+        """
+        DEPRECATED: Use SessionService.create_session instead.
+        
+        Create a new session
+        """
+        warnings.warn(
+            "SessionManager.create_session is deprecated. Use SessionService.create_session instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         # Create a transaction for session creation
         transaction = sentry_sdk.start_transaction(
             name="create_session",
@@ -491,7 +521,17 @@ class SessionManager:
         session_id: Union[str, uuid.UUID], 
         db_session: AsyncSession
     ) -> bool:
-        """Extend the expiration time of a session"""
+        """
+        DEPRECATED: Use SessionService.extend_session instead.
+        
+        Extend the expiration time of a session
+        """
+        warnings.warn(
+            "SessionManager.extend_session is deprecated. Use SessionService.extend_session instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         # Create a span for session extension
         with sentry_sdk.start_span(op="session.extend", description="Extend Session") as span:
             start_time = time.time()
@@ -625,7 +665,17 @@ class SessionManager:
         model_name: str,
         db_session: AsyncSession
     ) -> bool:
-        """Update the model associated with a session"""
+        """
+        DEPRECATED: Use SessionService.switch_model instead.
+        
+        Update the model associated with a session
+        """
+        warnings.warn(
+            "SessionManager.update_session_model is deprecated. Use SessionService.switch_model instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         try:
             # Convert string to UUID if needed
             if isinstance(session_id, str):

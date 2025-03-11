@@ -6,7 +6,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from fastapi import Depends
 from contextlib import asynccontextmanager
 
 from init_db import init_database
@@ -18,7 +17,6 @@ from routers.model_stats import router as model_stats_router
 from routers.auth import router as auth_router
 
 import config
-from services.config_service import ConfigService
 
 # Import schema validation 
 from startup_validation import db_validation_lifespan

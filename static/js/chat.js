@@ -7,6 +7,7 @@ import {
 } from './ui/notificationManager.js';
 import {
   getSessionId,
+  refreshSession,
   initializeSession,
   setLastUserMessage
 } from './session.js';
@@ -229,11 +230,22 @@ export async function sendMessage() {
     }
     userInput.value = '';
     userInput.style.height = 'auto';
+    
+    // Get a valid session and refresh it
     let currentSessionId = await getSessionId();
     if (!currentSessionId) {
       showNotification('Could not retrieve a valid session ID. Please refresh.', 'error');
       return;
     }
+    
+    // Refresh the session to extend its validity
+    try {
+      await refreshSession(currentSessionId);
+    } catch (refreshErr) {
+      console.warn('[sendMessage] Failed to refresh session:', refreshErr);
+      // Continue anyway - the API request will validate the session
+    }
+    
     renderUserMessage(messageContent);
     const modelSelect = document.getElementById('model-select');
     let modelName = 'DeepSeek-R1';  // Must use exact casing
@@ -387,6 +399,7 @@ async function fetchChatResponse(
           const token = localStorage.getItem('authToken');
           const headers = {
             'Content-Type': 'application/json',
+            'X-Session-ID': sessionId, // Add session ID to headers for validation
             ...(token ? { 'Authorization': 'Bearer ' + token } : {})
           };
 
@@ -606,9 +619,9 @@ function createAssistantMessageElementFallback(response) {
 
   async function storeChatMessage(role, content) {
     try {
-      const currentSessionId = await getSessionId();
+      const sessionId = await getSessionId();
       // Ensure required fields are present and have valid values
-      if (!currentSessionId) {
+      if (!sessionId) {
         console.error('[storeChatMessage] Missing session_id');
         return;
       }
@@ -623,9 +636,17 @@ function createAssistantMessageElementFallback(response) {
         console.warn('[storeChatMessage] Empty content provided, using space character');
       }
       
+      // Try to refresh the session to extend its validity
+      try {
+        await refreshSession(sessionId);
+      } catch (refreshErr) {
+        console.warn('[storeChatMessage] Failed to refresh session:', refreshErr);
+        // Continue anyway - the API call will validate the session
+      }
+      
       // All required fields are now validated individually
       console.log('[storeChatMessage] Sending message to server:', {
-        session_id: currentSessionId,
+        session_id: sessionId,
         role,
         content: finalContent.substring(0, 50) + (finalContent.length > 50 ? '...' : '')
       });
@@ -633,10 +654,13 @@ function createAssistantMessageElementFallback(response) {
       try {
         // Changed endpoint to match router implementation
         const response = await fetchWithRetry(
-          `${window.location.origin}/api/chat/conversations/${currentSessionId}/messages`,
+          `${window.location.origin}/api/chat/conversations/${sessionId}/messages`,
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Session-ID': sessionId // Add session ID to headers for validation
+            },
             body: JSON.stringify({ role, content: finalContent })
           },
           3
@@ -653,20 +677,20 @@ function createAssistantMessageElementFallback(response) {
         console.warn('Failed to store message in backend:', err);
       }
 
-    // Also store in localStorage as backup
-    try {
-      const key = `conversation_${currentSessionId}`;
-      let convo = JSON.parse(localStorage.getItem(key) || '[]');
-      convo.push({ role, content, timestamp: new Date().toISOString() });
-      if (convo.length > 50) convo = convo.slice(-50);
-      localStorage.setItem(key, JSON.stringify(convo));
-    } catch (e) {
-      console.warn('Failed to store message locally:', e);
+      // Also store in localStorage as backup
+      try {
+        const key = `conversation_${sessionId}`;
+        let convo = JSON.parse(localStorage.getItem(key) || '[]');
+        convo.push({ role, content, timestamp: new Date().toISOString() });
+        if (convo.length > 50) convo = convo.slice(-50);
+        localStorage.setItem(key, JSON.stringify(convo));
+      } catch (e) {
+        console.warn('Failed to store message locally:', e);
+      }
+    } catch (error) {
+      console.error('Error in storeChatMessage:', error);
     }
-  } catch (error) {
-    console.error('Error in storeChatMessage:', error);
   }
-}
 
 async function fetchWithRetry(url, options = {}, maxRetries = 3) {
   let retries = 0;

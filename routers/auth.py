@@ -14,6 +14,7 @@ import config
 from sqlalchemy import select
 from services.tracing_utils import trace_function, trace_block, set_user_context, add_breadcrumb
 from logging_config import get_logger
+from services.session_service import SessionService
 
 # Set up logger
 logger = get_logger(__name__)
@@ -252,6 +253,19 @@ async def login_user(
             
             token = jwt.encode(payload, config.settings.JWT_SECRET, algorithm="HS256")
             span.set_data("duration_seconds", time.time() - token_start)
+        
+        # Create a session for the authenticated user
+        with trace_block("Create User Session", op="auth.create_session") as session_span:
+            session_start = time.time()
+            
+            # Create a new session associated with this user
+            new_session = await SessionService.create_session(
+                db_session=db,
+                user_id=str(user.id)
+            )
+            
+            session_span.set_data("session_id", str(new_session.id))
+            session_span.set_data("duration_seconds", time.time() - session_start)
             
         # Set user context for Sentry
         set_user_context(user_id=str(user.id), email=str(user.email))
@@ -260,21 +274,27 @@ async def login_user(
         duration = time.time() - start_time
         transaction.set_data("login_success", True)
         transaction.set_data("duration_seconds", duration)
+        transaction.set_data("session_id", str(new_session.id))
         
         # Add success breadcrumb
         add_breadcrumb(
             category="auth",
             message="User logged in successfully",
             level="info",
-            data={"user_id": str(user.id)}
+            data={"user_id": str(user.id), "session_id": str(new_session.id)}
         )
         
         logger.info(
             f"User logged in successfully: {str(user.id)}",
-            extra={"user_id": str(user.id), "duration": duration}
+            extra={"user_id": str(user.id), "session_id": str(new_session.id), "duration": duration}
         )
         
-        return {"access_token": token, "token_type": "bearer", "user_id": str(user.id)}
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user_id": str(user.id),
+            "session_id": str(new_session.id)
+        }
         
     except Exception as e:
         # Set error information

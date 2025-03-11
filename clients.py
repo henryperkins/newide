@@ -1,9 +1,7 @@
 # clients.py
 
-import os
 import logging
-from typing import Dict, Optional, Any, Union, List, TYPE_CHECKING
-from datetime import datetime
+from typing import Dict, Optional, Any, Union
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from openai import AzureOpenAI, AsyncAzureOpenAI
@@ -221,7 +219,6 @@ class ClientPool:
             logger.error(f"Error initializing ClientPool from database: {str(e)}")
             # Fall back to default models
             self._model_configs = ModelRegistry.create_default_models()
-
 
     def _create_client(self, model_id: str, model_config: Dict[str, Any]) -> AzureAIClient:
         """Create the appropriate client based on model type"""

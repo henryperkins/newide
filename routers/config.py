@@ -2,14 +2,14 @@ import logging
 import re
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
-from fastapi import Query
-from typing import Any, Dict, Optional, List, Literal
+from typing import Any, Dict, Optional, List
 from pydantic import BaseModel, Field, validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db_session, AsyncSessionLocal
-from clients import get_client_pool, ClientPool, ModelRegistry
+from clients import get_client_pool, ModelRegistry
 from services.config_service import get_config_service, ConfigService
+from services.session_service import SessionService
 import config as app_config
 
 logger = logging.getLogger(__name__)
@@ -114,19 +114,31 @@ async def get_current_model(
 
             return {"currentModel": fallback_model}
 
-        # Get session model from database
-        from session_utils import SessionManager
-
-        session = await SessionManager.get_session(session_id, db_session)
-
-        if session is None or getattr(session, "last_model", None) is None:
+        # Get session model from database using SessionService
+        # Convert session_id string to UUID
+        try:
+            session_uuid = uuid.UUID(session_id)
+        except ValueError:
+            # Invalid UUID, return default model
+            client_pool = await get_client_pool(db_session)
+            models = client_pool.get_all_models()
+            fallback_model = next(iter(models.keys())) if models else None
+            return {"currentModel": fallback_model}
+            
+        # Use the SessionService to get the current model
+        current_model = await SessionService.get_current_model(
+            session_id=session_uuid,
+            db_session=db_session
+        )
+        
+        if current_model:
+            return {"currentModel": current_model}
+        else:
             # No model set in session yet
             client_pool = await get_client_pool(db_session)
             models = client_pool.get_all_models()
             fallback_model = next(iter(models.keys())) if models else None
             return {"currentModel": fallback_model}
-
-        return {"currentModel": session.last_model}
     except Exception as e:
         logger.exception(f"Error getting current model: {str(e)}")
         raise HTTPException(
@@ -492,15 +504,16 @@ async def switch_model(
             try:
                 # Validate UUID format
                 session_uuid = uuid.UUID(session_id)
-                from session_utils import SessionManager
-
-                # Get current model and session
-                session = await SessionManager.get_session(session_id, db_session)
-                current_model = session.last_model if session else None
+                
+                # Get current model using SessionService
+                current_model = await SessionService.get_current_model(
+                    session_id=session_uuid,
+                    db_session=db_session
+                )
 
                 # Handle model-specific parameter transitions
-                if session and session.last_model is not None and str(session.last_model) != str(model_id):
-                    # Fetch the old_config using the session's last_model value
+                if current_model is not None and str(current_model) != str(model_id):
+                    # Fetch the old_config using the current_model value
                     old_config = client_pool.get_model_config(str(current_model)) or {}
                     old_type = old_config.get("model_type", "standard")
                     new_type = model_config.get("model_type", "standard")
@@ -509,8 +522,18 @@ async def switch_model(
                         logger.info(f"Switching model types from {old_type} to {new_type}")
                         # Model-specific transition logic would go here
 
-                # Update the session
-                await SessionManager.update_session_model(session_id, model_id, db_session)
+                # Update the session using SessionService
+                success, error = await SessionService.switch_model(
+                    session_id=session_uuid,
+                    new_model=model_id,
+                    db_session=db_session
+                )
+                
+                if not success:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to update session model: {error or 'Unknown error'}"
+                    )
             except ValueError:
                 raise HTTPException(
                     status_code=400, detail=f"Invalid session ID format: {session_id}"
@@ -580,16 +603,17 @@ async def switch_model_path(
                 status_code=400, detail=f"Invalid session ID format: {session_id}"
             )
 
-        # Update the session model
-        from session_utils import SessionManager
-
-        success = await SessionManager.update_session_model(
-            session_uuid, model_id, db_session
+        # Update the session model using SessionService
+        success, error = await SessionService.switch_model(
+            session_id=session_uuid,
+            new_model=model_id,
+            db_session=db_session
         )
 
         if not success:
             raise HTTPException(
-                status_code=500, detail=f"Failed to update session {session_id}"
+                status_code=500,
+                detail=f"Failed to update session {session_id}: {error or 'Unknown error'}"
             )
 
         return {"success": True, "model": model_id}

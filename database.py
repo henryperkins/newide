@@ -150,17 +150,24 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     Yields:
         AsyncSession: An async database session.
     """
-    with sentry_sdk.start_span(op="db.session", description="Database Session"):
-        async with AsyncSessionLocal() as session:
+    session = None
+    span = sentry_sdk.start_span(op="db.session", description="Database Session")
+    
+    try:
+        session = AsyncSessionLocal()
+        yield session
+    except Exception as e:
+        # Capture database errors
+        sentry_sdk.capture_exception(e)
+        logger.error(f"Database session error: {str(e)}")
+        raise
+    finally:
+        if session:
             try:
-                yield session
-            except Exception as e:
-                # Capture database errors
-                sentry_sdk.capture_exception(e)
-                logger.error(f"Database session error: {str(e)}")
-                raise
-            finally:
                 await session.close()
+            except Exception as close_err:
+                logger.error(f"Error closing session: {str(close_err)}")
+        span.finish()
 
 # Helper for tracing database operations
 @asynccontextmanager
