@@ -52,6 +52,16 @@ sentry_sdk.init(
     before_breadcrumb=lambda breadcrumb, hint: breadcrumb,  # Hook to modify breadcrumbs
 )
 
+class CoroutineCheckMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        if hasattr(response, "body") and inspect.iscoroutine(response.body):
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Server error: Unawaited coroutine in response"}
+            )
+        return response
+
 @asynccontextmanager
 async def database_lifespan(app: FastAPI):
     """Database initialization lifespan"""
@@ -98,6 +108,9 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["Cache-Control", "Content-Type", "Authorization", "X-API-Version", "x-ms-error-code", "x-ms-error-message"]
 )
+
+# Add coroutine check middleware
+app.add_middleware(CoroutineCheckMiddleware)
 
 # Include API routers with non-root prefixes.
 app.include_router(session_router, prefix="/api/session")
