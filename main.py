@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
-
+from starlette.middleware.base import BaseHTTPMiddleware
 from init_db import init_database
 from routers.session import router as session_router
 from routers.chat import router as chat_router
