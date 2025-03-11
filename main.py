@@ -1,11 +1,13 @@
 import datetime
+import inspect
 from pathlib import Path
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.base import BaseHTTPMiddleware
 from contextlib import asynccontextmanager
 from starlette.middleware.base import BaseHTTPMiddleware
 from init_db import init_database
@@ -51,6 +53,31 @@ sentry_sdk.init(
     before_send=lambda event, hint: event,  # Hook to modify events before sending
     before_breadcrumb=lambda breadcrumb, hint: breadcrumb,  # Hook to modify breadcrumbs
 )
+
+class EnhancedCoroutineCheckMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        try:
+            response = await call_next(request)
+            if hasattr(response, "body") and inspect.iscoroutine(response.body):
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "detail": "Server error: Unawaited coroutine in response",
+                        "type": "coroutine_error"
+                    }
+                )
+            return response
+        except ValueError as e:
+            if "'coroutine'" in str(e) and "is not iterable" in str(e):
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "detail": "Server error: Unawaited coroutine in response",
+                        "type": "coroutine_error",
+                        "error": str(e)
+                    }
+                )
+            raise
 
 class CoroutineCheckMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -98,6 +125,9 @@ app = FastAPI(
     debug=True, 
     lifespan=lifespan
 )
+
+# Add the EnhancedCoroutineCheckMiddleware
+app.add_middleware(EnhancedCoroutineCheckMiddleware)
 
 # Add middleware
 app.add_middleware(

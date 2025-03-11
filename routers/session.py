@@ -188,9 +188,10 @@ async def get_current_session(
         }
 
 
+
 @router.post("/create")
 @trace_function(op="session.create", name="create_session")
-async def create_session(
+async def create_session_endpoint(
     background_tasks: BackgroundTasks,
     db_session: AsyncSession = Depends(get_db_session),
     client_wrapper: dict = Depends(get_model_client_dependency),
