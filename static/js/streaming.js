@@ -163,7 +163,7 @@ function streamChatResponse(
     }
     params.append("model", finalModelName);
     params.append("message", messageContent || "");
-    params.append("session_id", sessionId);
+    // params.append("session_id", sessionId);
 
     if (modelId.includes("o1") || modelId.includes("o3")) {
       params.append("reasoning_effort", reasoningEffort);

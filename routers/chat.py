@@ -484,7 +484,7 @@ async def store_conversation(
 
         # Validate session using SessionService
         session = await SessionService.validate_session(
-            session_id=session_id,
+            session_id=session_id,  # Now declared above from the header
             db_session=db,
             require_valid=False
         )
@@ -585,12 +585,21 @@ async def create_chat_completion(
 @sentry_sdk.trace()
 async def chat_sse(  # noqa: C901
     request: Request,
-    session_id: UUID,
     model: str = "",
     message: str = "",
     reasoning_effort: str = "medium",  # used by O-series
     db: AsyncSession = Depends(get_db_session),
 ):
+    # Extract session_id from the X-Session-ID header
+    header_session_id = request.headers.get("X-Session-ID")
+    if not header_session_id:
+        raise HTTPException(status_code=400, detail="Missing X-Session-ID header")
+
+    try:
+        session_id = UUID(header_session_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid session ID format")
+
     # Explicitly validate that 'model' and 'message' were provided
     if not model or not message:
         raise HTTPException(
