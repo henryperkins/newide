@@ -4,21 +4,17 @@
 import ssl
 import json
 import time
-from typing import AsyncGenerator, Optional, Dict, Any, Type, TypeVar, cast
+from typing import AsyncGenerator, TypeVar
 from contextlib import asynccontextmanager
-import functools
 
 # Third-party imports
-from fastapi import Depends
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.sql import Select, Insert, Update, Delete
-from sqlalchemy import text, event
+from sqlalchemy import event
 import sentry_sdk
 
 # Local imports
 import config
-from models import Base
 from logging_config import get_logger
 
 # Setup module logger
@@ -131,7 +127,7 @@ def after_cursor_execute(conn, cursor, statement, parameters, context, executema
         try:
             row_count = cursor.rowcount
             span.set_data("db.rows_affected", row_count)
-        except:
+        except Exception:
             pass
     
     # Finish the span

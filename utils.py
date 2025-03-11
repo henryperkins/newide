@@ -2,7 +2,7 @@
 import tiktoken
 import os
 import json
-from typing import Optional, List, Dict, Union
+from typing import Optional, List, Dict
 import config
 from logging_config import logger
 from azure.core.exceptions import HttpResponseError
@@ -102,8 +102,8 @@ def validate_streaming(model_id: str) -> bool:
     if model_id.startswith("o3-mini"):
         base_model = "o3-mini"
     # Disallow streaming for any o1 variants.
-    elif model_id.startswith("o3-mini"):
-        return True
+    elif model_id.startswith("o1"):
+        return False
     elif model_id.startswith("gpt-4"):
         base_model = "gpt-4"
     elif model_id.startswith("gpt-35") or model_id.startswith("gpt-3.5"):

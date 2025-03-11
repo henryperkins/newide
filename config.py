@@ -151,13 +151,7 @@ def validate_azure_credentials():
             f"Missing required environment variables: {', '.join(missing)}"
         )
 
-    # Additional DeepSeek-specific validation
-    if os.getenv("AZURE_INFERENCE_ENDPOINT") and "DeepSeek-R1" not in os.getenv(
-        "AZURE_INFERENCE_ENDPOINT", ""
-    ):
-        raise ValueError(
-            "AZURE_INFERENCE_ENDPOINT must contain the full DeepSeek endpoint URL including '/DeepSeek-R1'"
-        )
+    # Additional DeepSeek-specific validation check removed as requested
 
 
 # Move the function definition BEFORE the calls at line 127-128
@@ -232,13 +226,19 @@ def is_deepseek_model(model_name: Optional[str]) -> bool:
     """Check if the model is a DeepSeek model"""
     if not model_name:
         return False
-    return "deepseek" in model_name.lower()
+    # More restrictive check to avoid accidental substring matches
+    return model_name.lower().startswith("deepseek-")
 
 def is_o_series_model(model_name: Optional[str]) -> bool:
     """Check if the model is an O-series model"""
     if not model_name:
         return False
-    return model_name.lower().startswith("o1") or "oseries" in model_name.lower()
+    # More restrictive check for O-series
+    return (
+        model_name.lower().startswith("o1")
+        or model_name.lower().startswith("o3")
+        or model_name.lower().startswith("oseries")
+    )
 
 
 # Validate DeepSeek endpoint exists

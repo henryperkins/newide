@@ -7,20 +7,19 @@ is consistent with the ORM models, without requiring a full migration system.
 """
 
 import logging
-import os
 from pathlib import Path
-from typing import List, Dict, Any, Tuple, Set
+from typing import List, Tuple
 import asyncio
-from sqlalchemy import text, MetaData, Table, Column, inspect
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncConnection
+from sqlalchemy import text, inspect
+
+# Import models and engine
+from models import Base
+from database import engine
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Import models and engine
-from models import Base
-from database import engine
 
 async def check_database_consistency() -> Tuple[bool, List[str]]:
     """
