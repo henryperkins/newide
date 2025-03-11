@@ -11676,3 +11676,355 @@
 
 # 2025-03-08 03:58:12.422848
 +no
+
+# 2025-03-10 17:23:22.041505
++yes
+
+# 2025-03-10 17:24:58.450209
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-10 17:25:54.768410
++no
+
+# 2025-03-10 17:25:56.212336
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-10 17:26:01.832201
++no
+
+# 2025-03-10 17:26:07.615276
++/run venv/bin/pip install aiofiles
+
+# 2025-03-10 17:26:10.000145
++no
+
+# 2025-03-10 17:26:12.092661
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-10 17:30:59.126139
++yes
+
+# 2025-03-10 17:31:03.198058
++/add static/js/streaming.js
+
+# 2025-03-10 17:31:06.573444
++/add static/js/ui/deepseekProcessor.js
+
+# 2025-03-10 17:31:14.786567
++/add static/js/streaming_utils.js
+
+# 2025-03-10 17:31:17.756030
++/add static/js/streamingRenderer.js
+
+# 2025-03-10 17:31:43.856010
++/add static/js/ui/displayManager.js
+
+# 2025-03-10 17:31:57.716109
++/add static/js/session.js
+
+# 2025-03-10 17:32:00.641942
++/add static/js/chat.js
+
+# 2025-03-10 17:32:17.786558
++/add static/css/thinking-blocks-combined.css
+
+# 2025-03-10 17:32:34.593778
++analyze the chat completion process of DeepSeek-R1
+
+# 2025-03-10 17:33:46.796622
++no
+
+# 2025-03-10 17:34:44.599009
++Analyze the model response logic, how it's receieved, how it's processes, and follow it as it travels through the code to be rendered and displayed in teh chat window
+
+# 2025-03-10 17:38:58.739105
++no
+
+# 2025-03-10 17:39:11.158732
++identify issues with the visual display of the model's response
+
+# 2025-03-10 17:41:41.348982
++no
+
+# 2025-03-10 17:41:58.000328
++analyze the code further and expand on the issues you identified
+
+# 2025-03-10 17:44:08.229444
++no
+
+# 2025-03-10 17:45:25.181260
++Analyze the code available and find complete code solutions for the issues you've identified (except the chain of thought visibility "issue" - I want to keep the whole thing visible) customized for this application
+
+# 2025-03-10 17:46:37.629998
++no
+
+# 2025-03-10 17:46:49.916890
++please format your response better, this shit is damn near unreadable
+
+# 2025-03-10 17:49:37.541017
++Analyze the code again and identify issues with the model's response and presentation. Format your response so it's fucking readable asshole
+
+# 2025-03-11 06:01:26.101782
++yes
+
+# 2025-03-11 06:02:11.277322
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-11 06:04:31.216597
++yes
+
+# 2025-03-11 06:05:00.831578
++/add static/js/streaming.js
+
+# 2025-03-11 06:05:06.299974
++/add services/streaming_helpers.py
+
+# 2025-03-11 06:05:12.950631
++/add services/session_service.py
+
+# 2025-03-11 06:05:18.700363
++/add routers/session.py
+
+# 2025-03-11 06:05:24.516548
++/add routers/chat.py
+
+# 2025-03-11 06:05:27.110928
++/add clients.py
+
+# 2025-03-11 06:06:09.247756
++/add static/js/session.js
+
+# 2025-03-11 06:06:13.815172
++/add static/js/chat.js
+
+# 2025-03-11 06:06:25.456742
++/add services/model_stats_service.py
+
+# 2025-03-11 06:06:29.047658
++/add  routers/model_stats.py
+
+# 2025-03-11 06:06:32.180247
++/architect
+
+# 2025-03-11 06:06:36.665132
++{
+
+# 2025-03-11 06:06:43.453981
++instrument.js:153 
++            
++            
++            GET http://127.0.0.1:8000/api/model-stats/connections net::ERR_CONNECTION_RESET
++(anonymous) @ instrument.js:153
++fetchConnections @ statsDisplay.js:107
++sentryWrapped @ helpers.ts:98
++instrument.js:153 
++            
++            
++            GET http://127.0.0.1:8000/api/session?session_id=bfbb07ba-15c9-4a00-86b3-7d0fbba3cb4a net::ERR_CONNECTION_RESET
++(anonymous) @ instrument.js:153
++validateSession @ session.js:58
++getSessionId @ session.js:19
++sendMessage @ chat.js:235
++instrument.js:153 
++            
++            
++            POST http://127.0.0.1:8000/api/session/create net::ERR_CONNECTION_RESET
++(anonymous) @ instrument.js:153
++createNewConversation @ session.js:86
++getSessionId @ session.js:36
++await in getSessionId
++sendMessage @ chat.js:235
++instrument.js:123  Failed to create session: TypeError: Failed to fetch
++    at instrument.js:153:1
++    at createNewConversation (session.js:86:28)
++    at getSessionId (session.js:36:32)
++    at async HTMLButtonElement.sendMessage (chat.js:235:28)
++(anonymous) @ instrument.js:123
++createNewConversation @ session.js:122
++await in createNewConversation
++getSessionId @ session.js:36
++await in getSessionId
++sendMessage @ chat.js:235
++
+
+# 2025-03-11 06:07:13.396365
++This is the browser console errors I recieve when sending a message to DeepSeek-R1 -- Also no response from the model either
+
+# 2025-03-11 06:07:15.700145
++}
+
+# 2025-03-11 06:07:17.834012
++no
+
+# 2025-03-11 06:07:57.727217
++Respond in English
+
+# 2025-03-11 06:08:34.409290
++no
+
+# 2025-03-11 06:08:40.330437
++{
+
+# 2025-03-11 06:08:55.305362
++These are the warnings: (and no one is stopping the uvicorn server prematurely)
+
+# 2025-03-11 06:09:03.498243
++instrument.js:123  [storeChatMessage] Empty content provided, using space character
++(anonymous) @ instrument.js:123
++instrument.js:123  Connection stats request error: TypeError: Failed to fetch
++    at instrument.js:153:1
++    at fetchConnections (statsDisplay.js:107:36)
++    at sentryWrapped (helpers.ts:98:1)
++(anonymous) @ instrument.js:123
++fetchConnections @ statsDisplay.js:121
++await in fetchConnections
++sentryWrapped @ helpers.ts:98
++instrument.js:123  [validateSession] Error validating session bfbb07ba-15c9-4a00-86b3-7d0fbba3cb4a: TypeError: Failed to fetch
++    at instrument.js:153:1
++    at validateSession (session.js:58:28)
++    at getSessionId (session.js:19:29)
++    at HTMLButtonElement.sendMessage (chat.js:235:34)
++(anonymous) @ instrument.js:123
++validateSession @ session.js:70
++await in validateSession
++getSessionId @ session.js:19
++sendMessage @ chat.js:235
++instrument.js:123  [getSessionId] Session bfbb07ba-15c9-4a00-86b3-7d0fbba3cb4a is invalid, creating new session
++(anonymous) @ instrument.js:123
++getSessionId @ session.js:24
++await in getSessionId
++sendMessage @ chat.js:235
++instrument.js:123  Typing indicator timeout - response is taking longer than expected
++(anonymous) @ instrument.js:123
++(anonymous) @ notificationManager.js:295
++sentryWrapped @ helpers.ts:98
++}
+
+# 2025-03-11 06:09:05.238221
++}
+
+# 2025-03-11 06:09:41.791210
++no
+
+# 2025-03-11 06:09:48.810970
++I stopped the server to start talking to you asshat
+
+# 2025-03-11 06:10:06.826939
++no
+
+# 2025-03-11 06:10:20.370694
++Those errors were received before I stopped the server 
+
+# 2025-03-11 06:10:42.209584
++no
+
+# 2025-03-11 06:10:48.893198
++Nevermind, Fucking idiot. I'lll try again
+
+# 2025-03-11 06:11:05.431298
++no
+
+# 2025-03-11 06:11:06.993152
++/clear
+
+# 2025-03-11 06:11:21.664699
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-11 06:12:10.826356
++yes
+
+# 2025-03-11 06:12:14.097488
++What is the issue?
+
+# 2025-03-11 06:12:33.079125
++no
+
+# 2025-03-11 06:12:40.730036
++In English
+
+# 2025-03-11 06:13:13.198794
++yes
+
+# 2025-03-11 06:14:08.783346
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-11 06:16:45.339642
++yes
+
+# 2025-03-11 06:16:47.857896
++{
+
+# 2025-03-11 06:16:53.920983
++instrument.js:153 
++            
++            
++            POST http://127.0.0.1:8000/api/chat/conversations/cadd09f6-571f-4598-a135-a9f2a912a756/messages 400 (Bad Request)
++t @ instrument.js:153
++(anonymous) @ helpers.js:457
++retry @ helpers.js:423
++fetchWithRetry @ helpers.js:456
++cleanupStreaming @ streaming.js:554
++await in cleanupStreaming
++finalizeAndResolve @ streaming.js:339
++readLoop @ streaming.js:276
++
+
+# 2025-03-11 06:17:11.940924
++There's the terminal output and the browser console errors. The model didn't respond and timed out
+
+# 2025-03-11 06:17:13.621288
++}
+
+# 2025-03-11 06:17:15.360195
++no
+
+# 2025-03-11 06:18:12.979888
++yes
+
+# 2025-03-11 06:19:30.060734
++/drop services/streaming_helpers.py
+
+# 2025-03-11 06:19:36.607381
++/drop routers/model_stats.py
+
+# 2025-03-11 06:19:39.779744
++/drop services/model_stats_service.py
+
+# 2025-03-11 06:19:43.964103
++/add docs/deepseek-reference.md
+
+# 2025-03-11 06:19:52.849645
++I've added DeepSeek-R1 documentation
+
+# 2025-03-11 06:20:12.052299
++no
+
+# 2025-03-11 06:20:25.623939
++analyze the codebase and ensure it is following the documentation
+
+# 2025-03-11 06:21:04.519878
++no
+
+# 2025-03-11 06:21:08.103628
++So why isn't the model responding?
+
+# 2025-03-11 06:21:44.420387
++no
+
+# 2025-03-11 06:22:07.865041
++Yes, I've confirmed all of that is true. The model is deployed, teh endpoint is correct, the library is installed, etc
+
+# 2025-03-11 06:22:46.904942
++no
+
+# 2025-03-11 06:23:29.903288
++The model is being sent the sessionID - maybe that is throwing it off? That sessionID is necessary for this paplication though. Is there a way to attach teh session id without sending it in the model's payload
+
+# 2025-03-11 06:24:38.339604
++yes
+
+# 2025-03-11 06:25:30.380638
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-11 06:26:45.994584
++no
