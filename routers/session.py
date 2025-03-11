@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 import config
 import uuid
 from services.tracing_utils import trace_function, profile_block
+import asyncio
+import sentry_sdk
 
 # Import the SessionService for unified session management
 from services.session_service import SessionService
@@ -33,6 +35,18 @@ async def initialize_session_services(session_id: str, azure_client: Any):
     except Exception as e:
         logger.error(f"Error initializing Azure services for session {session_id}: {str(e)}")
         # Don't rethrow - we don't want background task errors to affect the response
+
+
+def initialize_session_services_sync(session_id: str, azure_client: Any):
+    """Synchronous wrapper for the async initialize_session_services function"""
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(initialize_session_services(session_id, azure_client))
+    except Exception as e:
+        logger.error(f"Error initializing session services: {str(e)}")
+        sentry_sdk.capture_exception(e)
+    finally:
+        loop.close()
 
 
 @router.get("")
@@ -238,7 +252,7 @@ async def create_session(
                     with profile_block(description="Initialize Services", op="session.init_services") as init_span:
                         init_span.set_data("azure_deployment", getattr(azure_client, "azure_deployment", "unknown"))
                         background_tasks.add_task(
-                            initialize_session_services, str(session_id), azure_client
+                            initialize_session_services_sync, str(session_id), azure_client
                         )
                 
                 # Create the response
