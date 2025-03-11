@@ -730,19 +730,19 @@ async def generate_stream_chunks(  # noqa: C901
                 "x-ms-streaming-version": "2024-05-01-preview"
             }
             # For DeepSeek, use complete() directly and iterate over the response
-            stream_response = client.complete(**params)
-            # Iterate over the response chunks synchronously 
-            for chunk in stream_response:
+            stream_response = await client.complete(**params)
+            # Iterate over the response chunks asynchronously
+            async for chunk in stream_response:
                 if await request.is_disconnected():
                     break
-                    
+
                 chunk_text = ""
                 if hasattr(chunk, "choices") and chunk.choices:
                     delta = chunk.choices[0].delta
                     if hasattr(delta, "content"):
                         chunk_text = delta.content or ""
                         full_content += chunk_text
-                        
+
                 yield f"data: {json.dumps({'text': chunk_text})}\n\n"
                 
         elif is_o_series:
@@ -754,26 +754,30 @@ async def generate_stream_chunks(  # noqa: C901
             async for chunk in stream_response:
                 if await request.is_disconnected():
                     break
-                    
+
+                chunk_text = ""
                 if hasattr(chunk.choices[0], "delta"):
                     delta = chunk.choices[0].delta
                     if hasattr(delta, "content"):
                         chunk_text = delta.content or ""
                         full_content += chunk_text
-                        yield f"data: {json.dumps({'text': chunk_text})}\n\n"
+
+                yield f"data: {json.dumps({'text': chunk_text})}\n\n"
         else:
             # Default OpenAI-style client
             stream_response = await client.chat.completions.create(**params)
             async for chunk in stream_response:
                 if await request.is_disconnected():
                     break
-                    
+
+                chunk_text = ""
                 if hasattr(chunk.choices[0], "delta"):
                     delta = chunk.choices[0].delta
                     if hasattr(delta, "content"):
                         chunk_text = delta.content or ""
                         full_content += chunk_text
-                        yield f"data: {json.dumps({'text': chunk_text})}\n\n"
+
+                yield f"data: {json.dumps({'text': chunk_text})}\n\n"
         
         # Send completion messages
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
