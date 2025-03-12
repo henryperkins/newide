@@ -161,7 +161,7 @@ export function toggleSidebar(show) {
       // Mobile-specific behavior
       if (overlay) overlay.classList.remove('hidden');
       // On mobile, don't adjust the chat container margin
-      if (chatContainer) chatContainer.classList.remove('md:ml-[384px]');
+      // if (chatContainer) chatContainer.classList.remove('md:ml-[384px]');
     } else {
       // Desktop-specific behavior
        // if (chatContainer) chatContainer.classList.add('md:ml-[384px]');
