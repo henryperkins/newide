@@ -56,36 +56,6 @@ export function initSidebar() {
     if (overlay) overlay.classList.add('hidden');
   }
 
-  // Add conversation sidebar toggle handling
-  const conversationsToggle = document.getElementById('conversations-toggle');
-  const conversationsSidebar = document.getElementById('conversations-sidebar');
-
-  if (conversationsToggle && conversationsSidebar) {
-    conversationsToggle.addEventListener('click', () => {
-      const isOpen = conversationsSidebar.classList.contains('sidebar-open');
-      if (isOpen) {
-        // Close conversation sidebar
-        conversationsSidebar.classList.remove('sidebar-open');
-        conversationsSidebar.classList.add('hidden');
-        conversationsSidebar.classList.add('-translate-x-full');
-        conversationsSidebar.classList.remove('translate-x-0');
-        conversationsToggle.setAttribute('aria-expanded', 'false');
-      } else {
-        // Open conversation sidebar
-        conversationsSidebar.classList.add('sidebar-open');
-        conversationsSidebar.classList.remove('hidden');
-        conversationsSidebar.classList.add('translate-x-0');
-        conversationsSidebar.classList.remove('-translate-x-full');
-        conversationsToggle.setAttribute('aria-expanded', 'true');
-      }
-    });
-
-    // Initialize mobile conversation sidebar state
-    if (isMobile) {
-      conversationsSidebar.classList.add('hidden');
-      conversationsToggle.setAttribute('aria-expanded', 'false');
-    }
-  }
 
   // Init proper sidebar for first load based on viewport
   const viewportWidth = window.innerWidth;

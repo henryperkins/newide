@@ -145,6 +145,20 @@ function setupEventListeners() {
         }
       }
 
+      // Handle rename button click
+      const renameBtn = e.target.closest('.rename-conversation-btn');
+      if (renameBtn) {
+        e.stopPropagation();
+        const conversationId = renameBtn.closest('.conversation-item').getAttribute('data-id');
+        if (conversationId) {
+          const oldTitle = renameBtn.closest('.conversation-item').querySelector('.conversation-title')?.textContent || 'this conversation';
+          const newTitle = prompt(`Enter a new name for ${oldTitle}:`, oldTitle);
+          if (newTitle && newTitle.trim() !== '') {
+            renameConversation(conversationId, newTitle.trim());
+          }
+        }
+      }
+
       // Handle delete button click
       const deleteBtn = e.target.closest('.delete-conversation-btn');
       if (deleteBtn) {
@@ -267,7 +281,7 @@ function renderConversations() {
   conversations.forEach(conv => {
     // container
     const item = document.createElement('div');
-    item.classList.add('conversation-item', 'p-2', 'border-b', 'border-dark-200', 'dark:border-dark-600', 'flex', 'justify-between', 'cursor-pointer');
+    item.classList.add('conversation-item', 'p-2', 'border-b', 'border-dark-200', 'dark:border-dark-600', 'flex', 'flex-col', 'gap-1', 'cursor-pointer');
     item.setAttribute('data-id', conv.id);
 
     // pinned (visual) highlight
@@ -311,6 +325,12 @@ function renderConversations() {
     deleteBtn.classList.add('delete-conversation-btn', 'border', 'py-1', 'px-2');
     deleteBtn.textContent = 'Delete';
     actionContainer.appendChild(deleteBtn);
+
+    // Rename button
+    const renameBtn = document.createElement('button');
+    renameBtn.classList.add('rename-conversation-btn', 'border', 'py-1', 'px-2');
+    renameBtn.textContent = 'Rename';
+    actionContainer.appendChild(renameBtn);
 
     // if updating
     if (conv.updating) {
@@ -495,7 +515,6 @@ async function deleteConversation(conversationId) {
         throw new Error(`Failed to delete conversation: ${response.status}`);
       }
     }
-    if (!response.ok) throw new Error('Failed to delete conversation');
 
     // Remove from UI
     const item = document.querySelector(`.conversation-item[data-id="${conversationId}"]`);
@@ -519,55 +538,103 @@ async function deleteConversation(conversationId) {
   }
 }
 
-// Add window resize handler at the end of the file
-window.addEventListener('resize', () => {
-  const conversationsSidebar = document.getElementById('conversations-sidebar');
-  if (conversationsSidebar) {
-    if (window.innerWidth < 768) {
-      conversationsSidebar.classList.add('hidden');
-      const conversationsToggle = document.getElementById('conversations-toggle');
-      if (conversationsToggle) {
-        conversationsToggle.setAttribute('aria-expanded', 'false');
-      }
-    } else {
-      conversationsSidebar.classList.remove('hidden');
-      const conversationsToggle = document.getElementById('conversations-toggle');
-      if (conversationsToggle) {
-        conversationsToggle.setAttribute('aria-expanded', 'true');
-      }
-    }
+/**
+ * Rename a conversation
+ * @param {string} conversationId - ID of the conversation to rename
+ * @param {string} newTitle - The new title for the conversation
+ */
+async function renameConversation(conversationId, newTitle) {
+  // Save previous state for rollback in case of error
+  const previousState = conversations.map(c => ({ ...c }));
+
+  try {
+    // Optimistic update
+    conversations = conversations.map(c =>
+      c.id === conversationId ? { ...c, title: newTitle, updating: true } : c
+    );
+    renderConversations();
+
+    const response = await fetch(`/api/chat/conversations/${conversationId}/rename`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.cookie.match(/csrftoken=([\w-]+)/)?.[1] || ''
+      },
+      body: JSON.stringify({ newTitle })
+    });
+    if (!response.ok) throw new Error('Failed to rename conversation');
+
+    const data = await response.json();
+    conversations = conversations.map(c =>
+      c.id === conversationId
+        ? { ...c, title: data.title || newTitle, version: data.version, updating: false }
+        : c
+    );
+    renderConversations();
+  } catch (error) {
+    console.error('Error renaming conversation:', error);
+    conversations = previousState;
+    renderConversations();
+
+    import('./displayManager.js')
+      .then(module => {
+        if (module.handleConversationError) {
+          module.handleConversationError(error, 'Failed to rename conversation');
+        } else {
+          showNotification('Failed to rename conversation', 'error');
+        }
+      })
+      .catch(() => {
+        showNotification('Failed to rename conversation', 'error');
+      });
   }
+}
+
+/**
+ * Toggle the conversation sidebar with consistent show/hide logic
+ */
+export function toggleConversationSidebar() {
+  const conversationsSidebar = document.getElementById('conversations-sidebar');
+  const conversationsToggleBtn = document.getElementById('conversations-toggle');
+  if (!conversationsSidebar || !conversationsToggleBtn) return;
+
+  const isOpen = conversationsSidebar.classList.contains('sidebar-open');
+
+  if (isOpen) {
+    // Close
+    conversationsSidebar.classList.remove('sidebar-open', 'translate-x-0');
+    conversationsSidebar.classList.add('-translate-x-full');
+    conversationsToggleBtn.setAttribute('aria-expanded', 'false');
+  } else {
+    // Open
+    conversationsSidebar.classList.add('sidebar-open', 'translate-x-0');
+    conversationsSidebar.classList.remove('-translate-x-full');
+    conversationsToggleBtn.setAttribute('aria-expanded', 'true');
+  }
+  
+  // For mobile, handle the 'hidden' class too
+  if (window.innerWidth < 768) {
+    conversationsSidebar.classList.toggle('hidden', isOpen);
+  }
+}
+
+// Set up conversation sidebar toggle
+function initConversationSidebarToggle() {
+  const conversationsToggleBtn = document.getElementById('conversations-toggle');
+  if (conversationsToggleBtn) {
+    // Remove any existing listeners to avoid duplicates
+    const newBtn = conversationsToggleBtn.cloneNode(true);
+    conversationsToggleBtn.parentNode.replaceChild(newBtn, conversationsToggleBtn);
+    
+    // Add our listener to the NEW button (this line was missing)
+    newBtn.addEventListener('click', toggleConversationSidebar);
+  }
+}
+
+// Call this function during initialization
+document.addEventListener('DOMContentLoaded', () => {
+  initConversationSidebarToggle();
 });
-
-// Add click listener for the conversations toggle button for mobile devices
-const conversationsToggleBtn = document.getElementById('conversations-toggle');
-if (conversationsToggleBtn) {
-  conversationsToggleBtn.addEventListener('click', () => {
-    const conversationsSidebar = document.getElementById('conversations-sidebar');
-    if (conversationsSidebar) {
-      const isHidden = conversationsSidebar.classList.contains('hidden');
-      if (conversationsSidebar.classList.contains('sidebar-open')) {
-        conversationsSidebar.classList.remove('sidebar-open');
-        conversationsToggleBtn.setAttribute('aria-expanded', 'false');
-      } else {
-        conversationsSidebar.classList.add('sidebar-open');
-        conversationsToggleBtn.setAttribute('aria-expanded', 'true');
-      }
-    }
-  });
-}
-
-const settingsIcon = document.getElementById('sidebar-toggle');
-const settingsSidebar = document.getElementById('sidebar');
-if (settingsIcon && settingsSidebar) {
-  settingsIcon.addEventListener('click', () => {
-    if (settingsSidebar.classList.contains('sidebar-open')) {
-      settingsSidebar.classList.remove('sidebar-open');
-    } else {
-      settingsSidebar.classList.add('sidebar-open');
-    }
-  });
-}
 
 /**
  * Create a new conversation and set it in session storage, then clear the conversation list in the UI
