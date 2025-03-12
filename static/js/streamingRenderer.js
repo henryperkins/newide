@@ -95,16 +95,18 @@ export function renderContentEfficiently(container, newHTML, options = {}) {
     container.__previousHtml = newHTML;
 
     // Optional scroll behavior
-    if (options.scroll) {
-      const chatHistory = document.getElementById('chat-history');
-      if (chatHistory) {
-        requestAnimationFrame(() => {
-          chatHistory.scrollTo({
-            top: chatHistory.scrollHeight,
-            behavior: options.scrollSmooth ? 'smooth' : 'auto'
-          });
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    const shouldScroll = isMobile
+      ? container.scrollTop > container.scrollHeight - container.clientHeight - 100
+      : options.scroll;
+
+    if (shouldScroll) {
+      requestAnimationFrame(() => {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: isMobile ? 'auto' : 'smooth'
         });
-      }
+      });
     }
   } catch (err) {
     console.error('[renderContentEfficiently] Error in render:', err);

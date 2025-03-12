@@ -641,3 +641,27 @@
   word-wrap: break-word !important;
   max-width: 100% !important;
 }
+
+@media (max-width: 768px) {
+  .mobile-message-persist {
+    transform: translateZ(0); /* Force hardware acceleration */
+    will-change: transform;
+    contain: strict;
+  }
+
+  #chat-history {
+    overflow-anchor: none;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  .message-content {
+    min-height: 40px !important;
+    backface-visibility: hidden;
+  }
+  
+  .assistant-message {
+    touch-action: pan-y;
+    user-select: text;
+  }
+}

@@ -9,44 +9,19 @@ import { getSessionId } from '../session.js';
  *  Adjust or remove these if you have real implementations 
  */
 function initMobileUI() {
-  // 1) Automatically collapse sidebars on mobile
-  const conversationsSidebar = document.getElementById('conversations-sidebar');
-  if (conversationsSidebar) {
-    // Hide by default on mobile
-    conversationsSidebar.classList.remove('sidebar-open');
-    // Translate off screen
-    conversationsSidebar.classList.add('-translate-x-full');
-  }
-  const settingsSidebar = document.getElementById('sidebar');
-  if (settingsSidebar) {
-    // Also ensure the settings sidebar is closed on mobile
-    settingsSidebar.classList.add('translate-x-full');
-  }
-
-  // 2) Attach a mobile-friendly toolbar for the input area (optional)
-  const inputArea = document.querySelector('.input-area');
-  if (inputArea) {
-    inputArea.classList.add('fixed', 'bottom-0', 'left-0', 'right-0', 'z-50');
-  }
-
-  // 3) Ensure chat container scrolls properly
-  const chatContainer = document.getElementById('chat-container');
-  if (chatContainer) {
-    // Remove any forced overflow hidden that might break mobile scrolling
-    chatContainer.style.overflow = 'auto';
-    // Alternatively, use a Tailwind class: chatContainer.classList.add('overflow-y-auto');
-  }
-
-  // 4) Optional: Add event listeners for mobile toggles (e.g., stats panel)
-  const statsToggle = document.getElementById('mobile-stats-toggle');
-  const performanceStats = document.getElementById('performance-stats');
-  if (statsToggle && performanceStats) {
-    statsToggle.addEventListener('click', () => {
-      performanceStats.classList.toggle('hidden');
+  const chatHistory = document.getElementById('chat-history');
+  if (chatHistory && window.matchMedia('(max-width: 768px)').matches) {
+    // Add mobile-specific height calculation
+    const headerHeight = document.querySelector('header')?.offsetHeight || 64;
+    const inputHeight = document.querySelector('.input-area')?.offsetHeight || 120;
+    chatHistory.style.height = `calc(100dvh - ${headerHeight + inputHeight}px)`;
+    
+    // Add iOS viewport hack
+    document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+    window.addEventListener('resize', () => {
+      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
     });
   }
-
-  console.log('Mobile UI init complete');
 }
 function applyFontSize(fontSize) {
   // Implementation for adjusting font size in the app

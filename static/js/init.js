@@ -150,6 +150,22 @@ function showFallbackUI(error) {
 async function initApplication() {
   console.log('Initializing application...');
 
+  // Mobile touch event stabilization
+  if ('ontouchstart' in window) {
+    document.addEventListener('touchstart', function(e) {
+      if(e.target.closest('.message')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    }, { passive: false });
+
+    document.addEventListener('touchmove', function(e) {
+      if(e.target.closest('#chat-history')) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+  }
+
   try {
     // Initialize Sentry with Session Replay only if not already initialized
     // Using the isSentryInitialized flag from sentryInit.js to prevent multiple initializations

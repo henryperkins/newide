@@ -735,6 +735,14 @@ function handleStreamingError(error) {
    cleanupStreaming - called when the SSE completes or errors out
    ------------------------------------------------------------------ */
 async function cleanupStreaming(modelName) {
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    const messages = document.querySelectorAll('.message');
+    messages.forEach(msg => {
+      msg.style.opacity = '1';
+      msg.style.height = 'auto';
+      msg.classList.add('mobile-message-persist');
+    });
+  }
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
     animationFrameId = null;
