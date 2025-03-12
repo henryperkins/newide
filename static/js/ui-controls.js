@@ -5,11 +5,16 @@ window.addEventListener('DOMContentLoaded', () => {
   console.log("Sidebar functionality now handled by sidebarManager.js");
 
   // Theme toggle
-  document.getElementById('theme-toggle')?.addEventListener('click', function () {
+  const themeToggle = document.getElementById('theme-toggle');
+  if (themeToggle) {
+    // Add Tailwind classes for better mobile UI and consistent styling
+    themeToggle.classList.add('btn', 'btn-secondary', 'touch-target', 'active:scale-95');
+    themeToggle.addEventListener('click', function () {
       console.log("Direct theme toggle clicked");
       document.documentElement.classList.toggle('dark');
       localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
-  });
+    });
+  }
 
   // Token usage toggle
   document.getElementById('token-usage-toggle')?.addEventListener('click', function () {
@@ -114,3 +119,23 @@ window.addEventListener('DOMContentLoaded', () => {
 
   console.log("✅ Direct event handlers attached in index.html");
 });
+
+// Ensure the sidebar close button works
+const closeSidebarBtn = document.querySelector('.sidebar-close');
+if (closeSidebarBtn) {
+  closeSidebarBtn.addEventListener('click', () => {
+    document.querySelector('.sidebar')?.classList.remove('sidebar-open');
+    document.getElementById('sidebar-overlay')?.classList.add('hidden');
+    console.log("Sidebar close button clicked, sidebar hidden");
+  });
+}
+
+// Re-attach theme toggle logic to handle any dynamic conflict
+const themeToggle = document.getElementById('theme-toggle');
+if (themeToggle) {
+  themeToggle.addEventListener('click', () => {
+    console.log("Re-confirming theme toggle clicked");
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  });
+}

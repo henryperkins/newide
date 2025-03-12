@@ -28,7 +28,7 @@ export function initConversationManager() {
         }
         
         // Ensure this sidebar doesn't interfere with the settings sidebar
-        conversationsSidebar.style.zIndex = '10'; // Lower than settings sidebar
+        conversationsSidebar.classList.add('z-10'); // Lower than settings sidebar
     }
     
     // Set initialization flag

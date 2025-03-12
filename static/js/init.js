@@ -11,6 +11,8 @@ import fileManager from './fileManager.js';
 import { showNotification } from './ui/notificationManager.js';
 import { getSessionId, createNewConversation, refreshSession } from './session.js';
 import { initSentry, captureError, captureMessage } from './sentryInit.js';
+import { themeToggle } from './ui-controls.js';
+import { globalStore } from './store.js';
 
 // Configure DOMPurify
 if (typeof DOMPurify !== 'undefined') {
@@ -107,7 +109,7 @@ function showFallbackUI(error) {
   errorElement.innerHTML = `
     <h3 class="text-lg font-semibold mb-2">Application Error</h3>
     <p>The application encountered an error during initialization.</p>
-    <p class="mt-2 text-sm text-red-600">${error.message}</p>
+    <p class="mt-2 text-sm text-red-600">\${(error && error.message) ? error.message : error.toString()}</p>
     <button class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
       Refresh Page
     </button>
@@ -218,6 +220,7 @@ async function initApplication() {
     registerKeyboardShortcuts();
     initModelSelector();
     initConfigHandlers();
+    initTokenUsageDisplay(); // Ensure token usage display toggle is initialized
 
     // 9. Load conversation from database
     await loadConversationFromDb();
@@ -246,9 +249,7 @@ async function initApplication() {
 function syncTabPanelDisplay() {
   const tabPanels = document.querySelectorAll('[role="tabpanel"]');
   tabPanels.forEach(panel => {
-    panel.style.position = 'relative';
-    panel.style.width = '100%';
-    panel.style.height = 'auto';
+    panel.classList.add('relative', 'w-full', 'h-auto');
 
     const tabId = panel.id;
     const button = document.querySelector(`[data-target-tab="${tabId}"]`);
@@ -268,24 +269,31 @@ function fixLayoutIssues() {
   // 1. Fix sidebar positioning
   const sidebar = document.getElementById('sidebar');
   if (sidebar) {
-    // Remove any transforms from HTML
-    sidebar.classList.remove('translate-x-full', 'md:translate-x-0', 'translate-x-0');
+      // Remove any transforms from HTML
+      sidebar.classList.remove('translate-x-full','md:translate-x-0','translate-x-0');
 
-    // Apply correct positioning and width
-    const isMobile = window.innerWidth < 768;
+      // Apply correct positioning using Tailwind classes
+      // We'll rely on 'fixed top-[64px] bottom-0 right-0 z-50 w-full md:w-96'
+      // and the 'sidebar-open' class controlling translate-x-0 or translate-x-full
+      sidebar.classList.add('fixed','top-[64px]','bottom-0','right-0','z-50');
+      
+      // If mobile, use w-full, else w-96
+      if (window.innerWidth < 768) {
+        sidebar.classList.add('w-full');
+        sidebar.classList.remove('w-96');
+      } else {
+        sidebar.classList.remove('w-full');
+        sidebar.classList.add('w-96');
+      }
 
-    // Set fixed position with correct dimensions
-    sidebar.style.position = 'fixed';
-    sidebar.style.top = '64px';
-    sidebar.style.bottom = '0';
-    sidebar.style.right = '0';
-    sidebar.style.zIndex = '50';
-    sidebar.style.width = isMobile ? '100%' : '384px';
-    if (!sidebar.classList.contains('sidebar-open')) {
-        sidebar.style.transform = 'translateX(100%)';
-    } else {
-        sidebar.style.transform = 'translateX(0)';
-    }
+      // If sidebar isn't open, apply 'translate-x-full' else 'translate-x-0'
+      if (!sidebar.classList.contains('sidebar-open')) {
+        sidebar.classList.add('translate-x-full');
+        sidebar.classList.remove('translate-x-0');
+      } else {
+        sidebar.classList.add('translate-x-0');
+        sidebar.classList.remove('translate-x-full');
+      }
   }
 
   // 2. Fix tab panels display
@@ -294,7 +302,7 @@ function fixLayoutIssues() {
   // 3. Fix overlay pointer events
   const overlay = document.getElementById('sidebar-overlay');
   if (overlay) {
-    overlay.style.pointerEvents = 'auto';
+      overlay.classList.add('pointer-events-auto');
   }
 }
 
@@ -309,8 +317,14 @@ function setupResizeHandler() {
     const chatContainer = document.getElementById('chat-container');
 
     if (sidebar) {
-      // Update sidebar dimensions based on viewport
-      sidebar.style.width = isMobile ? '100%' : '384px';
+      // Update sidebar dimensions using Tailwind utility classes instead of inline widths
+      if (isMobile) {
+          sidebar.classList.add('w-full');
+          sidebar.classList.remove('w-96');
+      } else {
+          sidebar.classList.remove('w-full');
+          sidebar.classList.add('w-96');
+      }
       // Check if sidebar is open and update layout accordingly
       const isOpen = sidebar.classList.contains('sidebar-open');
       if (isOpen) {
@@ -342,8 +356,8 @@ function setupResizeHandler() {
 function initPerformanceStats() {
   try {
     // Initialize only once
-    if (!window.statsDisplay) {
-      window.statsDisplay = new StatsDisplay('performance-stats');
+    if (!globalStore.statsDisplay) {
+      globalStore.statsDisplay = new StatsDisplay('performance-stats');
     }
   } catch (err) {
     console.error('Failed to initialize performance stats:', err);
@@ -373,17 +387,15 @@ function initErrorDisplay() {
 }
 
 /**
- * Checks localStorage for a conversation; if not found, show welcome once
+ * Checks globalStore for conversation; if none found, show welcome once
  */
 function maybeShowWelcomeMessage() {
-  const conversationExists =
-    localStorage.getItem('conversation') &&
-    JSON.parse(localStorage.getItem('conversation')).length > 0;
-  const welcomeShown = sessionStorage.getItem('welcome_message_shown');
+  const conversationExists = globalStore.conversation && globalStore.conversation.length > 0;
+  const welcomeShown = globalStore.welcomeMessageShown ? 'true' : '';
 
   if (!conversationExists && !welcomeShown) {
     showWelcomeMessage();
-    sessionStorage.setItem('welcome_message_shown', 'true');
+    globalStore.welcomeMessageShown = true;
   }
 }
 
@@ -563,9 +575,8 @@ function initUserInput() {
         charCount.textContent = userInput.value.length;
       }
 
-      // Auto-resize the textarea
-      userInput.style.height = 'auto';
-      userInput.style.height = Math.min(userInput.scrollHeight, 200) + 'px';
+      // Convert inline styling to Tailwind utility classes for height
+      userInput.classList.add('h-auto', 'overflow-y-auto', 'max-h-52');
     });
 
     // Add event listener for send button
@@ -653,11 +664,11 @@ function initTokenUsageDisplay() {
       if (tokenChevron) {
         tokenChevron.classList.toggle('rotate-180');
       }
-      localStorage.setItem('tokenDetailsVisible', !tokenDetails.classList.contains('hidden'));
+      globalStore.tokenDetailsVisible = !tokenDetails || !tokenDetails.classList.contains('hidden');
     });
 
     // Check for stored preference
-    const tokenDetailsVisible = localStorage.getItem('tokenDetailsVisible') === 'true';
+    const tokenDetailsVisible = globalStore.tokenDetailsVisible;
     if (tokenDetailsVisible && tokenDetails) {
       tokenDetails.classList.remove('hidden');
       if (tokenChevron) {
@@ -717,12 +728,12 @@ function detectTouchCapability() {
 
   if (isTouchDevice) {
     document.documentElement.classList.add('touch-device');
-    const defaultFontSize = localStorage.getItem('fontSize') || 'text-base';
-    if (!localStorage.getItem('fontSize') && window.matchMedia('(max-width: 640px)').matches) {
+    const currentFontSize = globalStore.fontSize; // default is text-base
+    if (currentFontSize === 'text-base' && window.matchMedia('(max-width: 640px)').matches) {
       document.documentElement.classList.add('text-lg');
-      localStorage.setItem('fontSize', 'text-lg');
+      globalStore.fontSize = 'text-lg';
     } else {
-      document.documentElement.classList.add(defaultFontSize);
+      document.documentElement.classList.add(currentFontSize);
     }
   }
 }
@@ -751,7 +762,7 @@ function initModelSelector() {
           for (const [id, config] of Object.entries(models)) {
             const option = document.createElement('option');
             option.value = id;
-            option.textContent = `${id}${config.description ? ` (${config.description})` : ''}`;
+            option.textContent = id + (config.description ? ' (' + config.description + ')' : '');
             modelSelect.appendChild(option);
           }
 
@@ -768,31 +779,34 @@ function initModelSelector() {
     }, 500);
   });
 
-  // Asynchronously initialize the model manager
-  setTimeout(() => {
-    import('./models.js')
-      .then(module => {
-        const { modelManager } = module;
-        // Ensure model configs exist
-        if (Object.keys(modelManager.modelConfigs).length === 0) {
-          modelManager.ensureLocalModelConfigs();
-        }
+  // Asynchronously initialize model manager without setTimeout
+  import('./models.js')
+    .then(async module => {
+      const { modelManager } = module;
 
-        // Initialize model manager
-        modelManager.initialize()
-          .then(() => {
-            console.log("Model manager initialized with models:", Object.keys(modelManager.modelConfigs));
+      // Ensure local model configs are loaded
+      // If refreshModelsList is async, we can await it to avoid race conditions
+      try {
+        await modelManager.refreshModelsList();
+      } catch (err) {
+        console.warn("Error in refreshing model list:", err);
+      }
 
-            // Initialize model management UI
-            modelManager.initModelManagement();
+      console.log("Local model configs loaded:", Object.keys(modelManager.modelConfigs));
 
-            // Force refresh models list
-            modelManager.refreshModelsList();
-          })
-          .catch(err => console.error('Error initializing ModelManager:', err));
-      })
-      .catch(err => console.error('Failed to load models.js:', err));
-  }, 1000);
+      // Now safely initialize the model manager
+      try {
+        await modelManager.initialize();
+        console.log("Model manager initialized with models:", Object.keys(modelManager.modelConfigs));
+
+        modelManager.initModelManagement();
+        // Force refresh models list once more if needed
+        await modelManager.refreshModelsList();
+      } catch (err) {
+        console.error('Error initializing ModelManager:', err);
+      }
+    })
+    .catch(err => console.error('Failed to load models.js:', err));
 }
 
 /* ------------------------------------------------------------------
@@ -1026,10 +1040,6 @@ function setupMobileFontControls() {
                   SHARED FONT-SIZE ADJUSTMENT LOGIC
    ------------------------------------------------------------------ */
 
-/**
- * Adjust font size of the document
- * @param {number} direction - 1 to increase, -1 to decrease, 0 to reset
- */
 function adjustFontSize(direction) {
   const sizes = ['text-sm', 'text-base', 'text-lg', 'text-xl'];
 
@@ -1037,7 +1047,7 @@ function adjustFontSize(direction) {
   if (direction === 0) {
     document.documentElement.classList.remove(...sizes);
     document.documentElement.classList.add('text-base');
-    localStorage.removeItem('fontSize');
+    globalStore.fontSize = 'text-base';
     return;
   }
 
@@ -1053,7 +1063,7 @@ function adjustFontSize(direction) {
   // Apply new size
   document.documentElement.classList.remove(...sizes);
   document.documentElement.classList.add(sizes[newIndex]);
-  localStorage.setItem('fontSize', sizes[newIndex]);
+  globalStore.fontSize = sizes[newIndex];
 }
 
 /**
@@ -1064,8 +1074,8 @@ function initFontSizeControls() {
   const biggerBtn = document.getElementById('font-size-up');
   const resetBtn = document.getElementById('font-size-reset');
 
-  // Apply stored font size
-  const storedSize = localStorage.getItem('fontSize') || 'text-base';
+  // Apply stored font size via globalStore
+  const storedSize = globalStore.fontSize;
   document.documentElement.classList.add(storedSize);
 
   if (smallerBtn) {

@@ -9,7 +9,9 @@ export function initSidebar() {
   const toggleButton = document.getElementById('sidebar-toggle');
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
-  const closeButton = document.getElementById('close-sidebar');
+  // If the 'x' button in your HTML uses class="sidebar-close" rather than id="close-sidebar",
+  // switch the query to match that class. This ensures the existing close button is actually found.
+  const closeButton = document.querySelector('.sidebar-close');
 
   if (!sidebar) {
     console.error("Sidebar element not found");
@@ -19,8 +21,10 @@ export function initSidebar() {
   // Sidebar toggle button
   if (toggleButton) {
     toggleButton.addEventListener('click', () => {
-      const isClosed = !sidebar.classList.contains('sidebar-open');
-      toggleSidebar(isClosed);
+      console.log("Sidebar toggle button clicked");
+      const isOpen = sidebar.classList.contains('sidebar-open');
+      // If open -> close, else -> open
+      toggleSidebar(!isOpen);
     });
   }
 
@@ -64,13 +68,15 @@ export function initSidebar() {
               // Close conversation sidebar
               conversationsSidebar.classList.remove('sidebar-open');
               conversationsSidebar.classList.add('hidden');
-              conversationsSidebar.style.transform = 'translateX(-100%)';
+              conversationsSidebar.classList.add('-translate-x-full');
+conversationsSidebar.classList.remove('translate-x-0');
               conversationsToggle.setAttribute('aria-expanded', 'false');
           } else {
               // Open conversation sidebar
               conversationsSidebar.classList.add('sidebar-open');
               conversationsSidebar.classList.remove('hidden');
-              conversationsSidebar.style.transform = 'translateX(0)';
+              conversationsSidebar.classList.add('translate-x-0');
+conversationsSidebar.classList.remove('-translate-x-full');
               conversationsToggle.setAttribute('aria-expanded', 'true');
           }
       });
@@ -86,10 +92,12 @@ export function initSidebar() {
   const viewportWidth = window.innerWidth;
   if (viewportWidth >= 768) {
     // Desktop view - fix any mobile styles
-    sidebar.style.width = '384px';
+    sidebar.classList.add('w-96');
+sidebar.classList.remove('w-full');
   } else {
     // Mobile view - ensure proper mobile styles
-    sidebar.style.width = '100%';
+    sidebar.classList.add('w-full');
+sidebar.classList.remove('w-96');
   }
 
   // Listen for resize events to adjust sidebar
@@ -111,11 +119,11 @@ function handleResize() {
 
   // Update sidebar width
   if (isMobile) {
-    sidebar.classList.add('w-full', 'md:w-[384px]');
+    sidebar.style.width = '100%';
     if (chatContainer) chatContainer.classList.remove('md:ml-[384px]');
   } else {
     sidebar.style.width = '384px';
-    if (isOpen && chatContainer) chatContainer.classList.add('sidebar-open');
+    if (isOpen && chatContainer) chatContainer.classList.add('md:ml-[384px]');
   }
 
   // Update overlay visibility
@@ -152,11 +160,11 @@ export function toggleSidebar(show) {
     if (isMobile) {
       // Mobile-specific behavior
       if (overlay) overlay.classList.remove('hidden');
-      // On mobile, don't adjust the chat container width
-      if (chatContainer) chatContainer.classList.remove('sidebar-open');
+      // On mobile, don't adjust the chat container margin
+      if (chatContainer) chatContainer.classList.remove('md:ml-[384px]');
     } else {
       // Desktop-specific behavior
-      if (chatContainer) chatContainer.classList.add('sidebar-open');
+      if (chatContainer) chatContainer.classList.add('md:ml-[384px]');
       // Hide overlay on desktop
       if (overlay) overlay.classList.add('hidden');
     }
@@ -165,10 +173,12 @@ export function toggleSidebar(show) {
   } else {
     // Hide sidebar
     sidebar.classList.remove('sidebar-open');
+    // Force it offscreen again
+    sidebar.style.transform = 'translateX(100%)';
 
     if (overlay) overlay.classList.add('hidden');
     if (toggleButton) toggleButton.setAttribute('aria-expanded', 'false');
-    if (chatContainer) chatContainer.classList.remove('sidebar-open');
+    if (chatContainer) chatContainer.classList.remove('md:ml-[384px]');
   }
 
   // Publish sidebar state change event

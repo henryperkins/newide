@@ -69,17 +69,20 @@ export async function getCurrentConfig() {
 }
 
 
+import { globalStore } from './store.js';
+
 function loadConfigFromLocalStorage() {
   try {
+    // Merge with defaults but pull from globalStore
     const config = { ...DEFAULT_CONFIG };
-    config.reasoningEffort = localStorage.getItem('reasoningEffort') || config.reasoningEffort;
-    config.selectedModel = localStorage.getItem('selectedModel') || config.selectedModel;
+    config.reasoningEffort = globalStore.reasoningEffort || config.reasoningEffort;
+    config.selectedModel = globalStore.selectedModel || config.selectedModel;
     config.appSettings = { ...config.appSettings };
-    config.appSettings.streamingEnabled = localStorage.getItem('streamingEnabled') === 'true';
-    config.appSettings.fontSize = localStorage.getItem('fontSize') || config.appSettings.fontSize;
+    config.appSettings.streamingEnabled = globalStore.streamingEnabled;
+    config.appSettings.fontSize = globalStore.fontSize;
     return config;
   } catch (error) {
-    console.error('Error loading config from localStorage:', error);
+    console.error('Error loading config from globalStore:', error);
     return null;
   }
 }
@@ -87,14 +90,23 @@ function loadConfigFromLocalStorage() {
 function saveConfigToLocalStorage(config) {
   if (!config) return;
   try {
-    localStorage.setItem('reasoningEffort', config.reasoningEffort || DEFAULT_CONFIG.reasoningEffort);
-    localStorage.setItem('selectedModel', config.selectedModel || DEFAULT_CONFIG.selectedModel);
+    // Push relevant fields to globalStore
+    if (config.reasoningEffort !== undefined) {
+      globalStore.reasoningEffort = config.reasoningEffort;
+    }
+    if (config.selectedModel !== undefined) {
+      globalStore.selectedModel = config.selectedModel;
+    }
     if (config.appSettings) {
-      localStorage.setItem('streamingEnabled', config.appSettings.streamingEnabled ? 'true' : 'false');
-      if (config.appSettings.fontSize) localStorage.setItem('fontSize', config.appSettings.fontSize);
+      if (typeof config.appSettings.streamingEnabled !== 'undefined') {
+        globalStore.streamingEnabled = !!config.appSettings.streamingEnabled;
+      }
+      if (config.appSettings.fontSize) {
+        globalStore.fontSize = config.appSettings.fontSize;
+      }
     }
   } catch (error) {
-    console.error('Error saving config to localStorage:', error);
+    console.error('Error saving config to globalStore:', error);
   }
 }
 

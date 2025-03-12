@@ -1,9 +1,5 @@
-/**
- * session.js - Enhanced session management with validation and automatic recovery,
- * including optional Sentry integration for error tracking and performance monitoring.
- */
-
 import { showNotification } from './ui/notificationManager.js';
+import { globalStore } from './store.js';
 
 /**
  * Get current session ID or create a new one if invalid.
@@ -28,7 +24,7 @@ export async function getSessionId() {
     console.warn('[getSessionId] Failed to start Sentry transaction:', err);
   }
 
-  let sessionId = sessionStorage.getItem("sessionId");
+  let sessionId = globalStore.sessionId;
 
   // If we have a sessionId, validate it
   if (sessionId) {
@@ -45,10 +41,10 @@ export async function getSessionId() {
       }
 
       console.warn("[getSessionId] Session " + sessionId + " is invalid. Creating new session.");
-      sessionStorage.removeItem("sessionId");
+      globalStore.sessionId = null;
     } catch (error) {
       console.error("[getSessionId] Error validating session:", error);
-      sessionStorage.removeItem("sessionId");
+      globalStore.sessionId = null;
       if (transaction) {
         transaction.setData('error_stage', 'validate_session');
         transaction.captureException?.(error);
@@ -61,7 +57,7 @@ export async function getSessionId() {
     const newSessionId = await createNewConversation();
     if (newSessionId) {
       console.log("[getSessionId] Created new session: " + newSessionId);
-      sessionStorage.setItem("sessionId", newSessionId);
+      globalStore.sessionId = newSessionId;
 
       if (transaction) {
         transaction.setData('session_id', newSessionId);
@@ -168,7 +164,8 @@ export async function createNewConversation(title = "New Conversation", pinned =
   }
 
   try {
-    sessionStorage.removeItem("sessionId");
+    // Clear old sessionId from global store
+    globalStore.sessionId = null;
 
     const response = await fetch("/api/session/create", {
       method: 'POST',
@@ -189,7 +186,7 @@ export async function createNewConversation(title = "New Conversation", pinned =
 
     const data = await response.json();
     const newSessionId = data.session_id;
-    sessionStorage.setItem("sessionId", newSessionId);
+    globalStore.sessionId = newSessionId;
 
     // Also create a conversation record for backward compatibility
     try {
@@ -233,6 +230,7 @@ export async function createNewConversation(title = "New Conversation", pinned =
  * @param {string} message - User message to store
  */
 export function setLastUserMessage(message) {
+  // We can keep storing the lastUserMessage in sessionStorage for now
   sessionStorage.setItem('lastUserMessage', message);
 }
 
@@ -302,7 +300,7 @@ export async function ensureValidSession() {
     console.warn('[ensureValidSession] Could not start transaction:', err);
   }
 
-  let sessionId = sessionStorage.getItem("sessionId");
+  let sessionId = globalStore.sessionId;
   if (sessionId) {
     const isValid = await validateSession(sessionId);
     if (isValid) {
@@ -314,7 +312,7 @@ export async function ensureValidSession() {
       }
       return sessionId;
     }
-    sessionStorage.removeItem("sessionId");
+    globalStore.sessionId = null;
   }
 
   const newSessionId = await createNewConversation();
@@ -342,7 +340,7 @@ export async function initializeSession() {
   try {
     const sessionId = await createNewConversation();
     if (sessionId) {
-      sessionStorage.setItem('sessionId', sessionId);
+      globalStore.sessionId = sessionId;
 
       if (transaction) {
         transaction.setData('session_id', sessionId);
@@ -395,7 +393,7 @@ export async function refreshSession(sessionId) {
     if (!response.ok) {
       if (response.status === 404) {
         console.warn("[refreshSession] Session not found " + sessionId + ", removing and creating new one.");
-        sessionStorage.removeItem("sessionId");
+        globalStore.sessionId = null;
       } else {
         console.warn("[refreshSession] Failed to refresh session " + sessionId + ": " + response.status);
       }

@@ -483,19 +483,31 @@
   /* Improve layout on mobile devices */
   @media (max-width: 640px) {
     :root {
-      --chat-height: calc(100vh - 64px - 100px);
+      /* Slight reduction to top/bottom offsets for more chat space */
+      --chat-height: calc(100vh - 64px - 80px);
     }
 
     #chat-history {
-      padding-bottom: 0.5rem;
+      padding-bottom: 1rem;
+      /* Provide a max-height to prevent overscroll beyond input area */
+      max-height: calc(100vh - 64px - 80px - 2rem);
+      @apply scrollbar-hide;
     }
 
     .input-area {
-      padding: 0.5rem;
+      padding: 0.75rem;
+      /* Smaller text for tight screens */
+      @apply text-sm;
     }
 
     .conversation-controls {
       padding: 0.5rem;
+      @apply text-sm flex-wrap;
+    }
+
+    /* Increase tap targets for buttons on mobile */
+    button {
+      @apply py-2 px-3;
     }
   }
 

@@ -46,8 +46,7 @@ function initChatInterface() {
       debounce(e => {
         const count = e.target.value.length;
         charCount.textContent = count;
-        userInput.classList.add('h-auto', 'min-h-[32px]');
-        userInput.style.height = `${Math.min(userInput.scrollHeight, 200)}px`;
+        userInput.classList.add('h-auto', 'min-h-[32px]', 'max-h-[200px]', 'overflow-y-auto');
         if (count > 120000) charCount.classList.add('text-warning-500');
         else charCount.classList.remove('text-warning-500');
       }, 100)
@@ -229,7 +228,7 @@ export async function sendMessage() {
       sendButton.innerHTML = '<span class="animate-spin inline-block mr-2">&#8635;</span>';
     }
     userInput.value = '';
-    userInput.style.height = 'auto';
+    userInput.classList.add('h-auto');
     
     // Get a valid session and refresh it
     let currentSessionId = await getSessionId();
@@ -585,11 +584,7 @@ function createAssistantMessageElementFallback(response) {
   // Create a content div to match the streaming renderer structure
   const contentDiv = document.createElement('div');
   contentDiv.className = 'message-content';
-  contentDiv.style.width = '100%';
-  contentDiv.style.minHeight = '20px';
-  contentDiv.style.display = 'block';
-  contentDiv.style.opacity = '1';
-  contentDiv.style.visibility = 'visible';
+  contentDiv.classList.add('w-full', 'min-h-[20px]', 'block', 'opacity-100', 'visible');
   
   // Process and sanitize main content
   contentDiv.innerHTML = renderMarkdown(mainContent.trim());

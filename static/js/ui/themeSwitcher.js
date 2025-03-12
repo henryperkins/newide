@@ -1,3 +1,5 @@
+import { globalStore } from '../store.js';
+
 // themeswitcher.js - Handles dark/light mode using Tailwind's class-based approach
 
 /**
@@ -64,7 +66,7 @@ function createThemeToggleIfNeeded() {
  */
 function setInitialTheme() {
   // Check for saved preference
-  const savedTheme = localStorage.getItem('theme');
+  const savedTheme = globalStore.theme;
   if (savedTheme === 'dark') {
     document.documentElement.classList.add('dark');
     document.documentElement.setAttribute('data-theme', 'dark');
@@ -98,8 +100,8 @@ function toggleTheme() {
   const isDark = document.documentElement.classList.toggle('dark');
   console.log('Theme toggled to:', isDark ? 'dark' : 'light');
 
-  // Store the preference in localStorage
-  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  // Store the preference in our global store
+  globalStore.theme = isDark ? 'dark' : 'light';
 
   // Update data-theme attribute
   document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
@@ -164,7 +166,7 @@ function listenForSystemThemeChanges() {
   if (window.matchMedia) {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
       // Only change theme if the user hasn't set a preference
-      if (!localStorage.getItem('theme')) {
+      if (!globalStore.theme) {
         if (e.matches) {
           document.documentElement.classList.add('dark');
           document.documentElement.setAttribute('data-theme', 'dark');

@@ -30,10 +30,7 @@ export function renderContentEfficiently(container, newHTML, options = {}) {
 
   try {
     // CRITICAL FIX: Always apply visible styles to ensure container is shown
-    container.style.display = 'block';
-    container.style.minHeight = '20px';
-    container.style.opacity = '1';
-    container.style.visibility = 'visible';
+    container.classList.add('block', 'min-h-[20px]', 'opacity-100', 'visible');
     
     // IMPROVED APPROACH: For incremental updates, handle both appending and replacements more efficiently
     if (newHTML.startsWith(oldHTML)) {
