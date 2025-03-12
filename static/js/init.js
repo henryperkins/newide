@@ -760,6 +760,10 @@ function initModelSelector() {
     setTimeout(() => {
       if (modelSelect.options.length === 0) {
         const models = modelManager.modelConfigs;
+        if (!models) {
+          console.error("modelManager.modelConfigs is undefined");
+          return;
+        }
         if (Object.keys(models).length > 0) {
           modelSelect.innerHTML = '';
           for (const [id, config] of Object.entries(models)) {
