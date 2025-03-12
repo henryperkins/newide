@@ -11,7 +11,6 @@ import fileManager from './fileManager.js';
 import { showNotification } from './ui/notificationManager.js';
 import { getSessionId, createNewConversation, refreshSession } from './session.js';
 import { initSentry, captureError, captureMessage } from './sentryInit.js';
-import { themeToggle } from './ui-controls.js';
 import { globalStore } from './store.js';
 
 // Configure DOMPurify

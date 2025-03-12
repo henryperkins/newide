@@ -10,7 +10,7 @@
     <meta name="theme-color" content="#282a36">
 
     <!-- Moved the theme-init script to an external file -->
-    <script src="/static/js/theme-init.js"></script>
+    <script type="module" src="/static/js/theme-init.js"></script>
 
     <title>Azure OpenAI Chat</title>
     <!-- Load Sentry SDK without integrity check -->
@@ -839,6 +839,6 @@
     <script type="module" src="/static/js/streaming.js" defer></script>
 
     <!-- Newly extracted JavaScript to handle the former inline event listeners -->
-    <script src="/static/js/ui-controls.js" defer></script>
+    <script type="module" src="/static/js/ui-controls.js" defer></script>
 </body>
 </html>
