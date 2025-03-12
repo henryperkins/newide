@@ -9,7 +9,44 @@ import { getSessionId } from '../session.js';
  *  Adjust or remove these if you have real implementations 
  */
 function initMobileUI() {
-  // Handle mobile UI layout or interactions
+  // 1) Automatically collapse sidebars on mobile
+  const conversationsSidebar = document.getElementById('conversations-sidebar');
+  if (conversationsSidebar) {
+    // Hide by default on mobile
+    conversationsSidebar.classList.remove('sidebar-open');
+    // Translate off screen
+    conversationsSidebar.classList.add('-translate-x-full');
+  }
+  const settingsSidebar = document.getElementById('sidebar');
+  if (settingsSidebar) {
+    // Also ensure the settings sidebar is closed on mobile
+    settingsSidebar.classList.add('translate-x-full');
+  }
+
+  // 2) Attach a mobile-friendly toolbar for the input area (optional)
+  const inputArea = document.querySelector('.input-area');
+  if (inputArea) {
+    inputArea.classList.add('fixed', 'bottom-0', 'left-0', 'right-0', 'z-50');
+  }
+
+  // 3) Ensure chat container scrolls properly
+  const chatContainer = document.getElementById('chat-container');
+  if (chatContainer) {
+    // Remove any forced overflow hidden that might break mobile scrolling
+    chatContainer.style.overflow = 'auto';
+    // Alternatively, use a Tailwind class: chatContainer.classList.add('overflow-y-auto');
+  }
+
+  // 4) Optional: Add event listeners for mobile toggles (e.g., stats panel)
+  const statsToggle = document.getElementById('mobile-stats-toggle');
+  const performanceStats = document.getElementById('performance-stats');
+  if (statsToggle && performanceStats) {
+    statsToggle.addEventListener('click', () => {
+      performanceStats.classList.toggle('hidden');
+    });
+  }
+
+  console.log('Mobile UI init complete');
 }
 function applyFontSize(fontSize) {
   // Implementation for adjusting font size in the app
@@ -383,20 +420,20 @@ async function saveConversation() {
 
   try {
     // Fetch all conversation messages from DB
-    const api = `/api/chat/conversations/history`;
-    const res = await fetch(api, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        session_id: sessionId,
-        offset: 0,
-        limit: 9999
-      })
-    });
+    const api = `/api/chat/conversations/${sessionId}/messages?offset=0&limit=9999`;
+    const res = await fetch(api);
     if (!res.ok) {
-      console.error('Failed to fetch conversation for saving:', res.statusText);
-      showNotification('Failed to fetch conversation for saving', 'error');
-      return;
+      if (res.status === 422) {
+        console.warn('Conversation data is invalid (422). Creating new conversation...');
+        showNotification('Conversation data invalid. Creating new conversation.', 'warning');
+        sessionStorage.removeItem('sessionId');
+        await createAndSetupNewConversation();
+        return;
+      } else {
+        console.error('Failed to fetch conversation for saving:', res.statusText);
+        showNotification('Failed to fetch conversation for saving', 'error');
+        return;
+      }
     }
     const data = await res.json();
     if (!data || !data.messages) {

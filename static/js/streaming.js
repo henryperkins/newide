@@ -564,6 +564,8 @@ function handleDataChunk(data) {
   let newText = "";
   if (typeof data.text === "string") {
     newText = data.text;
+    const chunkTokens = data.text.split(/\s+/).length;
+    tokenCount += chunkTokens;
   } else if (
     data.choices &&
     data.choices[0] &&
@@ -755,6 +757,16 @@ async function cleanupStreaming(modelName) {
   } finally {
     document.querySelectorAll(".typing-indicator").forEach((el) => el.remove());
     document.querySelectorAll(".streaming-progress").forEach((el) => el.remove());
+    
+    if (window.statsDisplay) {
+      const usage = {
+        promptTokens: 0,
+        completionTokens: tokenCount,
+        reasoningTokens: 0,
+        totalTokens: tokenCount
+      };
+      window.statsDisplay.updateStats(usage);
+    }
   }
 
   if (messageContainer) {
@@ -779,10 +791,7 @@ async function cleanupStreaming(modelName) {
 
       console.log(`[cleanupStreaming] Storing final content length: ${finalContent.length}`);
 
-      if (!finalContent.trim()) {
-        console.warn("[cleanupStreaming] SSE returned no content, skipping store.");
-        return;
-      }
+      console.warn("[cleanupStreaming] SSE returned no content - storing an empty message anyway.");
 
       await fetchWithRetry(
         window.location.origin + `/api/chat/conversations/${sessionId}/messages`,

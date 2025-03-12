@@ -616,6 +616,7 @@ export function toggleConversationSidebar() {
   if (window.innerWidth < 768) {
     conversationsSidebar.classList.toggle('hidden', isOpen);
   }
+  window.toggleConversationSidebar = toggleConversationSidebar;
 }
 
 // Set up conversation sidebar toggle

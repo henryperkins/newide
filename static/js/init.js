@@ -840,6 +840,19 @@ function initMobileUI() {
   initPullToRefresh();
   setupMobileStatsToggle();
   setupMobileFontControls();
+
+  // Improve chat layout on mobile devices
+  const chatContainer = document.getElementById('chat-container');
+  if (chatContainer) {
+    // Make the container fill the screen and scroll properly
+    chatContainer.classList.add('flex', 'flex-col', 'h-screen', 'overflow-hidden');
+
+    const chatHistory = document.getElementById('chat-history');
+    if (chatHistory) {
+      // Allow chat history to expand and scroll
+      chatHistory.classList.add('flex-grow', 'overflow-y-auto');
+    }
+  }
 }
 
 /**

@@ -1,5 +1,5 @@
 /* =========================================================================
-   main.css
+   main.css (Remediated)
    ========================================================================= */
 
 /* --- Tailwind Directives --- */
@@ -128,7 +128,6 @@
    Components Layer (Buttons, Forms, Utility Classes, etc.)
    ========================================================================= */
 @layer components {
-
   /* Main layout components */
   .app-container {
     display: grid;
@@ -202,6 +201,18 @@
     @apply opacity-0;
   }
 
+  .fade-enter-active {
+    @apply opacity-100 transition-opacity duration-300;
+  }
+
+  .fade-exit {
+    @apply opacity-100;
+  }
+
+  .fade-exit-active {
+    @apply opacity-0 transition-opacity duration-300;
+  }
+
   /* Conversation button styles */
   .conversation-button {
     /* Default size for larger screens */
@@ -219,18 +230,6 @@
       min-width: unset;  /* Consistent behavior */
       @apply px-2 py-1 text-sm;
     }
-  }
-
-  .fade-enter-active {
-    @apply opacity-100 transition-opacity duration-300;
-  }
-
-  .fade-exit {
-    @apply opacity-100;
-  }
-
-  .fade-exit-active {
-    @apply opacity-0 transition-opacity duration-300;
   }
 
   /* Chat layout improvements */
@@ -462,10 +461,9 @@
     min-width: 2.5rem;
     min-height: 2.5rem;
   }
-}
 
-/* Additional component styles */
-@layer components {
+  /* Additional component styles (merged from the second @layer components block): */
+
   .sidebar-transition {
     @apply transition-transform duration-300 ease-in-out;
   }
@@ -599,6 +597,42 @@
   visibility: visible !important;
   opacity: 1 !important;
   min-height: 20px !important;
+}
+
+/* Additional styles from mobile instructions */
+
+/* Hide conversation sidebar on small screens */
+@media (max-width: 768px) {
+  #conversations-sidebar {
+    transform: translateX(-100%); /* Hidden by default if not 'sidebar-open' */
+  }
+  #conversations-toggle {
+    /* Make the button bigger and easier to tap */
+    min-height: 2.5rem;
+    min-width: 2.5rem;
+  }
+  .input-area {
+    /* Possibly fix the input area at the bottom on mobile */
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: #ffffff;
+  }
+}
+
+/* Ensure chat messages do not overflow horizontally */
+.message.assistant-message,
+.message.user-message {
+  word-wrap: break-word;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* Code blocks also wrap on mobile */
+.hljs {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .assistant-message {
