@@ -144,6 +144,11 @@ export class FileManager {
   processFiles(fileList) {
     if (!fileList || fileList.length === 0) return;
     
+    const formData = new FormData();
+    if (window.globalStore && window.globalStore.sessionId) {
+      formData.append('session_id', window.globalStore.sessionId);
+    }
+
     // Check if adding these files would exceed the maximum
     if (this.files.length + fileList.length > this.maxFileCount) {
       showNotification(`You can only upload up to ${this.maxFileCount} files.`, 'warning');

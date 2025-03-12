@@ -385,7 +385,8 @@ async def process_file_with_azure(
     - Update the record with relevant Azure metadata
     """
     try:
-        file_service = AzureFileService(azure_client)
+        with move_on_after(300):
+            file_service = AzureFileService(azure_client)
         search_service = AzureSearchService(azure_client)
 
         # Create/ensure search index for this session
