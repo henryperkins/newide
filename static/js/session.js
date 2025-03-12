@@ -24,6 +24,15 @@ export async function getSessionId() {
     console.warn('[getSessionId] Failed to start Sentry transaction:', err);
   }
 
+  // If globalStore has no sessionId, check localStorage for cross-tab sync
+  if (!globalStore.sessionId) {
+    const localStorageId = localStorage.getItem('activeConversationId');
+    if (localStorageId) {
+      console.log('[getSessionId] Found localStorage activeConversationId:', localStorageId);
+      globalStore.sessionId = localStorageId;
+    }
+  }
+
   let sessionId = globalStore.sessionId;
 
   // If we have a sessionId, validate it
@@ -37,13 +46,15 @@ export async function getSessionId() {
           transaction.setStatus('ok');
           transaction.finish();
         }
+        // Sync localStorage if needed
+        localStorage.setItem('activeConversationId', sessionId);
         return sessionId;
       }
 
-      console.warn("[getSessionId] Session " + sessionId + " is invalid. Creating new session.");
+      console.warn('[getSessionId] Session ' + sessionId + ' is invalid. Creating new session.');
       globalStore.sessionId = null;
     } catch (error) {
-      console.error("[getSessionId] Error validating session:", error);
+      console.error('[getSessionId] Error validating session:', error);
       globalStore.sessionId = null;
       if (transaction) {
         transaction.setData('error_stage', 'validate_session');
@@ -56,8 +67,9 @@ export async function getSessionId() {
   try {
     const newSessionId = await createNewConversation();
     if (newSessionId) {
-      console.log("[getSessionId] Created new session: " + newSessionId);
+      console.log('[getSessionId] Created new session: ' + newSessionId);
       globalStore.sessionId = newSessionId;
+      localStorage.setItem('activeConversationId', newSessionId);
 
       if (transaction) {
         transaction.setData('session_id', newSessionId);
@@ -68,8 +80,8 @@ export async function getSessionId() {
       return newSessionId;
     }
   } catch (error) {
-    console.error("[getSessionId] Failed to create new session:", error);
-    showNotification("Failed to create a new conversation. Please refresh the page.", "error");
+    console.error('[getSessionId] Failed to create new session:', error);
+    showNotification('Failed to create a new conversation. Please refresh the page.', 'error');
 
     if (transaction) {
       transaction.setData('error_stage', 'create_new_conversation');
@@ -102,7 +114,7 @@ async function validateSession(sessionId) {
     });
     sentryInit.addBreadcrumb({
       category: 'session',
-      message: "Validating session " + sessionId,
+      message: 'Validating session ' + sessionId,
       level: 'info',
     });
   } catch (err) {
@@ -110,9 +122,7 @@ async function validateSession(sessionId) {
   }
 
   try {
-    const response = await fetch(
-      "/api/session?session_id=" + encodeURIComponent(sessionId)
-    );
+    const response = await fetch('/api/session?session_id=' + encodeURIComponent(sessionId));
     if (!response.ok) {
       if (localTx) {
         localTx.setStatus('cancelled');
@@ -129,7 +139,7 @@ async function validateSession(sessionId) {
     }
     return isValid;
   } catch (error) {
-    console.warn("[validateSession] Error validating session " + sessionId + ":", error);
+    console.warn('[validateSession] Error validating session ' + sessionId + ':', error);
     if (localTx) {
       localTx.captureException?.(error);
       localTx.setStatus('internal_error');
@@ -146,7 +156,7 @@ async function validateSession(sessionId) {
  * @param {boolean} archived - Whether the conversation is archived
  * @returns {Promise<string|null>} New session ID or null on failure
  */
-export async function createNewConversation(title = "New Conversation", pinned = false, archived = false) {
+export async function createNewConversation(title = 'New Conversation', pinned = false, archived = false) {
   let transaction;
   try {
     const sentryInit = await import('./sentryInit.js');
@@ -155,7 +165,7 @@ export async function createNewConversation(title = "New Conversation", pinned =
     });
     sentryInit.addBreadcrumb({
       category: 'session',
-      message: "Creating new conversation session",
+      message: 'Creating new conversation session',
       level: 'info',
       data: { title, pinned, archived },
     });
@@ -167,14 +177,14 @@ export async function createNewConversation(title = "New Conversation", pinned =
     // Clear old sessionId from global store
     globalStore.sessionId = null;
 
-    const response = await fetch("/api/session/create", {
+    const response = await fetch('/api/session/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      const msg = "Failed to create session: " + response.status + " - " + errorText;
+      const msg = 'Failed to create session: ' + response.status + ' - ' + errorText;
       if (transaction) {
         transaction.setData('server_status', response.status);
         transaction.captureMessage?.(msg, 'error');
@@ -187,10 +197,11 @@ export async function createNewConversation(title = "New Conversation", pinned =
     const data = await response.json();
     const newSessionId = data.session_id;
     globalStore.sessionId = newSessionId;
+    localStorage.setItem('activeConversationId', newSessionId);
 
     // Also create a conversation record for backward compatibility
     try {
-      await fetch("/api/chat/conversations", {
+      await fetch('/api/chat/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -250,14 +261,14 @@ export async function switchSessionModel(sessionId, modelName) {
   import('./sentryInit.js').then(sentry => {
     sentry.addBreadcrumb({
       category: 'session',
-      message: "Switching session model to " + modelName,
+      message: 'Switching session model to ' + modelName,
       level: 'info',
       data: { sessionId, modelName },
     });
   });
 
   try {
-    const response = await fetch("/api/session/model", {
+    const response = await fetch('/api/session/model', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -268,15 +279,15 @@ export async function switchSessionModel(sessionId, modelName) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.warn("[switchSessionModel] Failed to update session model: " + response.status, errorData);
+      console.warn('[switchSessionModel] Failed to update session model: ' + response.status, errorData);
 
       import('./sentryInit.js').then(sentry => {
-        sentry.captureMessage?.("Failed switchSessionModel: " + response.status, 'warning');
+        sentry.captureMessage?.('Failed switchSessionModel: ' + response.status, 'warning');
       });
       return false;
     }
 
-    console.log("[switchSessionModel] Successfully updated session model to " + modelName);
+    console.log('[switchSessionModel] Successfully updated session model to ' + modelName);
     return true;
   } catch (error) {
     console.error('[switchSessionModel] Error updating session model:', error);
@@ -300,11 +311,21 @@ export async function ensureValidSession() {
     console.warn('[ensureValidSession] Could not start transaction:', err);
   }
 
+  // If globalStore doesn't have a session ID, check localStorage for cross-tab sync
+  if (!globalStore.sessionId) {
+    const localStorageId = localStorage.getItem('activeConversationId');
+    if (localStorageId) {
+      console.log('[ensureValidSession] Found localStorage activeConversationId:', localStorageId);
+      globalStore.sessionId = localStorageId;
+    }
+  }
+
   let sessionId = globalStore.sessionId;
   if (sessionId) {
     const isValid = await validateSession(sessionId);
     if (isValid) {
       await refreshSession(sessionId);
+      localStorage.setItem('activeConversationId', sessionId);
       if (transaction) {
         transaction.setData('session_id', sessionId);
         transaction.setStatus('ok');
@@ -341,6 +362,7 @@ export async function initializeSession() {
     const sessionId = await createNewConversation();
     if (sessionId) {
       globalStore.sessionId = sessionId;
+      localStorage.setItem('activeConversationId', sessionId);
 
       if (transaction) {
         transaction.setData('session_id', sessionId);
@@ -382,7 +404,7 @@ export async function refreshSession(sessionId) {
   }
 
   try {
-    const response = await fetch("/api/session/refresh", {
+    const response = await fetch('/api/session/refresh', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -392,10 +414,11 @@ export async function refreshSession(sessionId) {
 
     if (!response.ok) {
       if (response.status === 404) {
-        console.warn("[refreshSession] Session not found " + sessionId + ", removing and creating new one.");
+        console.warn('[refreshSession] Session not found ' + sessionId + ', removing and creating new one.');
         globalStore.sessionId = null;
+        localStorage.removeItem('activeConversationId');
       } else {
-        console.warn("[refreshSession] Failed to refresh session " + sessionId + ": " + response.status);
+        console.warn('[refreshSession] Failed to refresh session ' + sessionId + ': ' + response.status);
       }
       if (transaction) {
         transaction.setData('status_code', response.status);
@@ -405,7 +428,8 @@ export async function refreshSession(sessionId) {
       return false;
     }
 
-    console.log("[refreshSession] Successfully refreshed session " + sessionId);
+    console.log('[refreshSession] Successfully refreshed session ' + sessionId);
+    localStorage.setItem('activeConversationId', sessionId);
     if (transaction) {
       transaction.setData('session_id', sessionId);
       transaction.setStatus('ok');

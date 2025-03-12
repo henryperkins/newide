@@ -1,11 +1,3 @@
-/***************************************************
- * displayManager.js
- * 
- * Remediated module with no duplicate blocks,
- * no hidden/invalid characters, and minimal
- * placeholder/stub functions for undefined references.
- ***************************************************/
-
 import { renderMarkdown, sanitizeHTML, highlightCode } from './markdownParser.js';
 import { showNotification, showConfirmDialog } from './notificationManager.js';
 import { debounce, eventBus } from '../utils/helpers.js';

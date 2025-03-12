@@ -116,7 +116,10 @@ function initChatInterface() {
   document.addEventListener('click', e => {
     if (e.target.closest('#theme-toggle')) {
       document.documentElement.classList.toggle('dark');
-      localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+      localStorage.setItem(
+        'theme',
+        document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+      );
       return;
     }
     if (e.target.closest('#mobile-stats-toggle') || e.target.closest('#performance-stats')) {
@@ -180,7 +183,6 @@ function initChatInterface() {
             console.error('Copy failed:', err);
             showNotification('Failed to copy to clipboard', 'error');
           });
-        console.log('[sendMessage] Using fetchChatResponse, modelName:', modelName, 'reasoningEffort:', reasoningEffort);
       }
     }
     if (
@@ -207,6 +209,7 @@ export async function sendMessage() {
   if (!userInput) return;
   const messageContent = userInput.value.trim();
   if (!messageContent) return;
+
   // If another request is already in progress, abort it
   if (isProcessing && currentController) {
     currentController.abort();
@@ -236,7 +239,10 @@ export async function sendMessage() {
       showNotification('Could not retrieve a valid session ID. Please refresh.', 'error');
       return;
     }
-    
+
+    // Force localStorage to match session ID in case of cross-tab changes
+    localStorage.setItem('activeConversationId', currentSessionId);
+
     // Refresh the session to extend its validity
     try {
       await refreshSession(currentSessionId);
@@ -385,7 +391,7 @@ async function fetchChatResponse(
 
       // Only add temperature for non-o1 models
       if (!isOSeriesModel) {
-        payload.temperature = isDeepSeek ? 0.5: 0.7;
+        payload.temperature = isDeepSeek ? 0.5 : 0.7;
       }
 
       console.log('[fetchChatResponse] Sending payload:', payload);
@@ -402,7 +408,7 @@ async function fetchChatResponse(
           const headers = {
             'Content-Type': 'application/json',
             'X-Session-ID': sessionId, // Add session ID to headers for validation
-            ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+            ...(token ? { Authorization: 'Bearer ' + token } : {})
           };
 
           if (isDeepSeek) {
@@ -421,11 +427,9 @@ async function fetchChatResponse(
 
           // For 500 errors, we'll retry
           if (response.status === 500) {
-            // For 500 errors, try to get more detailed error information
             try {
               const errorText = await response.text();
               console.error(`API returned 500 error: ${errorText.substring(0, 200)}`);
-              // Show notification if all retries are used up
               if (retries === maxApiRetries) {
                 showNotification(`Server error: ${errorText.substring(0, 100)}...`, 'error', 8000);
               }
@@ -488,9 +492,9 @@ function renderUserMessage(content) {
   el.innerHTML = sanitizeHTML(content).replace(/\n/g, '<br>');
   const lastMessage = chatHistory.lastElementChild;
   if (lastMessage) {
-      chatHistory.insertBefore(el, lastMessage.nextSibling);
+    chatHistory.insertBefore(el, lastMessage.nextSibling);
   } else {
-      chatHistory.appendChild(el);
+    chatHistory.appendChild(el);
   }
   setTimeout(() => {
     el.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -501,23 +505,20 @@ export function renderAssistantMessage(content, isThinking = false) {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return null;
 
-  console.log("Rendering message:", {
+  console.log('Rendering message:', {
     contentLength: content?.length || 0,
     hasThinking: content?.includes('<think>') || false,
     sample: content?.substring(0, 50) || ''
   });
 
   try {
-    // Create a unique ID for this message to ensure proper tracking
     const messageId = Date.now().toString() + '-' + Math.floor(Math.random() * 10000);
-    
-    // First clean any JSON artifacts that might be in the content
+
     let cleanedContent = content;
     if (typeof cleanedContent === 'string') {
-      cleanedContent = cleanedContent.replace(/\s*\{"type"\s*:\s*"done".*?\}\s*$/g, "");
+      cleanedContent = cleanedContent.replace(/\s*\{"type"\s*:\s*"done".*?\}\s*$/g, '');
     }
-    
-    // Process the assistant message using the displayManager if available
+
     let messageElement;
     if (window.displayManager?.createAssistantMessageElement) {
       console.log('[renderAssistantMessage] Using displayManager for rendering');
@@ -526,29 +527,20 @@ export function renderAssistantMessage(content, isThinking = false) {
       console.log('[renderAssistantMessage] Using fallback renderer');
       messageElement = createAssistantMessageElementFallback(cleanedContent);
     }
-    
-    // Set ID on message element
+
     messageElement.setAttribute('data-id', messageId);
-    
-    // Add to chat history
     chatHistory.appendChild(messageElement);
-    
-    // Apply syntax highlighting
     highlightCode(messageElement);
-    
-    // Scroll into view
     messageElement.scrollIntoView({ behavior: 'smooth' });
 
-    // Store message if it's not a thinking update
     if (!isThinking) storeChatMessage('assistant', cleanedContent);
-    
     return messageElement;
   } catch (error) {
-    console.error("Error rendering message:", error);
+    console.error('Error rendering message:', error);
     const el = document.createElement('div');
     el.className = 'message assistant-message';
     el.setAttribute('role', 'log');
-    el.textContent = content || "Error rendering message";
+    el.textContent = content || 'Error rendering message';
     chatHistory.appendChild(el);
     return el;
   }
@@ -568,29 +560,25 @@ function createAssistantMessageElementFallback(response) {
   el.setAttribute('role', 'log');
   el.setAttribute('aria-live', 'polite');
 
-  // Extract thinking content properly
   let mainContent = content || '';
   let thinkingContent = '';
 
   if (content && content.includes('<think>')) {
     const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
     if (thinkMatches) {
-      console.log("Found thinking blocks:", thinkMatches.length);
+      console.log('Found thinking blocks:', thinkMatches.length);
       thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
       mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
     }
   }
 
-  // Create a content div to match the streaming renderer structure
   const contentDiv = document.createElement('div');
   contentDiv.className = 'message-content';
   contentDiv.classList.add('w-full', 'min-h-[20px]', 'block', 'opacity-100', 'visible');
-  
-  // Process and sanitize main content
+
   contentDiv.innerHTML = renderMarkdown(mainContent.trim());
   el.appendChild(contentDiv);
 
-  // Add thinking content if present - use deepSeekProcessor if available
   if (thinkingContent && thinkingContent.trim()) {
     try {
       if (typeof deepSeekProcessor !== 'undefined' && deepSeekProcessor.renderThinkingContainer) {
@@ -615,80 +603,73 @@ function createAssistantMessageElementFallback(response) {
   return el;
 }
 
-  async function storeChatMessage(role, content) {
-    try {
-      const sessionId = await getSessionId();
-      // Ensure required fields are present and have valid values
-      if (!sessionId) {
-        console.error('[storeChatMessage] Missing session_id');
-        return;
-      }
-      if (!role) {
-        console.error('[storeChatMessage] Missing role');
-        return;
-      }
-      
-      // CRITICAL FIX: Provide default content to avoid errors
-      const finalContent = content || ' ';
-      if (!content) {
-        console.warn('[storeChatMessage] Empty content provided, using space character');
-      }
-      
-      // Try to refresh the session to extend its validity
-      try {
-        await refreshSession(sessionId);
-      } catch (refreshErr) {
-        console.warn('[storeChatMessage] Failed to refresh session:', refreshErr);
-        // Continue anyway - the API call will validate the session
-      }
-      
-      // All required fields are now validated individually
-      console.log('[storeChatMessage] Sending message to server:', {
-        session_id: sessionId,
-        role,
-        content: finalContent.substring(0, 50) + (finalContent.length > 50 ? '...' : '')
-      });
-
-      try {
-        // Changed endpoint to match router implementation
-        const response = await fetchWithRetry(
-          `${window.location.origin}/api/chat/conversations/${sessionId}/messages`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Session-ID': sessionId // Add session ID to headers for validation
-            },
-            body: JSON.stringify({ role, content: finalContent })
-          },
-          3
-        );
-
-        if (!response.ok) {
-          const text = await response.text();
-          console.error('[storeChatMessage] Server error:', response.status, text);
-          throw new Error(`Server returned ${response.status}: ${text}`);
-        }
-
-        console.log('[storeChatMessage] Message stored successfully');
-      } catch (err) {
-        console.warn('Failed to store message in backend:', err);
-      }
-
-      // Also store in localStorage as backup
-      try {
-        const key = `conversation_${sessionId}`;
-        let convo = JSON.parse(localStorage.getItem(key) || '[]');
-        convo.push({ role, content, timestamp: new Date().toISOString() });
-        if (convo.length > 50) convo = convo.slice(-50);
-        localStorage.setItem(key, JSON.stringify(convo));
-      } catch (e) {
-        console.warn('Failed to store message locally:', e);
-      }
-    } catch (error) {
-      console.error('Error in storeChatMessage:', error);
+async function storeChatMessage(role, content) {
+  try {
+    const sessionId = await getSessionId();
+    if (!sessionId) {
+      console.error('[storeChatMessage] Missing session_id');
+      return;
     }
+    if (!role) {
+      console.error('[storeChatMessage] Missing role');
+      return;
+    }
+
+    const finalContent = content || ' ';
+    if (!content) {
+      console.warn('[storeChatMessage] Empty content provided, using space character');
+    }
+
+    try {
+      await refreshSession(sessionId);
+    } catch (refreshErr) {
+      console.warn('[storeChatMessage] Failed to refresh session:', refreshErr);
+    }
+
+    console.log('[storeChatMessage] Sending message to server:', {
+      session_id: sessionId,
+      role,
+      content: finalContent.substring(0, 50) + (finalContent.length > 50 ? '...' : '')
+    });
+
+    try {
+      const response = await fetchWithRetry(
+        `${window.location.origin}/api/chat/conversations/${sessionId}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionId
+          },
+          body: JSON.stringify({ role, content: finalContent })
+        },
+        3
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('[storeChatMessage] Server error:', response.status, text);
+        throw new Error(`Server returned ${response.status}: ${text}`);
+      }
+
+      console.log('[storeChatMessage] Message stored successfully');
+    } catch (err) {
+      console.warn('Failed to store message in backend:', err);
+    }
+
+    try {
+      const key = `conversation_${sessionId}`;
+      let convo = JSON.parse(localStorage.getItem(key) || '[]');
+      convo.push({ role, content, timestamp: new Date().toISOString() });
+      if (convo.length > 50) convo = convo.slice(-50);
+      localStorage.setItem(key, JSON.stringify(convo));
+    } catch (e) {
+      console.warn('Failed to store message locally:', e);
+    }
+  } catch (error) {
+    console.error('Error in storeChatMessage:', error);
   }
+}
 
 async function fetchWithRetry(url, options = {}, maxRetries = 3) {
   let retries = 0;
@@ -732,12 +713,24 @@ async function getModelConfig(modelName) {
     const response = await fetch(`${window.location.origin}/api/config/models/${encoded}`);
     if (response.ok) return await response.json();
     console.warn(`Could not fetch model config for ${modelName}, status: ${response.status}`);
-    if (response.status === 400) console.error(`Bad request: check model name and API.`);
+    if (response.status === 400) console.error('Bad request: check model name and API.');
     else if (response.status === 404) console.error(`Model ${modelName} not found in config.`);
-    if (modelName.toLowerCase() === 'deepseek-r1')
-      return { name: 'DeepSeek-R1', supports_streaming: true, supports_temperature: true, api_version: '2024-05-01-preview' };
-    if (modelName.toLowerCase().startsWith('o1'))
-      return { name: modelName, supports_streaming: false, supports_temperature: false, api_version: '2025-01-01-preview' };
+    if (modelName.toLowerCase() === 'deepseek-r1') {
+      return {
+        name: 'DeepSeek-R1',
+        supports_streaming: true,
+        supports_temperature: true,
+        api_version: '2024-05-01-preview'
+      };
+    }
+    if (modelName.toLowerCase().startsWith('o1')) {
+      return {
+        name: modelName,
+        supports_streaming: false,
+        supports_temperature: false,
+        api_version: '2025-01-01-preview'
+      };
+    }
   } catch (error) {
     console.error('Error fetching model config:', error);
   }
@@ -747,18 +740,17 @@ async function getModelConfig(modelName) {
 function adjustFontSize(direction) {
   const sizes = ['text-sm', 'text-base', 'text-lg', 'text-xl'];
 
-  // Handle reset case (direction === 0)
   if (direction === 0) {
     document.documentElement.classList.remove(...sizes);
-    document.documentElement.classList.add('text-base'); // Default size
-    localStorage.removeItem('fontSize'); // Clear stored preference
+    document.documentElement.classList.add('text-base');
+    localStorage.removeItem('fontSize');
     const defaultSize = window.getComputedStyle(document.documentElement).fontSize;
     showNotification(`Font size reset to default (${defaultSize})`, 'info', 2000);
     return;
   }
 
   let currentIndex = sizes.findIndex(sz => document.documentElement.classList.contains(sz));
-  if (currentIndex === -1) currentIndex = 1; // Default to text-base (index 1)
+  if (currentIndex === -1) currentIndex = 1;
   const newIndex = Math.min(Math.max(currentIndex + direction, 0), sizes.length - 1);
   document.documentElement.classList.remove(...sizes);
   document.documentElement.classList.add(sizes[newIndex]);
