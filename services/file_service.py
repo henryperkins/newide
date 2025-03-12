@@ -6,12 +6,14 @@ from typing import List, Dict, Any, Optional
 import os
 import asyncio
 import time
+import tempfile
 from io import BytesIO
 from datetime import datetime
 import tiktoken
 import mimetypes
 import config
 from azure.core.exceptions import HttpResponseError
+from lib.file_utils import verify_file_signature, sanitize_content
 
 from services.tracing_utils import trace_function, trace_file_operation, trace_block
 from logging_config import get_logger
