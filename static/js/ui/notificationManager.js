@@ -413,6 +413,9 @@ function createNotificationElement(message, type, actions) {
   const tData = getNotificationTypeData(type);
   const el = document.createElement('div');
   el.className = `notification flex items-start p-4 mb-2 rounded-lg shadow-lg border transition-all duration-300 transform opacity-0 translate-y-4 ${tData.bgClass} ${tData.borderClass} ${tData.textClass} pointer-events-auto`;
+  el.setAttribute('role', 'alert');
+  el.setAttribute('aria-live', 'assertive');
+  el.setAttribute('aria-atomic', 'true');
   el.innerHTML = `
     <div class="flex-1 flex items-center gap-2">
       ${tData.icon}
