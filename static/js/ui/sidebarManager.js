@@ -1,4 +1,6 @@
-// sidebarManager.js - Central module for all sidebar/menu functionality
+/**
+ * sidebarManager.js - Central module for all sidebar/menu functionality
+ */
 
 /**
  * Initialize the sidebar and mobile menu functionality
@@ -9,9 +11,7 @@ export function initSidebar() {
   const toggleButton = document.getElementById('sidebar-toggle');
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
-  // If the 'x' button in your HTML uses class="sidebar-close" rather than id="close-sidebar",
-  // switch the query to match that class. This ensures the existing close button is actually found.
-  const closeButton = document.querySelector('.sidebar-close');
+  const closeButton = document.getElementById('close-sidebar');
 
   if (!sidebar) {
     console.error("Sidebar element not found");
@@ -23,7 +23,6 @@ export function initSidebar() {
     toggleButton.addEventListener('click', () => {
       console.log("Sidebar toggle button clicked");
       const isOpen = sidebar.classList.contains('sidebar-open');
-      // If open -> close, else -> open
       toggleSidebar(!isOpen);
     });
   }
@@ -62,24 +61,24 @@ export function initSidebar() {
   const conversationsSidebar = document.getElementById('conversations-sidebar');
 
   if (conversationsToggle && conversationsSidebar) {
-      conversationsToggle.addEventListener('click', () => {
-          const isOpen = conversationsSidebar.classList.contains('sidebar-open');
-          if (isOpen) {
-              // Close conversation sidebar
-              conversationsSidebar.classList.remove('sidebar-open');
-              conversationsSidebar.classList.add('hidden');
-              conversationsSidebar.classList.add('-translate-x-full');
-conversationsSidebar.classList.remove('translate-x-0');
-              conversationsToggle.setAttribute('aria-expanded', 'false');
-          } else {
-              // Open conversation sidebar
-              conversationsSidebar.classList.add('sidebar-open');
-              conversationsSidebar.classList.remove('hidden');
-              conversationsSidebar.classList.add('translate-x-0');
-conversationsSidebar.classList.remove('-translate-x-full');
-              conversationsToggle.setAttribute('aria-expanded', 'true');
-          }
-      });
+    conversationsToggle.addEventListener('click', () => {
+      const isOpen = conversationsSidebar.classList.contains('sidebar-open');
+      if (isOpen) {
+        // Close conversation sidebar
+        conversationsSidebar.classList.remove('sidebar-open');
+        conversationsSidebar.classList.add('hidden');
+        conversationsSidebar.classList.add('-translate-x-full');
+        conversationsSidebar.classList.remove('translate-x-0');
+        conversationsToggle.setAttribute('aria-expanded', 'false');
+      } else {
+        // Open conversation sidebar
+        conversationsSidebar.classList.add('sidebar-open');
+        conversationsSidebar.classList.remove('hidden');
+        conversationsSidebar.classList.add('translate-x-0');
+        conversationsSidebar.classList.remove('-translate-x-full');
+        conversationsToggle.setAttribute('aria-expanded', 'true');
+      }
+    });
 
     // Initialize mobile conversation sidebar state
     if (isMobile) {
@@ -93,11 +92,11 @@ conversationsSidebar.classList.remove('-translate-x-full');
   if (viewportWidth >= 768) {
     // Desktop view - fix any mobile styles
     sidebar.classList.add('w-96');
-sidebar.classList.remove('w-full');
+    sidebar.classList.remove('w-full');
   } else {
     // Mobile view - ensure proper mobile styles
     sidebar.classList.add('w-full');
-sidebar.classList.remove('w-96');
+    sidebar.classList.remove('w-96');
   }
 
   // Listen for resize events to adjust sidebar
