@@ -228,7 +228,10 @@ async function initApplication() {
     // 10. Initialize model manager
     await modelManager.initialize();
 
-    // 11. Set up window resize event listener for responsive UI
+    // 11. Now that modelManager is ready, init the selector
+    initModelSelector();
+
+    // 12. Set up window resize event listener for responsive UI
     setupResizeHandler();
 
     // Add completion breadcrumb
