@@ -300,38 +300,56 @@ function renderConversations() {
 
     // pin/unpin button
     const pinBtn = document.createElement('button');
-    pinBtn.classList.add('pin-conversation-btn', 'border', 'py-0.5', 'px-1', 'text-xs', 'rounded', 'hover:bg-primary-50', 'dark:hover:bg-primary-900/30', 'transition-colors');
+    pinBtn.classList.add('pin-conversation-btn', 'border', 'p-1', 'rounded', 'hover:bg-primary-50', 'dark:hover:bg-primary-900/30', 'transition-colors', 'flex', 'items-center', 'justify-center');
     if (conv.pinned) {
-      pinBtn.classList.add('pinned', 'bg-primary-100', 'dark:bg-primary-900/20', 'text-primary-700', 'dark:text-primary-300', 'border-primary-200', 'dark:border-primary-700/30');
-      pinBtn.textContent = 'Unpin';
+      pinBtn.classList.add('pinned', 'bg-primary-100', 'dark:bg-primary-900/20', 'border-primary-200', 'dark:border-primary-700/30');
     } else {
-      pinBtn.classList.add('text-primary-600', 'dark:text-primary-400', 'border-primary-200', 'dark:border-primary-700/30');
-      pinBtn.textContent = 'Pin';
+      pinBtn.classList.add('border-primary-200', 'dark:border-primary-700/30');
     }
+    pinBtn.innerHTML = `
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${conv.pinned ? 'M5 3v4m0 0V3h4m-4 0L12 14m7-11v4m0 0V3h-4m4 0l-7 11' : 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z'}"/>
+      </svg>
+    `;
+    pinBtn.setAttribute('aria-label', conv.pinned ? 'Unpin' : 'Pin');
     actionContainer.appendChild(pinBtn);
 
     // archive/unarchive button
     const archiveBtn = document.createElement('button');
-    archiveBtn.classList.add('archive-conversation-btn', 'border', 'py-0.5', 'px-1', 'text-xs', 'rounded', 'hover:bg-dark-100', 'dark:hover:bg-dark-700/50', 'transition-colors');
+    archiveBtn.classList.add('archive-conversation-btn', 'border', 'p-1', 'rounded', 'hover:bg-dark-100', 'dark:hover:bg-dark-700/50', 'transition-colors', 'flex', 'items-center', 'justify-center');
     if (conv.archived) {
-      archiveBtn.classList.add('archived', 'bg-dark-100', 'dark:bg-dark-700/30', 'text-dark-700', 'dark:text-dark-300', 'border-dark-200', 'dark:border-dark-600');
-      archiveBtn.textContent = 'Unarchive';
+      archiveBtn.classList.add('archived', 'bg-dark-100', 'dark:bg-dark-700/30', 'border-dark-200', 'dark:border-dark-600');
     } else {
-      archiveBtn.classList.add('text-dark-600', 'dark:text-dark-400', 'border-dark-200', 'dark:border-dark-600');
-      archiveBtn.textContent = 'Archive';
+      archiveBtn.classList.add('border-dark-200', 'dark:border-dark-600');
     }
+    archiveBtn.innerHTML = `
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${conv.archived ? 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' : 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4'}"/>
+      </svg>
+    `;
+    archiveBtn.setAttribute('aria-label', conv.archived ? 'Unarchive' : 'Archive');
     actionContainer.appendChild(archiveBtn);
 
     // delete button
     const deleteBtn = document.createElement('button');
-    deleteBtn.classList.add('delete-conversation-btn', 'border', 'py-0.5', 'px-1', 'text-xs', 'rounded', 'text-red-600', 'dark:text-red-400', 'border-red-200', 'dark:border-red-700/30', 'hover:bg-red-50', 'dark:hover:bg-red-900/20', 'transition-colors');
-    deleteBtn.textContent = 'Delete';
+    deleteBtn.classList.add('delete-conversation-btn', 'border', 'p-1', 'rounded', 'text-red-600', 'dark:text-red-400', 'border-red-200', 'dark:border-red-700/30', 'hover:bg-red-50', 'dark:hover:bg-red-900/20', 'transition-colors', 'flex', 'items-center', 'justify-center');
+    deleteBtn.innerHTML = `
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+      </svg>
+    `;
+    deleteBtn.setAttribute('aria-label', 'Delete');
     actionContainer.appendChild(deleteBtn);
 
     // Rename button
     const renameBtn = document.createElement('button');
-    renameBtn.classList.add('rename-conversation-btn', 'border', 'py-0.5', 'px-1', 'text-xs', 'rounded', 'text-secondary-600', 'dark:text-secondary-400', 'border-secondary-200', 'dark:border-secondary-700/30', 'hover:bg-secondary-50', 'dark:hover:bg-secondary-900/20', 'transition-colors');
-    renameBtn.textContent = 'Rename';
+    renameBtn.classList.add('rename-conversation-btn', 'border', 'p-1', 'rounded', 'text-secondary-600', 'dark:text-secondary-400', 'border-secondary-200', 'dark:border-secondary-700/30', 'hover:bg-secondary-50', 'dark:hover:bg-secondary-900/20', 'transition-colors', 'flex', 'items-center', 'justify-center');
+    renameBtn.innerHTML = `
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+      </svg>
+    `;
+    renameBtn.setAttribute('aria-label', 'Rename');
     actionContainer.appendChild(renameBtn);
 
     // if updating
