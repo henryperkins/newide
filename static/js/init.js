@@ -209,7 +209,9 @@ async function initApplication() {
 
     // 4. Initialize sidebar with corrected mobile/desktop behavior
     initSidebar();
-    initConversationSidebar();
+    import('./ui/sidebarManager.js').then(({ initConversationSidebar }) => {
+      initConversationSidebar();
+    });
 
     // 5. Initialize conversation manager (for sidebar)
     import('./ui/conversationManager.js').then(module => {
