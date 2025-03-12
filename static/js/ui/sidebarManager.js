@@ -180,8 +180,10 @@ export function toggleConversationSidebar(show) {
 
   if (show) {
     // Show the sidebar
-    sidebar.classList.add('sidebar-open', 'translate-x-0');
     sidebar.classList.remove('hidden', '-translate-x-full');
+    sidebar.classList.add('translate-x-0', 'sidebar-open');
+    document.body.classList.add('overflow-hidden');
+    
     if (isMobile && overlay) {
       overlay.classList.remove('hidden');
       overlay.classList.add('block');
@@ -191,8 +193,10 @@ export function toggleConversationSidebar(show) {
     }
   } else {
     // Hide the sidebar
-    sidebar.classList.remove('sidebar-open', 'translate-x-0');
+    sidebar.classList.remove('translate-x-0', 'sidebar-open');
     sidebar.classList.add('-translate-x-full');
+    document.body.classList.remove('overflow-hidden');
+    
     if (toggleButton) {
       toggleButton.setAttribute('aria-expanded', 'false');
     }
