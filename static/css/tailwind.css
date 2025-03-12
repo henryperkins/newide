@@ -636,23 +636,43 @@
   }
 }
 
-/* Hide conversation sidebar on small screens */
+/* Mobile sidebar styles */
 @media (max-width: 768px) {
   #conversations-sidebar {
-    transform: translateX(-100%); /* Hidden by default if not 'sidebar-open' */
+    left: 0;
+    right: auto;
+    transform: translateX(-100%);
+    width: 85%;
+    max-width: 320px;
+    box-shadow: 4px 0 6px -1px rgba(0, 0, 0, 0.1);
   }
+
+  #conversations-sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+
+  #sidebar-overlay {
+    @apply md:hidden;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 60; /* Higher than sidebar */
+  }
+
   #conversations-toggle {
-    /* Make the button bigger and easier to tap */
     min-height: 2.5rem;
     min-width: 2.5rem;
   }
+
   .input-area {
-    /* Possibly fix the input area at the bottom on mobile */
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     background-color: #ffffff;
+  }
+
+  #conversation-list {
+    @apply h-[calc(100vh-140px)] overflow-y-auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 

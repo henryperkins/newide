@@ -181,9 +181,10 @@ export function toggleConversationSidebar(show) {
   if (show) {
     // Show the sidebar
     sidebar.classList.add('sidebar-open', 'translate-x-0');
-    sidebar.classList.remove('hidden', 'translate-x-full');
+    sidebar.classList.remove('hidden', '-translate-x-full');
     if (isMobile && overlay) {
       overlay.classList.remove('hidden');
+      overlay.classList.add('block');
     }
     if (toggleButton) {
       toggleButton.setAttribute('aria-expanded', 'true');
@@ -191,12 +192,13 @@ export function toggleConversationSidebar(show) {
   } else {
     // Hide the sidebar
     sidebar.classList.remove('sidebar-open', 'translate-x-0');
-    sidebar.classList.add('hidden', 'translate-x-full');
+    sidebar.classList.add('-translate-x-full');
     if (toggleButton) {
       toggleButton.setAttribute('aria-expanded', 'false');
     }
     if (overlay) {
       overlay.classList.add('hidden');
+      overlay.classList.remove('block');
     }
   }
 

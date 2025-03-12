@@ -19,6 +19,17 @@ window.addEventListener('DOMContentLoaded', () => {
         module.toggleConversationSidebar(!isOpen);
       });
     }
+
+    // Add mobile menu button handling
+    const mobileConvoToggle = document.getElementById('mobile-conversations-toggle');
+    if (mobileConvoToggle) {
+      mobileConvoToggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        const sidebar = document.getElementById('conversations-sidebar');
+        const isOpen = sidebar ? sidebar.classList.contains('sidebar-open') : false;
+        module.toggleConversationSidebar(!isOpen);
+      });
+    }
   }).catch(err => {
     console.error("Error setting up conversation toggle:", err);
   });
