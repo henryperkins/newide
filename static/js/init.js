@@ -750,6 +750,10 @@ function initModelSelector() {
 
     // Make sure the local model configs are created first before trying to use them
     modelManager.ensureLocalModelConfigs();
+    if (!modelManager.modelConfigs) {
+        console.error("modelManager.modelConfigs is undefined");
+        return;
+    }
     console.log("Local model configs initialized:", Object.keys(modelManager.modelConfigs));
 
     // Add with a slight delay to ensure model configs are fully processed
@@ -796,6 +800,10 @@ function initModelSelector() {
       // Now safely initialize the model manager
       try {
         await modelManager.initialize();
+        if (!modelManager.modelConfigs) {
+            console.error("modelManager.modelConfigs is undefined");
+            return;
+        }
         console.log("Model manager initialized with models:", Object.keys(modelManager.modelConfigs));
 
         modelManager.initModelManagement();

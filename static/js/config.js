@@ -291,6 +291,10 @@ export async function updateModelSpecificUI(modelName) {
 function updateModelSelectUI(selectedModel) {
   const modelSelect = document.getElementById('model-select');
   if (!modelSelect) return;
+  if (!modelManager.modelConfigs) {
+    console.warn("No model configs found");
+    return;
+  }
   const models = Object.keys(modelManager.modelConfigs);
   if (!models.length) return;
   modelSelect.innerHTML = '';
