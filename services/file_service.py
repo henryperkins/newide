@@ -23,18 +23,20 @@ logger = get_logger(__name__)
 try:
     import docx2txt
     DOCX_SUPPORTED = True
-except ImportError:
+except ImportError as e:
     DOCX_SUPPORTED = False
     docx2txt = None
-    logger.warning("docx2txt not installed - DOCX files won't be fully supported")
+    logger.error(f"Critical dependency missing: {str(e)}")
+    raise RuntimeError(f"Required package not installed: {e.name}") from e
 
 try:
     import PyPDF2
     PDF_SUPPORTED = True
-except ImportError:
+except ImportError as e:
     PDF_SUPPORTED = False
     PyPDF2 = None
-    logger.warning("PyPDF2 not installed - PDF files won't be fully supported")
+    logger.error(f"Critical dependency missing: {str(e)}")
+    raise RuntimeError(f"Required package not installed: {e.name}") from e
 
 try:
     from langchain.text_splitter import RecursiveCharacterTextSplitter

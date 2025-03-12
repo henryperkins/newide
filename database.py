@@ -155,6 +155,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     
     try:
         session = AsyncSessionLocal()
+        await session.execute(text("SELECT 1"))
         yield session
     except Exception as e:
         # Capture database errors

@@ -6,7 +6,7 @@ import { showNotification } from './ui/notificationManager.js';
 export class FileManager {
   constructor() {
     this.files = [];
-    this.maxFileSize = 20 * 1024 * 1024; // 20MB
+    this.maxFileSize = 536870912; // 512MB
     this.maxFileCount = 10;
     this.allowedFileTypes = [
       'text/plain',
