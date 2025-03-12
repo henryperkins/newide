@@ -180,5 +180,4 @@ if __name__ == "__main__":
     """
     Run database check as a standalone script
     """
-    import asyncio
     asyncio.run(check_database())

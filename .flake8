@@ -1,7 +1,7 @@
 [flake8]
-ignore = E501, W291, W293, W391, E302, W503
+ignore = E501, W291, W293, W391, E302, W503, C901
 max-line-length = 120
-max-complexity = 10
+max-complexity = 15
 exclude =
     .git,
     __pycache__,

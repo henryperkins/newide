@@ -65,7 +65,7 @@ async def register_user(
                 
                 add_breadcrumb(
                     category="auth",
-                    message=f"Registration failed - email exists",
+                    message="Registration failed - email exists",
                     level="warning",
                     data={"email": form.email}
                 )
