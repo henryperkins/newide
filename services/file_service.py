@@ -637,3 +637,11 @@ def is_binary_content(content: bytes) -> bool:
     text_chars = bytearray({7, 8, 9, 10, 12, 13, 27} | set(range(0x20, 0x100)) - {0x7F})
     sample = content[:4096]
     return bool(sample.translate(None, text_chars))
+
+async def fix_mobile_rotation(file_content: bytes) -> bytes:
+    # Stub function for mobile image rotation
+    return file_content
+
+async def downsample_media(file_content: bytes, filename: str) -> bytes:
+    # Stub function for media downsampling
+    return file_content
