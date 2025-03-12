@@ -4,7 +4,6 @@ A fixed version of the Sentry MCP server that works around syntax and error hand
 """
 
 import asyncio
-import json
 import os
 import sys
 import traceback
@@ -15,7 +14,6 @@ from urllib.parse import urlparse
 import httpx
 from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
-from mcp.shared.exceptions import McpError
 from mcp.types import (
     Tool, TextContent, ImageContent, EmbeddedResource, PromptMessage, GetPromptResult, 
     Prompt, PromptArgument
@@ -28,10 +26,13 @@ def debug_log(message):
         with open("/tmp/sentry-mcp-debug.log", "a") as f:
             f.write(f"{message}\n")
 
+
 SENTRY_API_BASE = "https://sentry.io/api/0/"
+
 
 @dataclass
 class SentryIssueData:
+
     title: str
     issue_id: str
     status: str

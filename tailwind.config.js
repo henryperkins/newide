@@ -9,16 +9,31 @@ module.exports = {
   content: [
     "./static/**/*.{html,js}",
     "./templates/**/*.{html,py}",
-    "./*.{html,py}"
+    "./*.{html,py}",
+    "./node_modules/daisyui/dist/**/*.js"
   ],
   safelist: [
     'text-primary-500',
     'bg-success-500',
     'ring-2',
     'focus:ring-2',
+    // Add Dracula colors to safelist to ensure they're generated
+    'bg-dracula-background',
+    'border-dracula-comment',
+    'bg-dracula-currentLine',
+    'text-dracula-foreground',
+    'shadow-dracula-currentLine',
   ],
   darkMode: 'class',
   theme: {
+    screens: {
+      'xs': '360px',
+      'sm': '640px',
+      'md': '768px',
+      'lg': '1024px',
+      'xl': '1280px',
+      '2xl': '1536px',
+    },
     extend: {
       colors: {
         'thinking-border': 'oklch(76% 0.12 276)',
@@ -490,4 +505,4 @@ module.exports = {
       })
     }
   ]
-};
+}

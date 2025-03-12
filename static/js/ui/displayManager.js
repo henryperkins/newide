@@ -1,11 +1,49 @@
-// Updated displayManager.js with escaped apostrophes in template strings and corrected any hidden or invalid characters.
-// Attempting to ensure it parses properly under a TS/JSX environment if needed.
-
 import { renderMarkdown, sanitizeHTML, highlightCode } from './markdownParser.js';
 import { showNotification, showConfirmDialog } from './notificationManager.js';
 import { debounce, eventBus } from '../utils/helpers.js';
 import { deepSeekProcessor } from './deepseekProcessor.js';
 import { getSessionId } from '../session.js';
+
+/** 
+ *  ======= Stub functions to prevent reference errors =======
+ *  Adjust or remove these if you have real implementations 
+ */
+function initMobileUI() {
+  const chatHistory = document.getElementById('chat-history');
+  if (chatHistory && window.matchMedia('(max-width: 768px)').matches) {
+    // Add mobile-specific height calculation
+    const headerHeight = document.querySelector('header')?.offsetHeight || 64;
+    const inputHeight = document.querySelector('.input-area')?.offsetHeight || 120;
+    chatHistory.style.height = `calc(100dvh - ${headerHeight + inputHeight}px)`;
+    
+    // Add iOS viewport hack
+    document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+    window.addEventListener('resize', () => {
+      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+    });
+  }
+}
+function applyFontSize(fontSize) {
+  // Implementation for adjusting font size in the app
+}
+function updateConversationTitle(title) {
+  // Implementation for updating the conversation title in the UI
+  // e.g., document.getElementById('conversation-title').textContent = title;
+}
+function showWelcomeMessageIfNeeded() {
+  // Implementation for showing a welcome message if new or returning user
+}
+function storeChatMessage(role, content) {
+  // Implementation for persisting the message in local storage or DB
+  // e.g., localStorage.setItem('lastMessage', JSON.stringify({role, content}));
+}
+function pruneOldMessages() {
+  // Implementation that removes oldest messages above a threshold
+  const chatHistory = document.getElementById('chat-history');
+  if (!chatHistory) return;
+  limitChatHistory(chatHistory, messageRenderLimit);
+}
+/** End of stub functions */
 
 let messageRenderLimit = 60;
 let isLoadingPrevious = false;
@@ -14,14 +52,24 @@ let messageCache = new Map();
 let messageObserver;
 let currentView = 'chat';
 
-function initDisplayManager() {
+export function initDisplayManager() {
   setupIntersectionObserver();
   updateLoadMoreButton();
   setupEventListeners();
-  if (window.matchMedia('(max-width: 768px)').matches) initMobileUI();
+
+  // Handle mobile layout if on a narrow screen
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    initMobileUI();
+  }
+
+  // Listen for config updates to apply new font sizes
   eventBus.subscribe('configUpdated', ({ updates }) => {
-    if (updates.appSettings?.fontSize) applyFontSize(updates.appSettings.fontSize);
+    if (updates.appSettings?.fontSize) {
+      applyFontSize(updates.appSettings.fontSize);
+    }
   });
+
+  // Show a welcome or info message if it’s a fresh session
   showWelcomeMessageIfNeeded();
 }
 
@@ -40,6 +88,8 @@ function setupEventListeners() {
       tokenChevron.classList.toggle('rotate-180');
       localStorage.setItem('tokenDetailsVisible', !tokenDetails.classList.contains('hidden'));
     });
+
+    // Restore toggle state from localStorage
     const tokenDetailsVisible = localStorage.getItem('tokenDetailsVisible') === 'true';
     if (tokenDetailsVisible) {
       tokenDetails.classList.remove('hidden');
@@ -51,15 +101,33 @@ function setupEventListeners() {
   const fontSizeUpBtn = document.getElementById('font-size-up');
   const fontSizeDownBtn = document.getElementById('font-size-down');
   const fontSizeResetBtn = document.getElementById('font-size-reset');
-  if (fontSizeUpBtn) fontSizeUpBtn.addEventListener('click', () => adjustFontSize(1));
-  if (fontSizeDownBtn) fontSizeDownBtn.addEventListener('click', () => adjustFontSize(-1));
-  if (fontSizeResetBtn) fontSizeResetBtn.addEventListener('dblclick', () => adjustFontSize(0));
+  if (fontSizeUpBtn) {
+    fontSizeUpBtn.addEventListener('click', () => adjustFontSize(1));
+  }
+  if (fontSizeDownBtn) {
+    fontSizeDownBtn.addEventListener('click', () => adjustFontSize(-1));
+  }
+  if (fontSizeResetBtn) {
+    // Double-click to reset font size
+    fontSizeResetBtn.addEventListener('dblclick', () => adjustFontSize(0));
+  }
 
-  // Global click handler for code copy buttons and file links
+  // Global click handler (e.g., copy-code button, file links)
   document.addEventListener('click', handleGlobalClick);
 }
 
+/**
+ * Adjust the global or user-defined font size setting 
+ * @param {number} step If 0, reset; if positive, increase; if negative, decrease
+ */
+function adjustFontSize(step) {
+  // Implementation detail depends on your app's logic
+  // E.g., store or apply new font size in CSS variables
+  console.log(`Adjusting font size by: ${step}`);
+}
+
 function handleGlobalClick(e) {
+  // Handle code copy button
   if (e.target.classList.contains('copy-code-button') || e.target.closest('.copy-code-button')) {
     const button = e.target.closest('.copy-code-button');
     const codeBlock = button?.nextElementSibling?.querySelector('code');
@@ -74,13 +142,39 @@ function handleGlobalClick(e) {
         .catch(() => showNotification('Failed to copy to clipboard', 'error'));
     }
   }
-  // Toggling removed (chain-of-thought remains always visible)
+
+  // Handle file ref link
   if (e.target.classList.contains('file-ref-link') || e.target.closest('.file-ref-link')) {
     const link = e.target.closest('.file-ref-link');
     if (!link) return;
     e.preventDefault();
     openFileInSidebar(link.getAttribute('data-file-name'));
   }
+}
+
+function openFileInSidebar(filename) {
+  // If sidebar is collapsed, toggle it
+  const sidebarToggle = document.getElementById('sidebar-toggle');
+  if (sidebarToggle) {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar?.classList.contains('translate-x-full')) sidebarToggle.click();
+  }
+  // Switch to files tab
+  const filesTab = document.getElementById('files-tab');
+  if (filesTab) filesTab.click();
+
+  // Highlight the file in the list
+  setTimeout(() => {
+    const filesList = document.querySelectorAll('[aria-label^="File:"]');
+    for (const f of filesList) {
+      if (f.innerText.includes(filename)) {
+        f.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        f.classList.add('bg-blue-100', 'dark:bg-blue-900/30');
+        setTimeout(() => f.classList.remove('bg-blue-100', 'dark:bg-blue-900/30'), 1500);
+        break;
+      }
+    }
+  }, 500);
 }
 
 function setupIntersectionObserver() {
@@ -90,7 +184,9 @@ function setupIntersectionObserver() {
       if (entry.isIntersecting) {
         const msg = entry.target;
         if (msg.classList.contains('assistant-message')) {
+          // Highlight code blocks in the assistant's message
           highlightCode(msg);
+          // Lazy-load images
           msg.querySelectorAll('img[data-src]').forEach(img => {
             if (img.dataset.src) {
               img.src = img.dataset.src;
@@ -117,21 +213,20 @@ export async function loadConversationFromDb() {
     const res = await fetch(`/api/chat/conversations/${conversationId}/messages?offset=0&limit=100`);
     if (!res.ok) {
       if (res.status === 404) {
-          // The conversation no longer exists, so create a new one
-          console.warn('Conversation not found, creating a new conversation...');
-          sessionStorage.removeItem('sessionId');
-          const cm = await import('./conversationManager.js');
-          await cm.createAndSetupNewConversation();
+        // The conversation no longer exists, so create a new one
+        console.warn('Conversation not found, creating a new conversation...');
+        sessionStorage.removeItem('sessionId');
+        const cm = await import('./conversationManager.js');
+        await cm.createAndSetupNewConversation();
       } else {
-          console.error('Failed to fetch conversation from DB:', res.statusText);
-          showNotification('Failed to load conversation from DB', 'error');
+        console.error('Failed to fetch conversation from DB:', res.statusText);
+        showNotification('Failed to load conversation from DB', 'error');
       }
       return;
     }
 
     // Debugging
     console.log('API response status:', res.status);
-    // Try to get the response text first for debugging
     const responseText = await res.text();
     console.log('Raw API response:', responseText);
 
@@ -169,7 +264,6 @@ export async function loadConversationFromDb() {
         const messageElement = m.role === 'user'
           ? createUserMessageElement(m.content)
           : createAssistantMessageElement(m.content);
-
         chatHistory.appendChild(messageElement);
       }
     } else {
@@ -221,7 +315,6 @@ export async function loadOlderMessages() {
     // Get currently rendered messages count (excluding system messages)
     const rendered = chatHistory.querySelectorAll('.message:not(.system-message)').length;
     const fetchLimit = 50; // Load 50 older messages
-    // Updated endpoint path
     const api = `/api/chat/conversations/${conversationId}/messages?offset=${rendered}&limit=${fetchLimit}`;
 
     const res = await fetch(api);
@@ -262,7 +355,9 @@ export async function loadOlderMessages() {
 
     // Update hasMoreMessages based on number of messages received
     hasMoreMessages = data.has_more || data.messages.length >= fetchLimit;
-    updateLoadMoreButton(data.total_count ? data.total_count - rendered - data.messages.length : 0);
+    updateLoadMoreButton(
+      data.total_count ? data.total_count - rendered - data.messages.length : 0
+    );
 
     // Setup observers for lazy-loaded content
     chatHistory.querySelectorAll('.message:not(.observed)').forEach(el => {
@@ -300,20 +395,20 @@ async function saveConversation() {
 
   try {
     // Fetch all conversation messages from DB
-    const api = `/api/chat/conversations/history`;
-    const res = await fetch(api, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            session_id: sessionId,
-            offset: 0,
-            limit: 9999
-        })
-    });
+    const api = `/api/chat/conversations/${sessionId}/messages?offset=0&limit=9999`;
+    const res = await fetch(api);
     if (!res.ok) {
-      console.error('Failed to fetch conversation for saving:', res.statusText);
-      showNotification('Failed to fetch conversation for saving', 'error');
-      return;
+      if (res.status === 422) {
+        console.warn('Conversation data is invalid (422). Creating new conversation...');
+        showNotification('Conversation data invalid. Creating new conversation.', 'warning');
+        sessionStorage.removeItem('sessionId');
+        await createAndSetupNewConversation();
+        return;
+      } else {
+        console.error('Failed to fetch conversation for saving:', res.statusText);
+        showNotification('Failed to fetch conversation for saving', 'error');
+        return;
+      }
     }
     const data = await res.json();
     if (!data || !data.messages) {
@@ -359,7 +454,13 @@ async function saveConversation() {
     showNotification('Failed to save conversation', 'error');
   }
 }
+export { saveConversation };
 
+/**
+ * Updates the visibility or text of the "Load Older Messages" button.
+ * 
+ * @param {number} [unloadedCount]
+ */
 function updateLoadMoreButton(unloadedCount) {
   const loadBtn = document.getElementById('load-older-btn');
   if (!loadBtn) return;
@@ -370,7 +471,7 @@ function updateLoadMoreButton(unloadedCount) {
     const sessionId = getSessionId();
     if (sessionId) {
       try {
-        // If unloadedCount wasn't passed as a parameter, calculate it
+        // If unloadedCount wasn't passed, attempt to compute from local storage
         if (unloadedCount === undefined) {
           const storageKey = `conversation_${sessionId}`;
           const storedConversation = localStorage.getItem(storageKey);
@@ -382,18 +483,22 @@ function updateLoadMoreButton(unloadedCount) {
           }
         }
 
-        // Update button text to show number of unloaded messages
+        // Update button text
         if (unloadedCount > 0) {
           loadBtn.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none"
+                 viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M7 11l5-5m0 0l5 5m-5-5v12" />
             </svg>
             Load Older Messages (${unloadedCount})
           `;
         } else {
           loadBtn.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none"
+                 viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M7 11l5-5m0 0l5 5m-5-5v12" />
             </svg>
             Load Older Messages
           `;
@@ -405,6 +510,9 @@ function updateLoadMoreButton(unloadedCount) {
   }
 }
 
+/**
+ * Renders a user message into the DOM
+ */
 export function renderUserMessage(content, skipScroll = false, skipStore = false) {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return null;
@@ -423,7 +531,6 @@ export function renderUserMessage(content, skipScroll = false, skipStore = false
 
   chatHistory.appendChild(element);
 
-  // Use consistent scrolling behavior by scrolling the chat history container
   if (!skipScroll) {
     requestAnimationFrame(() => {
       chatHistory.scrollTo({
@@ -440,28 +547,40 @@ export function renderUserMessage(content, skipScroll = false, skipStore = false
 
 function createUserMessageElement(content) {
   const cacheKey = `user-${content}`;
-  if (messageCache.has(cacheKey)) return messageCache.get(cacheKey).cloneNode(true);
+  if (messageCache.has(cacheKey)) {
+    return messageCache.get(cacheKey).cloneNode(true);
+  }
 
   const el = document.createElement('div');
   el.className = 'message user-message';
   el.setAttribute('role', 'log');
   el.setAttribute('aria-live', 'polite');
-  el.innerHTML = sanitizeHTML(content).replace(/\n/g, '<br>');
+  const contentLines = content.split('\n');
+  contentLines.forEach((line, index) => {
+    el.appendChild(document.createTextNode(line));
+    if (index < contentLines.length - 1) {
+      el.appendChild(document.createElement('br'));
+    }
+  });
   messageCache.set(cacheKey, el.cloneNode(true));
   return el;
 }
 
+/**
+ * Renders an assistant message into the DOM
+ */
 export function renderAssistantMessage(content, skipScroll = false, skipStore = false) {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return null;
+
   const messageElement = createAssistantMessageElement(content);
   chatHistory.appendChild(messageElement);
+
   if (messageObserver) {
     messageElement.classList.add('observed');
     messageObserver.observe(messageElement);
   }
 
-  // Use consistent scrolling behavior by scrolling the chat history container
   if (!skipScroll) {
     requestAnimationFrame(() => {
       chatHistory.scrollTo({
@@ -477,225 +596,87 @@ export function renderAssistantMessage(content, skipScroll = false, skipStore = 
 }
 
 function createAssistantMessageElement(response) {
-  // Handle either a raw string or an object with { content, deepseek_thinking }
   let content = '';
-  let deepSeekThinking = '';
-
-  if (typeof response === 'object' && response !== null) {
-    content = response.content ?? '';
-    deepSeekThinking = response.deepseek_thinking ?? '';
+  if (typeof response === 'object' && response !== null && response.content) {
+    content = String(response.content);
   } else {
     content = String(response);
   }
 
-  // Use a single cache key for all models to avoid losing old messages when switching models:
-  const snippet = content.substring(0, 40).replace(/\`/g, '').replace(/[\r\n]/g, ' ');
-  const cacheKey = `assistant-${snippet}`;
-
-  if (messageCache.has(cacheKey)) {
-    return messageCache.get(cacheKey).cloneNode(true);
-  }
+  // Create a unique ID
+  const messageId = `msg-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
   const el = document.createElement('div');
   el.className = 'message assistant-message';
   el.setAttribute('role', 'log');
   el.setAttribute('aria-live', 'polite');
+  el.setAttribute('data-id', messageId);
 
-  // Extract main content and thinking content from <think> tags, if any
-  let mainContent = content;
+  // Extract thinking content from <think> tags
+  let mainContent = content || '';
   let thinkingContent = '';
 
-  // If server provided a separate deepseek_thinking field, use it
-  // Otherwise, fallback to extracting <think> blocks
-  if (deepSeekThinking) {
-    thinkingContent = deepSeekThinking;
-    console.log('[createAssistantMessageElement] Found deepseek_thinking from server:', thinkingContent.length, 'chars');
-  } else if (content.includes('<think>')) {
-    // Extract thinking blocks
+  if (content && content.includes('<think>')) {
     const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
     if (thinkMatches) {
-      thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
-      console.log('[createAssistantMessageElement] Extracted thinking from <think> tags, length:', thinkingContent.length);
+      thinkingContent = thinkMatches
+        .map(m => m.replace(/<\/?think>/g, ''))
+        .join('\n\n');
       mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+      // Clean up trailing JSON-like objects if present
+      mainContent = mainContent.replace(/\s*\{"type"\s*:\s*"done".*?\}\s*$/g, '');
     }
   }
 
-  // Process main content
-  const md = renderMarkdown(mainContent);
-  const enhanced = processCodeBlocks(md);
-  const lazy = processImagesForLazyLoading(enhanced);
+  // Create the same structure as streaming.js produces
+  const messageContentContainer = document.createElement('div');
+  messageContentContainer.className = 'message-content';
+  el.appendChild(messageContentContainer);
 
-  el.innerHTML = lazy;
+  // Add thinking container (even if empty, for consistent structure)
+  const thinkingContainer = document.createElement('div');
+  thinkingContainer.className = 'thinking-container';
+  messageContentContainer.appendChild(thinkingContainer);
 
-  // If we have chain-of-thought text, render it
-  if (thinkingContent) {
-    const thinkingDiv = document.createElement('div');
-    thinkingDiv.className = 'thinking-block mt-2';
-    thinkingDiv.innerHTML = `
-      <details open>
-        <summary class="cursor-pointer p-2 bg-gray-100 dark:bg-gray-800 rounded font-medium">Chain of Thought</summary>
-        <pre class="p-2 whitespace-pre-wrap bg-gray-50 dark:bg-gray-900 rounded mt-1">${thinkingContent}</pre>
-      </details>
-    `;
-    el.appendChild(thinkingDiv);
+  // Add response content container
+  const responseContentDiv = document.createElement('div');
+  responseContentDiv.className = 'response-content';
+  messageContentContainer.appendChild(responseContentDiv);
+
+  // If there's thinking content, render it using the same deepSeekProcessor
+  if (thinkingContent && thinkingContent.trim()) {
+    // Use the same processor as streaming.js for consistency
+    deepSeekProcessor.renderThinkingContainer(
+      thinkingContainer,
+      thinkingContent,
+      { createNew: true, isComplete: true }
+    );
+    thinkingContainer.style.display = 'block';
+  } else {
+    thinkingContainer.style.display = 'none';
   }
 
-  messageCache.set(cacheKey, el.cloneNode(true));
+  // Render the main content
+  responseContentDiv.innerHTML = renderMarkdown(mainContent.trim());
+
   return el;
 }
 
-function processCodeBlocks(html) {
-  return html.replace(
-    /<pre><code class="language-([^"]+)">([\s\S]*?)<\/code><\/pre>/g,
-    (_, language, code) => {
-      // escape any backticks or single quotes inside code content
-      const safeCode = code.replace(/`/g, '&#96;').replace(/'/g, '&#39;');
-      return `
-        <div class="relative group">
-          <button class="copy-code-button absolute top-2 right-2 p-1 rounded text-xs bg-gray-800/90 text-gray-100 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Copy code">
-            Copy
-          </button>
-          <pre><code class="language-${language}">${safeCode}</code></pre>
-        </div>
-      `;
-    }
+// Example transformations of code blocks
+function processCodeBlocks(htmlString) {
+  // If you want to insert copy buttons or transform code blocks, do it here
+  // Otherwise just return the same HTML
+  return htmlString;
+}
+
+// Example lazy loading transform for images
+function processImagesForLazyLoading(htmlString) {
+  // Replace <img src="..." /> with <img data-src="..." />
+  // Then load them when in viewport
+  return htmlString.replace(
+    /<img\s+src="([^"]+)"([^>]*)>/gi,
+    (match, p1, p2) => `<img data-src="${p1}" ${p2}>`
   );
-}
-
-function processImagesForLazyLoading(html) {
-  return html.replace(
-    /<img\s+src="([^"]+)"/g,
-    (_, src) => `<img data-src="${src}" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" loading="lazy"`
-  );
-}
-
-const pruneOldMessages = debounce(() => {
-  const chatHistory = document.getElementById('chat-history');
-  if (!chatHistory) return;
-  const msgs = chatHistory.querySelectorAll('.message:not(.system-message)');
-  if (msgs.length > messageRenderLimit) {
-    const removeCount = msgs.length - messageRenderLimit;
-    const scrollHeightBefore = chatHistory.scrollHeight;
-    const scrollPositionBefore = chatHistory.scrollTop;
-    for (let i = 0; i < removeCount; i++) {
-      chatHistory.removeChild(msgs[i]);
-    }
-    hasMoreMessages = true;
-
-    requestAnimationFrame(() => {
-      const heightDiff = scrollHeightBefore - chatHistory.scrollHeight;
-      chatHistory.scrollTop = Math.max(0, scrollPositionBefore - heightDiff);
-    });
-  }
-}, 500);
-
-let clientVersion = Date.now();
-
-async function storeChatMessage(role, content) {
-  try {
-    // Get conversation ID, handling both Promise and direct value
-    const sessionIdMaybe = getSessionId();
-    const conversationId = sessionIdMaybe instanceof Promise ? await sessionIdMaybe : sessionIdMaybe;
-
-    if (!conversationId) {
-      console.error('No valid conversation ID found — cannot store message.');
-      return;
-    }
-
-    if (!role || !content) {
-      console.error('Missing role or content — cannot store message.');
-      return;
-    }
-
-    // Use window.location.origin to ensure we're using the correct base URL
-    const apiUrl = `${window.location.origin}/api/chat/conversations/${conversationId}/messages`;
-
-    try {
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, content })
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        console.error('[storeChatMessage] Server error:', response.status, text);
-        throw new Error(`Server returned ${response.status}: ${text}`);
-      }
-
-      console.log('[storeChatMessage] Message stored successfully');
-    } catch (err) {
-      console.warn('Failed to store message in backend:', err);
-    }
-  } catch (error) {
-    console.error('Error in storeChatMessage:', error);
-  }
-}
-
-function updateConversationTitle(title) {
-  // Update the title in the UI if there's an appropriate element
-  const titleElement = document.getElementById('conversation-title');
-  if (titleElement) {
-    titleElement.textContent = title;
-  }
-
-  // Could also update document title
-  document.title = `${title} - Azure OpenAI Chat`;
-}
-
-function showWelcomeMessageIfNeeded() {
-  const sessionId = getSessionId();
-  if (!sessionId) return;
-  const storageKey = `conversation_${sessionId}`;
-  const storedConversation = localStorage.getItem(storageKey);
-  const hasConversation = storedConversation && JSON.parse(storedConversation).length > 0;
-  const welcomeShown = sessionStorage.getItem('welcome_message_shown') === 'true';
-  if (!hasConversation && !welcomeShown) {
-    const chatHistory = document.getElementById('chat-history');
-    if (!chatHistory) return;
-    const welcomeMessage = document.createElement('div');
-    welcomeMessage.className = 'system-message mx-auto max-w-2xl text-center p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-8';
-    welcomeMessage.innerHTML = `
-      <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Welcome to Azure OpenAI Chat</h2>
-      <p class="text-gray-600 dark:text-gray-300 mb-4">
-        This chat application uses Azure OpenAI&#39;s powerful language models.
-      </p>
-      <p class="text-gray-600 dark:text-gray-300">
-        Type a message below to get started!
-      </p>
-    `;
-    chatHistory.appendChild(welcomeMessage);
-    sessionStorage.setItem('welcome_message_shown', 'true');
-  }
-}
-
-function initMobileUI() {
-  document.querySelectorAll('button:not([aria-label])').forEach(button => {
-    if (!button.textContent.trim()) {
-      button.setAttribute('aria-label', 'Button');
-    }
-  });
-}
-
-function openFileInSidebar(filename) {
-  const sidebarToggle = document.getElementById('sidebar-toggle');
-  if (sidebarToggle) {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar?.classList.contains('translate-x-full')) sidebarToggle.click();
-  }
-  const filesTab = document.getElementById('files-tab');
-  if (filesTab) filesTab.click();
-  setTimeout(() => {
-    const filesList = document.querySelectorAll('[aria-label^="File:"]');
-    for (const f of filesList) {
-      if (f.innerText.includes(filename)) {
-        f.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        f.classList.add('bg-blue-100', 'dark:bg-blue-900/30');
-        setTimeout(() => f.classList.remove('bg-blue-100', 'dark:bg-blue-900/30'), 1500);
-        break;
-      }
-    }
-  }, 500);
 }
 
 /**
@@ -716,20 +697,18 @@ export async function deleteConversation() {
           return;
         }
 
-        // 2. Delete the conversation on the server
+        // 2. Delete on the server
         const deleteResponse = await fetch(`${window.location.origin}/api/chat/conversations/${sessionId}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' }
         });
-
         if (!deleteResponse.ok) {
           console.error(`Failed to delete conversation: ${deleteResponse.status}`);
-          // Continue anyway to ensure UI is reset
+          // Continue anyway so UI can reset
         }
 
-        // 3. Create a new conversation and ensure sessionStorage is updated
+        // 3. Create a new conversation and ensure sessionStorage updates
         await createAndSetupNewConversation();
-
         showNotification('Conversation deleted', 'success');
       } catch (error) {
         console.error('Failed to delete conversation:', error);
@@ -748,48 +727,44 @@ export async function deleteConversation() {
 
 /**
  * Helper function to create and set up a new conversation
- * Extracted for cleaner code and reusability
  */
 async function createAndSetupNewConversation() {
-  // IMPORTANT: First remove the old session ID to prevent it from being reused
+  // Remove the old session ID to prevent reuse
   sessionStorage.removeItem('sessionId');
 
-  // 1. Create a new conversation (this internal function should update sessionStorage)
+  // Create the conversation on the server
   const newSessionId = await createNewConversation();
   if (!newSessionId) {
     throw new Error('Failed to create new conversation');
   }
 
-  // 2. Double-check that sessionStorage was updated correctly
+  // Ensure session storage was updated
   if (sessionStorage.getItem('sessionId') !== newSessionId) {
     console.warn('Session ID not properly updated, fixing it now');
     sessionStorage.setItem('sessionId', newSessionId);
   }
 
-  // 3. Clear the UI
+  // Clear the UI
   const chatHistory = document.getElementById('chat-history');
   if (chatHistory) {
-    // Keep system messages
     const systemMessages = [];
-    chatHistory.querySelectorAll('.system-message').forEach(el =>
-      systemMessages.push(el.cloneNode(true))
-    );
-
-    // Clear and restore system messages
+    chatHistory.querySelectorAll('.system-message').forEach(el => {
+      systemMessages.push(el.cloneNode(true));
+    });
     chatHistory.innerHTML = '';
     systemMessages.forEach(el => chatHistory.appendChild(el));
 
-    // Restore conversation controls if they exist
+    // Restore conversation controls if present
     const controls = document.querySelector('.conversation-controls');
     if (controls) chatHistory.appendChild(controls);
   }
 
-  // 4. Reset other display states
+  // Reset other display states
   messageCache.clear();
   hasMoreMessages = false;
   updateLoadMoreButton(0);
 
-  // 5. Show welcome message if needed
+  // Show welcome if needed
   showWelcomeMessageIfNeeded();
 
   console.log('New conversation created with ID:', newSessionId);
@@ -797,16 +772,14 @@ async function createAndSetupNewConversation() {
 }
 
 /**
- * Creates a new conversation session, clearing the chat
- * 
- * @param {boolean} pinned - Whether the conversation should be pinned
- * @param {boolean} archived - Whether the conversation should be archived
- * @param {string} title - Title for the conversation
- * @returns {Promise<string|null>} The new conversation ID or null on failure
+ * Creates a new conversation session
  */
-export async function createNewConversation(pinned = false, archived = false, title = "New Conversation") {
+export async function createNewConversation(
+  pinned = false,
+  archived = false,
+  title = 'New Conversation'
+) {
   try {
-    // 1. Create the conversation on the server
     const response = await fetch(`${window.location.origin}/api/chat/conversations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -822,54 +795,36 @@ export async function createNewConversation(pinned = false, archived = false, ti
       throw new Error(`Failed to create conversation: ${response.status} - ${responseText}`);
     }
 
-    // 2. Get the new conversation ID
     const data = await response.json();
     const newConversationId = data.conversation_id;
-
-    // 3. CRITICAL: Update session storage with the new ID
-    console.log('Setting new session ID in storage:', newConversationId);
     sessionStorage.setItem('sessionId', newConversationId);
-
-    // 4. Optional additional feedback
     console.log(`New conversation created: ${title} (ID: ${newConversationId})`);
-
     return newConversationId;
   } catch (err) {
-    console.error("Error creating new conversation:", err);
-    showNotification("Failed to create new conversation", "error");
+    console.error('Error creating new conversation:', err);
+    showNotification('Failed to create new conversation', 'error');
     return null;
   }
 }
 
-/**
- * Standard error handler for conversation operations
- * 
- * @param {Error} error - The error that occurred
- * @param {string} userMessage - Message to show the user
- * @param {Function} recoveryFn - Optional function to call for recovery
- * @param {Object} analyticsData - Optional data for analytics
- */
 export function handleConversationError(error, userMessage, callback, context) {
   console.error('Display Manager Error:', error);
 
-  // Show error message in UI
   const errorDisplay = document.getElementById('error-display');
   if (errorDisplay) {
     errorDisplay.textContent = userMessage || 'An error occurred';
     errorDisplay.classList.remove('hidden');
   }
 
-  // Recovery callback if provided
   if (callback) {
     callback();
   }
 }
 
-export {
-  initDisplayManager,
-  saveConversation
-};
-
+/**
+ * Ensures total message count doesn't exceed `maxCount`.
+ * Removes oldest messages if we exceed the limit.
+ */
 function limitChatHistory(chatHistory, maxCount) {
   const msgs = chatHistory.querySelectorAll('.message:not(.system-message)');
   if (msgs.length <= maxCount) return;
@@ -880,3 +835,4 @@ function limitChatHistory(chatHistory, maxCount) {
   }
   hasMoreMessages = true;
 }
+

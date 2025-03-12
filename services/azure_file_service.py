@@ -1,12 +1,10 @@
 # services/azure_file_service.py
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import aiohttp
-import json
 import os
 import asyncio
 from datetime import datetime
 import logging
-from config import build_azure_openai_url
 
 logger = logging.getLogger(__name__)
 
@@ -45,16 +43,16 @@ class AzureFileService:
                 return result["id"]
 
     async def create_vector_store(
-        self, name: str, description: str = "", metadata: dict = None
+        self, name: str, description: str = "", metadata: Optional[Dict[str, Any]] = None
     ) -> str:
         """Create a vector store for file search"""
         endpoint = (
             f"{self.endpoint}/openai/vector_stores?api-version={self.api_version}"
         )
 
-        # Prepare request
-        payload = {"name": name, "description": description, "metadata": metadata or {}}
-
+        if metadata is None:
+            metadata = {}
+        payload = {"name": name, "description": description, "metadata": metadata}
         # Make API call
         async with aiohttp.ClientSession() as session:
             headers = await self._get_auth_headers()

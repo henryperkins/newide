@@ -1,12 +1,9 @@
 /* 
- * streaming.js - Core module for handling streaming chat responses
- *
- * This module contains the functionality for processing streaming Server-Sent Events (SSE)
- * from the API and rendering them incrementally into the DOM. It's specifically enhanced
- * to support DeepSeek-R1 model responses with "thinking" blocks.
+ * streaming.js - Updated for DeepSeek-R1 chain-of-thought streaming
+ *  - Enhanced logging, error handling, and Sentry instrumentation for SSE.
  */
 
-import { getSessionId } from "./session.js";
+import { getSessionId, refreshSession } from "./session.js";
 import {
   updateTokenUsage,
   fetchWithRetry,
@@ -16,6 +13,7 @@ import {
 import {
   showNotification,
   handleMessageError,
+  showTypingIndicator
 } from "./ui/notificationManager.js";
 import { deepSeekProcessor } from "./ui/deepseekProcessor.js";
 import {
@@ -30,13 +28,15 @@ import {
   renderContentEfficiently,
   renderThinkingContainer as fallbackRenderThinkingContainer,
 } from "./streamingRenderer.js";
+import { renderMarkdown, highlightCode } from "./ui/markdownParser.js";
 
-// --- Global state variables ---
+/* ------------------------------------------------------------------
+   Global State
+   ------------------------------------------------------------------ */
 let mainTextBuffer = "";
 let thinkingTextBuffer = "";
-let chunkBuffer = "";
+let rollingBuffer = "";  // SSE partial data buffer
 let messageContainer = null;
-let thinkingContainer = null;
 let isThinking = false;
 let lastRenderTimestamp = 0;
 let animationFrameId = null;
@@ -44,105 +44,73 @@ let errorState = false;
 let connectionTimeoutId = null;
 let connectionCheckIntervalId = null;
 let streamStartTime = 0;
-let firstTokenTime = 0;
 let tokenCount = 0;
-let lastScrollTimestamp = 0;
-let currentMessageId = null; // Track the current message ID
-let currentMessageContainer = null; // Track the current container element ID
-let thinkingContainers = {}; // Store thinking containers by message ID
 
-// --- Constants ---
-const RENDER_INTERVAL_MS = 150; // Increased from 50ms for better performance
-const SCROLL_INTERVAL_MS = 500; // Only scroll every 500ms to reduce jitter
-const BASE_CONNECTION_TIMEOUT_MS = 60000; // 60 seconds
-const MAX_CONNECTION_TIMEOUT_MS = 180000; // 3 minutes
+let currentMessageId = null;
+let thinkingContainers = {};
+
+const RENDER_INTERVAL_MS = 150;
+const SCROLL_INTERVAL_MS = 500;
+const BASE_CONNECTION_TIMEOUT_MS = 60000;
+const MAX_CONNECTION_TIMEOUT_MS = 180000;
 const MAX_RETRY_ATTEMPTS = 3;
-const CONNECTION_CHECK_INTERVAL_MS = 5000; // 5 seconds
+const CONNECTION_CHECK_INTERVAL_MS = 5000;
 
-/**
- * Calculates tokens per second based on usage data and streaming duration
- * @param {Object} usage - The token usage data
- * @returns {number} - Tokens per second rate
- */
+/* ------------------------------------------------------------------
+   Utility: Calculate tokens/sec
+   ------------------------------------------------------------------ */
 function calculateTokensPerSecond(usage) {
   if (!usage || !streamStartTime) return 0;
-
   const elapsedMs = performance.now() - streamStartTime;
   if (elapsedMs <= 0) return 0;
-
   const totalTokens = usage.completion_tokens || 0;
-  const tokensPerSecond = (totalTokens / elapsedMs) * 1000;
-
-  return Math.min(tokensPerSecond, 1000); // Cap at 1000 t/s for reasonable display
+  return Math.min((totalTokens / elapsedMs) * 1000, 1000);
 }
 
-/**
- * Dynamically calculates a connection timeout based on model type and message length.
- * Longer messages and certain model types get extended timeouts.
- */
+/* ------------------------------------------------------------------
+   Utility: Dynamically determine SSE timeouts
+   ------------------------------------------------------------------ */
 function calculateConnectionTimeout(modelName, messageLength) {
   let timeout = BASE_CONNECTION_TIMEOUT_MS;
-  const normalizedModelName = modelName ? modelName.toLowerCase() : "";
+  const name = (modelName || "").toLowerCase();
 
-  console.log(
-    `[calculateConnectionTimeout] Starting with base timeout: ${timeout}ms`
-  );
-
-  if (
-    normalizedModelName.indexOf("o1") !== -1 ||
-    normalizedModelName.indexOf("o3") !== -1
-  ) {
+  if (name.includes("o1") || name.includes("o3")) {
     timeout *= 2.5;
-    console.log(
-      `[calculateConnectionTimeout] O-series model detected, timeout now: ${timeout}ms`
-    );
-  } else if (normalizedModelName.indexOf("claude") !== -1) {
+  } else if (name.includes("claude")) {
     timeout *= 2.0;
-    console.log(
-      `[calculateConnectionTimeout] Claude model detected, timeout now: ${timeout}ms`
-    );
-  } else if (normalizedModelName.indexOf("deepseek") !== -1) {
+  } else if (name.includes("deepseek")) {
     timeout *= 2.0;
-    console.log(
-      `[calculateConnectionTimeout] DeepSeek model detected, timeout now: ${timeout}ms`
-    );
   }
 
+  // Increase timeout based on prompt length
   if (messageLength > 1000) {
     const lengthFactor = 1 + messageLength / 10000;
     timeout *= lengthFactor;
-    console.log(
-      `[calculateConnectionTimeout] Applied message length factor: ${lengthFactor}, timeout now: ${timeout}ms`
-    );
   }
-
-  const finalTimeout = Math.min(timeout, MAX_CONNECTION_TIMEOUT_MS);
-  console.log(`[calculateConnectionTimeout] Final timeout: ${finalTimeout}ms`);
-  return finalTimeout;
+  return Math.min(timeout, MAX_CONNECTION_TIMEOUT_MS);
 }
 
-/**
- * Resets the local streaming state.
- */
+/* ------------------------------------------------------------------
+   Reset streaming state
+   ------------------------------------------------------------------ */
 function resetStreamingState() {
   mainTextBuffer = "";
   thinkingTextBuffer = "";
-  chunkBuffer = "";
+  rollingBuffer = "";
   messageContainer = null;
-  thinkingContainer = null;
   isThinking = false;
   lastRenderTimestamp = 0;
   errorState = false;
   streamStartTime = 0;
-  firstTokenTime = 0;
   tokenCount = 0;
+
   currentMessageId = Date.now().toString();
-  currentMessageContainer = null;
   thinkingContainers = {};
 
-  document.querySelectorAll('[data-streaming="true"]').forEach((el) => {
-    el.removeAttribute("data-streaming");
-  });
+  // Remove data-streaming from any leftover containers
+  document
+    .querySelectorAll('[data-streaming="true"]')
+    .forEach(el => el.removeAttribute("data-streaming"));
 
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
@@ -158,18 +126,10 @@ function resetStreamingState() {
   }
 }
 
-/**
- * Main function to stream chat response via SSE.
- * @param {string} messageContent - User's message.
- * @param {string} sessionId - Session identifier.
- * @param {string} modelName - Name of the model to use.
- * @param {string} reasoningEffort - Reasoning effort level (low, medium, high).
- * @param {AbortSignal} signal - Optional signal to abort the request.
- * @param {Array} fileIds - Optional file IDs to include.
- * @param {boolean} useFileSearch - Whether to use file search.
- * @returns {Promise<boolean>} Resolves when streaming completes.
- */
-export function streamChatResponse(
+/* ------------------------------------------------------------------
+   streamChatResponse
+   ------------------------------------------------------------------ */
+function streamChatResponse(
   messageContent,
   sessionId,
   modelName = "DeepSeek-R1",
@@ -180,102 +140,224 @@ export function streamChatResponse(
 ) {
   resetStreamingState();
   streamStartTime = performance.now();
+  showTypingIndicator();
+
+  let sentryTransaction; // Reference for the Sentry transaction
+
+  // Dynamically import Sentry to start a transaction
+  import("./sentryInit.js")
+    .then((sentry) => {
+      sentryTransaction = sentry.startTransaction(
+        "streamChatResponse",
+        "streaming",
+        {
+          model_name: modelName,
+          has_files: fileIds?.length > 0,
+          use_file_search: useFileSearch,
+        }
+      );
+      sentry.addBreadcrumb({
+        category: "streaming",
+        message: "Starting chat response streaming",
+        level: "info",
+        data: {
+          session_id: sessionId,
+          model: modelName,
+          message_length: messageContent?.length || 0,
+          file_count: fileIds?.length || 0
+        },
+      });
+    })
+    .catch((err) => console.error("Failed to load sentryInit for transaction:", err));
+
+  messageContainer = ensureMessageContainer();
 
   return new Promise(async (resolve, reject) => {
     if (!sessionId) {
-      reject(
-        new Error("Invalid sessionId: Session ID is required for streaming")
-      );
+      import("./sentryInit.js").then((sentry) => {
+        sentry.captureError(new Error("No valid sessionId for streaming"), {
+          context: "streaming.js",
+          tags: { streaming_stage: "initialization" },
+        });
+        if (sentryTransaction) sentryTransaction.finish();
+      });
+      reject(new Error("No valid sessionId for streaming."));
       return;
     }
-    const validModelName = (modelName || "DeepSeek-R1").toLowerCase();
-    if (!validModelName || typeof validModelName !== "string") {
+
+    // Add a no-response timeout handler for initial SSE handshake
+    const noResponseTimer = setTimeout(() => {
+      console.warn("[streaming] Model taking too long to respond (no data).");
+
+      if (sentryTransaction) {
+        sentryTransaction.setData("result", "no_response_timeout");
+        sentryTransaction.setStatus("deadline_exceeded");
+      }
+
+      if (messageContainer) {
+        const statusDiv = document.createElement("div");
+        statusDiv.className =
+          "p-2 mb-2 text-amber-700 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-300 rounded";
+        statusDiv.innerHTML =
+          "<strong>Model taking longer than expected</strong><br>This may be due to high server load or an issue with the model.";
+        messageContainer.appendChild(statusDiv);
+
+        showNotification("Switching to non-streaming mode due to timeout", "warning");
+
+        import("./chat.js")
+          .then((chatModule) => {
+            chatModule
+              .fetchChatResponse(messageContent, sessionId, modelName, reasoningEffort)
+              .then((response) => {
+                if (response?.choices?.[0]?.message?.content) {
+                  statusDiv.remove();
+                  const assistantMessage = response.choices[0].message.content;
+                  chatModule.renderAssistantMessage(assistantMessage);
+
+                  if (response.usage) {
+                    updateTokenUsage(response.usage);
+                  }
+                  if (sentryTransaction) {
+                    sentryTransaction.setData("result", "fallback_success");
+                    sentryTransaction.setStatus("ok");
+                    sentryTransaction.finish();
+                  }
+                  resolve(true);
+                } else {
+                  if (sentryTransaction) {
+                    sentryTransaction.setData("result", "fallback_failed");
+                    sentryTransaction.setStatus("internal_error");
+                    sentryTransaction.finish();
+                  }
+                  reject(new Error("Failed to get response from fallback method"));
+                }
+              })
+              .catch((err) => {
+                if (sentryTransaction) {
+                  sentryTransaction.captureError(err, { context: "fallbackFetch" });
+                  sentryTransaction.setData("result", "fallback_error");
+                  sentryTransaction.setStatus("internal_error");
+                  sentryTransaction.finish();
+                }
+                reject(err);
+              });
+          })
+          .catch((err) => {
+            if (sentryTransaction) {
+              sentryTransaction.captureError(err, { context: "dynamicImportChat" });
+              sentryTransaction.setData("result", "chat_module_import_error");
+              sentryTransaction.setStatus("internal_error");
+              sentryTransaction.finish();
+            }
+            reject(err);
+          });
+      }
+    }, 30000); // 30 second handshake timeout
+
+    const modelId = (modelName || "DeepSeek-R1").toLowerCase();
+    if (!modelId) {
+      if (sentryTransaction) {
+        sentryTransaction.setStatus("invalid_argument");
+      }
       reject(new Error("Invalid model name"));
       return;
     }
 
     const params = new URLSearchParams();
     let finalModelName = modelName;
-    const isOSeries =
-      validModelName.indexOf("o1") !== -1 ||
-      validModelName.indexOf("o3") !== -1;
-    const isDeepSeek = validModelName.includes("deepseek");
 
     if (finalModelName.trim().toLowerCase() === "deepseek-r1") {
       finalModelName = "DeepSeek-R1";
       params.append("temperature", "0.5");
     }
-
     params.append("model", finalModelName);
     params.append("message", messageContent || "");
 
-    if (isOSeries) {
-      params.append("reasoning_effort", reasoningEffort || "medium");
+    if (modelId.includes("o1") || modelId.includes("o3")) {
+      params.append("reasoning_effort", reasoningEffort);
       params.append("response_format", "json_schema");
       params.append("max_completion_tokens", "100000");
-    } else if (reasoningEffort && !isDeepSeek) {
+    } else if (reasoningEffort && !modelId.includes("deepseek")) {
       params.append("reasoning_effort", reasoningEffort);
     }
 
-    if (fileIds && fileIds.length > 0) {
+    if (fileIds?.length) {
       params.append("include_files", "true");
-      fileIds.forEach((fileId) => {
-        params.append("file_ids", fileId);
-      });
+      fileIds.forEach(fid => params.append("file_ids", fid));
       if (useFileSearch) {
         params.append("use_file_search", "true");
       }
     }
 
-    const apiUrl = `${window.location.origin}/api/chat/sse?session_id=${encodeURIComponent(
-      sessionId
-    )}`;
-    const fullUrl = apiUrl + "&" + params.toString();
+    const apiUrl = `${window.location.origin}/api/chat/sse`;
+    const fullUrl = apiUrl + "?" + params.toString();
 
     try {
+      if (!signal) {
+        const controller = new AbortController();
+        signal = controller.signal;
+        window.currentController = controller; // attach for debug
+      }
+
       const headers = {
         "Content-Type": "application/json",
+        "X-Session-ID": sessionId
       };
-      if (isDeepSeek) {
+      if (modelId.includes("deepseek")) {
         headers["x-ms-thinking-format"] = "html";
         headers["x-ms-streaming-version"] = "2024-05-01-preview";
-        console.log("[streamChatResponse] Adding DeepSeek-R1 required headers");
       }
+
+      try {
+        await refreshSession(sessionId);
+      } catch (refreshErr) {
+        console.warn("[streamChatResponse] Failed to refresh session:", refreshErr);
+      }
+
+      console.log("[streaming] Connecting to SSE endpoint:", fullUrl);
+      console.log("[streaming] With headers:", headers);
 
       const response = await fetch(fullUrl, {
-        headers: headers,
-        signal: signal,
+        headers,
+        signal,
+        cache: "no-cache"
       });
 
+      // We got some response from server, so cancel noResponseTimer
+      clearTimeout(noResponseTimer);
+
+      console.log("[streaming] SSE response status:", response.status);
+
       if (!response.ok || !response.body) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        let errorDetail = `HTTP error: ${response.status}`;
+        try {
+          const errorText = await response.text();
+          errorDetail += ` - ${errorText}`;
+          console.error("[streaming] SSE error response body:", errorText);
+        } catch (err) {
+          console.error("[streaming] Couldn't read error text:", err);
+        }
+
+        if (sentryTransaction) {
+          sentryTransaction.setData("status", response.status);
+          sentryTransaction.setStatus("internal_error");
+        }
+        throw new Error(errorDetail);
       }
+
+      console.log("[streaming] SSE connection established");
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-
-      let onMessageCallback = null;
-      let onErrorCallback = null;
-      let onCompleteCallback = null;
       let isStreamActive = true;
 
-      const connectionTimeoutMs = calculateConnectionTimeout(
-        validModelName,
-        messageContent.length
-      );
-      console.log(
-        "Setting connection timeout to " +
-        connectionTimeoutMs +
-        "ms for " +
-        validModelName
-      );
-
+      const connectionTimeoutMs = calculateConnectionTimeout(modelId, messageContent.length);
       connectionTimeoutId = setTimeout(() => {
         if (isStreamActive) {
-          console.warn("Connection timed out after " + connectionTimeoutMs + "ms");
+          console.warn(`[streaming] Connection timed out after ${connectionTimeoutMs}ms`);
           isStreamActive = false;
           handleStreamingError(new Error("Connection timeout"));
-          if (reader) reader.cancel();
+          reader.cancel();
         }
       }, connectionTimeoutMs);
 
@@ -286,584 +368,254 @@ export function streamChatResponse(
       }, CONNECTION_CHECK_INTERVAL_MS);
 
       if (signal && typeof signal.addEventListener === "function") {
-        signal.addEventListener(
-          "abort",
-          () => {
-            clearTimeout(connectionTimeoutId);
-            clearInterval(connectionCheckIntervalId);
-            isStreamActive = false;
-            if (reader) reader.cancel();
-          },
-          { once: true }
-        );
-      }
-
-      const processChunk = async () => {
-        try {
-          const { value, done } = await reader.read();
-
-          if (done) {
-            isStreamActive = false;
-            clearTimeout(connectionTimeoutId);
-            clearInterval(connectionCheckIntervalId);
-
-            if (onCompleteCallback) {
-              onCompleteCallback({ data: "" });
-            }
-            await cleanupStreaming(finalModelName);
-            resolve(true);
-            return;
-          }
-
-          const text = decoder.decode(value);
-          chunkBuffer += text;
-          const chunks = chunkBuffer.split("\n\n");
-          chunkBuffer = chunks.pop() || "";
-
-          for (const rawLine of chunks) {
-            const line = rawLine.trim();
-            if (!line) continue;
-
-            if (line.startsWith("data:")) {
-              const dataPart = line.slice(5).trim();
-
-              if (dataPart === "done") {
-                if (onCompleteCallback) {
-                  onCompleteCallback({ data: "" });
-                }
-                continue;
-              }
-
-              try {
-                const azureData = JSON.parse(dataPart);
-
-                // Reset connection timeout on each message
-                clearTimeout(connectionTimeoutId);
-                connectionTimeoutId = setTimeout(() => {
-                  if (isStreamActive) {
-                    console.warn(
-                      "Stream stalled after " + connectionTimeoutMs * 1.5 + "ms"
-                    );
-                    isStreamActive = false;
-                    handleStreamingError(new Error("Stream stalled"));
-                    if (reader) reader.cancel();
-                  }
-                }, connectionTimeoutMs * 1.5);
-
-                // -------------------------------------------------
-                // FIX #1: ALWAYS call onMessageCallback for any chunk
-                // including usage/finish_reason. That way, leftover
-                // partial text in chunkBuffer is appended properly.
-                // -------------------------------------------------
-                if (onMessageCallback) {
-                  onMessageCallback({ data: dataPart });
-                }
-              } catch (err) {
-                console.error(
-                  "Error parsing SSE data from Azure Chat Completions:",
-                  err
-                );
-                import("./sentryInit.js")
-                  .then(({ captureError }) => {
-                    captureError(err, {
-                      context: "streaming.js",
-                      location: "SSE data parsing",
-                      data: (line || "").substring(0, 200),
-                    });
-                  })
-                  .catch((e) =>
-                    console.error("Failed to load Sentry module:", e)
-                  );
-              }
-            } else if (line.startsWith("event: complete")) {
-              if (onCompleteCallback) {
-                onCompleteCallback({ data: "" });
-              }
-            }
-          }
-
-          processChunk();
-        } catch (error) {
-          if (error.name !== "AbortError") {
-            handleStreamingError(error);
-          }
-          isStreamActive = false;
-        }
-      };
-
-      onMessageCallback = (e) => {
-        try {
-          console.log("Received SSE chunk from server");
-
-          let data;
-          try {
-            data = JSON.parse(e.data);
-          } catch (parseError) {
-            data = { text: e.data };
-          }
-
-          const modelSelect = document.getElementById("model-select");
-          const currentModel =
-            modelSelect && modelSelect.value ? modelSelect.value : "DeepSeek-R1";
-          const isDeepSeek = currentModel.toLowerCase().includes("deepseek");
-
-          if (isDeepSeek) {
-            if (typeof data.text === "string") {
-              data.text = data.text.trim();
-            } else if (
-              data.choices &&
-              data.choices[0] &&
-              data.choices[0].delta &&
-              data.choices[0].delta.content
-            ) {
-              data.choices[0].delta.content =
-                data.choices[0].delta.content.trim();
-            } else if (typeof e.data === "string" && e.data.trim()) {
-              data = { text: e.data.trim() };
-            }
-          }
-
-          processDataChunkWrapper(data);
-          scheduleRender();
-        } catch (err) {
-          console.error("[streamChatResponse] Error processing message:", err);
-          import("./sentryInit.js")
-            .then(({ captureError }) => {
-              captureError(err, {
-                context: "streaming.js",
-                location: "processMessage",
-                bufferSizes: {
-                  main: mainTextBuffer?.length || 0,
-                  thinking: thinkingTextBuffer?.length || 0,
-                },
-              });
-            })
-            .catch((e) => console.error("Failed to load Sentry module:", e));
-
-          if (mainTextBuffer || thinkingTextBuffer) {
-            forceRender();
-          }
-        }
-      };
-
-      onErrorCallback = async (e) => {
-        if (signal && signal.aborted) return;
-        clearTimeout(connectionTimeoutId);
-        clearInterval(connectionCheckIntervalId);
-        isStreamActive = false;
-
-        const error = new Error("Connection failed (EventSource closed)");
-        error.recoverable = true;
-
-        handleStreamingError(error);
-
-        if (!navigator.onLine) {
-          window.addEventListener(
-            "online",
-            () => {
-              showNotification("Connection restored. Retrying...", "info");
-              attemptErrorRecovery(messageContent, error);
-            },
-            { once: true }
-          );
-          return;
-        }
-
-        showNotification(
-          "Connection failed. Would you like to retry?",
-          "error",
-          0,
-          [
-            {
-              label: "Retry",
-              onClick: () => attemptErrorRecovery(messageContent, error),
-            },
-          ]
-        );
-      };
-
-      onCompleteCallback = async (e) => {
-        try {
+        signal.addEventListener("abort", () => {
           clearTimeout(connectionTimeoutId);
           clearInterval(connectionCheckIntervalId);
           isStreamActive = false;
+          reader.cancel();
+          console.log("[streaming] SSE stream aborted via signal");
 
-          // If the final data includes usage, parse it
-          if (e.data && e.data !== "done") {
-            try {
-              const completionData = JSON.parse(e.data);
-
-              let usageData = completionData.usage;
-              if (!usageData) {
-                console.log(
-                  "[onCompleteCallback] No usage data provided, creating estimates"
-                );
-                usageData = {
-                  prompt_tokens: Math.max(
-                    Math.round(messageContent.length / 4),
-                    1
-                  ),
-                  completion_tokens: Math.max(
-                    Math.round(mainTextBuffer.length / 4),
-                    1
-                  ),
-                  total_tokens: 0,
-                };
-                usageData.total_tokens =
-                  usageData.prompt_tokens + usageData.completion_tokens;
-                console.log(
-                  "[onCompleteCallback] Created estimated usage data:",
-                  usageData
-                );
-              }
-
-              if (usageData) {
-                console.log("Token usage data:", usageData);
-                const enhancedUsage = {
-                  ...usageData,
-                  latency: (performance.now() - streamStartTime).toFixed(0),
-                  tokens_per_second: calculateTokensPerSecond(usageData),
-                };
-                updateTokenUsage(enhancedUsage);
-
-                if (!window.tokenUsageHistory) {
-                  window.tokenUsageHistory = {};
-                }
-                window.tokenUsageHistory[validModelName] = enhancedUsage;
-              }
-
-              eventBus.publish("streamingCompleted", {
-                modelName: validModelName,
-                usage: completionData.usage,
-              });
-
-              if (completionData.usage) {
-                import("./ui/statsDisplay.js")
-                  .then(({ updateStatsDisplay }) => {
-                    updateStatsDisplay(completionData.usage);
-                  })
-                  .catch((error) => {
-                    console.error(
-                      "Failed to load stats display module:",
-                      error
-                    );
-                  });
-              }
-            } catch (err) {
-              console.warn("Error parsing completion data:", err);
-            }
+          if (sentryTransaction) {
+            sentryTransaction.setStatus("cancelled");
+            sentryTransaction.finish();
           }
+        }, { once: true });
+      }
 
-          forceRender();
+      // SSE read loop
+      const readLoop = async () => {
+        try {
+          console.log("[streaming] Starting read loop");
+          const { value, done } = await reader.read();
+          if (done) {
+            console.log("[streaming] Stream complete (done=true)");
+            isStreamActive = false;
+            finalizeAndResolve();
+            return;
+          }
+          const text = decoder.decode(value);
+          console.log("[streaming] Received chunk:", text.substring(0, 50) + (text.length > 50 ? '...' : ''));
+          processRawChunk(text);
+
+          readLoop();
         } catch (err) {
-          console.error("[streamChatResponse] Error handling completion:", err);
-        } finally {
-          await cleanupStreaming(finalModelName);
-          resolve(true);
+          console.error("[streaming] Error in read loop:", err);
+          if (err.name === "AbortError") {
+            console.log("[streaming] Stream aborted by user");
+          } else {
+            console.error("[streaming] Full error details:", {
+              name: err.name,
+              message: err.message,
+              stack: err.stack,
+              status: err.status
+            });
+          }
+          isStreamActive = false;
+          if (!errorState) {
+            handleStreamingError(err);
+          }
         }
       };
 
-      eventBus.publish("streamingStarted", { modelName: validModelName });
-      processChunk();
+      // Start reading
+      readLoop();
+
+      function finalizeAndResolve() {
+        clearTimeout(connectionTimeoutId);
+        clearInterval(connectionCheckIntervalId);
+
+        if (rollingBuffer) {
+          processRawChunk("");
+        }
+
+        const finalizeResult = deepSeekProcessor.finalizeChainOfThought(
+          mainTextBuffer,
+          thinkingTextBuffer,
+          isThinking
+        );
+        mainTextBuffer = finalizeResult.mainContent;
+        thinkingTextBuffer = finalizeResult.thinkingContent;
+        isThinking = false;
+
+        if (messageContainer) {
+          const block = messageContainer.querySelector(".deepseek-cot-block");
+          if (block) {
+            const icon = block.querySelector(".thought-icon");
+            if (icon) {
+              icon.classList.remove("thinking");
+              icon.classList.add("complete");
+            }
+          }
+        }
+
+        forceRender();
+
+        // Mark transaction success if still open
+        import("./sentryInit.js").then((sentry) => {
+          if (sentryTransaction) {
+            sentryTransaction.setStatus("ok");
+            sentryTransaction.setData("result", "stream_completed");
+          }
+        });
+
+        cleanupStreaming(finalModelName)
+          .then(() => {
+            // Finally, finish the Sentry transaction
+            import("./sentryInit.js").then((sentry) => {
+              if (sentryTransaction) {
+                // Optionally record tokens usage or durations
+                sentryTransaction.setData("completion_tokens", tokenCount);
+                sentryTransaction.finish();
+              }
+            });
+            resolve(true);
+          })
+          .catch((err) => {
+            if (sentryTransaction) {
+              sentryTransaction.captureError(err, { context: "cleanupStreaming" });
+              sentryTransaction.setData("result", "cleanup_error");
+              sentryTransaction.setStatus("internal_error");
+              sentryTransaction.finish();
+            }
+            reject(err);
+          });
+      }
     } catch (error) {
-      console.error("[streamChatResponse] Setup error:", error);
+      console.error("[streaming] Caught top-level error:", error);
+
+      import("./sentryInit.js").then((sentry) => {
+        sentry.addBreadcrumb({
+          category: "streaming.error",
+          message: `Top-level error: ${error.message}`,
+          level: "error",
+        });
+        sentry.captureError(error, { context: "streamChatResponse" });
+        if (sentryTransaction) {
+          sentryTransaction.setData("result", "top_level_error");
+          sentryTransaction.setStatus("internal_error");
+          sentryTransaction.finish();
+        }
+      });
+
       handleStreamingError(error);
       reject(error);
     }
   });
 }
 
-function handleStreamingError(error) {
-  console.error("[handleStreamingError]", error);
-  if (!errorState) {
-    errorState = true;
-    if (mainTextBuffer || thinkingTextBuffer) {
-      forceRender();
-    }
+/* ------------------------------------------------------------------
+   processRawChunk: merges SSE text into rollingBuffer, splits by double newlines,
+   extracts JSON, calls parseChainOfThought
+   ------------------------------------------------------------------ */
+function processRawChunk(newText) {
+  rollingBuffer += newText;
 
-    if (mainTextBuffer && messageContainer) {
-      const errorNote = document.createElement("div");
-      errorNote.className =
-        "streaming-error-note text-sm text-red-600 dark:text-red-400 mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded";
-      errorNote.textContent =
-        "⚠️ The response was interrupted and is incomplete due to a connection error.";
-      messageContainer.appendChild(errorNote);
-    }
+  // SSE messages separated by double newlines
+  const segments = rollingBuffer.split("\n\n");
+  rollingBuffer = segments.pop() || "";
 
-    utilsHandleStreamingError(error, showNotification, messageContainer);
-    removeStreamingProgressIndicator();
-    eventBus.publish("streamingError", {
-      error: error,
-      recoverable: error.recoverable || false,
-      modelName: document.getElementById("model-select")?.value || null,
-    });
-  }
-}
+  for (let seg of segments) {
+    seg = seg.trim();
+    if (!seg.startsWith("data:")) continue;
 
-async function attemptErrorRecovery(messageContent, error) {
-  if (!navigator.onLine) {
-    showNotification("Waiting for internet connection...", "warning", 0);
-    return new Promise((resolve) => {
-      window.addEventListener(
-        "online",
-        async () => {
-          showNotification("Connection restored. Retrying...", "info", 3000);
-          try {
-            const sessionId = await getSessionId();
-            if (!sessionId) {
-              showNotification("Could not retrieve session ID", "error");
-              resolve(false);
-              return;
-            }
-            const modelSelect = document.getElementById("model-select");
-            let modelName =
-              modelSelect && modelSelect.value
-                ? modelSelect.value
-                : "DeepSeek-R1";
-            try {
-              const success = await retry(
-                () => streamChatResponse(messageContent, sessionId, modelName),
-                MAX_RETRY_ATTEMPTS
-              );
-              resolve(success);
-            } catch {
-              showNotification("Recovery failed", "error");
-              resolve(false);
-            }
-          } catch (err) {
-            console.error("Error retrieving session ID:", err);
-            showNotification("Could not retrieve session ID", "error");
-            resolve(false);
-          }
-        },
-        { once: true }
-      );
-    });
-  }
+    const dataPart = seg.slice(5).trim();
+    if (dataPart === "done") continue;
 
-  const errorStr = error?.message?.toLowerCase() || "";
-  const isServiceUnavailable =
-    errorStr.includes("no healthy upstream") ||
-    errorStr.includes("failed dependency") ||
-    errorStr.includes("deepseek service") ||
-    errorStr.includes("missing deepseek required headers") ||
-    errorStr.includes("invalid api version");
-
-  if (isServiceUnavailable && error.userRequestedRetry !== true) {
-    showNotification("Service unavailable. Consider switching models.", "warning", 5000);
-    return false;
-  }
-
-  if (isServiceUnavailable) {
-    error.userRequestedRetry = true;
-  }
-
-  if (
-    error.recoverable === true ||
-    error.name === "ConnectionError" ||
-    error.name === "NetworkError" ||
-    error.name === "TimeoutError" ||
-    error.userRequestedRetry === true
-  ) {
-    showNotification("Retrying connection...", "info", 3000);
-    await new Promise((r) => setTimeout(r, 2000));
     try {
-      const sessionId = await getSessionId();
-      if (!sessionId) {
-        showNotification("Could not retrieve session ID", "error");
-        return false;
-      }
-      const modelSelect = document.getElementById("model-select");
-      let modelName =
-        modelSelect && modelSelect.value ? modelSelect.value : "DeepSeek-R1";
-
-      if (isServiceUnavailable && modelName.toLowerCase().includes("deepseek")) {
-        const options = modelSelect?.options || [];
-        for (let i = 0; i < options.length; i++) {
-          const option = options[i];
-          if (
-            option &&
-            option.value &&
-            !option.value.toLowerCase().includes("deepseek")
-          ) {
-            modelName = option.value;
-            console.log(
-              `Switching from DeepSeek to available model: ${modelName}`
-            );
-            showNotification(
-              `Switching to ${modelName} due to DeepSeek unavailability`,
-              "info",
-              5000
-            );
-            if (modelSelect) modelSelect.value = modelName;
-            break;
-          }
-        }
-      }
-
-      try {
-        return await retry(
-          () => streamChatResponse(messageContent, sessionId, modelName),
-          MAX_RETRY_ATTEMPTS,
-          {
-            backoff: true,
-            initialDelay: 1000,
-            maxDelay: 10000,
-          }
-        );
-      } catch {
-        showNotification("Recovery failed", "error");
-        return false;
-      }
+      const parsed = JSON.parse(dataPart);
+      handleDataChunk(parsed);
     } catch (err) {
-      console.error("Error retrieving session ID:", err);
-      showNotification("Could not retrieve session ID", "error");
-      return false;
-    }
-  }
-  showNotification("Cannot retry - please refresh and try again", "error");
-  return false;
-}
+      console.error("[streaming] Failed to parse SSE chunk:", err, seg);
 
-function processDataChunkWrapper(data) {
-  const modelSelect = document.getElementById("model-select");
-  const currentModel =
-    modelSelect && modelSelect.value ? modelSelect.value : "DeepSeek-R1";
-  const isDeepSeek = currentModel.toLowerCase().includes("deepseek");
-
-  try {
-    console.log(
-      "[processDataChunkWrapper] Processing chunk:",
-      typeof data === "object" ? JSON.stringify(data).substring(0, 100) : data
-    );
-
-    if (isDeepSeek && typeof data === "object") {
-      let contentText = "";
-
-      if (data.text) {
-        contentText = data.text;
-      } else if (
-        data.choices &&
-        data.choices[0] &&
-        data.choices[0].delta &&
-        data.choices[0].delta.content
-      ) {
-        contentText = data.choices[0].delta.content;
-      }
-
-      if (contentText) {
-        contentText = contentText.replace(/\r?\n$/, "");
-
-        if (
-          mainTextBuffer &&
-          contentText.length > 0 &&
-          !/^[\s\.,!?;:]/.test(contentText) &&
-          !/[\s\.,!?;:]$/.test(mainTextBuffer)
-        ) {
-          contentText = " " + contentText;
-        }
-
-        if (data.text) {
-          data.text = contentText;
-        } else if (data.choices && data.choices[0] && data.choices[0].delta) {
-          data.choices[0].delta.content = contentText;
-        }
-      }
-    }
-
-    if (!messageContainer) {
-      messageContainer = ensureMessageContainer();
-      if (messageContainer) {
-        console.log(
-          "[processDataChunkWrapper] Created container:",
-          messageContainer.id
-        );
-        currentMessageContainer = messageContainer.id;
-      }
-    }
-
-    const processedData = deepSeekProcessor.preprocessChunk
-      ? deepSeekProcessor.preprocessChunk(data)
-      : data;
-
-    console.log(
-      `[processDataChunkWrapper] Current buffer lengths - Main: ${mainTextBuffer.length}, Thinking: ${thinkingTextBuffer.length}`
-    );
-
-    const result = deepSeekProcessor.processChunkAndUpdateBuffers(
-      processedData,
-      chunkBuffer,
-      mainTextBuffer,
-      thinkingTextBuffer,
-      isThinking
-    );
-
-    mainTextBuffer = result.mainTextBuffer || "";
-    thinkingTextBuffer = result.thinkingTextBuffer || "";
-    chunkBuffer = result.chunkBuffer || "";
-    isThinking = result.isThinking || false;
-
-    console.log(
-      `[processDataChunkWrapper] After processing - Main buffer length: ${mainTextBuffer.length}`
-    );
-
-    if (isThinking && thinkingTextBuffer) {
-      if (!thinkingContainers[currentMessageId]) {
-        thinkingContainers[currentMessageId] =
-          deepSeekProcessor.renderThinkingContainer(
-            messageContainer,
-            thinkingTextBuffer,
-            { createNew: true }
-          );
-      }
-      thinkingContainer = thinkingContainers[currentMessageId];
-    }
-
-    let shouldForceRender = false;
-
-    if (mainTextBuffer.length > 0 || thinkingTextBuffer.length > 0) {
-      shouldForceRender = true;
-    }
-
-    if (isDeepSeek) {
-      shouldForceRender = true;
-    }
-
-    if (shouldForceRender) {
-      console.log("[processDataChunkWrapper] Forcing render");
-      renderBufferedContent();
-    }
-  } catch (error) {
-    console.error("[processDataChunkWrapper] Error processing chunk:", error);
-    import("./sentryInit.js")
-      .then(({ captureError }) => {
-        captureError(error, {
-          context: "streaming.js",
-          location: "processDataChunkWrapper",
-          modelName: currentModel || "unknown",
-          isDeepSeek: isDeepSeek || false,
-          dataType: typeof data,
-          bufferState: {
-            mainLength: mainTextBuffer?.length || 0,
-            thinkingLength: thinkingTextBuffer?.length || 0,
-            isThinking: isThinking || false,
-          },
+      import("./sentryInit.js").then((sentry) => {
+        sentry.addBreadcrumb({
+          category: "streaming.error",
+          message: `Failed to parse SSE chunk: ${err.message}`,
+          level: "error",
+          data: { chunkSnippet: seg.substring(0, 100) },
         });
-      })
-      .catch((e) => console.error("Failed to load Sentry module:", e));
+      });
+    }
   }
+
+  // Start "thinking" animation if not already
+  if (messageContainer) {
+    const block = messageContainer.querySelector(".deepseek-cot-block");
+    if (block) {
+      const icon = block.querySelector(".thought-icon");
+      if (icon) {
+        icon.classList.remove("complete");
+        icon.classList.add("thinking");
+      }
+    }
+  }
+
+  scheduleRender();
 }
 
+/* ------------------------------------------------------------------
+   handleDataChunk: parse SSE data content
+   ------------------------------------------------------------------ */
+function handleDataChunk(data) {
+  if (connectionTimeoutId) {
+    clearTimeout(connectionTimeoutId);
+  }
+
+  let newText = "";
+  if (typeof data.text === "string") {
+    newText = data.text;
+    const chunkTokens = data.text.split(/\s+/).length;
+    tokenCount += chunkTokens;
+  } else if (
+    data.choices &&
+    data.choices[0] &&
+    data.choices[0].delta &&
+    data.choices[0].delta.content
+  ) {
+    newText = data.choices[0].delta.content;
+  }
+
+  if (!newText) return;
+
+  const parseResult = deepSeekProcessor.parseChainOfThought(
+    newText,
+    mainTextBuffer,
+    thinkingTextBuffer,
+    isThinking
+  );
+  mainTextBuffer = parseResult.mainText;
+  thinkingTextBuffer = parseResult.thinkingText;
+  isThinking = parseResult.isThinking;
+}
+
+/* ------------------------------------------------------------------
+   Rendering logic
+   ------------------------------------------------------------------ */
 function scheduleRender() {
+  // Cancel any pending render to avoid duplicate renders
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+
   if (shouldRenderNow(lastRenderTimestamp, RENDER_INTERVAL_MS)) {
-    if (animationFrameId) {
-      cancelAnimationFrame(animationFrameId);
-    }
+    // Immediate render if enough time has passed
     animationFrameId = requestAnimationFrame(() => {
       renderBufferedContent();
       lastRenderTimestamp = Date.now();
       animationFrameId = null;
     });
+  } else {
+    // Otherwise, schedule for later
+    setTimeout(() => {
+      if (!animationFrameId) { // Only schedule if no render is pending
+        animationFrameId = requestAnimationFrame(() => {
+          renderBufferedContent();
+          lastRenderTimestamp = Date.now();
+          animationFrameId = null;
+        });
+      }
+    }, RENDER_INTERVAL_MS - (Date.now() - lastRenderTimestamp));
   }
 }
 
@@ -878,219 +630,202 @@ function forceRender() {
 
 function renderBufferedContent() {
   try {
-    const chatHistory = document.getElementById("chat-history");
-    if (!chatHistory) return;
-
     if (!messageContainer) {
-      // fallback
       messageContainer = ensureMessageContainer();
     }
+    if (!messageContainer) return;
 
-    console.log(
-      `[renderBufferedContent] Buffers - Main: ${mainTextBuffer.length}, Thinking: ${thinkingTextBuffer.length}`
-    );
-
-    const mainContentToRender = mainTextBuffer || "";
-    renderContentEfficiently(messageContainer, mainContentToRender, {
-      scroll:
-        Date.now() - lastScrollTimestamp > SCROLL_INTERVAL_MS && !errorState,
-    });
-
-    if (thinkingTextBuffer && thinkingTextBuffer.trim()) {
-      console.log(
-        `[renderBufferedContent] Rendering thinking content, length: ${thinkingTextBuffer.length}`
-      );
-
-      let thinkingDiv = messageContainer.querySelector(".thinking-fallback");
-      if (!thinkingDiv) {
-        thinkingDiv = document.createElement("div");
-        thinkingDiv.className =
-          "thinking-fallback mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded";
-        thinkingDiv.innerHTML = `
-          <details open>
-            <summary class="font-medium cursor-pointer">Chain of Thought</summary>
-            <pre class="whitespace-pre-wrap mt-2 thinking-content">${thinkingTextBuffer}</pre>
-          </details>
-        `;
-        messageContainer.appendChild(thinkingDiv);
-      } else {
-        const thinkingContent = thinkingDiv.querySelector(".thinking-content");
-        if (thinkingContent) {
-          thinkingContent.textContent = thinkingTextBuffer;
-        }
-      }
+    // First time setup - create the container structure
+    if (!messageContainer.querySelector(".message-content")) {
+      messageContainer.innerHTML = "";
+      messageContainer.setAttribute("data-streaming", "true");
+      
+      // Create initial container structure
+      const messageContentContainer = document.createElement("div");
+      messageContentContainer.className = "message-content";
+      messageContainer.appendChild(messageContentContainer);
+      
+      // Create containers (even if empty) to maintain stable structure
+      const thinkingContainer = document.createElement("div");
+      thinkingContainer.className = "thinking-container";
+      messageContentContainer.appendChild(thinkingContainer);
+      
+      const responseContentDiv = document.createElement("div");
+      responseContentDiv.className = "response-content";
+      messageContentContainer.appendChild(responseContentDiv);
     }
+    
+    // Get references to existing containers
+    const messageContentContainer = messageContainer.querySelector(".message-content");
+    const thinkingContainer = messageContentContainer.querySelector(".thinking-container");
+    const responseContentDiv = messageContentContainer.querySelector(".response-content");
+    
+    // Update thinking content if needed (without replacing the entire container)
+    if (thinkingTextBuffer && thinkingTextBuffer.trim()) {
+      // Update existing thinking block or create a new one
+      deepSeekProcessor.renderThinkingContainer(
+        thinkingContainer,
+        thinkingTextBuffer,
+        { createNew: !thinkingContainer.querySelector(".deepseek-cot-block"), isComplete: !rollingBuffer && !isThinking }
+      );
+      
+      // Make sure thinking container is visible
+      thinkingContainer.style.display = "block";
+    } else {
+      // Hide thinking container if no content
+      thinkingContainer.style.display = "none";
+    }
+
+    // Render the main content with minimal DOM changes
+    let cleaned = renderMarkdown(mainTextBuffer.trim());
+    renderContentEfficiently(responseContentDiv, cleaned, { scroll: true });
+    
+    // Highlight code blocks if needed
+    highlightCode(responseContentDiv);
   } catch (err) {
     console.error("[renderBufferedContent] Error:", err);
-    const debugInfo = {
-      mainBufferLength: (mainTextBuffer || "").length,
-      thinkingBufferLength: (thinkingTextBuffer || "").length,
-      messageContainerExists: !!messageContainer,
-      messageContainerId: messageContainer?.id || "none",
-      errorState: errorState,
-    };
-    console.error("Debug info:", debugInfo);
 
-    import("./sentryInit.js")
-      .then(({ captureError }) => {
-        captureError(err, {
-          context: "streaming.js",
-          location: "renderBufferedContent",
-          debug: debugInfo,
-        });
-      })
-      .catch((e) => console.error("Failed to load Sentry module:", e));
+    import("./sentryInit.js").then((sentry) => {
+      sentry.captureError(err, { context: "renderBufferedContent" });
+    });
   }
 }
 
+/* ------------------------------------------------------------------
+   handleStreamingError
+   ------------------------------------------------------------------ */
+function handleStreamingError(error) {
+  console.error("[handleStreamingError]", error);
+  if (!errorState) {
+    errorState = true;
+    forceRender();
+
+    if (messageContainer) {
+      const errBlock = document.createElement("div");
+      errBlock.className =
+        "streaming-error-note text-sm text-red-600 dark:text-red-400 mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded";
+      errBlock.textContent =
+        "⚠️ The response was interrupted and is incomplete.";
+      messageContainer.appendChild(errBlock);
+    }
+
+    import("./sentryInit.js").then((sentry) => {
+      sentry.captureError(error, {
+        context: "handleStreamingError",
+        tags: { error_stage: "streaming" },
+      });
+      sentry.addBreadcrumb({
+        category: "streaming.error",
+        message: `handleStreamingError triggered: ${error.message}`,
+        level: "error",
+      });
+    });
+
+    utilsHandleStreamingError(error, showNotification, messageContainer);
+    removeStreamingProgressIndicator();
+    eventBus.publish("streamingError", {
+      error,
+      recoverable: false,
+      modelName: document.getElementById("model-select")?.value || null,
+    });
+  }
+}
+
+/* ------------------------------------------------------------------
+   cleanupStreaming - called when the SSE completes or errors out
+   ------------------------------------------------------------------ */
 async function cleanupStreaming(modelName) {
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    const messages = document.querySelectorAll('.message');
+    messages.forEach(msg => {
+      msg.style.opacity = '1';
+      msg.style.height = 'auto';
+      msg.classList.add('mobile-message-persist');
+    });
+  }
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
     animationFrameId = null;
   }
-
   try {
     const { removeTypingIndicator } = await import("./ui/notificationManager.js");
     removeTypingIndicator();
     removeStreamingProgressIndicator();
 
     if (messageContainer) {
+      messageContainer.removeAttribute("data-streaming");
+      const block = messageContainer.querySelector(".deepseek-cot-block");
+      if (block) {
+        block.removeAttribute("data-streaming");
+      }
       finalizeStreamingContainer(messageContainer);
     }
-  } catch (error) {
-    console.error("[cleanupStreaming] Error cleaning up indicators:", error);
+  } catch (err) {
+    console.error("[cleanupStreaming] Error:", err);
   } finally {
     document.querySelectorAll(".typing-indicator").forEach((el) => el.remove());
-    document
-      .querySelectorAll(".streaming-progress")
-      .forEach((el) => el.remove());
+    document.querySelectorAll(".streaming-progress").forEach((el) => el.remove());
+    
+    if (window.statsDisplay) {
+      const usage = {
+        promptTokens: 0,
+        completionTokens: tokenCount,
+        reasoningTokens: 0,
+        totalTokens: tokenCount
+      };
+      window.statsDisplay.updateStats(usage);
+    }
   }
 
   if (messageContainer) {
     try {
-      const conversationId = await getSessionId();
-      if (!conversationId) {
-        console.error("No valid conversation ID found — cannot store message.");
-      } else {
-        let finalContent = mainTextBuffer || " ";
-        if (thinkingTextBuffer && thinkingTextBuffer.trim()) {
-          console.log(
-            `[cleanupStreaming] Including thinking content, length: ${thinkingTextBuffer.length}`
-          );
-          finalContent =
-            finalContent + `\n\n<think>${thinkingTextBuffer}</think>`;
-        }
-
-        console.log(
-          `[cleanupStreaming] Storing message with length: ${finalContent.length}`
-        );
-
-        const chunkSize = 1024 * 1024;
-        if (finalContent.length > chunkSize * 2) {
-          console.log(
-            `[cleanupStreaming] Large content detected (${finalContent.length} chars), using chunked approach`
-          );
-        }
-
-        await fetchWithRetry(
-          window.location.origin +
-          `/api/chat/conversations/${conversationId}/messages`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-              "X-Content-Length": finalContent.length.toString(),
-            },
-            body: JSON.stringify({
-              role: "assistant",
-              content: finalContent,
-              model: modelName || "DeepSeek-R1",
-            }),
-            timeout: Math.max(30000, finalContent.length / 100),
-          }
-        ).catch((err) => console.warn("Failed to store message:", err));
+      const sessionId = await getSessionId();
+      if (!sessionId) {
+        console.error("No valid session ID to store message");
+        return;
       }
-    } catch (e) {
-      console.warn("Failed to store message:", e);
+
+      // Refresh session
+      try {
+        await refreshSession(sessionId);
+      } catch (refreshErr) {
+        console.warn("[cleanupStreaming] Failed to refresh session:", refreshErr);
+      }
+
+      let finalContent = mainTextBuffer.trim() || "";
+      if (thinkingTextBuffer.trim()) {
+        finalContent += `\n\n<think>${thinkingTextBuffer.trim()}</think>`;
+      }
+
+      console.log(`[cleanupStreaming] Storing final content length: ${finalContent.length}`);
+
+      console.warn("[cleanupStreaming] SSE returned no content - storing an empty message anyway.");
+
+      await fetchWithRetry(
+        window.location.origin + `/api/chat/conversations/${sessionId}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "X-Content-Length": String(finalContent.length),
+            "X-Session-ID": sessionId,
+          },
+          body: JSON.stringify({
+            role: "assistant",
+            content: finalContent,
+            model: modelName || "DeepSeek-R1",
+          }),
+          timeout: Math.max(30000, finalContent.length / 100),
+        }
+      ).catch((err) => console.warn("Failed to store message:", err));
+    } catch (storeErr) {
+      console.warn("Error storing final content:", storeErr);
+      import("./sentryInit.js").then((sentry) => {
+        sentry.captureError(storeErr, { context: "cleanupStreamingStore" });
+      });
     }
   }
 }
 
-function getReasoningEffortSetting() {
-  const slider = document.getElementById("reasoning-effort-slider");
-  if (slider) {
-    const value = parseInt(slider.value, 10);
-    if (value === 1) return "low";
-    if (value === 3) return "high";
-    return "medium";
-  }
-  return "medium";
-}
-
-// Debug helper
-window.debugStreamingState = function () {
-  console.log("--- STREAMING DEBUG INFO ---");
-  console.log("Main buffer length:", mainTextBuffer?.length || 0);
-  console.log(
-    "Main buffer content:",
-    mainTextBuffer?.substring(0, 100) + "..."
-  );
-  console.log("Thinking buffer length:", thinkingTextBuffer?.length || 0);
-  console.log("Current message container:", messageContainer?.id || "none");
-  console.log(
-    "Current message container content:",
-    messageContainer?.innerHTML?.substring(0, 100) || "none"
-  );
-
-  const containers = document.querySelectorAll(
-    '.assistant-message[data-streaming="true"]'
-  );
-  console.log("Active streaming containers:", containers.length);
-
-  containers.forEach((container, i) => {
-    console.log(`Container ${i} ID:`, container.id || "no-id");
-    console.log(
-      `Container ${i} content length:`,
-      container.textContent?.length || 0
-    );
-    console.log(
-      `Container ${i} visibility:`,
-      window.getComputedStyle(container).visibility,
-      window.getComputedStyle(container).display
-    );
-  });
-
-  const styleSheets = document.styleSheets;
-  let hidingRules = [];
-
-  try {
-    for (let i = 0; i < styleSheets.length; i++) {
-      const rules = styleSheets[i].cssRules || styleSheets[i].rules;
-      if (!rules) continue;
-
-      for (let j = 0; j < rules.length; j++) {
-        const rule = rules[j];
-        if (
-          rule.selectorText &&
-          (rule.selectorText.includes(".assistant-message") ||
-            rule.selectorText.includes(".message"))
-        ) {
-          if (
-            rule.style.display === "none" ||
-            rule.style.visibility === "hidden" ||
-            rule.style.opacity === "0"
-          ) {
-            hidingRules.push(rule.selectorText);
-          }
-        }
-      }
-    }
-  } catch (e) {
-    console.log("Error checking CSS rules:", e);
-  }
-
-  console.log("CSS rules that might hide content:", hidingRules);
-
-  return "Debug info logged to console";
-};
+export { streamChatResponse };

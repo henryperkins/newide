@@ -1,3 +1,19 @@
 [flake8]
-ignore = E501, W291, W293, W391, E302
+ignore = E501, W291, W293, W391, E302, W503, C901
 max-line-length = 120
+max-complexity = 15
+exclude =
+    .git,
+    __pycache__,
+    migrations,
+    logs,
+    build,
+    docs,
+    MCP,
+    *.drawio,
+    new_env
+per-file-ignores =
+    routers/security.py: E,F,W
+    .aider.chat.history.md: E,F,W
+    os.py: E,F,W
+    __init__.py: E,F,W

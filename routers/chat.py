@@ -6,14 +6,13 @@ import uuid
 import json
 import time
 import asyncio
-from typing import Optional, Dict, Any, AsyncIterator, List
+from typing import Optional, Dict, Any, AsyncIterator
 from uuid import UUID
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from sqlalchemy import select, delete, update, func
+from sqlalchemy import select, delete, update, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 import sentry_sdk
 
@@ -24,10 +23,10 @@ from clients import get_model_client_dependency
 from pydantic_models import (
     CreateChatCompletionRequest,
 )
-from models import Conversation, Session, User
+from models import Conversation, User
 from routers.security import get_current_user
 from services.chat_service import save_conversation
-from services.model_stats_service import ModelStatsService
+from services.session_service import SessionService
 from utils import (
     count_tokens,
     is_o_series_model,
@@ -65,11 +64,13 @@ async def create_new_conversation(
         pinned = data.get("pinned", False)
         archived = data.get("archived", False)
 
-        # Create a brand-new Session (1 row per conversation).
-        session_id = uuid.uuid4()
-        new_session = Session(id=session_id)
-        db.add(new_session)
-        await db.flush()  # ensures new_session is persisted
+        # Create a brand-new Session (1 row per conversation) using SessionService
+        # Pass the user's ID if they're authenticated
+        user_id = str(current_user.id) if current_user else None
+        new_session = await SessionService.create_session(
+            db_session=db,
+            user_id=user_id
+        )
 
         # Create the initial Conversation row (the first message)
         timestamp = datetime.now(timezone.utc)
@@ -118,10 +119,13 @@ async def add_conversation_message(
         if not role or not content:
             raise HTTPException(status_code=400, detail="Missing role or content")
 
-        # Verify session exists
-        stmt = select(Session).where(Session.id == conversation_id)
-        res = await db.execute(stmt)
-        session_db = res.scalar_one_or_none()
+        # Verify session exists using SessionService
+        session_db = await SessionService.validate_session(
+            session_id=conversation_id,
+            db_session=db,
+            require_valid=False
+        )
+        
         if not session_db:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -156,10 +160,12 @@ async def get_conversation_messages(
     Returns pinned/archived/title from the first message row found.
     """
     try:
-        # Validate conversation
-        stmt = select(Session).where(Session.id == conversation_id)
-        res = await db.execute(stmt)
-        session_db = res.scalar_one_or_none()
+        # Validate conversation using SessionService
+        session_db = await SessionService.validate_session(
+            session_id=conversation_id,
+            db_session=db,
+            require_valid=False
+        )
         if not session_db:
             # Return an empty conversation instead of raising 404
             return {
@@ -230,19 +236,20 @@ async def clear_conversation(
     Deletes all messages for a given conversation (and the Session row if desired).
     """
     try:
-        # Validate session
-        sel_stmt = select(Session).where(Session.id == conversation_id)
-        sess_res = await db.execute(sel_stmt)
-        session_db = sess_res.scalar_one_or_none()
+        # Validate session using SessionService
+        session_db = await SessionService.validate_session(
+            session_id=conversation_id,
+            db_session=db,
+            require_valid=False
+        )
         if not session_db:
             return {"status": "cleared", "detail": "No conversation found"}
 
         # Delete messages in that session
         del_stmt = delete(Conversation).where(Conversation.session_id == session_db.id)
         await db.execute(del_stmt)
-        # Delete session row
-        await db.delete(session_db)
-        await db.commit()
+        # Delete session row using SessionService
+        await SessionService.delete_session(str(session_db.id), db_session=db)
 
         return {"status": "cleared"}
     except Exception as exc:
@@ -266,10 +273,12 @@ async def rename_conversation(
         if not new_title:
             raise HTTPException(status_code=400, detail="No 'title' provided")
 
-        # Validate session
-        sel_stmt = select(Session).where(Session.id == conversation_id)
-        sess_res = await db.execute(sel_stmt)
-        session_db = sess_res.scalar_one_or_none()
+        # Validate session using SessionService
+        session_db = await SessionService.validate_session(
+            session_id=conversation_id,
+            db_session=db,
+            require_valid=False
+        )
         if not session_db:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -303,15 +312,20 @@ async def pin_conversation(
 ):
     """
     Pin or unpin a conversation. Body must have {"pinned": bool}.
+    Enforce ownership checks to prevent unauthorized pinning.
     """
     try:
         body = await request.json()
         pinned_val = body.get("pinned", True)
 
-        # Validate session
-        sel_stmt = select(Session).where(Session.id == conversation_id)
-        sess_res = await db.execute(sel_stmt)
-        session_db = sess_res.scalar_one_or_none()
+        # Validate session with ownership checks
+        session_db = await SessionService.validate_session(
+            session_id=conversation_id,
+            db_session=db,
+            user_id=str(current_user.id) if current_user else None,
+            require_valid=True
+        )
+
         if not session_db:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -325,6 +339,10 @@ async def pin_conversation(
         await db.commit()
 
         return {"status": "success", "pinned": pinned_val}
+    except HTTPException as exc:
+        await db.rollback()
+        logger.exception(f"Ownership or session error: {exc}")
+        raise exc
     except Exception as exc:
         await db.rollback()
         logger.exception(f"Error updating pin status: {exc}")
@@ -345,10 +363,12 @@ async def archive_conversation(
         data = await request.json()
         archived_val = data.get("archived", True)
 
-        # Validate session
-        sel_stmt = select(Session).where(Session.id == conversation_id)
-        sess_res = await db.execute(sel_stmt)
-        session_db = sess_res.scalar_one_or_none()
+        # Validate session using SessionService
+        session_db = await SessionService.validate_session(
+            session_id=conversation_id,
+            db_session=db,
+            require_valid=False
+        )
         if not session_db:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -400,11 +420,12 @@ async def list_conversations(
         if search:
             pattern = f"%{search}%"
             base_query = base_query.where(
-                (Conversation.title.ilike(pattern))
-                | (Conversation.content.ilike(pattern))
+                or_(
+                    Conversation.title.ilike(pattern),
+                    Conversation.content.ilike(pattern)
+                )
             )
-
-        # pinned / archived filters
+            # pinned / archived filters
         if pinned is not None:
             base_query = base_query.having(func.bool_or(Conversation.pinned) == pinned)
         if archived is not None:
@@ -469,10 +490,14 @@ async def store_conversation(
         if not session_id or not role or not content:
             raise HTTPException(status_code=400, detail="Missing required fields")
 
-        # Validate session
-        stmt = select(Session).where(Session.id == session_id)
-        res = await db.execute(stmt)
-        if not res.scalar_one_or_none():
+        # Validate session using SessionService
+        session = await SessionService.validate_session(
+            session_id=session_id,  # Now declared above from the header
+            db_session=db,
+            require_valid=False
+        )
+        
+        if not session:
             raise HTTPException(status_code=404, detail="Session not found")
 
         msg = Conversation(
@@ -509,8 +534,6 @@ async def create_chat_completion(
             raise HTTPException(status_code=400, detail="Missing 'messages' field")
 
         model_name = request.model or "o1"
-        client_wrapper = await get_model_client_dependency(model_name)
-        client = client_wrapper["client"]
 
         # STUB: replace with real completion call if desired
         response_data = {
@@ -529,8 +552,13 @@ async def create_chat_completion(
         }
 
         # Store user & assistant messages in the conversation table
-        user_text = request.messages[-1]["content"]
-        assistant_text = response_data["choices"][0]["message"]["content"]
+        temp_user_dict = request.messages[-1]  # type: ignore
+        user_text = temp_user_dict.get("content", "") if isinstance(temp_user_dict, dict) else ""
+        
+        choices_list = response_data.get("choices", []) if isinstance(response_data, dict) else []
+        first_choice = choices_list[0] if isinstance(choices_list, list) and choices_list else {}
+        message_dict = first_choice.get("message", {}) if isinstance(first_choice, dict) else {}
+        assistant_text = message_dict.get("content", "") if isinstance(message_dict, dict) else ""
 
         from uuid import UUID
         user_msg = Conversation(
@@ -563,14 +591,29 @@ async def create_chat_completion(
 # -------------------------------------------------------------------------
 @router.get("/sse")
 @sentry_sdk.trace()
-async def chat_sse(
+async def chat_sse(  # noqa: C901
     request: Request,
-    session_id: UUID,
-    model: str,
-    message: str,
+    model: str = "",
+    message: str = "",
     reasoning_effort: str = "medium",  # used by O-series
     db: AsyncSession = Depends(get_db_session),
 ):
+    # Extract session_id from the X-Session-ID header
+    header_session_id = request.headers.get("X-Session-ID")
+    if not header_session_id:
+        raise HTTPException(status_code=400, detail="Missing X-Session-ID header")
+
+    try:
+        session_id = UUID(header_session_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid session ID format")
+
+    # Explicitly validate that 'model' and 'message' were provided
+    if not model or not message:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required arguments: 'message' and 'model' must be non-empty."
+        )
     """
     Stream chat completions using Server-Sent Events (SSE).
     """
@@ -600,12 +643,33 @@ async def chat_sse(
         await SSE_SEMAPHORE.acquire()
 
     try:
-        # Validate session
-        stmt = select(Session).where(Session.id == session_id)
-        res = await db.execute(stmt)
-        session_db = res.scalar_one_or_none()
+        # Validate session using the SessionService
+        session_db = await SessionService.validate_session(
+            session_id=session_id,
+            db_session=db,
+            require_valid=False
+        )
+        
         if not session_db:
-            raise HTTPException(status_code=404, detail="Session not found")
+            # Automatically create a session if the provided session_id doesn't exist
+            logger.info(f"Session {session_id} not found, creating a new session")
+            session_db = await SessionService.create_session(db_session=db)
+            
+            # Record that we created a session
+            sentry_sdk.set_tag("session_auto_created", "true")
+            session_info = {
+                "id": str(session_db.id),
+                "created_at": session_db.created_at.isoformat() if session_db.created_at else None,
+                "expires_at": session_db.expires_at.isoformat() if session_db.expires_at else None
+            }
+            logger.info(f"Automatically created new Session: {session_info}")
+            
+            # Update the model for this session
+            await SessionService.switch_model(
+                session_id=str(session_db.id),
+                new_model=model,
+                db_session=db
+            )
 
         # Retrieve the correct client
         client_wrapper = await get_model_client_dependency(model)
@@ -650,7 +714,7 @@ async def chat_sse(
             SSE_SEMAPHORE.release()
 
 
-async def generate_stream_chunks(
+async def generate_stream_chunks(  # noqa: C901
     request: Request,
     message: str,
     model_name: str,
@@ -675,61 +739,80 @@ async def generate_stream_chunks(
         
         # Add model-specific settings
         if is_deepseek:
-            params.update({
-                "max_tokens": 131072,
-                "temperature": 0.5,
-                "model": model_name,
-                "headers": {
-                    "x-ms-thinking-format": "html", 
-                    "x-ms-streaming-version": "2024-05-01-preview"
-                }
-            })
+            params["max_tokens"] = 131072  # type: ignore
+            params["temperature"] = 0.5  # type: ignore
+            params["model"] = model_name  # type: ignore
+            params["headers"] = {  # type: ignore
+                "x-ms-thinking-format": "html",
+                "x-ms-streaming-version": "2024-05-01-preview"
+            }
+            
+            # Log what we're about to call
+            logger.info(f"Calling DeepSeek client.complete with params: {params}")
+            
             # For DeepSeek, use complete() directly and iterate over the response
-            stream_response = client.complete(**params)
-            # Iterate over the response chunks synchronously 
-            for chunk in stream_response:
-                if await request.is_disconnected():
-                    break
-                    
-                chunk_text = ""
-                if hasattr(chunk, "choices") and chunk.choices:
-                    delta = chunk.choices[0].delta
-                    if hasattr(delta, "content"):
-                        chunk_text = delta.content or ""
-                        full_content += chunk_text
+            try:
+                stream_response = await client.complete(**params)
+                logger.info("DeepSeek stream_response initiated successfully")
+
+                # Iterate over the response chunks
+                async for chunk in stream_response:
+                    if await request.is_disconnected():
+                        logger.info("Client disconnected, stopping stream")
+                        break
                         
-                yield f"data: {json.dumps({'text': chunk_text})}\n\n"
+                    chunk_text = ""
+                    if hasattr(chunk, "choices") and chunk.choices:
+                        delta = chunk.choices[0].delta
+                        if hasattr(delta, "content"):
+                            chunk_text = delta.content or ""
+                            full_content += chunk_text
+                            
+                    yield f"data: {json.dumps({'text': chunk_text})}\n\n"
+                    
+            except Exception as model_error:
+                logger.exception(f"Error in DeepSeek client.complete: {model_error}")
+                yield f"data: {json.dumps({'error': str(model_error)})}\n\n"
+                # Fall back to a simple response
+                yield f"data: {json.dumps({'text': 'Error generating streaming response. Please try again.'})}\n\n"
                 
         elif is_o_series:
-            params.update({
-                "max_completion_tokens": O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
-                "reasoning_effort": reasoning_effort
-            })
+            # Suppress Pylance type issues by forcing these entries to Any
+            params["max_completion_tokens"] = int(O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS)  # type: ignore
+            params["reasoning_effort"] = str(reasoning_effort)  # type: ignore
+            params["model"] = model_name  # Ensure model is included
             # O-series uses different client
             stream_response = await client.chat.completions.create(**params)
             async for chunk in stream_response:
                 if await request.is_disconnected():
                     break
-                    
-                if hasattr(chunk.choices[0], "delta"):
-                    delta = chunk.choices[0].delta
-                    if hasattr(delta, "content"):
-                        chunk_text = delta.content or ""
-                        full_content += chunk_text
-                        yield f"data: {json.dumps({'text': chunk_text})}\n\n"
+
+                chunk_text = ""
+                if chunk.choices and len(chunk.choices) > 0:
+                    if hasattr(chunk.choices[0], "delta"):
+                        delta = chunk.choices[0].delta
+                        if hasattr(delta, "content"):
+                            chunk_text = delta.content or ""
+                            full_content += chunk_text
+                    yield f"data: {json.dumps({'text': chunk_text})}\n\n"
+                else:
+                    logger.warning("Received empty choices from O1 chunk, skipping.")
+                    yield f"data: {json.dumps({'text': ''})}\n\n"
         else:
             # Default OpenAI-style client
             stream_response = await client.chat.completions.create(**params)
             async for chunk in stream_response:
                 if await request.is_disconnected():
                     break
-                    
+
+                chunk_text = ""
                 if hasattr(chunk.choices[0], "delta"):
                     delta = chunk.choices[0].delta
                     if hasattr(delta, "content"):
                         chunk_text = delta.content or ""
                         full_content += chunk_text
-                        yield f"data: {json.dumps({'text': chunk_text})}\n\n"
+
+                yield f"data: {json.dumps({'text': chunk_text})}\n\n"
         
         # Send completion messages
         yield f"data: {json.dumps({'type': 'done'})}\n\n"

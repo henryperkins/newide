@@ -1,5 +1,5 @@
 /* =========================================================================
-   main.css
+   main.css (Remediated)
    ========================================================================= */
 
 /* --- Tailwind Directives --- */
@@ -60,11 +60,17 @@
     --dracula-purple: #bd93f9;
     --dracula-red: #ff5555;
     --dracula-yellow: #f1fa8c;
-    --chat-height: calc(100vh - 64px - 120px);
+    --chat-height: calc(100dvh - 64px - 120px);
     /* Header height & input area */
   }
 
+  /* Fix for text-size-adjust compatibility issue */
+  :host,
   html {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     @apply antialiased text-dark-900 dark:text-white;
     font-size: 16px;
     transition: background-color 300ms ease, color 300ms ease;
@@ -122,7 +128,6 @@
    Components Layer (Buttons, Forms, Utility Classes, etc.)
    ========================================================================= */
 @layer components {
-
   /* Main layout components */
   .app-container {
     display: grid;
@@ -196,6 +201,18 @@
     @apply opacity-0;
   }
 
+  .fade-enter-active {
+    @apply opacity-100 transition-opacity duration-300;
+  }
+
+  .fade-exit {
+    @apply opacity-100;
+  }
+
+  .fade-exit-active {
+    @apply opacity-0 transition-opacity duration-300;
+  }
+
   /* Conversation button styles */
   .conversation-button {
     /* Default size for larger screens */
@@ -209,22 +226,10 @@
     }
 
     .conversation-button.touch-target {
-      min-height: auto;
-      min-width: auto;
+      min-height: unset; /* Replace 'auto' with 'unset' for better Firefox compatibility */
+      min-width: unset;  /* Consistent behavior */
       @apply px-2 py-1 text-sm;
     }
-  }
-
-  .fade-enter-active {
-    @apply opacity-100 transition-opacity duration-300;
-  }
-
-  .fade-exit {
-    @apply opacity-100;
-  }
-
-  .fade-exit-active {
-    @apply opacity-0 transition-opacity duration-300;
   }
 
   /* Chat layout improvements */
@@ -456,10 +461,9 @@
     min-width: 2.5rem;
     min-height: 2.5rem;
   }
-}
 
-/* Additional component styles */
-@layer components {
+  /* Additional component styles (merged from the second @layer components block): */
+
   .sidebar-transition {
     @apply transition-transform duration-300 ease-in-out;
   }
@@ -477,19 +481,31 @@
   /* Improve layout on mobile devices */
   @media (max-width: 640px) {
     :root {
-      --chat-height: calc(100vh - 64px - 100px);
+      /* Slight reduction to top/bottom offsets for more chat space */
+      --chat-height: calc(100vh - 64px - 80px);
     }
 
     #chat-history {
-      padding-bottom: 0.5rem;
+      padding-bottom: 1rem;
+      /* Provide a max-height to prevent overscroll beyond input area */
+      max-height: calc(100vh - 64px - 80px - 2rem);
+      @apply scrollbar-hide;
     }
 
     .input-area {
-      padding: 0.5rem;
+      padding: 0.75rem;
+      /* Smaller text for tight screens */
+      @apply text-sm;
     }
 
     .conversation-controls {
       padding: 0.5rem;
+      @apply text-sm flex-wrap;
+    }
+
+    /* Increase tap targets for buttons on mobile */
+    button {
+      @apply py-2 px-3;
     }
   }
 
@@ -504,6 +520,17 @@
    Utilities Layer
    ========================================================================= */
 @layer utilities {
+  /* Fix for ARIA hidden elements containing focusable elements */
+  [aria-hidden="true"] a,
+  [aria-hidden="true"] button,
+  [aria-hidden="true"] input,
+  [aria-hidden="true"] select,
+  [aria-hidden="true"] textarea,
+  [aria-hidden="true"] [tabindex]:not([tabindex="-1"]) {
+    /* Hide focusable elements inside aria-hidden containers */
+    display: none !important;
+  }
+
   .auto-resize-textarea {
     @apply resize-none overflow-hidden;
     max-height: 9.375rem;
@@ -570,4 +597,106 @@
   visibility: visible !important;
   opacity: 1 !important;
   min-height: 20px !important;
+}
+
+/* Additional styles from mobile instructions */
+
+/* Mobile file input enhancements */
+.mobile-source-sheet {
+  @apply safe-area-inset-bottom;
+  transition: transform 0.3s ease;
+}
+
+.mobile-source-btn {
+  @apply touch-target text-base;
+  min-height: 48px;
+}
+
+.mobile-upload-progress {
+  @apply touch-target;
+  backdrop-filter: blur(10px);
+}
+
+/* iOS/Safari specific fixes */
+@supports (-webkit-touch-callout: none) {
+  .mobile-source-sheet {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  input[type="file"] {
+    font-size: 16px !important; /* Prevent zoom on focus */
+  }
+}
+
+/* Android Chrome fixes */
+@media (pointer: coarse) {
+  .file-remove-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Hide conversation sidebar on small screens */
+@media (max-width: 768px) {
+  #conversations-sidebar {
+    transform: translateX(-100%); /* Hidden by default if not 'sidebar-open' */
+  }
+  #conversations-toggle {
+    /* Make the button bigger and easier to tap */
+    min-height: 2.5rem;
+    min-width: 2.5rem;
+  }
+  .input-area {
+    /* Possibly fix the input area at the bottom on mobile */
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: #ffffff;
+  }
+}
+
+/* Ensure chat messages do not overflow horizontally */
+.message.assistant-message,
+.message.user-message {
+  word-wrap: break-word;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* Code blocks also wrap on mobile */
+.hljs {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.assistant-message {
+  overflow-wrap: break-word !important;
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  max-width: 100% !important;
+}
+
+@media (max-width: 768px) {
+  .mobile-message-persist {
+    transform: translateZ(0); /* Force hardware acceleration */
+    will-change: transform;
+    contain: strict;
+  }
+
+  #chat-history {
+    overflow-anchor: none;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  .message-content {
+    min-height: 40px !important;
+    backface-visibility: hidden;
+  }
+  
+  .assistant-message {
+    touch-action: pan-y;
+    user-select: text;
+  }
 }

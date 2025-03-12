@@ -1,49 +1,23 @@
-import json
-import uuid
-import time
 from time import perf_counter
 from typing import Optional, List, Dict, Any
-import os
-import re
 
+import time
+import sentry_sdk
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import insert, text
 from logging_config import logger, response_logger
 import config
-from config import is_deepseek_model, is_o_series_model
-from models import Conversation
-from .config_service import ConfigService
 from pydantic_models import ChatMessage
+from models import Conversation
 from azure.core.exceptions import HttpResponseError
 
-from services.tracing_utils import trace_function, profile_block
+from services.tracing_utils import (
+    trace_function,
+    profile_block,
+    add_breadcrumb,
+    create_transaction
+)
 from clients import get_model_client_dependency
-import sentry_sdk
-
-
-
-def create_error_response(
-    status_code: int,
-    code: str,
-    message: str,
-    error_type: str = "service_error",
-    inner_error: str = "",
-) -> Dict[str, Any]:
-    """
-    Parse and handle errors from different client types consistently.
-    """
-    return {
-        "status_code": status_code,
-        "detail": {
-            "error": {
-                "code": code,
-                "message": message,
-                "type": error_type,
-                "inner_error": inner_error,
-            }
-        },
-    }
-
 
 class TokenManager:
     """
@@ -134,14 +108,14 @@ def prepare_model_parameters(
             if chat_message.temperature is not None
             else config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
         )
-        params["max_tokens"] = min(
-            params.get("max_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS),
-            config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
-        )
+        maybe_max_tokens = params.get("max_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS)
+        if not isinstance(maybe_max_tokens, (int, float)):
+            maybe_max_tokens = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+        params["max_tokens"] = int(min(maybe_max_tokens, config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS))
     elif is_o_series:
         params["max_completion_tokens"] = (
             chat_message.max_completion_tokens
-            or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
+            or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
         )
         # Enforce O1 context limit of 200,000 tokens
         params["max_completion_tokens"] = min(params["max_completion_tokens"], 200000)
@@ -158,32 +132,33 @@ def prepare_model_parameters(
 
 
 @trace_function(op="file.context", name="get_file_context")
-async def get_file_context(
+async def get_file_context(  # noqa: C901
     db_session: AsyncSession, file_ids: List[str], use_search: bool = False
 ) -> Optional[str]:
     """
     Retrieve file content to be used as context in the chat.
-
-    Args:
-        db_session: Database session
-        file_ids: List of file IDs to include as context
-        use_search: Whether to use Azure Search for context retrieval
-
-    Returns:
-        Formatted context string or None if no valid files found
+    If Azure Search is enabled, use it to get content. Otherwise,
+    retrieve directly from the database. 
     """
     if not file_ids:
         return None
+
+    # Add breadcrumb for file context retrieval
+    add_breadcrumb(
+        category="file.context",
+        message=f"Retrieving file context for {len(file_ids)} file(s)",
+        level="info",
+        file_ids=file_ids[:5] if len(file_ids) <= 5 else file_ids[:5] + ["..."],
+        use_search=use_search
+    )
 
     try:
         # If Azure Search is enabled, use it to get content
         if use_search:
             try:
-                with profile_block(description="Azure Search Context Retrieval", op="search.context"):
+                with profile_block(description="Azure Search Context Retrieval", op="search.context") as search_span:
                     from services.azure_search_service import AzureSearchService
-                    from models import UploadedFile
 
-                    # Need to get the session_id first
                     file_result = await db_session.execute(
                         text(
                             """
@@ -191,11 +166,10 @@ async def get_file_context(
                             FROM uploaded_files 
                             WHERE id = :file_id::uuid
                             LIMIT 1
-                        """
+                            """
                         ),
                         {"file_id": file_ids[0]},
                     )
-
                     session_id_row = file_result.fetchone()
                     if not session_id_row:
                         logger.warning(
@@ -205,11 +179,9 @@ async def get_file_context(
 
                     session_id = session_id_row[0]
 
-                    # Get Azure client
                     client_wrapper = await get_model_client_dependency()
                     azure_client = client_wrapper.get("client")
 
-                    # Use Azure Search
                     search_service = AzureSearchService(azure_client)
                     results = await search_service.query_index(
                         session_id=session_id,
@@ -219,14 +191,12 @@ async def get_file_context(
                     )
 
                     if results:
-                        # Format search results
+                        search_span.set_data("results_count", len(results))
                         formatted_content = "## Document Context\n\n"
                         for i, result in enumerate(results):
-                            # Add file information
                             formatted_content += f"### {result.get('filename')}\n"
                             if "content" in result:
                                 formatted_content += result.get("content", "") + "\n\n"
-
                         return formatted_content
             except Exception as e:
                 logger.error(f"Error using Azure Search for file context: {e}")
@@ -234,8 +204,9 @@ async def get_file_context(
                 # Fall back to direct file content retrieval
 
         # Get the file contents directly from database
-        with profile_block(description="DB File Content Retrieval", op="db.query"):
+        with profile_block(description="DB File Content Retrieval", op="db.query") as db_span:
             file_contents = []
+            total_chars = 0
             for file_id in file_ids:
                 result = await db_session.execute(
                     text(
@@ -243,24 +214,19 @@ async def get_file_context(
                         SELECT filename, content, file_type
                         FROM uploaded_files 
                         WHERE id = :file_id::uuid
-                    """
+                        """
                     ),
                     {"file_id": file_id},
                 )
-
                 row = result.fetchone()
                 if row:
                     filename, content, file_type = row
-                    # Truncate large files
-                    MAX_CHARS_PER_FILE = (
-                        15000  # Limit file size to avoid exceeding context window
-                    )
+                    MAX_CHARS_PER_FILE = 15000
                     if content and len(content) > MAX_CHARS_PER_FILE:
                         content = (
                             content[:MAX_CHARS_PER_FILE]
                             + f"\n\n[File truncated due to size. Original length: {len(content)} characters]"
                         )
-
                     file_contents.append(
                         {
                             "filename": filename,
@@ -268,18 +234,25 @@ async def get_file_context(
                             "file_type": file_type,
                         }
                     )
+                    total_chars += len(content) if content else 0
+
+            db_span.set_data("files_retrieved", len(file_contents))
+            db_span.set_data("total_chars", total_chars)
 
         if not file_contents:
+            add_breadcrumb(
+                category="file.context",
+                message="No file contents found in DB",
+                level="warning",
+                file_ids=file_ids[:5]
+            )
             return None
 
         # Format the context string
         with profile_block(description="Format Context String", op="text.format"):
             context = "## Document Context\n\n"
             for file_info in file_contents:
-                # Add file information
                 context += f"### {file_info['filename']}\n\n"
-
-                # Add file content based on file type
                 if file_info["file_type"] in [
                     ".py",
                     ".js",
@@ -290,15 +263,10 @@ async def get_file_context(
                     ".tsx",
                     ".json",
                 ]:
-                    # Format code files with markdown code blocks
                     context += f"```{file_info['file_type'][1:]}\n{file_info['content']}\n```\n\n"
                 else:
-                    # Regular text content
                     context += file_info["content"] + "\n\n"
-
-            # Add instructions for AI on how to use the context
             context += "\nRefer to the document context above when answering questions about the files. Include specific details from the files when relevant."
-
         return context
 
     except Exception as e:
@@ -308,7 +276,7 @@ async def get_file_context(
 
 
 @trace_function(op="chat.process", name="process_chat_message")
-async def process_chat_message(
+async def process_chat_message(  # noqa: C901
     chat_message: Any,
     db_session: AsyncSession,
     model_name: Optional[str] = None,
@@ -316,52 +284,75 @@ async def process_chat_message(
     """
     Processes a chat message, calls the appropriate model(s) using `client.complete`,
     optionally handles file context, and stores the final conversation data.
-
-    Args:
-        chat_message (Any): The incoming message data (which may include text, model info, etc.).
-        db_session (AsyncSession): Database session used for storing conversation/usage.
-        model_name (Optional[str]): The name of the model to use, if overriding what's in chat_message.
-
-    Returns:
-        Dict[str, Any]: A response dictionary structured like a chat completion, containing
-                        the 'choices', 'model', 'usage', 'processing_time_seconds', etc.
     """
-    start_time = perf_counter()
+    # Start a Sentry transaction to better track process_chat_message
+    transaction = sentry_sdk.start_transaction(
+        op="chat.process",
+        name="Process Chat Message"
+    )
+    # Tag the transaction for search/filter in Sentry
+    transaction.set_tag("model_name", model_name or "unknown")
+    session_id = getattr(chat_message, "session_id", "unknown")
+    transaction.set_tag("session_id", session_id)
+
+    with transaction.start_child(op="task", description="Initial Setup") as span:
+        start_time = perf_counter()
+        span.set_data("model_name", model_name or "unknown")
+        span.set_tag("session_id", session_id)
+        # Add breadcrumb for the start of chat processing
+        add_breadcrumb(
+            category="chat",
+            message=f"Starting chat processing for model {model_name}",
+            level="info",
+            session_id=session_id
+        )
+
     session_id = getattr(chat_message, "session_id", None)
     model_name = (
-        model_name
-        or getattr(chat_message, "model_name", None)
-        or config.AZURE_INFERENCE_DEPLOYMENT  # fallback from config
+        str(model_name)
+        if model_name
+        else getattr(chat_message, "model_name", None)
+        or config.AZURE_INFERENCE_DEPLOYMENT
     )
+    if not model_name:
+        model_name = "unknown_model"
 
     try:
-        # Retrieve model client
-        with profile_block(description="Get Model Client", op="model.client"):
+        with profile_block(description="Get Model Client", op="model.client") as client_span:
             model_client_dep = await get_model_client_dependency(model_name)
             if model_client_dep.get("error"):
-                raise ValueError(f"Error initializing model client: {model_client_dep['error']}")
+                error_info = model_client_dep["error"]
+                client_span.set_data("error", error_info)
+                add_breadcrumb(
+                    category="model.client",
+                    message=f"Error initializing model client: {error_info}",
+                    level="error"
+                )
+                raise ValueError(f"Error initializing model client: {error_info}")
 
             client = model_client_dep["client"]
             if not client:
+                client_span.set_data("error", "No valid client found")
+                add_breadcrumb(
+                    category="model.client",
+                    message=f"No valid client found for {model_name}",
+                    level="error"
+                )
                 raise ValueError(f"No valid client found for {model_name}")
 
-        # Prepare parameters (for example, combining user text and messages)
         messages = getattr(chat_message, "messages", None)
         user_text = getattr(chat_message, "message", "")
         if not messages:
-            # If messages are not provided, we create a simple user prompt
             messages = [{"role": "user", "content": user_text}]
 
-        # Optionally incorporate file contexts, e.g., chat_message.file_ids
-        # (omitting details here -- see your existing logic for get_file_context)
-
-        # Construct the default request params for `client.complete(...)`
         params = {
-            "stream": False,  # For non-streaming calls. Set True if you want streaming in process_chat_message.
+            "stream": False,
             "messages": messages,
         }
 
-        # Adjust model-specific parameters
+        # Determine if it's a DeepSeek model or O-series
+        from config import is_deepseek_model, is_o_series_model
+
         if is_deepseek_model(model_name):
             params.update({
                 "model": "DeepSeek-R1",
@@ -378,13 +369,12 @@ async def process_chat_message(
                 "reasoning_effort": getattr(chat_message, "reasoning_effort", "medium"),
             })
         else:
-            # Typical Azure OpenAI model
             params["temperature"] = getattr(chat_message, "temperature", 0.7)
             params["max_tokens"] = getattr(chat_message, "max_completion_tokens", 1000)
 
-        # Make the model call using client.complete
-        with profile_block(description="Model API Call", op="model.api"):
+        with profile_block(description="Model API Call", op="model.api") as model_span:
             response = await client.complete(**params)
+            # Attempt to log raw response for debugging
             try:
                 import json
                 response_logger.info("Raw model response:\n%s", json.dumps(response, indent=2, default=str))
@@ -392,21 +382,18 @@ async def process_chat_message(
                 logger.warning("Failed to dump response as JSON: %s", str(dump_error))
                 logger.info("Fallback raw response: %s", str(response))
 
-        # Extract the top assistant message content
         if not response.choices:
             content = ""
             logger.warning("No choices returned from the model.")
         else:
             content = response.choices[0].message.content
 
-        # If DeepSeek reasoning is returned, append it
-        # based on the 'understanding-reasoning' doc, we look for .reasoning property
+        # If the model includes reasoning in the response
         if hasattr(response.choices[0], "reasoning"):
             reasoning_text = getattr(response.choices[0], "reasoning", None) or ""
             if reasoning_text:
                 content += f"\n\n[DeepSeek Reasoning]\n{reasoning_text}"
 
-        # Build usage stats. If the service includes usage in the response, parse it. Otherwise, rely on your own token manager.
         usage_raw = getattr(response, "usage", None)
         if usage_raw:
             usage_data = {
@@ -415,22 +402,17 @@ async def process_chat_message(
                 "total_tokens": getattr(usage_raw, "total_tokens", 0),
             }
         else:
-            # Use a custom token counter if needed
             usage_data = {
                 "prompt_tokens": TokenManager.count_tokens(user_text),
                 "completion_tokens": TokenManager.count_tokens(content),
                 "total_tokens": TokenManager.count_tokens(user_text) + TokenManager.count_tokens(content),
             }
 
-        # Optionally process chain-of-thought or reasoning (if you rely on details from content).
-        # If the user wants to see the model's "thinking" output in DeepSeek responses, parse <thinking> blocks and
-        # include them in the final response. Adjust the parsing to fit your actual returned HTML or JSON structure.
-
+        # Some DeepSeek responses have <thinking> blocks
         if is_deepseek_model(model_name) and "<thinking>" in content:
             import re
             thinking_blocks = re.findall(r'<thinking>(.*?)</thinking>', content, flags=re.DOTALL)
             if thinking_blocks:
-                # Just capture the first <thinking> block for demonstration, or concatenate all if you prefer
                 thinking_output = thinking_blocks[0].strip()
             else:
                 thinking_output = ""
@@ -439,10 +421,25 @@ async def process_chat_message(
 
         if thinking_output:
             content += f"\n\n[DeepSeek Thinking]\n{thinking_output}"
-        
+
         processing_time = perf_counter() - start_time
 
-        # Store the conversation
+        from services.model_stats_service import ModelStatsService
+        import uuid
+
+        try:
+            session_uuid = uuid.UUID(session_id) if session_id else uuid.UUID("00000000-0000-0000-0000-000000000000")
+        except Exception:
+            session_uuid = uuid.UUID("00000000-0000-0000-0000-000000000000")
+
+        ms_service = ModelStatsService(db_session)
+        await ms_service.record_usage(
+            model=model_name,
+            session_id=session_uuid,
+            usage=usage_data,
+            metadata=None
+        )
+
         with profile_block(description="Save Conversation", op="db.save"):
             await save_conversation(
                 db_session=db_session,
@@ -451,8 +448,15 @@ async def process_chat_message(
                 user_text=user_text,
                 assistant_text=content,
                 formatted_assistant_text=content,
-                raw_response=response  # or a truncated version
+                raw_response=response
             )
+
+        # Mark transaction success
+        transaction.set_data("success", True)
+        transaction.set_data("usage", usage_data)
+        transaction.set_data("processing_time_seconds", processing_time)
+        transaction.set_status("ok")
+        transaction.finish()
 
         return {
             "id": f"chatcmpl-{uuid.uuid4()}",
@@ -473,14 +477,45 @@ async def process_chat_message(
 
     except HttpResponseError as he:
         logger.exception(f"[HttpResponseError] {he}")
+        
+        with transaction.start_child(op="error", description="HTTP Response Error") as err_span:
+            err_span.set_data("error.type", he.__class__.__name__)
+            err_span.set_data("error.message", str(he))
+            err_span.set_data("error.status_code", getattr(he, "status_code", "unknown"))
+            err_span.set_data("model_name", model_name)
+
+        add_breadcrumb(
+            category="http.error",
+            message=f"HTTP error from model service: {he}",
+            level="error",
+            status_code=getattr(he, "status_code", "unknown"),
+            model_name=model_name
+        )
         sentry_sdk.capture_exception(he)
+        transaction.set_status("internal_error")
+        transaction.finish()
+
         return {
             "status_code": he.status_code,
             "detail": str(he),
         }
     except Exception as e:
         logger.exception(f"Unexpected error in process_chat_message: {e}")
+        
+        with transaction.start_child(op="error", description="Unexpected Error") as err_span:
+            err_span.set_data("error.type", e.__class__.__name__)
+            err_span.set_data("error.message", str(e))
+            err_span.set_data("model_name", model_name)
+
+        add_breadcrumb(
+            category="error",
+            message=f"Unexpected error in process_chat_message: {e}",
+            level="error"
+        )
         sentry_sdk.capture_exception(e)
+        transaction.set_status("internal_error")
+        transaction.finish()
+
         return {
             "status_code": 500,
             "detail": str(e),
@@ -506,8 +541,6 @@ async def save_conversation(
     Modify according to your table structure and fields.
     """
     try:
-        # Insert user message and assistant message
-        # using bulk or individual inserts. Example:
         messages_to_insert = [
             {
                 "session_id": session_id,
@@ -523,12 +556,10 @@ async def save_conversation(
                 "content": assistant_text,
                 "model": model_name,
                 "formatted_content": formatted_assistant_text,
-                # If you don’t want to store entire raw_response, store partial
                 "raw_response": {"trimmed": True} if raw_response else None,
             },
         ]
 
-        # Insert into your "conversations" table
         await db_session.execute(insert(Conversation), messages_to_insert)
         await db_session.commit()
 
@@ -558,29 +589,23 @@ async def fetch_conversation_history(
         {"session_id": session_id},
     )
     rows = result.mappings().all()
-
     return [{"role": row.role, "content": row.content} for row in rows]
 
 
 async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
     """
-    Example method that calls the client again to produce a summary. 
+    Example method that calls the client again to produce a summary.
     Adjust as needed or remove if you don’t use summary logic.
     """
     if not messages:
         return ""
 
     combined_text = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in messages)
-
     try:
-        # For summarizing, just pick a model (DeepSeek, O-series, or default)
-        # Or pass in an argument specifying the summarizing model
         summarizing_model = "DeepSeek-R1"
-
         model_dep = await get_model_client_dependency(summarizing_model)
         summarizing_client = model_dep["client"]
 
-        # Build the summarization request
         response = await summarizing_client.complete(
             stream=False,
             messages=[
@@ -594,9 +619,7 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
         if response.choices and response.choices[0].message:
             return response.choices[0].message.content.strip()
         return ""
-
     except Exception as e:
         logger.error(f"Error summarizing messages: {e}")
         sentry_sdk.capture_exception(e)
         return f"Summary not available due to error: {str(e)}"
-    

@@ -12,7 +12,6 @@
  * @param {string} newHTML - New HTML content to render
  * @param {Object} options - Rendering options (e.g., scroll behavior)
  */
-// In streamingRenderer.js
 export function renderContentEfficiently(container, newHTML, options = {}) {
   if (!container) {
     console.error('[renderContentEfficiently] No container provided!');
@@ -31,89 +30,91 @@ export function renderContentEfficiently(container, newHTML, options = {}) {
 
   try {
     // CRITICAL FIX: Always apply visible styles to ensure container is shown
-    container.style.display = 'block';
-    container.style.minHeight = '20px';
-    container.style.opacity = '1';
-    container.style.visibility = 'visible';
+    container.classList.add('block', 'min-h-[20px]', 'opacity-100', 'visible');
     
-    // For incremental updates: if new content starts with old content, just append the remainder
+    // IMPROVED APPROACH: For incremental updates, handle both appending and replacements more efficiently
     if (newHTML.startsWith(oldHTML)) {
+      // If new content starts with old content, just append the remainder
       const remainder = newHTML.slice(oldHTML.length);
       if (remainder) {
-        // Log the remainder to help with debugging
-        console.log('[renderContentEfficiently] Appending remainder:', 
-          remainder.length, 'chars', 
-          remainder.substring(0, 20) + '...');
-        
-        // SIMPLER DIRECT APPROACH
-        // Check if we're dealing with HTML content
-        if (/<[a-z][\s\S]*>/i.test(remainder)) {
-          // For HTML content
-          container.innerHTML = newHTML; // Use full content to avoid HTML parsing issues
+        // For simple text increments, directly append textNode for better performance
+        if (!/<[a-z][\s\S]*>/i.test(remainder)) {
+          container.appendChild(document.createTextNode(remainder));
         } else {
-          // For plain text, direct append is more efficient
-          if (container.textContent === oldHTML) {
-            container.textContent = newHTML;
-          } else {
-            // Fallback if textContent doesn't match our reference
-            container.innerHTML = newHTML;
-          }
+          // For HTML content, use a temporary element and append nodes properly
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = remainder;
+          
+          // Use document fragment for bulk insertion (better performance)
+          const fragment = document.createDocumentFragment();
+          Array.from(tempDiv.childNodes).forEach(node => {
+            fragment.appendChild(node.cloneNode(true));
+          });
+          
+          container.appendChild(fragment);
         }
-
-        console.log('[renderContentEfficiently] Appended new content');
       }
+    } else if (oldHTML && newHTML.includes(oldHTML) && 
+              (newHTML.indexOf(oldHTML) < 100 || newHTML.length - oldHTML.length < 100)) {
+      // If old content is somewhere within new content (with reasonable distance),
+      // it's safer to update the whole content to prevent weird partial updates
+      container.innerHTML = newHTML;
     } else {
-      // Full content replace (this part was working correctly)
-      console.log('[renderContentEfficiently] Full content replace');
-
-      // Make sure the container is visible and has width/height
-      container.style.display = 'block';
-      container.style.minHeight = '20px';
-
-      // Use appropriate method based on content type
-      // FIXED: Don't limit by content length - render the full content regardless of size
+      // Full content replace when necessary
+      
+      // CRITICAL FIX: Store references to existing elements to prevent full reflow
+      const oldHeight = container.offsetHeight;
+      
+      // For text-only content use textContent, otherwise innerHTML
       if (!/<[a-z][\s\S]*>/i.test(newHTML)) {
         container.textContent = newHTML;
-        console.log(`[renderContentEfficiently] Rendered ${newHTML.length} chars as text`);
       } else {
-        container.innerHTML = newHTML;
-        console.log(`[renderContentEfficiently] Rendered ${newHTML.length} chars as HTML`);
+        // Use a document fragment to build the new content
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newHTML;
+        
+        // Clear container while preserving its layout
+        container.style.minHeight = `${Math.max(oldHeight, 20)}px`;
+        container.innerHTML = '';
+        
+        // Append fragment
+        const fragment = document.createDocumentFragment();
+        Array.from(tempDiv.childNodes).forEach(node => {
+          fragment.appendChild(node.cloneNode(true));
+        });
+        container.appendChild(fragment);
+        
+        // Release height constraint after a short delay
+        setTimeout(() => {
+          container.style.minHeight = '20px';
+        }, 50);
       }
     }
 
-    // CRITICAL FIX: Force container to be visible after content update
-    container.style.display = 'block';
-    
     // Update stored HTML reference
     container.__previousHtml = newHTML;
 
-    // Optional scroll behavior remains unchanged
-    if (options.scroll) {
-      const chatHistory = document.getElementById('chat-history');
-      if (chatHistory) {
-        requestAnimationFrame(() => {
-          chatHistory.scrollTo({
-            top: chatHistory.scrollHeight,
-            ...options.scrollOptions
-          });
+    // Optional scroll behavior
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    const shouldScroll = isMobile
+      ? container.scrollTop > container.scrollHeight - container.clientHeight - 100
+      : options.scroll;
+
+    if (shouldScroll) {
+      requestAnimationFrame(() => {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: isMobile ? 'auto' : 'smooth'
         });
-      }
-    }
-    
-    // CRITICAL FIX: Verify content is not empty after rendering
-    if (container.innerHTML === '' && newHTML !== '') {
-      console.warn('[renderContentEfficiently] Container is empty despite having content to render!');
-      // Force fallback rendering
-      container.textContent = newHTML;
+      });
     }
   } catch (err) {
-    console.error('[renderContentEfficiently] Error in incremental render:', err);
+    console.error('[renderContentEfficiently] Error in render:', err);
 
-    // Fallback remains unchanged
+    // Fallback to simple approach
     try {
       container.textContent = newHTML;
       container.__previousHtml = newHTML;
-      console.log('[renderContentEfficiently] Used textContent fallback');
     } catch (fallbackErr) {
       console.error('[renderContentEfficiently] Even fallback failed:', fallbackErr);
     }
@@ -164,19 +165,31 @@ export function debugRenderingStatus(container, newHTML) {
   console.log('Container path:', path.join(' > '));
 }
 
-// Stub export in case streaming.js tries to import from here:
+// Stub export redirecting to the central implementation
 export function renderThinkingContainer(container, thinkingContent, processor) {
-  console.warn('[renderThinkingContainer] Called fallback stub. Please use deepSeekProcessor.renderThinkingContainer for chain-of-thought logic.');
+  console.warn('[renderThinkingContainer] Redirecting to deepSeekProcessor implementation');
   
-  // CRITICAL FIX: Basic fallback implementation to ensure thinking content is at least visible
+  // Directly forward to the deepSeekProcessor implementation
+  if (typeof deepSeekProcessor !== 'undefined' && deepSeekProcessor.renderThinkingContainer) {
+    return deepSeekProcessor.renderThinkingContainer(container, thinkingContent, { createNew: true });
+  }
+  
+  // Only if deepSeekProcessor is not available, use a minimal fallback
+  console.error('[renderThinkingContainer] deepSeekProcessor not available, using minimal fallback');
   if (container && thinkingContent) {
     try {
+      // Process the thinking content to ensure proper spacing
+      let processedContent = thinkingContent
+        .replace(/([,\.\?!;:])([A-Za-z0-9])/g, '$1 $2') // Add space after punctuation
+        .replace(/([a-z])([A-Z])/g, '$1 $2'); // Add space between camelCase words
+      
       const thinkingDiv = document.createElement('div');
       thinkingDiv.className = 'thinking-fallback';
+      thinkingDiv.setAttribute('data-cot-id', Date.now());
       thinkingDiv.innerHTML = `<div class="p-2 bg-gray-100 dark:bg-gray-800 rounded mt-2 mb-2">
         <details>
           <summary class="cursor-pointer">Chain of Thought</summary>
-          <pre class="p-2 whitespace-pre-wrap">${thinkingContent}</pre>
+          <pre class="p-2 whitespace-pre-wrap">${processedContent}</pre>
         </details>
       </div>`;
       

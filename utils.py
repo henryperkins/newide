@@ -2,7 +2,7 @@
 import tiktoken
 import os
 import json
-from typing import Optional, List, Dict, Union
+from typing import Optional, List, Dict
 import config
 from logging_config import logger
 from azure.core.exceptions import HttpResponseError
@@ -26,13 +26,16 @@ def handle_client_error(error: Exception) -> dict:
             }
 
         # Try to parse error content if available
-        if hasattr(error, "response") and hasattr(error.response, "_content"):
+        if hasattr(error, "response"):
+            content = getattr(error.response, "_content", None)
             try:
-                content = error.response._content
-                if isinstance(content, bytes):
-                    content_str = content.decode("utf-8", errors="replace")
+                if content:
+                    if isinstance(content, bytes):
+                        content_str = content.decode("utf-8", errors="replace")
+                    else:
+                        content_str = str(content)
                 else:
-                    content_str = str(content)
+                    content_str = "No content available"
 
                 # Only try to parse as JSON if it looks like JSON
                 if content_str.strip().startswith("{"):
@@ -99,8 +102,8 @@ def validate_streaming(model_id: str) -> bool:
     if model_id.startswith("o3-mini"):
         base_model = "o3-mini"
     # Disallow streaming for any o1 variants.
-    elif model_id.startswith("o3-mini"):
-        return True
+    elif model_id.startswith("o1"):
+        return False
     elif model_id.startswith("gpt-4"):
         base_model = "gpt-4"
     elif model_id.startswith("gpt-35") or model_id.startswith("gpt-3.5"):
@@ -114,7 +117,7 @@ def validate_streaming(model_id: str) -> bool:
     }
 
     if base_model and base_model in STREAMING_MODEL_REGISTRY:
-        return STREAMING_MODEL_REGISTRY[base_model].get("supports_streaming", False)
+        return bool(STREAMING_MODEL_REGISTRY[base_model].get("supports_streaming", False))
 
     return False
 

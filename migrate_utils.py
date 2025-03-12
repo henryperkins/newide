@@ -7,20 +7,19 @@ is consistent with the ORM models, without requiring a full migration system.
 """
 
 import logging
-import os
 from pathlib import Path
-from typing import List, Dict, Any, Tuple, Set
+from typing import List, Tuple
 import asyncio
-from sqlalchemy import text, MetaData, Table, Column, inspect
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncConnection
+from sqlalchemy import text, inspect
+
+# Import models and engine
+from models import Base
+from database import engine
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Import models and engine
-from models import Base
-from database import engine
 
 async def check_database_consistency() -> Tuple[bool, List[str]]:
     """
@@ -155,8 +154,30 @@ async def check_database() -> bool:
         logger.error(f"Error checking database: {e}")
         return False
 
+# removed duplicate def check_database(): (removed)
+    """
+    Check if the database is consistent with the ORM models.
+    This is now an async function that calls the async check_database_consistency function.
+    """
+    # Ensure migrations directory exists (this doesn't interact with the DB)
+    try:
+        ensure_migrations_dir_exists()
+    except Exception as e:
+        logger.error(f"Error ensuring migrations directory exists: {e}")
+    
+    try:
+        is_consistent, inconsistencies = await check_database_consistency()
+        if not is_consistent:
+            logger.warning("Database schema is inconsistent with ORM models:")
+            for inconsistency in inconsistencies:
+                logger.warning(f"  - {inconsistency}")
+        return is_consistent
+    except Exception as e:
+        logger.error(f"Error checking database: {e}")
+        return False
+
 if __name__ == "__main__":
     """
     Run database check as a standalone script
     """
-    check_database()
+    asyncio.run(check_database())

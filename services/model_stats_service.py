@@ -99,6 +99,54 @@ class ModelStatsService:
                 self._buffer.clear()
                 raise Exception(f"Failed to record model usage stats: {str(e)}")
 
+    async def _flush_buffer(self):
+        """Flush the buffer to the database."""
+        async with self._buffer_lock:
+            if not self._buffer:
+                return
+            batch = self._buffer[:]
+            self._buffer.clear()
+            await self.db.execute(
+                text("""
+                    INSERT INTO model_usage_stats (
+                        model,
+                        session_id,
+                        prompt_tokens,
+                        completion_tokens,
+                        total_tokens,
+                        reasoning_tokens,
+                        cached_tokens,
+                        model_metadata,
+                        timestamp
+                    ) VALUES (
+                        :model,
+                        :session_id,
+                        :prompt_tokens,
+                        :completion_tokens,
+                        :total_tokens,
+                        :reasoning_tokens,
+                        :cached_tokens,
+                        COALESCE(:metadata, '{}'::jsonb)::jsonb,
+                        :timestamp
+                    )
+                """),
+                [
+                    {
+                        "model": stats.model,
+                        "session_id": stats.session_id,
+                        "prompt_tokens": stats.prompt_tokens,
+                        "completion_tokens": stats.completion_tokens,
+                        "total_tokens": stats.total_tokens,
+                        "reasoning_tokens": stats.reasoning_tokens,
+                        "cached_tokens": stats.cached_tokens,
+                        "metadata": stats.model_metadata,
+                        "timestamp": datetime.utcnow()
+                    }
+                    for stats in batch
+                ]
+            )
+            await self.db.commit()
+
     async def _persist_fallback(self, batch):
         async with aiofiles.open(self._fallback_dir / "pending.json", "a") as f:
             await f.write(json.dumps([ob.__dict__ for ob in batch]) + "\n")
@@ -218,11 +266,11 @@ class ModelStatsService:
 
             if start_time:
                 query += " AND timestamp >= :start_time"
-                params["start_time"] = start_time
+                params["start_time"] = start_time.isoformat()
 
             if end_time:
                 query += " AND timestamp <= :end_time"
-                params["end_time"] = end_time
+                params["end_time"] = end_time.isoformat()
 
             result = await self.db.execute(text(query), params)
             row = result.mappings().first()
@@ -280,7 +328,9 @@ class ModelStatsService:
                 """)
             )
             recent_row = recent_result.mappings().first()
-
+            if not recent_row:
+                recent_row = {"total_attempts": 0, "unique_sessions": 0}
+        
             # Get connection trend by hour
             trend_result = await self.db.execute(
                 text("""
@@ -294,7 +344,7 @@ class ModelStatsService:
                 """)
             )
             trend = [dict(row) for row in trend_result.mappings()]
-
+        
             return {
                 "concurrent_connections": concurrent,
                 "recent_attempts": {

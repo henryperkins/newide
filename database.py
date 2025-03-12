@@ -4,21 +4,17 @@
 import ssl
 import json
 import time
-from typing import AsyncGenerator, Optional, Dict, Any, Type, TypeVar, cast
+from typing import AsyncGenerator, TypeVar
 from contextlib import asynccontextmanager
-import functools
 
 # Third-party imports
-from fastapi import Depends
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.sql import Select, Insert, Update, Delete
 from sqlalchemy import text, event
 import sentry_sdk
 
 # Local imports
 import config
-from models import Base
 from logging_config import get_logger
 
 # Setup module logger
@@ -131,7 +127,7 @@ def after_cursor_execute(conn, cursor, statement, parameters, context, executema
         try:
             row_count = cursor.rowcount
             span.set_data("db.rows_affected", row_count)
-        except:
+        except Exception:
             pass
     
     # Finish the span
@@ -154,17 +150,25 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     Yields:
         AsyncSession: An async database session.
     """
-    with sentry_sdk.start_span(op="db.session", description="Database Session"):
-        async with AsyncSessionLocal() as session:
+    session = None
+    span = sentry_sdk.start_span(op="db.session", description="Database Session")
+    
+    try:
+        session = AsyncSessionLocal()
+        await session.execute(text("SELECT 1"))
+        yield session
+    except Exception as e:
+        # Capture database errors
+        sentry_sdk.capture_exception(e)
+        logger.error(f"Database session error: {str(e)}")
+        raise
+    finally:
+        if session:
             try:
-                yield session
-            except Exception as e:
-                # Capture database errors
-                sentry_sdk.capture_exception(e)
-                logger.error(f"Database session error: {str(e)}")
-                raise
-            finally:
                 await session.close()
+            except Exception as close_err:
+                logger.error(f"Error closing session: {str(close_err)}")
+        span.finish()
 
 # Helper for tracing database operations
 @asynccontextmanager

@@ -7,6 +7,7 @@ import {
 } from './ui/notificationManager.js';
 import {
   getSessionId,
+  refreshSession,
   initializeSession,
   setLastUserMessage
 } from './session.js';
@@ -45,8 +46,7 @@ function initChatInterface() {
       debounce(e => {
         const count = e.target.value.length;
         charCount.textContent = count;
-        userInput.classList.add('h-auto', 'min-h-[32px]');
-        userInput.style.height = `${Math.min(userInput.scrollHeight, 200)}px`;
+        userInput.classList.add('h-auto', 'min-h-[32px]', 'max-h-[200px]', 'overflow-y-auto');
         if (count > 120000) charCount.classList.add('text-warning-500');
         else charCount.classList.remove('text-warning-500');
       }, 100)
@@ -116,7 +116,10 @@ function initChatInterface() {
   document.addEventListener('click', e => {
     if (e.target.closest('#theme-toggle')) {
       document.documentElement.classList.toggle('dark');
-      localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+      localStorage.setItem(
+        'theme',
+        document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+      );
       return;
     }
     if (e.target.closest('#mobile-stats-toggle') || e.target.closest('#performance-stats')) {
@@ -180,7 +183,6 @@ function initChatInterface() {
             console.error('Copy failed:', err);
             showNotification('Failed to copy to clipboard', 'error');
           });
-        console.log('[sendMessage] Using fetchChatResponse, modelName:', modelName, 'reasoningEffort:', reasoningEffort);
       }
     }
     if (
@@ -206,7 +208,16 @@ export async function sendMessage() {
   console.log('[sendMessage] Invoked with userInput:', userInput?.value);
   if (!userInput) return;
   const messageContent = userInput.value.trim();
-  if (!messageContent || isProcessing) return;
+  if (!messageContent) return;
+
+  // If another request is already in progress, abort it
+  if (isProcessing && currentController) {
+    currentController.abort();
+    currentController = null;
+    isProcessing = false;
+    removeTypingIndicator();
+    showNotification('Request aborted by user', 'warning');
+  }
   try {
     if (currentController) {
       currentController.abort();
@@ -220,12 +231,26 @@ export async function sendMessage() {
       sendButton.innerHTML = '<span class="animate-spin inline-block mr-2">&#8635;</span>';
     }
     userInput.value = '';
-    userInput.style.height = 'auto';
+    userInput.classList.add('h-auto');
+    
+    // Get a valid session and refresh it
     let currentSessionId = await getSessionId();
     if (!currentSessionId) {
       showNotification('Could not retrieve a valid session ID. Please refresh.', 'error');
       return;
     }
+
+    // Force localStorage to match session ID in case of cross-tab changes
+    localStorage.setItem('activeConversationId', currentSessionId);
+
+    // Refresh the session to extend its validity
+    try {
+      await refreshSession(currentSessionId);
+    } catch (refreshErr) {
+      console.warn('[sendMessage] Failed to refresh session:', refreshErr);
+      // Continue anyway - the API request will validate the session
+    }
+    
     renderUserMessage(messageContent);
     const modelSelect = document.getElementById('model-select');
     let modelName = 'DeepSeek-R1';  // Must use exact casing
@@ -268,7 +293,10 @@ export async function sendMessage() {
           reasoningEffort,
           controller.signal
         );
-        const assistantMessage = response.choices[0].message.content;
+        const returnedContent = response.choices[0].message?.content;
+        const assistantMessage = (returnedContent && returnedContent.trim().length > 0)
+          ? returnedContent
+          : `[No content returned by model: ${actualModelName}]`;
         renderAssistantMessage(assistantMessage);
         if (response.usage) updateTokenUsage(response.usage);
       }
@@ -363,7 +391,7 @@ async function fetchChatResponse(
 
       // Only add temperature for non-o1 models
       if (!isOSeriesModel) {
-        payload.temperature = isDeepSeek ? 0.5: 0.7;
+        payload.temperature = isDeepSeek ? 0.5 : 0.7;
       }
 
       console.log('[fetchChatResponse] Sending payload:', payload);
@@ -379,7 +407,8 @@ async function fetchChatResponse(
           const token = localStorage.getItem('authToken');
           const headers = {
             'Content-Type': 'application/json',
-            ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+            'X-Session-ID': sessionId, // Add session ID to headers for validation
+            ...(token ? { Authorization: 'Bearer ' + token } : {})
           };
 
           if (isDeepSeek) {
@@ -398,11 +427,9 @@ async function fetchChatResponse(
 
           // For 500 errors, we'll retry
           if (response.status === 500) {
-            // For 500 errors, try to get more detailed error information
             try {
               const errorText = await response.text();
               console.error(`API returned 500 error: ${errorText.substring(0, 200)}`);
-              // Show notification if all retries are used up
               if (retries === maxApiRetries) {
                 showNotification(`Server error: ${errorText.substring(0, 100)}...`, 'error', 8000);
               }
@@ -465,9 +492,9 @@ function renderUserMessage(content) {
   el.innerHTML = sanitizeHTML(content).replace(/\n/g, '<br>');
   const lastMessage = chatHistory.lastElementChild;
   if (lastMessage) {
-      chatHistory.insertBefore(el, lastMessage.nextSibling);
+    chatHistory.insertBefore(el, lastMessage.nextSibling);
   } else {
-      chatHistory.appendChild(el);
+    chatHistory.appendChild(el);
   }
   setTimeout(() => {
     el.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -476,116 +503,162 @@ function renderUserMessage(content) {
 
 export function renderAssistantMessage(content, isThinking = false) {
   const chatHistory = document.getElementById('chat-history');
-  if (!chatHistory) return;
+  if (!chatHistory) return null;
 
-  console.log("Rendering message:", {
+  console.log('Rendering message:', {
     contentLength: content?.length || 0,
     hasThinking: content?.includes('<think>') || false,
     sample: content?.substring(0, 50) || ''
   });
 
+  try {
+    const messageId = Date.now().toString() + '-' + Math.floor(Math.random() * 10000);
+
+    let cleanedContent = content;
+    if (typeof cleanedContent === 'string') {
+      cleanedContent = cleanedContent.replace(/\s*\{"type"\s*:\s*"done".*?\}\s*$/g, '');
+    }
+
+    let messageElement;
+    if (window.displayManager?.createAssistantMessageElement) {
+      console.log('[renderAssistantMessage] Using displayManager for rendering');
+      messageElement = window.displayManager.createAssistantMessageElement(cleanedContent);
+    } else {
+      console.log('[renderAssistantMessage] Using fallback renderer');
+      messageElement = createAssistantMessageElementFallback(cleanedContent);
+    }
+
+    messageElement.setAttribute('data-id', messageId);
+    chatHistory.appendChild(messageElement);
+    highlightCode(messageElement);
+    messageElement.scrollIntoView({ behavior: 'smooth' });
+
+    if (!isThinking) storeChatMessage('assistant', cleanedContent);
+    return messageElement;
+  } catch (error) {
+    console.error('Error rendering message:', error);
+    const el = document.createElement('div');
+    el.className = 'message assistant-message';
+    el.setAttribute('role', 'log');
+    el.textContent = content || 'Error rendering message';
+    chatHistory.appendChild(el);
+    return el;
+  }
+}
+
+// Fallback function if displayManager isn't loaded yet
+function createAssistantMessageElementFallback(response) {
+  let content = '';
+  if (typeof response === 'object' && response !== null && response.content) {
+    content = String(response.content);
+  } else {
+    content = String(response);
+  }
+
   const el = document.createElement('div');
   el.className = 'message assistant-message';
   el.setAttribute('role', 'log');
+  el.setAttribute('aria-live', 'polite');
 
-  try {
-    // Extract thinking content properly
-    let mainContent = content || '';
-    let thinkingContent = '';
+  let mainContent = content || '';
+  let thinkingContent = '';
 
-    if (content && content.includes('<think>')) {
-      const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
-      if (thinkMatches) {
-        console.log("Found thinking blocks:", thinkMatches.length);
-        thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
-        mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
-      }
+  if (content && content.includes('<think>')) {
+    const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
+    if (thinkMatches) {
+      console.log('Found thinking blocks:', thinkMatches.length);
+      thinkingContent = thinkMatches.map(m => m.replace(/<\/?think>/g, '')).join('\n\n');
+      mainContent = content.replace(/<think>[\s\S]*?<\/think>/g, '');
     }
-
-    // Render main content first
-    el.innerHTML = renderMarkdown(mainContent);
-    chatHistory.appendChild(el);
-
-    // If we have thinking content, create a visible thinking container
-    if (thinkingContent) {
-      console.log("Creating thinking container with content length:", thinkingContent.length);
-
-      // Create a simple visible container (fallback approach)
-      const thinkingDiv = document.createElement('div');
-      thinkingDiv.className = 'thinking-fallback mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded';
-      thinkingDiv.innerHTML = `
-        <details open>
-          <summary class="font-medium cursor-pointer">Chain of Thought</summary>
-          <pre class="whitespace-pre-wrap mt-2">${thinkingContent}</pre>
-        </details>
-      `;
-      el.appendChild(thinkingDiv);
-    }
-
-    highlightCode(el);
-    el.scrollIntoView({ behavior: 'smooth' });
-
-  } catch (error) {
-    console.error("Error rendering message:", error);
-    el.textContent = content || "Error rendering message";
-    chatHistory.appendChild(el);
   }
 
-  if (!isThinking) storeChatMessage('assistant', content);
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'message-content';
+  contentDiv.classList.add('w-full', 'min-h-[20px]', 'block', 'opacity-100', 'visible');
+
+  contentDiv.innerHTML = renderMarkdown(mainContent.trim());
+  el.appendChild(contentDiv);
+
+  if (thinkingContent && thinkingContent.trim()) {
+    try {
+      if (typeof deepSeekProcessor !== 'undefined' && deepSeekProcessor.renderThinkingContainer) {
+        deepSeekProcessor.renderThinkingContainer(el, thinkingContent.trim(), { createNew: true });
+      } else {
+        const thinkingDiv = document.createElement('div');
+        thinkingDiv.className = 'thinking-container mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded';
+        thinkingDiv.setAttribute('data-cot-id', Date.now());
+        thinkingDiv.innerHTML = `
+          <details open>
+            <summary class="font-medium cursor-pointer">Chain of Thought</summary>
+            <div class="markdown-content mt-2">${renderMarkdown(thinkingContent)}</div>
+          </details>
+        `;
+        el.appendChild(thinkingDiv);
+      }
+    } catch (error) {
+      console.error('[createAssistantMessageElementFallback] Error rendering thinking content:', error);
+    }
+  }
+
+  return el;
 }
 
-  async function storeChatMessage(role, content) {
-    try {
-      const currentSessionId = await getSessionId();
-      // Ensure required fields are present and have valid values
-      if (!currentSessionId) {
-        console.error('[storeChatMessage] Missing session_id');
-        return;
-      }
-      if (!role) {
-        console.error('[storeChatMessage] Missing role');
-        return;
-      }
-      
-      // CRITICAL FIX: Provide default content to avoid errors
-      const finalContent = content || ' ';
-      if (!content) {
-        console.warn('[storeChatMessage] Empty content provided, using space character');
-      }
-      
-      // All required fields are now validated individually
-      console.log('[storeChatMessage] Sending message to server:', {
-        session_id: currentSessionId,
-        role,
-        content: finalContent.substring(0, 50) + (finalContent.length > 50 ? '...' : '')
-      });
+async function storeChatMessage(role, content) {
+  try {
+    const sessionId = await getSessionId();
+    if (!sessionId) {
+      console.error('[storeChatMessage] Missing session_id');
+      return;
+    }
+    if (!role) {
+      console.error('[storeChatMessage] Missing role');
+      return;
+    }
 
-      try {
-        // Changed endpoint to match router implementation
-        const response = await fetchWithRetry(
-          `${window.location.origin}/api/chat/conversations/${currentSessionId}/messages`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role, content: finalContent })
+    const finalContent = content || ' ';
+    if (!content) {
+      console.warn('[storeChatMessage] Empty content provided, using space character');
+    }
+
+    try {
+      await refreshSession(sessionId);
+    } catch (refreshErr) {
+      console.warn('[storeChatMessage] Failed to refresh session:', refreshErr);
+    }
+
+    console.log('[storeChatMessage] Sending message to server:', {
+      session_id: sessionId,
+      role,
+      content: finalContent.substring(0, 50) + (finalContent.length > 50 ? '...' : '')
+    });
+
+    try {
+      const response = await fetchWithRetry(
+        `${window.location.origin}/api/chat/conversations/${sessionId}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionId
           },
-          3
-        );
+          body: JSON.stringify({ role, content: finalContent })
+        },
+        3
+      );
 
-        if (!response.ok) {
-          const text = await response.text();
-          console.error('[storeChatMessage] Server error:', response.status, text);
-          throw new Error(`Server returned ${response.status}: ${text}`);
-        }
-
-        console.log('[storeChatMessage] Message stored successfully');
-      } catch (err) {
-        console.warn('Failed to store message in backend:', err);
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('[storeChatMessage] Server error:', response.status, text);
+        throw new Error(`Server returned ${response.status}: ${text}`);
       }
 
-    // Also store in localStorage as backup
+      console.log('[storeChatMessage] Message stored successfully');
+    } catch (err) {
+      console.warn('Failed to store message in backend:', err);
+    }
+
     try {
-      const key = `conversation_${currentSessionId}`;
+      const key = `conversation_${sessionId}`;
       let convo = JSON.parse(localStorage.getItem(key) || '[]');
       convo.push({ role, content, timestamp: new Date().toISOString() });
       if (convo.length > 50) convo = convo.slice(-50);
@@ -640,12 +713,24 @@ async function getModelConfig(modelName) {
     const response = await fetch(`${window.location.origin}/api/config/models/${encoded}`);
     if (response.ok) return await response.json();
     console.warn(`Could not fetch model config for ${modelName}, status: ${response.status}`);
-    if (response.status === 400) console.error(`Bad request: check model name and API.`);
+    if (response.status === 400) console.error('Bad request: check model name and API.');
     else if (response.status === 404) console.error(`Model ${modelName} not found in config.`);
-    if (modelName.toLowerCase() === 'deepseek-r1')
-      return { name: 'DeepSeek-R1', supports_streaming: true, supports_temperature: true, api_version: '2024-05-01-preview' };
-    if (modelName.toLowerCase().startsWith('o1'))
-      return { name: modelName, supports_streaming: false, supports_temperature: false, api_version: '2025-01-01-preview' };
+    if (modelName.toLowerCase() === 'deepseek-r1') {
+      return {
+        name: 'DeepSeek-R1',
+        supports_streaming: true,
+        supports_temperature: true,
+        api_version: '2024-05-01-preview'
+      };
+    }
+    if (modelName.toLowerCase().startsWith('o1')) {
+      return {
+        name: modelName,
+        supports_streaming: false,
+        supports_temperature: false,
+        api_version: '2025-01-01-preview'
+      };
+    }
   } catch (error) {
     console.error('Error fetching model config:', error);
   }
@@ -655,18 +740,17 @@ async function getModelConfig(modelName) {
 function adjustFontSize(direction) {
   const sizes = ['text-sm', 'text-base', 'text-lg', 'text-xl'];
 
-  // Handle reset case (direction === 0)
   if (direction === 0) {
     document.documentElement.classList.remove(...sizes);
-    document.documentElement.classList.add('text-base'); // Default size
-    localStorage.removeItem('fontSize'); // Clear stored preference
+    document.documentElement.classList.add('text-base');
+    localStorage.removeItem('fontSize');
     const defaultSize = window.getComputedStyle(document.documentElement).fontSize;
     showNotification(`Font size reset to default (${defaultSize})`, 'info', 2000);
     return;
   }
 
   let currentIndex = sizes.findIndex(sz => document.documentElement.classList.contains(sz));
-  if (currentIndex === -1) currentIndex = 1; // Default to text-base (index 1)
+  if (currentIndex === -1) currentIndex = 1;
   const newIndex = Math.min(Math.max(currentIndex + direction, 0), sizes.length - 1);
   document.documentElement.classList.remove(...sizes);
   document.documentElement.classList.add(sizes[newIndex]);

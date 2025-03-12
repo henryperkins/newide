@@ -2,9 +2,7 @@ import asyncio
 import ssl
 import json
 import os
-from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
-import config
 from database import engine
 
 
@@ -536,11 +534,6 @@ async def init_database():
         for stmt in index_statements:
             await conn.execute(text(stmt))
 
-        # Insert model configuration in the format expected by ClientPool
-        import json
-        import os
-
-        # Create model_configs entries for o1, o3-mini, and DeepSeek-R1
         model_configs = {
             "o1": {
                 "name": "o1",

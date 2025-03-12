@@ -1,6 +1,7 @@
 // A module for managing conversations in the sidebar
 import { showNotification } from './notificationManager.js';
 import { getSessionId, createNewConversation } from '../session.js';
+
 let sidebarInitialized = false;
 
 // State management
@@ -11,136 +12,178 @@ let isLoading = false;
 let currentPage = 0;
 let hasMoreConversations = true;
 
+/*
+ * Provide a queue for pin/archive operations to avoid race conditions when multiple quick actions occur
+ */
+let pendingActions = false; // Flag to indicate if an action is in progress
+let actionQueue = []; // Stores queued functions
+
+function enqueueAction(fn) {
+  actionQueue.push(fn);
+  processActionQueue();
+}
+
+async function processActionQueue() {
+  if (pendingActions || actionQueue.length === 0) return;
+
+  pendingActions = true;
+  const actionFn = actionQueue.shift();
+  try {
+    await actionFn();
+  } catch (e) {
+    console.error('Queue action failed:', e);
+  } finally {
+    pendingActions = false;
+    if (actionQueue.length > 0) {
+      processActionQueue();
+    }
+  }
+}
+
 /**
  * Initialize the conversation manager
  */
 export function initConversationManager() {
-    if (sidebarInitialized) return; // Prevent double initialization
+  if (sidebarInitialized) return; // Prevent double initialization
 
-    // Fix conversations sidebar positioning
-    const conversationsSidebar = document.getElementById('conversations-sidebar');
-    if (conversationsSidebar) {
-        // Ensure proper positioning for the conversation sidebar
-        if (window.innerWidth < 768) {
-            conversationsSidebar.classList.add('hidden');
-        } else {
-            conversationsSidebar.classList.remove('hidden');
-        }
-        
-        // Ensure this sidebar doesn't interfere with the settings sidebar
-        conversationsSidebar.style.zIndex = '10'; // Lower than settings sidebar
+  // Fix conversations sidebar positioning
+  const conversationsSidebar = document.getElementById('conversations-sidebar');
+  if (conversationsSidebar) {
+    // Ensure proper positioning for the conversation sidebar
+    if (window.innerWidth < 768) {
+      conversationsSidebar.classList.add('hidden');
+    } else {
+      conversationsSidebar.classList.remove('hidden');
     }
-    
-    // Set initialization flag
-    sidebarInitialized = true;
-    
-    // Continue with normal setup
-    setupEventListeners();
-    loadConversations();
-    window.dispatchEvent(new Event('resize'));
+
+    // Ensure this sidebar doesn't interfere with the settings sidebar
+    conversationsSidebar.classList.add('z-10'); // Lower than settings sidebar
+  }
+
+  // Set initialization flag
+  sidebarInitialized = true;
+
+  // Continue with normal setup
+  setupEventListeners();
+  loadConversations();
+  window.dispatchEvent(new Event('resize'));
 }
 
 /**
  * Set up event listeners for conversation controls
  */
 function setupEventListeners() {
-    // New conversation button
-    const newConvoBtn = document.getElementById('new-conversation-btn');
-    if (newConvoBtn) {
-        newConvoBtn.addEventListener('click', async () => {
-            await createNewConversation();
-            loadConversations();
-        });
-    }
+  // New conversation button
+  const newConvoBtn = document.getElementById('new-conversation-btn');
+  if (newConvoBtn) {
+    newConvoBtn.addEventListener('click', async () => {
+      await createNewConversation();
+      loadConversations();
+    });
+  }
 
-    // Search input
-    const searchInput = document.getElementById('conversation-search');
-    if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            searchQuery = e.target.value;
-            currentPage = 0;
-            loadConversations(true);
-        });
-    }
+  // Search input
+  const searchInput = document.getElementById('conversation-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      searchQuery = e.target.value;
+      currentPage = 0;
+      loadConversations(true);
+    });
+  }
 
-    // Filter tabs
-    document.querySelectorAll('[data-filter]').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            // Update active button styling
-            document.querySelectorAll('[data-filter]').forEach(b => {
-                b.classList.remove('border-primary-500', 'text-primary-600', 'dark:text-primary-400');
-                b.classList.add('text-dark-600', 'dark:text-dark-400', 'border-transparent');
-            });
-            e.target.classList.remove('text-dark-600', 'dark:text-dark-400', 'border-transparent');
-            e.target.classList.add('border-primary-500', 'text-primary-600', 'dark:text-primary-400');
+  // Filter tabs
+  document.querySelectorAll('[data-filter]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      // Update active button styling
+      document.querySelectorAll('[data-filter]').forEach(b => {
+        b.classList.remove('border-primary-500', 'text-primary-600', 'dark:text-primary-400');
+        b.classList.add('text-dark-600', 'dark:text-dark-400', 'border-transparent');
+      });
+      e.target.classList.remove('text-dark-600', 'dark:text-dark-400', 'border-transparent');
+      e.target.classList.add('border-primary-500', 'text-primary-600', 'dark:text-primary-400');
 
-            // Set filter and reload
-            currentFilter = e.target.getAttribute('data-filter');
-            currentPage = 0;
-            loadConversations(true);
-        });
+      // Set filter and reload
+      currentFilter = e.target.getAttribute('data-filter');
+      currentPage = 0;
+      loadConversations(true);
+    });
+  });
+
+  // Conversation item click delegation
+  const conversationList = document.getElementById('conversation-list');
+  if (conversationList) {
+    conversationList.addEventListener('click', (e) => {
+      // Handle conversation item click
+      const conversationItem = e.target.closest('.conversation-item');
+      if (conversationItem) {
+        const conversationId = conversationItem.getAttribute('data-id');
+        if (conversationId) {
+          loadConversation(conversationId);
+        }
+      }
+
+      // Handle pin button click
+      const pinBtn = e.target.closest('.pin-conversation-btn');
+      if (pinBtn) {
+        e.stopPropagation();
+        const conversationId = pinBtn.closest('.conversation-item').getAttribute('data-id');
+        if (conversationId) {
+          const isPinned = pinBtn.classList.contains('pinned');
+          togglePinConversation(conversationId, !isPinned);
+        }
+      }
+
+      // Handle archive button click
+      const archiveBtn = e.target.closest('.archive-conversation-btn');
+      if (archiveBtn) {
+        e.stopPropagation();
+        const conversationId = archiveBtn.closest('.conversation-item').getAttribute('data-id');
+        if (conversationId) {
+          const isArchived = archiveBtn.classList.contains('archived');
+          toggleArchiveConversation(conversationId, !isArchived);
+        }
+      }
+
+      // Handle rename button click
+      const renameBtn = e.target.closest('.rename-conversation-btn');
+      if (renameBtn) {
+        e.stopPropagation();
+        const conversationId = renameBtn.closest('.conversation-item').getAttribute('data-id');
+        if (conversationId) {
+          const oldTitle = renameBtn.closest('.conversation-item').querySelector('.conversation-title')?.textContent || 'this conversation';
+          const newTitle = prompt(`Enter a new name for ${oldTitle}:`, oldTitle);
+          if (newTitle && newTitle.trim() !== '') {
+            renameConversation(conversationId, newTitle.trim());
+          }
+        }
+      }
+
+      // Handle delete button click
+      const deleteBtn = e.target.closest('.delete-conversation-btn');
+      if (deleteBtn) {
+        e.stopPropagation();
+        const conversationId = deleteBtn.closest('.conversation-item').getAttribute('data-id');
+        const title = deleteBtn.closest('.conversation-item').querySelector('.conversation-title')?.textContent || 'this conversation';
+        if (conversationId) {
+          if (confirm(`Are you sure you want to delete ${title}? This cannot be undone.`)) {
+            deleteConversation(conversationId);
+          }
+        }
+      }
     });
 
-    // Conversation item click delegation
-    const conversationList = document.getElementById('conversation-list');
-    if (conversationList) {
-        conversationList.addEventListener('click', (e) => {
-            // Handle conversation item click
-            const conversationItem = e.target.closest('.conversation-item');
-            if (conversationItem) {
-                const conversationId = conversationItem.getAttribute('data-id');
-                if (conversationId) {
-                    loadConversation(conversationId);
-                }
-            }
-
-            // Handle pin button click
-            const pinBtn = e.target.closest('.pin-conversation-btn');
-            if (pinBtn) {
-                e.stopPropagation();
-                const conversationId = pinBtn.closest('.conversation-item').getAttribute('data-id');
-                if (conversationId) {
-                    const isPinned = pinBtn.classList.contains('pinned');
-                    togglePinConversation(conversationId, !isPinned);
-                }
-            }
-
-            // Handle archive button click
-            const archiveBtn = e.target.closest('.archive-conversation-btn');
-            if (archiveBtn) {
-                e.stopPropagation();
-                const conversationId = archiveBtn.closest('.conversation-item').getAttribute('data-id');
-                if (conversationId) {
-                    const isArchived = archiveBtn.classList.contains('archived');
-                    toggleArchiveConversation(conversationId, !isArchived);
-                }
-            }
-
-            // Handle delete button click
-            const deleteBtn = e.target.closest('.delete-conversation-btn');
-            if (deleteBtn) {
-                e.stopPropagation();
-                const conversationId = deleteBtn.closest('.conversation-item').getAttribute('data-id');
-                const title = deleteBtn.closest('.conversation-item').querySelector('.conversation-title')?.textContent || 'this conversation';
-                if (conversationId) {
-                    if (confirm(`Are you sure you want to delete ${title}? This cannot be undone.`)) {
-                        deleteConversation(conversationId);
-                    }
-                }
-            }
-        });
-
-        // Load more on scroll
-        conversationList.addEventListener('scroll', () => {
-            if (!isLoading && hasMoreConversations) {
-                const { scrollTop, scrollHeight, clientHeight } = conversationList;
-                if (scrollTop + clientHeight >= scrollHeight - 50) {
-                    currentPage++;
-                    loadConversations(false);
-                }
-            }
-        });
-    }
+    // Load more on scroll
+    conversationList.addEventListener('scroll', () => {
+      if (!isLoading && hasMoreConversations) {
+        const { scrollTop, scrollHeight, clientHeight } = conversationList;
+        if (scrollTop + clientHeight >= scrollHeight - 50) {
+          currentPage++;
+          loadConversations(false);
+        }
+      }
+    });
+  }
 }
 
 /**
@@ -148,157 +191,157 @@ function setupEventListeners() {
  * @param {boolean} reset - Whether to reset the current conversation list
  */
 export async function loadConversations(reset = false) {
-    const conversationList = document.getElementById('conversation-list');
-    if (!conversationList) return;
+  const conversationList = document.getElementById('conversation-list');
+  if (!conversationList) return;
+
+  if (reset) {
+    currentPage = 0;
+    conversations = [];
+    conversationList.innerHTML = '<div class="py-4 px-3 text-center text-dark-500 dark:text-dark-400">Loading conversations...</div>';
+  }
+
+  if (isLoading || (!hasMoreConversations && !reset)) return;
+  isLoading = true;
+
+  try {
+    // Build query params
+    const params = new URLSearchParams();
+    params.append('offset', currentPage * 20);
+    params.append('limit', 20);
+
+    if (searchQuery) {
+      params.append('search', searchQuery);
+    }
+
+    if (currentFilter === 'pinned') {
+      params.append('pinned', 'true');
+    } else if (currentFilter === 'archived') {
+      params.append('archived', 'true');
+    }
+
+    // Fetch conversations
+    const response = await fetch(`/api/chat/conversations?${params.toString()}`);
+    if (!response.ok) throw new Error('Failed to load conversations');
+
+    const data = await response.json();
+    hasMoreConversations = data.has_more;
 
     if (reset) {
-        currentPage = 0;
+      conversations = data.conversations || [];
+    } else {
+      conversations = [...conversations, ...(data.conversations || [])];
+    }
+
+    renderConversations();
+  } catch (error) {
+    // Use standardized error handling
+    import('./displayManager.js').then(module => {
+      const recovery = () => {
         conversations = [];
-        conversationList.innerHTML = '<div class="py-4 px-3 text-center text-dark-500 dark:text-dark-400">Loading conversations...</div>';
-    }
-
-    if (isLoading || (!hasMoreConversations && !reset)) return;
-    isLoading = true;
-
-    try {
-        // Build query params
-        const params = new URLSearchParams();
-        params.append('offset', currentPage * 20);
-        params.append('limit', 20);
-
-        if (searchQuery) {
-            params.append('search', searchQuery);
-        }
-
-        if (currentFilter === 'pinned') {
-            params.append('pinned', 'true');
-        } else if (currentFilter === 'archived') {
-            params.append('archived', 'true');
-        }
-
-        // Fetch conversations
-        const response = await fetch(`/api/chat/conversations?${params.toString()}`);
-        if (!response.ok) throw new Error('Failed to load conversations');
-
-        const data = await response.json();
-        hasMoreConversations = data.has_more;
-
-        if (reset) {
-            conversations = data.conversations || [];
-        } else {
-            conversations = [...conversations, ...(data.conversations || [])];
-        }
-
-        renderConversations();
-    } catch (error) {
-        // Use standardized error handling
-        import('./displayManager.js').then(module => {
-            const recovery = () => {
-                conversations = [];
-                conversationList.innerHTML = '<div class="py-4 px-3 text-center text-dark-500 dark:text-dark-400">No conversations found</div>';
-                isLoading = false;
-            };
-
-            if (module.handleConversationError) {
-                module.handleConversationError(
-                    error,
-                    'Failed to load conversations',
-                    recovery,
-                    { filter: currentFilter, page: currentPage }
-                );
-            } else {
-                // Fallback if module import fails
-                console.error('Error loading conversations:', error);
-                conversationList.innerHTML = '<div class="py-4 px-3 text-center text-red-500">Failed to load conversations</div>';
-                recovery();
-            }
-        }).catch(err => {
-            console.error('Error loading module:', err);
-            conversationList.innerHTML = '<div class="py-4 px-3 text-center text-red-500">Failed to load conversations</div>';
-        });
-    } finally {
+        conversationList.innerHTML = '<div class="py-4 px-3 text-center text-dark-500 dark:text-dark-400">No conversations found</div>';
         isLoading = false;
-    }
+      };
+
+      if (module.handleConversationError) {
+        module.handleConversationError(
+          error,
+          'Failed to load conversations',
+          recovery,
+          { filter: currentFilter, page: currentPage }
+        );
+      } else {
+        // Fallback if module import fails
+        console.error('Error loading conversations:', error);
+        conversationList.innerHTML = '<div class="py-4 px-3 text-center text-red-500">Failed to load conversations</div>';
+        recovery();
+      }
+    }).catch(err => {
+      console.error('Error loading module:', err);
+      conversationList.innerHTML = '<div class="py-4 px-3 text-center text-red-500">Failed to load conversations</div>';
+    });
+  } finally {
+    isLoading = false;
+  }
 }
 
 /**
  * Render conversations to the DOM
  */
 function renderConversations() {
-    const conversationList = document.getElementById('conversation-list');
-    if (!conversationList) return;
+  const conversationList = document.getElementById('conversation-list');
+  if (!conversationList) return;
 
-    if (conversations.length === 0) {
-        conversationList.innerHTML = '<div class="py-4 px-3 text-center text-dark-500 dark:text-dark-400">No conversations found</div>';
-        return;
+  conversationList.innerHTML = '';
+
+  if (!conversations || conversations.length === 0) {
+    conversationList.innerHTML = '<div class="py-4 px-3 text-center text-dark-500 dark:text-dark-400">No conversations</div>';
+    return;
+  }
+
+  conversations.forEach(conv => {
+    // container
+    const item = document.createElement('div');
+    item.classList.add('conversation-item', 'p-2', 'border-b', 'border-dark-200', 'dark:border-dark-600', 'flex', 'flex-col', 'gap-1', 'cursor-pointer');
+    item.setAttribute('data-id', conv.id);
+
+    // pinned (visual) highlight
+    if (conv.pinned) {
+      item.classList.add('bg-primary-50', 'dark:bg-dark-800');
     }
 
-    if (currentPage === 0) {
-        conversationList.innerHTML = '';
+    // conversation title
+    const titleEl = document.createElement('div');
+    titleEl.classList.add('conversation-title', 'font-semibold', 'truncate');
+    titleEl.textContent = conv.title || '(untitled)';
+
+    // container for action buttons
+    const actionContainer = document.createElement('div');
+    actionContainer.classList.add('flex', 'gap-2');
+
+    // pin/unpin button
+    const pinBtn = document.createElement('button');
+    pinBtn.classList.add('pin-conversation-btn', 'border', 'py-1', 'px-2');
+    if (conv.pinned) {
+      pinBtn.classList.add('pinned');
+      pinBtn.textContent = 'Unpin';
+    } else {
+      pinBtn.textContent = 'Pin';
+    }
+    actionContainer.appendChild(pinBtn);
+
+    // archive/unarchive button
+    const archiveBtn = document.createElement('button');
+    archiveBtn.classList.add('archive-conversation-btn', 'border', 'py-1', 'px-2');
+    if (conv.archived) {
+      archiveBtn.classList.add('archived');
+      archiveBtn.textContent = 'Unarchive';
+    } else {
+      archiveBtn.textContent = 'Archive';
+    }
+    actionContainer.appendChild(archiveBtn);
+
+    // delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.classList.add('delete-conversation-btn', 'border', 'py-1', 'px-2');
+    deleteBtn.textContent = 'Delete';
+    actionContainer.appendChild(deleteBtn);
+
+    // Rename button
+    const renameBtn = document.createElement('button');
+    renameBtn.classList.add('rename-conversation-btn', 'border', 'py-1', 'px-2');
+    renameBtn.textContent = 'Rename';
+    actionContainer.appendChild(renameBtn);
+
+    // if updating
+    if (conv.updating) {
+      item.classList.add('opacity-50', 'pointer-events-none');
     }
 
-    // Get current conversation ID
-    const currentSessionId = sessionStorage.getItem('sessionId');
-
-    // Add conversation items
-    conversations.forEach(conversation => {
-        const isActive = conversation.id === currentSessionId;
-        const date = new Date(conversation.updated_at);
-        const formattedDate = date.toLocaleDateString(undefined, {
-            month: 'short',
-            day: 'numeric',
-            year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric'
-        });
-
-        const item = document.createElement('div');
-        item.className = `conversation-item p-3 border-b border-dark-200 dark:border-dark-700 cursor-pointer hover:bg-dark-100 dark:hover:bg-dark-700/50 relative ${isActive ? 'bg-dark-100 dark:bg-dark-700/50' : ''}`;
-        item.setAttribute('data-id', conversation.id);
-
-        // Add "updating" visual indicator if applicable
-        const updatingClass = conversation.updating ? ' opacity-60 ' : '';
-
-        item.innerHTML = `
-            <div class="flex justify-between items-start mb-1 ${updatingClass}">
-                <h3 class="conversation-title text-sm font-medium truncate pr-16">${conversation.title || 'Untitled Conversation'}</h3>
-                <div class="flex space-x-1">
-                    <button class="pin-conversation-btn btn text-xs px-1 text-dark-400 hover:text-primary-500 ${conversation.pinned ? 'pinned text-primary-500' : ''}"
-                                                title="${conversation.pinned ? 'Unpin conversation' : 'Pin conversation'}">
-                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="${conversation.pinned ? 'currentColor' : 'none'}" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                        </svg>
-                    </button>
-                    <button class="archive-conversation-btn btn text-xs px-1 text-dark-400 hover:text-primary-500 ${conversation.archived ? 'archived text-primary-500' : ''}"
-                                                title="${conversation.archived ? 'Unarchive conversation' : 'Archive conversation'}">
-                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                        </svg>
-                    </button>
-                    <button class="delete-conversation-btn btn text-xs px-1 text-dark-400 hover:text-red-500" title="Delete conversation">
-                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            <div class="flex justify-between">
-                <span class="text-xs text-dark-500">${conversation.message_count} message${conversation.message_count !== 1 ? 's' : ''}</span>
-                <span class="text-xs text-dark-500">${formattedDate}</span>
-            </div>
-        `;
-
-        conversationList.appendChild(item);
-    });
-
-    if (hasMoreConversations) {
-        const loadMoreItem = document.createElement('div');
-        loadMoreItem.className = 'text-center p-2 text-sm text-primary-500 hover:underline cursor-pointer';
-        loadMoreItem.textContent = 'Load more';
-        loadMoreItem.addEventListener('click', () => {
-            currentPage++;
-            loadConversations();
-        });
-        conversationList.appendChild(loadMoreItem);
-    }
+    // assemble
+    item.appendChild(titleEl);
+    item.appendChild(actionContainer);
+    conversationList.appendChild(item);
+  });
 }
 
 /**
@@ -306,29 +349,30 @@ function renderConversations() {
  * @param {string} conversationId - ID of the conversation to load
  */
 async function loadConversation(conversationId) {
-    try {
-        // Set as active conversation
-        sessionStorage.setItem('sessionId', conversationId);
+  try {
+    // Store the active conversation ID in both sessionStorage and localStorage for cross-tab sync
+    sessionStorage.setItem('sessionId', conversationId);
+    localStorage.setItem('activeConversationId', conversationId);
 
-        // Highlight active conversation
-        document.querySelectorAll('.conversation-item').forEach(item => {
-            item.classList.remove('bg-dark-100', 'dark:bg-dark-700/50');
-        });
-        document.querySelector(`.conversation-item[data-id="${conversationId}"]`)?.classList.add('bg-dark-100', 'dark:bg-dark-700/50');
+    // Highlight active conversation
+    document.querySelectorAll('.conversation-item').forEach(item => {
+      item.classList.remove('bg-dark-100', 'dark:bg-dark-700/50');
+    });
+    document.querySelector(`.conversation-item[data-id="${conversationId}"]`)?.classList.add('bg-dark-100', 'dark:bg-dark-700/50');
 
-        // Load conversation messages
-        const displayManagerModule = await import('./displayManager.js');
-        await displayManagerModule.loadConversationFromDb();
+    // Load conversation messages
+    const displayManagerModule = await import('./displayManager.js');
+    await displayManagerModule.loadConversationFromDb();
 
-        // On mobile, close the sidebar
-        const conversationsSidebar = document.getElementById('conversations-sidebar');
-        if (window.innerWidth < 768 && conversationsSidebar) {
-            conversationsSidebar.classList.add('hidden');
-        }
-    } catch (error) {
-        console.error('Error loading conversation:', error);
-        showNotification('Failed to load conversation', 'error');
+    // On mobile, close the sidebar
+    const conversationsSidebar = document.getElementById('conversations-sidebar');
+    if (window.innerWidth < 768 && conversationsSidebar) {
+      conversationsSidebar.classList.add('hidden');
     }
+  } catch (error) {
+    console.error('Error loading conversation:', error);
+    showNotification('Failed to load conversation', 'error');
+  }
 }
 
 /**
@@ -337,61 +381,56 @@ async function loadConversation(conversationId) {
  * @param {boolean} pinned - Whether to pin or unpin
  */
 async function togglePinConversation(conversationId, pinned) {
-    // Store previous state for recovery
+  enqueueAction(async () => {
     const previousState = conversations.map(c => ({ ...c }));
 
     try {
-        // Optimistic update
-        conversations = conversations.map(c =>
-            c.id === conversationId ? { ...c, pinned, updating: true } : c
-        );
+      // Optimistic update
+      conversations = conversations.map(c =>
+        c.id === conversationId ? { ...c, pinned, updating: true } : c
+      );
+      renderConversations();
 
-        // Update UI immediately
+      const response = await fetch(`/api/chat/conversations/${conversationId}/pin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.cookie.match(/csrftoken=([\w-]+)/)?.[1] || ''
+        },
+        body: JSON.stringify({ pinned })
+      });
+      if (!response.ok) throw new Error('Failed to update conversation');
+
+      const data = await response.json();
+      conversations = conversations.map(c =>
+        c.id === conversationId
+          ? { ...c, pinned, version: data.version, updating: false }
+          : c
+      );
+
+      // If we're filtering by pinned, reload conversations
+      if (currentFilter === 'pinned' && !pinned) {
+        loadConversations(true);
+      } else {
         renderConversations();
-
-        const response = await fetch(`/api/chat/conversations/${conversationId}/pin`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pinned })
-        });
-
-        if (!response.ok) throw new Error('Failed to update conversation');
-
-        // Update with new state from response
-        const data = await response.json();
-
-        // Update local state
-        conversations = conversations.map(c =>
-            c.id === conversationId ? {
-                ...c,
-                pinned,
-                version: data.version,
-                updating: false
-            } : c
-        );
-
-        // If we're filtering by pinned, reload conversations
-        if (currentFilter === 'pinned' && !pinned) {
-            loadConversations(true);
-        } else {
-            renderConversations();
-        }
+      }
     } catch (error) {
-        // Recover from the error by restoring previous state
-        conversations = previousState;
-        renderConversations();
+      conversations = previousState;
+      renderConversations();
 
-        // Use standardized error handling if available
-        import('./displayManager.js').then(module => {
-            if (module.handleConversationError) {
-                module.handleConversationError(error, 'Failed to update conversation');
-            } else {
-                showNotification('Failed to update conversation', 'error');
-            }
-        }).catch(() => {
+      import('./displayManager.js')
+        .then(module => {
+          if (module.handleConversationError) {
+            module.handleConversationError(error, 'Failed to update conversation');
+          } else {
             showNotification('Failed to update conversation', 'error');
+          }
+        })
+        .catch(() => {
+          showNotification('Failed to update conversation', 'error');
         });
     }
+  });
 }
 
 /**
@@ -400,77 +439,64 @@ async function togglePinConversation(conversationId, pinned) {
  * @param {boolean} archived - Whether to archive or unarchive
  */
 async function toggleArchiveConversation(conversationId, archived) {
-    // Find conversation and get version if available
+  enqueueAction(async () => {
     const conversation = conversations.find(c => c.id === conversationId);
     const version = conversation?.version || 0;
-
-    // Store previous state for recovery
     const previousState = conversations.map(c => ({ ...c }));
 
     try {
-        // Optimistic update
-        conversations = conversations.map(c =>
-            c.id === conversationId ? { ...c, archived, updating: true } : c
-        );
+      // Optimistic update
+      conversations = conversations.map(c =>
+        c.id === conversationId ? { ...c, archived, updating: true } : c
+      );
+      renderConversations();
 
-        // Update UI immediately
+      const response = await fetch(`/api/chat/conversations/${conversationId}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          archived,
+          version
+        })
+      });
+      if (!response.ok) throw new Error(`Server returned ${response.status}`);
+
+      const data = await response.json();
+      if (data.status === 'conflict') {
+        showNotification('This conversation was modified elsewhere', 'warning');
+        loadConversations(true);
+        return;
+      }
+
+      conversations = conversations.map(c =>
+        c.id === conversationId
+          ? { ...c, archived, version: data.version, updating: false }
+          : c
+      );
+
+      if ((currentFilter === 'archived' && !archived) ||
+          (currentFilter !== 'archived' && archived)) {
+        loadConversations(true);
+      } else {
         renderConversations();
-
-        const response = await fetch(`/api/chat/conversations/${conversationId}/archive`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                archived,
-                version  // Send version for conflict detection
-            })
-        });
-
-        if (!response.ok) throw new Error(`Server returned ${response.status}`);
-
-        const data = await response.json();
-
-        if (data.status === 'conflict') {
-            // Handle conflict - reload the conversation
-            showNotification('This conversation was modified elsewhere', 'warning');
-            loadConversations(true);
-            return;
-        }
-
-        // Update with new version from server
-        conversations = conversations.map(c =>
-            c.id === conversationId ? {
-                ...c,
-                archived,
-                version: data.version,
-                updating: false
-            } : c
-        );
-
-        // If filtering, reload conversations
-        if ((currentFilter === 'archived' && !archived) ||
-            (currentFilter !== 'archived' && archived)) {
-            loadConversations(true);
-        } else {
-            renderConversations();
-        }
+      }
     } catch (error) {
-        // Reset updating flag in case of error
-        conversations = conversations.map(c =>
-            c.id === conversationId ? { ...c, updating: false } : c
-        );
-        renderConversations();
+      conversations = previousState;
+      renderConversations();
 
-        // Use standardized error handling if available
-        import('./displayManager.js').then(module => {
-            if (module.handleConversationError) {
-                module.handleConversationError(error, 'Failed to update conversation');
-            } else {
-                showNotification('Failed to update conversation', 'error');
-            }
-        }).catch(() => {
+      import('./displayManager.js')
+        .then(module => {
+          if (module.handleConversationError) {
+            module.handleConversationError(error, 'Failed to update conversation');
+          } else {
             showNotification('Failed to update conversation', 'error');
+          }
+        })
+        .catch(() => {
+          showNotification('Failed to update conversation', 'error');
         });
     }
+  });
 }
 
 /**
@@ -478,87 +504,138 @@ async function toggleArchiveConversation(conversationId, archived) {
  * @param {string} conversationId - ID of the conversation to delete
  */
 async function deleteConversation(conversationId) {
-    try {
-        const response = await fetch(`/api/chat/conversations/${conversationId}`, {
-            method: 'DELETE'
-        });
-if (!response.ok) {
-    if (response.status === 404) {
-        console.warn('Conversation not found. Possibly already deleted on the server.');
-    } else {
-        throw new Error(`Failed to delete conversation: ${response.status}`);
-    }
-}
-        if (!response.ok) throw new Error('Failed to delete conversation');
-
-        // Remove from UI
-        const item = document.querySelector(`.conversation-item[data-id="${conversationId}"]`);
-        if (item) {
-            item.remove();
-        }
-
-        // Remove from local data
-        conversations = conversations.filter(c => c.id !== conversationId);
-
-        // If current conversation was deleted, create a new one
-        if (sessionStorage.getItem('sessionId') === conversationId) {
-            await createNewConversation();
-            // Skip reloading conversation for the just-deleted ID
-        }
-
-        showNotification('Conversation deleted', 'success');
-    } catch (error) {
-        console.error('Error deleting conversation:', error);
-        showNotification('Failed to delete conversation', 'error');
-    }
-}
-// Add window resize handler at the end of the file
-window.addEventListener('resize', () => {
-    const conversationsSidebar = document.getElementById('conversations-sidebar');
-    if (conversationsSidebar) {
-        if (window.innerWidth < 768) {
-            conversationsSidebar.classList.add('hidden');
-            const conversationsToggle = document.getElementById('conversations-toggle');
-            if (conversationsToggle) {
-                conversationsToggle.setAttribute('aria-expanded', 'false');
-            }
-        } else {
-            conversationsSidebar.classList.remove('hidden');
-            const conversationsToggle = document.getElementById('conversations-toggle');
-            if (conversationsToggle) {
-                conversationsToggle.setAttribute('aria-expanded', 'true');
-            }
-        }
-    }
-});
- // Add click listener for the conversations toggle button for mobile devices
- const conversationsToggleBtn = document.getElementById('conversations-toggle');
- if (conversationsToggleBtn) {
-     conversationsToggleBtn.addEventListener('click', () => {
-         const conversationsSidebar = document.getElementById('conversations-sidebar');
-         if (conversationsSidebar) {
-             const isHidden = conversationsSidebar.classList.contains('hidden');
-             if (conversationsSidebar.style.transform === 'translateX(0%)') {
-                 conversationsSidebar.style.transform = 'translateX(-100%)'; // hide sidebar
-                 conversationsToggleBtn.setAttribute('aria-expanded', 'false');
-             } else {
-                 conversationsSidebar.style.transform = 'translateX(0%)'; // show sidebar
-                 conversationsToggleBtn.setAttribute('aria-expanded', 'true');
-             }
-         }
-     });
- }
-const settingsIcon = document.getElementById('sidebar-toggle');
-const settingsSidebar = document.getElementById('sidebar');
-if (settingsIcon && settingsSidebar) {
-    settingsIcon.addEventListener('click', () => {
-        if (settingsSidebar.style.transform === 'translateX(0%)') {
-            settingsSidebar.style.transform = 'translateX(100%)'; // hide sidebar
-        } else {
-            settingsSidebar.style.transform = 'translateX(0%)';  // show sidebar
-        }
+  try {
+    const response = await fetch(`/api/chat/conversations/${conversationId}`, {
+      method: 'DELETE'
     });
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.warn('Conversation not found. Possibly already deleted on the server.');
+      } else {
+        throw new Error(`Failed to delete conversation: ${response.status}`);
+      }
+    }
+
+    // Remove from UI
+    const item = document.querySelector(`.conversation-item[data-id="${conversationId}"]`);
+    if (item) {
+      item.remove();
+    }
+
+    // Remove from local data
+    conversations = conversations.filter(c => c.id !== conversationId);
+
+    // If current conversation was deleted, create a new one
+    if (sessionStorage.getItem('sessionId') === conversationId) {
+      await createNewConversation();
+      // Skip reloading conversation for the just-deleted ID
+    }
+
+    showNotification('Conversation deleted', 'success');
+  } catch (error) {
+    console.error('Error deleting conversation:', error);
+    showNotification('Failed to delete conversation', 'error');
+  }
 }
+
+/**
+ * Rename a conversation
+ * @param {string} conversationId - ID of the conversation to rename
+ * @param {string} newTitle - The new title for the conversation
+ */
+async function renameConversation(conversationId, newTitle) {
+  // Save previous state for rollback in case of error
+  const previousState = conversations.map(c => ({ ...c }));
+
+  try {
+    // Optimistic update
+    conversations = conversations.map(c =>
+      c.id === conversationId ? { ...c, title: newTitle, updating: true } : c
+    );
+    renderConversations();
+
+    const response = await fetch(`/api/chat/conversations/${conversationId}/rename`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.cookie.match(/csrftoken=([\w-]+)/)?.[1] || ''
+      },
+      body: JSON.stringify({ newTitle })
+    });
+    if (!response.ok) throw new Error('Failed to rename conversation');
+
+    const data = await response.json();
+    conversations = conversations.map(c =>
+      c.id === conversationId
+        ? { ...c, title: data.title || newTitle, version: data.version, updating: false }
+        : c
+    );
+    renderConversations();
+  } catch (error) {
+    console.error('Error renaming conversation:', error);
+    conversations = previousState;
+    renderConversations();
+
+    import('./displayManager.js')
+      .then(module => {
+        if (module.handleConversationError) {
+          module.handleConversationError(error, 'Failed to rename conversation');
+        } else {
+          showNotification('Failed to rename conversation', 'error');
+        }
+      })
+      .catch(() => {
+        showNotification('Failed to rename conversation', 'error');
+      });
+  }
+}
+
+/**
+ * Toggle the conversation sidebar with consistent show/hide logic
+ */
+export function toggleConversationSidebar() {
+  const conversationsSidebar = document.getElementById('conversations-sidebar');
+  const conversationsToggleBtn = document.getElementById('conversations-toggle');
+  if (!conversationsSidebar || !conversationsToggleBtn) return;
+
+  const isOpen = conversationsSidebar.classList.contains('sidebar-open');
+
+  if (isOpen) {
+    // Close
+    conversationsSidebar.classList.remove('sidebar-open', 'translate-x-0');
+    conversationsSidebar.classList.add('-translate-x-full');
+    conversationsToggleBtn.setAttribute('aria-expanded', 'false');
+  } else {
+    // Open
+    conversationsSidebar.classList.add('sidebar-open', 'translate-x-0');
+    conversationsSidebar.classList.remove('-translate-x-full');
+    conversationsToggleBtn.setAttribute('aria-expanded', 'true');
+  }
+  
+  // For mobile, handle the 'hidden' class too
+  if (window.innerWidth < 768) {
+    conversationsSidebar.classList.toggle('hidden', isOpen);
+  }
+  window.toggleConversationSidebar = toggleConversationSidebar;
+}
+
+// Set up conversation sidebar toggle
+function initConversationSidebarToggle() {
+  const conversationsToggleBtn = document.getElementById('conversations-toggle');
+  if (conversationsToggleBtn) {
+    // Remove any existing listeners to avoid duplicates
+    const newBtn = conversationsToggleBtn.cloneNode(true);
+    conversationsToggleBtn.parentNode.replaceChild(newBtn, conversationsToggleBtn);
+    
+    // Add our listener to the NEW button (this line was missing)
+    newBtn.addEventListener('click', toggleConversationSidebar);
+  }
+}
+
+// Call this function during initialization
+document.addEventListener('DOMContentLoaded', () => {
+  initConversationSidebarToggle();
+});
 
 /**
  * Create a new conversation and set it in session storage, then clear the conversation list in the UI
@@ -578,6 +655,8 @@ export async function createAndSetupNewConversation() {
   if (sessionStorage.getItem("sessionId") !== newSessionId) {
     sessionStorage.setItem("sessionId", newSessionId);
   }
+  // Also store in localStorage for cross-tab sync
+  localStorage.setItem('activeConversationId', newSessionId);
 
   // Clear or reset the UI if needed (for example clearing the conversation list in the sidebar)
   const conversationList = document.getElementById('conversation-list');
@@ -588,3 +667,14 @@ export async function createAndSetupNewConversation() {
   console.log('[createAndSetupNewConversation] New conversation created with ID:', newSessionId);
   return newSessionId;
 }
+
+/**
+ * Listen for storage events to sync active conversation across tabs
+ */
+window.addEventListener('storage', (e) => {
+  if (e.key === 'activeConversationId' && e.newValue) {
+    // If another tab changed "activeConversationId", update the current tab
+    sessionStorage.setItem('sessionId', e.newValue);
+    loadConversation(e.newValue);
+  }
+});

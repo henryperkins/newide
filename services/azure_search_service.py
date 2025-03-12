@@ -1,6 +1,4 @@
 # services/azure_search_service.py
-import os
-import json
 import aiohttp
 import logging
 from datetime import datetime
@@ -47,9 +45,7 @@ class AzureSearchService:
             headers = {"Content-Type": "application/json", "api-key": self.api_key}
 
             async with aiohttp.ClientSession() as session:
-                async with session.put(
-                    url, headers=headers, json=index_schema
-                ) as response:
+                async with session.put(url, headers=headers, json=index_schema) as response:
                     if response.status in (200, 201):
                         logger.info(f"Created Azure Search index: {index_name}")
                         return True
@@ -102,8 +98,8 @@ class AzureSearchService:
         filename: str,
         content: str,
         file_type: str,
-        chunks: List[Dict[str, Any]] = None,
-    ) -> bool:
+        chunks: Optional[List[Dict[str, Any]]] = None,
+    ) -> bool:  # noqa: C901
         """
         Upload a file to a search index
 
@@ -121,6 +117,9 @@ class AzureSearchService:
         if not self.endpoint or not self.api_key:
             return False
 
+        if chunks is None:
+            chunks = []
+
         try:
             # Generate index name based on session ID
             index_name = f"index-{session_id}"
@@ -129,10 +128,10 @@ class AzureSearchService:
             content_vector = None
             if self.azure_client and hasattr(self.azure_client, "embeddings"):
                 try:
-                    # Generate embedding for file content
+                    # Generate embedding for file content (limit to ~8K tokens)
                     embedding_response = await self.azure_client.embeddings.create(
                         model=config.AZURE_EMBEDDING_DEPLOYMENT,
-                        input=content[:8192],  # Limit to first ~8K tokens
+                        input=content[:8192],
                     )
                     content_vector = embedding_response.data[0].embedding
                 except Exception as e:
@@ -192,7 +191,6 @@ class AzureSearchService:
                     "chunk_total": 1,
                     "last_updated": datetime.now().isoformat(),
                 }
-
                 # Add vector if available
                 if content_vector:
                     document["content_vector"] = content_vector
@@ -206,14 +204,11 @@ class AzureSearchService:
             # Split into batches if many documents
             batch_size = 10
             for i in range(0, len(documents), batch_size):
-                batch = documents[i : i + batch_size]
-
+                batch = documents[i:i + batch_size]
                 payload = {"value": batch}
 
                 async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        url, headers=headers, json=payload
-                    ) as response:
+                    async with session.post(url, headers=headers, json=payload) as response:
                         if response.status != 200:
                             error_text = await response.text()
                             logger.error(f"Failed to upload documents: {error_text}")
@@ -260,9 +255,7 @@ class AzureSearchService:
             document_ids = []
 
             async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url, headers=headers, json=search_payload
-                ) as response:
+                async with session.post(url, headers=headers, json=search_payload) as response:
                     if response.status == 200:
                         result = await response.json()
                         documents = result.get("value", [])
@@ -278,19 +271,13 @@ class AzureSearchService:
 
             # Delete documents
             delete_url = f"{self.endpoint}/indexes/{index_name}/docs/index?api-version={self.api_version}"
-
-            delete_actions = [{"delete": {"id": doc_id}} for doc_id in document_ids]
-
+            delete_actions = [{"@search.action": "delete", "id": doc_id} for doc_id in document_ids]
             delete_payload = {"value": delete_actions}
 
             async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    delete_url, headers=headers, json=delete_payload
-                ) as response:
+                async with session.post(delete_url, headers=headers, json=delete_payload) as response:
                     if response.status == 200:
-                        logger.info(
-                            f"Deleted {len(document_ids)} documents from index {index_name}"
-                        )
+                        logger.info(f"Deleted {len(document_ids)} documents from index {index_name}")
                         return True
                     else:
                         error_text = await response.text()
@@ -301,8 +288,12 @@ class AzureSearchService:
             return False
 
     async def query_index(
-        self, session_id: str, query: str, file_ids: List[str] = None, top: int = 5
-    ) -> List[Dict[str, Any]]:
+        self,
+        session_id: str,
+        query: str,
+        file_ids: Optional[List[str]] = None,
+        top: int = 5
+    ) -> List[Dict[str, Any]]:  # noqa: C901
         """
         Query a search index
 
@@ -318,6 +309,9 @@ class AzureSearchService:
         if not self.endpoint or not self.api_key:
             return []
 
+        if file_ids is None:
+            file_ids = []
+
         try:
             # Generate index name based on session ID
             index_name = f"index-{session_id}"
@@ -328,7 +322,8 @@ class AzureSearchService:
                 try:
                     # Generate embedding for query
                     embedding_response = await self.azure_client.embeddings.create(
-                        model=config.AZURE_EMBEDDING_DEPLOYMENT, input=query
+                        model=config.AZURE_EMBEDDING_DEPLOYMENT,
+                        input=query
                     )
                     query_vector = embedding_response.data[0].embedding
 
@@ -343,7 +338,7 @@ class AzureSearchService:
 
             # Prepare filter if file IDs are specified
             filter_expr = None
-            if file_ids and len(file_ids) > 0:
+            if file_ids:
                 id_filters = [
                     f"id eq '{file_id}' or startsWith(id, '{file_id}-chunk-')"
                     for file_id in file_ids
@@ -374,9 +369,7 @@ class AzureSearchService:
             headers = {"Content-Type": "application/json", "api-key": self.api_key}
 
             async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url, headers=headers, json=search_payload
-                ) as response:
+                async with session.post(url, headers=headers, json=search_payload) as response:
                     if response.status == 200:
                         result = await response.json()
 
@@ -388,9 +381,7 @@ class AzureSearchService:
                             highlights = []
 
                             if "@search.highlights" in doc:
-                                highlights = doc["@search.highlights"].get(
-                                    "content", []
-                                )
+                                highlights = doc["@search.highlights"].get("content", [])
 
                             caption = None
                             if "@search.captions" in doc:
@@ -399,18 +390,16 @@ class AzureSearchService:
                                     caption = captions[0].get("text")
 
                             # Format result
-                            search_results.append(
-                                {
-                                    "id": doc.get("id"),
-                                    "filename": doc.get("filename"),
-                                    "content": content,
-                                    "filepath": doc.get("filepath"),
-                                    "chunk_id": doc.get("chunk_id"),
-                                    "chunk_total": doc.get("chunk_total"),
-                                    "highlights": highlights,
-                                    "caption": caption,
-                                }
-                            )
+                            search_results.append({
+                                "id": doc.get("id"),
+                                "filename": doc.get("filename"),
+                                "content": content,
+                                "filepath": doc.get("filepath"),
+                                "chunk_id": doc.get("chunk_id"),
+                                "chunk_total": doc.get("chunk_total"),
+                                "highlights": highlights,
+                                "caption": caption,
+                            })
 
                         return search_results
                     else:

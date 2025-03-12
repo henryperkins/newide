@@ -9,21 +9,16 @@ import logging
 import asyncio
 import os
 import functools
-from typing import Dict, List, Any, Optional, Callable, AsyncGenerator
-from fastapi import FastAPI, HTTPException
-from sqlalchemy.ext.asyncio import AsyncEngine
+from fastapi import FastAPI
 from contextlib import asynccontextmanager
-import time
+from schema_validation import validate_database_schema
+from migrate_utils import check_database, ensure_migrations_dir_exists
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Import the schema validation function
-from schema_validation import validate_database_schema
-
-# Import the migration utilities instead of full Alembic dependencies
-from migrate_utils import check_database, ensure_migrations_dir_exists
 
 def db_validation_lifespan(lifespan_func):
     """

@@ -2,17 +2,15 @@
 Service for tracking model transitions and ensuring reliable model switching
 """
 
-from typing import Dict, Any, Optional, List, Tuple, Union
+from typing import Dict, Any, Optional
 import uuid
 import time
-from datetime import datetime, timedelta
 import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import logging
-import sentry_sdk
-# Import the proper tracing utilities
+
 from services.tracing_utils import trace_function, profile_block
 
 logger = logging.getLogger(__name__)
@@ -28,9 +26,12 @@ class ModelTrackingService:
         self.active_transitions = {}
         self.transition_lock = asyncio.Lock()
 
-    # Replace the incorrect trace decorator
-    @trace_function(op="model.transition", name="track_model_switch", 
-                   operation="model_switch", phase="start")
+    @trace_function(
+        op="model.transition",
+        name="track_model_switch",
+        operation="model_switch",
+        phase="start"
+    )
     async def track_model_switch(
         self,
         session_id: uuid.UUID,
@@ -70,9 +71,12 @@ class ModelTrackingService:
             "status": "in_progress",
         }
 
-    # Replace the incorrect trace decorator
-    @trace_function(op="model.transition", name="complete_model_switch", 
-                   operation="model_switch", phase="complete")
+    @trace_function(
+        op="model.transition",
+        name="complete_model_switch",
+        operation="model_switch",
+        phase="complete"
+    )
     async def complete_model_switch(
         self,
         tracking_id: str,
@@ -109,9 +113,11 @@ class ModelTrackingService:
 
         # Record the transition in the database
         try:
-            # Replace start_profiling_span with profile_block
-            with profile_block(description="DB Insert Model Transition", 
-                               op="db.insert", table="model_transitions"):
+            with profile_block(
+                description="DB Insert Model Transition",
+                op="db.insert",
+                table="model_transitions"
+            ):
                 await self.db.execute(
                     text(
                         """
@@ -134,7 +140,7 @@ class ModelTrackingService:
                             :duration_ms,
                             :metadata
                         )
-                    """
+                        """
                     ),
                     {
                         "session_id": transition["session_id"],
@@ -149,17 +155,18 @@ class ModelTrackingService:
                 )
 
             if success:
-                # Update the session's last_model
-                # Replace start_profiling_span with profile_block
-                with profile_block(description="Update Session Model", 
-                                  op="db.update", table="sessions"):
+                with profile_block(
+                    description="Update Session Model",
+                    op="db.update",
+                    table="sessions"
+                ):
                     await self.db.execute(
                         text(
                             """
                             UPDATE sessions
                             SET last_model = :model
                             WHERE id = :session_id
-                        """
+                            """
                         ),
                         {
                             "model": transition["to_model"],
@@ -199,17 +206,22 @@ class ModelTrackingService:
                 "error": str(e),
             }
 
-    # For the get_model_usage_by_session method, use trace_function too
-    @trace_function(op="model.stats", name="get_model_usage_by_session", 
-                   operation="model_usage", type="session_usage")
+    @trace_function(
+        op="model.stats",
+        name="get_model_usage_by_session",
+        operation="model_usage",
+        type="session_usage"
+    )
     async def get_model_usage_by_session(self, session_id: uuid.UUID) -> Dict[str, Any]:
         """
         Get model usage timeline for a specific session with optimized queries
         """
         try:
-            # Use a single query with LEFT JOINs for better performance
-            with profile_block(description="Combined Session Usage Query", 
-                              op="db.query", query_type="select"):
+            with profile_block(
+                description="Combined Session Usage Query",
+                op="db.query",
+                query_type="select"
+            ):
                 combined_query = text(
                     """
                     WITH base_transitions AS (
@@ -261,16 +273,15 @@ class ModelTrackingService:
                         'conversations' as data_type,
                         json_agg(c.*) as data
                     FROM base_conversations c
-                """
+                    """
                 )
 
-                result = await self.db.execute(
-                    combined_query, {"session_id": session_id}
-                )
+                result = await self.db.execute(combined_query, {"session_id": session_id})
 
-            # Process the results
-            with profile_block(description="Process Usage Results", 
-                              op="data.processing"):
+            with profile_block(
+                description="Process Usage Results",
+                op="data.processing"
+            ):
                 rows = result.fetchall()
                 data = {
                     "session_id": session_id,

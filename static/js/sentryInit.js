@@ -1,23 +1,24 @@
 // sentryInit.js - Sentry initialization and configuration for frontend
 
-// Get Sentry from window or create a stub
+// (UPDATED) Keep references to Sentry objects in top-level variables
 let Sentry, BrowserTracing, Replay;
+let isSentryInitialized = false; // Flag to prevent multiple initializations
 
-// Flag to prevent multiple initializations
-let isSentryInitialized = false;
-
-// Initialize variables safely
+/**
+ * Safe method to check if window.Sentry was injected (e.g. via <script>),
+ * otherwise create stubs to avoid runtime errors if Sentry is missing.
+ */
 function getSentryObjects() {
   if (typeof window.Sentry !== "undefined") {
+    // If present on window, bind references
     Sentry = window.Sentry;
     BrowserTracing = window.Sentry.BrowserTracing;
     Replay = window.Sentry.Replay;
     return true;
   }
 
-  // Create stubs for missing objects
+  // If Sentry is not in window, create a no-op stub for each method used
   if (typeof Sentry === "undefined") {
-    // Create stub Sentry object with no-op methods if not available
     Sentry = {
       init: () => {},
       captureException: () => {},
@@ -34,7 +35,7 @@ function getSentryObjects() {
       addBreadcrumb: () => {},
       _initialized: false,
     };
-    console.warn("Using Sentry stub - real monitoring disabled");
+    console.warn("(sentryInit) Using a stub Sentry object — real monitoring disabled.");
     return false;
   }
 
@@ -42,342 +43,280 @@ function getSentryObjects() {
 }
 
 /**
- * Initialize Sentry with Session Replay for the frontend
- * @param {Object} options - Configuration options
+ * (NEW) Build default tags based on environment or other heuristics.
+ * This can help with quick environment identification in Sentry.
+ */
+function buildDefaultTags() {
+  return {
+    hostname: window.location.hostname,
+    path: window.location.pathname,
+    userAgent: navigator.userAgent,
+    // Add more environment-specific tags here if needed
+  };
+}
+
+/**
+ * Initialize Sentry with optional Session Replay for the frontend
+ * @param {Object} options - Additional config from your app
  */
 export function initSentry(options = {}) {
-  // Get or create Sentry objects
   const hasSentry = getSentryObjects();
-
-  // Prevent multiple initializations
   if (isSentryInitialized) {
-    console.log(
-      "Sentry already initialized, skipping duplicate initialization",
-    );
+    console.log("Sentry already initialized. Skipping re-init.");
     return Sentry;
   }
 
-  // If no real Sentry is available, return the stub
+  // If we don’t have real Sentry on window, we use the stub
   if (!hasSentry) {
-    console.warn("Sentry SDK not loaded. Using stub implementation.");
-    // Log this initial failure to console with more detail
-    console.error(
-      "Sentry SDK failed to load. Error tracking will be disabled.",
-      {
-        window_sentry_exists: typeof window.Sentry !== "undefined",
-        script_loaded: document.querySelector('script[src*="sentry"]') !== null,
-        browser: navigator.userAgent,
-      },
-    );
+    console.warn("Sentry globally unavailable - using stub only.");
+    console.error("No Sentry script found. Error tracking is disabled.", {
+      script_loaded: !!document.querySelector('script[src*="sentry"]'),
+      browser: navigator.userAgent,
+    });
     return Sentry;
   }
 
-  // Ensure we have a valid release value
+  // (UPDATED) Get release from window config or fallback
   const release = options.release || window.SENTRY_RELEASE || "newide@1.0.0";
+  const environment = options.environment || "development";
 
-  // Default configuration
+  // Build config for Sentry.init()
   const config = {
     dsn:
       options.dsn ||
-      window.SENTRY_DSN ||
-      "https://d815bc9d689a9255598e0007ae5a2f67@o4508070823395328.ingest.us.sentry.io/4508935977238528",
-    environment: options.environment || "development",
-    release: release,
-
-    // Performance monitoring
-    tracesSampleRate: options.tracesSampleRate || 1.0,
-
-    // Session replay
-    replaysSessionSampleRate: options.replaysSessionSampleRate || 0.1, // Record 10% of sessions
-    replaysOnErrorSampleRate: options.replaysOnErrorSampleRate || 1.0, // Record 100% of sessions with errors
-
-    // Additional options
+      window.SENTRY_DSN || 
+      "https://<key>@<org>.ingest.sentry.io/<project>",
+    environment,
+    release,
+    tracesSampleRate: options.tracesSampleRate ?? 1.0, // full tracing for dev, reduce in prod
+    replaysSessionSampleRate: options.replaysSessionSampleRate ?? 0.1, // 10% by default
+    replaysOnErrorSampleRate: options.replaysOnErrorSampleRate ?? 1.0, // 100% for errors
     integrations: [],
+    _experiments: {
+      enableTiming: true,
+      enableLongTask: true,
+    },
 
-    // Before send hook to filter sensitive data and improve context
+    // (UPDATED) Enhanced beforeSend hook for context + grouping
     beforeSend: (event, hint) => {
-      // Check if there's exception data
+      // Example: attach additional environment info
+      event.tags = event.tags || {};
+      // Merge default tags
+      Object.assign(event.tags, buildDefaultTags(), event.tags);
+
       if (
         event.exception &&
         event.exception.values &&
         event.exception.values.length > 0
       ) {
-        // Add browser information as context
         event.contexts = event.contexts || {};
         event.contexts.browser = {
           name: navigator.userAgent,
           viewport_width: window.innerWidth,
           viewport_height: window.innerHeight,
-          memory: performance?.memory
-            ? {
-                totalJSHeapSize: performance.memory.totalJSHeapSize,
-                usedJSHeapSize: performance.memory.usedJSHeapSize,
-              }
-            : "unavailable",
         };
 
-        // Add additional tags for easier filtering
-        event.tags = event.tags || {};
-
-        // Add path information
-        event.tags.path = window.location.pathname;
-
-        // Detect if error is from streaming.js
-        const errorValue = event.exception.values[0];
-        if (errorValue && errorValue.stacktrace) {
-          const frames = errorValue.stacktrace.frames || [];
-          const isStreamingError = frames.some(
-            (frame) =>
-              frame.filename && frame.filename.includes("streaming.js"),
-          );
-
-          if (isStreamingError) {
-            event.tags.errorSource = "streaming";
-            event.tags.errorType = "frontend-streaming";
-          }
-        }
+        // (NEW) Example: adding a custom “fingerprint” for grouping
+        // This can unify or separate error grouping. Adjust as your app requires.
+        // event.fingerprint = ['{{ default }}', window.location.pathname];
       }
-
-      // Filter out any sensitive data here if needed
 
       return event;
     },
   };
 
-  // Add BrowserTracing if available
+  // Add BrowserTracing integration if available
   if (typeof BrowserTracing === "function") {
-    config.integrations.push(new BrowserTracing());
+    config.integrations.push(
+      new BrowserTracing({
+        // (NEW) Example: routing instrumentation if using e.g. React Router
+        // routingInstrumentation: Sentry.reactRouterV6Instrumentation(...),
+      }),
+    );
   }
 
-  // Only add Replay if it exists and we haven't initialized Sentry yet
+  // Add Replay if available
   if (typeof Replay === "function") {
     config.integrations.push(
       new Replay({
-        // Replay configuration
-        maskAllText: options.maskAllText || false,
-        blockAllMedia: options.blockAllMedia || false,
+        maskAllText: options.maskAllText ?? false,
+        blockAllMedia: options.blockAllMedia ?? false,
         maskAllInputs:
           options.maskAllInputs !== undefined ? options.maskAllInputs : true,
       }),
     );
   }
 
+  // Make sure we only init if not already done
   try {
-    // Check for existing initialization on the Sentry object itself
     if (Sentry._initialized) {
-      console.log(
-        "Sentry already initialized (detected via Sentry._initialized)",
-      );
+      console.log("Sentry indicates it was already initialized (Sentry._initialized found).");
       return Sentry;
     }
 
-    // Log configuration attempt (without sensitive data)
-    console.log("Initializing Sentry with config:", {
+    console.log("Initializing Sentry with:", {
       environment: config.environment,
       release: config.release,
       tracesSampleRate: config.tracesSampleRate,
       replaysEnabled: config.integrations.some((i) => i instanceof Replay),
-      browserTracingEnabled: config.integrations.some(
-        (i) => i instanceof BrowserTracing,
-      ),
+      browserTracingEnabled: config.integrations.some((i) => i instanceof BrowserTracing),
     });
 
     Sentry.init(config);
     isSentryInitialized = true;
-    // Set a direct flag on the Sentry object for cross-module detection
     Sentry._initialized = true;
-    console.log("Sentry initialized successfully");
-
-    // Add a startup breadcrumb to track initialization
-    Sentry.addBreadcrumb({
-      category: "lifecycle",
-      message: "Sentry initialized successfully",
-      level: "info",
-      data: {
-        timestamp: new Date().toISOString(),
-        environment: config.environment,
-        release: config.release,
-      },
-    });
   } catch (error) {
-    console.error("Error initializing Sentry:", error);
-    // Try to log initialization failure to local storage for debugging
+    console.error("(sentryInit) Error initializing Sentry:", error);
+
+    // Optionally store or track the init error
     try {
-      localStorage.setItem(
-        "sentry_init_error",
-        JSON.stringify({
-          message: error.message,
-          timestamp: new Date().toISOString(),
-          stack: error.stack,
-        }),
-      );
+      localStorage.setItem("sentry_init_error", JSON.stringify({
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        stack: error.stack,
+      }));
     } catch (e) {
-      console.error("Failed to store Sentry init error:", e);
+      console.error("[sentryInit] Failed to store init error in localStorage:", e);
     }
   }
 
-  // Add custom context if provided
+  // Apply manual tags or user context if given
   if (options.tags) {
     Sentry.setTags(options.tags);
   }
-
   if (options.user) {
     Sentry.setUser(options.user);
   }
 
-  // Return the Sentry instance for further configuration
+  // Startup breadcrumb
+  Sentry.addBreadcrumb({
+    category: "lifecycle",
+    message: "Sentry initialized successfully",
+    level: "info",
+    data: {
+      environment: config.environment,
+      release: config.release,
+      time: new Date().toISOString(),
+    },
+  });
+
   return Sentry;
 }
 
 /**
- * Capture a frontend error with Sentry
- * @param {Error} error - The error to capture
- * @param {Object} context - Additional context for the error
+ * Capture a frontend error in Sentry
+ * @param {Error|any} error - The error to capture
+ * @param {Object} context - Additional context for debugging
  */
 export function captureError(error, context = {}) {
-  if (typeof Sentry !== "undefined") {
-    Sentry.captureException(error, {
-      extra: context,
-    });
+  if (Sentry && typeof Sentry.captureException === "function") {
+    Sentry.captureException(error, { extra: context });
   } else {
-    console.warn("Sentry is not found on window. Skipping captureException.");
+    console.warn("(sentryInit) captureError: Sentry not found or not initialized.");
   }
 }
 
 /**
- * Capture a frontend message with Sentry
- * @param {string} message - The message to capture
- * @param {string} level - The severity level (info, warning, error)
- * @param {Object} context - Additional context for the message
+ * Capture a frontend message in Sentry
+ * @param {string} message - Descriptive message text
+ * @param {string} level - Severity level: info, warning, error, etc.
+ * @param {Object} context - Additional data for debugging
  */
 export function captureMessage(message, level = "info", context = {}) {
-  if (typeof Sentry !== "undefined") {
-    Sentry.captureMessage(message, {
-      level,
-      extra: context,
-    });
+  if (Sentry && typeof Sentry.captureMessage === "function") {
+    Sentry.captureMessage(message, { level, extra: context });
   } else {
-    console.warn("Sentry is not found on window. Skipping captureMessage.");
+    console.warn("(sentryInit) captureMessage: Sentry not found or not initialized.");
   }
 }
 
 /**
  * Start a Sentry transaction for performance monitoring
  * @param {string} name - Transaction name
- * @param {string} op - Operation type
- * @param {Object} data - Additional data for the transaction
- * @returns {Transaction} The Sentry transaction object
+ * @param {string} op - Operation category
+ * @param {Object} data - Additional metadata
+ * @returns {Transaction|null} The Sentry transaction or null if unavailable
  */
 export function startTransaction(name, op, data = {}) {
-  if (
-    typeof Sentry !== "undefined" &&
-    typeof Sentry.startTransaction === "function"
-  ) {
-    const transaction = Sentry.startTransaction({
-      name,
-      op,
-      data,
-    });
+  if (Sentry && typeof Sentry.startTransaction === "function") {
+    const transaction = Sentry.startTransaction({ name, op, data });
 
-    // Set the transaction as current
+    // Link transaction to current scope
     Sentry.getCurrentHub().configureScope((scope) => {
       scope.setSpan(transaction);
     });
 
     return transaction;
   } else {
-    console.warn(
-      "Sentry not found or startTransaction is not defined. Returning null.",
-    );
+    console.warn("(sentryInit) startTransaction: Sentry not found or not initialized.");
     return null;
   }
 }
 
 /**
- * Create a span within the current transaction
- * @param {string} name - Span name
- * @param {string} op - Operation type
- * @returns {Span} The Sentry span object
+ * Create a child span within the current transaction’s scope
+ * @param {string} name - Span description
+ * @param {string} op - Operation name
+ * @returns {Span|null} Child span or null if no active transaction
  */
 export function createSpan(name, op) {
-  const transaction = Sentry.getCurrentHub().getScope().getTransaction();
+  const transaction = Sentry?.getCurrentHub?.()?.getScope?.()?.getTransaction?.();
   if (!transaction) {
-    console.warn("No active transaction found when creating span:", name);
+    console.warn("(sentryInit) createSpan: No active transaction found.");
     return null;
   }
-
-  return transaction.startChild({
-    op,
-    description: name,
-  });
+  return transaction.startChild({ op, description: name });
 }
 
 /**
- * Set user information for Sentry
- * @param {Object} user - User information
+ * Set the active user in Sentry for correlation
+ * @param {Object} user - e.g. { id, email, username }
  */
 export function setUser(user) {
-  if (typeof Sentry !== "undefined" && typeof Sentry.setUser === "function") {
+  if (Sentry && typeof Sentry.setUser === "function") {
     Sentry.setUser(user);
   } else {
-    console.warn("Sentry or setUser missing. Skipping setUser call.");
+    console.warn("(sentryInit) setUser: Sentry not found or not initialized.");
   }
 }
 
 /**
- * Add breadcrumb to Sentry
- * @param {Object} breadcrumb - Breadcrumb data
+ * Add a breadcrumb to Sentry
+ * @param {Object} breadcrumb - { category, message, level, data }
  */
 export function addBreadcrumb(breadcrumb) {
-  try {
-    if (
-      typeof Sentry !== "undefined" &&
-      typeof Sentry.addBreadcrumb === "function"
-    ) {
-      Sentry.addBreadcrumb(breadcrumb);
-    } else {
-      console.warn(
-        "Sentry or addBreadcrumb missing. Skipping breadcrumb:",
-        breadcrumb,
-      );
-    }
-  } catch (error) {
-    console.error("Error adding breadcrumb:", error);
+  if (Sentry && typeof Sentry.addBreadcrumb === "function") {
+    Sentry.addBreadcrumb(breadcrumb);
+  } else {
+    console.warn("(sentryInit) addBreadcrumb: Sentry not found or not initialized.");
   }
 }
 
 /**
- * Set a tag for the current scope
- * @param {string} key - Tag key
- * @param {string} value - Tag value
+ * Set a single tag for the current scope
+ * @param {string} key 
+ * @param {string} value 
  */
 export function setTag(key, value) {
-  if (typeof Sentry !== "undefined" && typeof Sentry.setTag === "function") {
+  if (Sentry && typeof Sentry.setTag === "function") {
     Sentry.setTag(key, value);
   } else {
-    console.warn("Sentry or setTag missing. Skipping setTag call.");
+    console.warn("(sentryInit) setTag: Sentry not found or not initialized.");
   }
 }
 
 /**
- * Set extra context data for the current scope
- * @param {string} key - Context key
- * @param {any} value - Context value
+ * Attach extra context to the current Sentry scope
+ * @param {string} key
+ * @param {any} value
  */
 export function setExtra(key, value) {
-  try {
-    if (
-      typeof Sentry !== "undefined" &&
-      typeof Sentry.setExtra === "function"
-    ) {
-      Sentry.setExtra(key, value);
-    } else {
-      console.warn("Sentry or setExtra missing. Skipping setExtra call:", key);
-    }
-  } catch (error) {
-    console.error("Error setting extra context:", error);
+  if (Sentry && typeof Sentry.setExtra === "function") {
+    Sentry.setExtra(key, value);
+  } else {
+    console.warn("(sentryInit) setExtra: Sentry not found or not initialized.");
   }
 }
 
-// Export Sentry directly for advanced usage
+// (NEW) Export the Sentry object directly for advanced usage if needed
 export { Sentry };

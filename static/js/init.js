@@ -9,8 +9,9 @@ import { loadConversationFromDb, loadOlderMessages } from './ui/displayManager.j
 import { StatsDisplay } from './ui/statsDisplay.js';
 import fileManager from './fileManager.js';
 import { showNotification } from './ui/notificationManager.js';
-import { getSessionId, createNewConversation } from './session.js';
+import { getSessionId, createNewConversation, refreshSession } from './session.js';
 import { initSentry, captureError, captureMessage } from './sentryInit.js';
+import { globalStore } from './store.js';
 
 // Configure DOMPurify
 if (typeof DOMPurify !== 'undefined') {
@@ -36,6 +37,7 @@ document.addEventListener('DOMContentLoaded', initApplication);
 /**
  * Ensures a valid session exists before proceeding with app initialization
  * Handles 404 errors and other issues gracefully
+ * Uses the more reliable SessionService API endpoints
  */
 async function ensureValidSession() {
   try {
@@ -44,35 +46,31 @@ async function ensureValidSession() {
       return module.startTransaction('session_initialization', 'session');
     });
     
-    // Get or create a session ID - this function handles validation internally
-    // and will create a new session if the existing one is invalid
-    const sessionId = await getSessionId();
+    // Import the updated session functions
+    const { ensureValidSession: sessionValidation, refreshSession } = await import('./session.js');
+    
+    // Use the new centralized method that works with SessionService
+    const sessionId = await sessionValidation();
 
     if (!sessionId) {
       console.warn('Failed to get a valid session ID');
       captureMessage('Failed to get a valid session ID', 'warning');
 
-      // Try one more time with a fresh session
-      sessionStorage.removeItem('sessionId');
-      const newSessionId = await createNewConversation('New Conversation');
-
-      if (!newSessionId) {
-        // Show error notification but don't throw to allow the app to continue
-        showNotification(
-          'Unable to create a session. Some features may not work correctly.',
-          'warning',
-          10000,
-          [{ label: 'Refresh', onClick: () => window.location.reload() }]
-        );
-        console.error('Failed to create a new session after multiple attempts');
-        captureMessage('Failed to create a new session after multiple attempts', 'error');
-      } else {
-        console.log('Created new session after initial failure:', newSessionId);
-        captureMessage('Created new session after initial failure', 'info', { sessionId: newSessionId });
-      }
+      // Show error notification but don't throw to allow the app to continue
+      showNotification(
+        'Unable to create a session. Some features may not work correctly.',
+        'warning',
+        10000,
+        [{ label: 'Refresh', onClick: () => window.location.reload() }]
+      );
+      console.error('Failed to create a new session after multiple attempts');
+      captureMessage('Failed to create a new session after multiple attempts', 'error');
     } else {
       console.log('Session initialization successful:', sessionId);
       captureMessage('Session initialization successful', 'info', { sessionId });
+      
+      // Refresh the session to extend its validity
+      await refreshSession(sessionId);
     }
     
     // Finish the transaction
@@ -110,7 +108,7 @@ function showFallbackUI(error) {
   errorElement.innerHTML = `
     <h3 class="text-lg font-semibold mb-2">Application Error</h3>
     <p>The application encountered an error during initialization.</p>
-    <p class="mt-2 text-sm text-red-600">${error.message}</p>
+    <p class="mt-2 text-sm text-red-600">\${(error && error.message) ? error.message : error.toString()}</p>
     <button class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
       Refresh Page
     </button>
@@ -151,6 +149,22 @@ function showFallbackUI(error) {
  */
 async function initApplication() {
   console.log('Initializing application...');
+
+  // Mobile touch event stabilization
+  if ('ontouchstart' in window) {
+    document.addEventListener('touchstart', function(e) {
+      if(e.target.closest('.message')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    }, { passive: false });
+
+    document.addEventListener('touchmove', function(e) {
+      if(e.target.closest('#chat-history')) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+  }
 
   try {
     // Initialize Sentry with Session Replay only if not already initialized
@@ -207,34 +221,30 @@ async function initApplication() {
     // 6. Initialize existing thinking blocks
     deepSeekProcessor.initializeExistingBlocks();
 
-    // 7. Initialize stats display
-    window.statsDisplay = new StatsDisplay('performance-stats');
-
-    // 8. Initialize mobile or desktop features
-    // Always run initMobileUI even on desktop so that all interactive elements have listeners
+    // 7. Initialize mobile or desktop features
     initMobileUI();
 
-    // 9. Additional UI init
+    // 8. Additional UI init
     initPerformanceStats();
     configureMarkdown();
     initChatInterface();
     initUserInput();
-    initConversationControls();
     initFontSizeControls();
-    initTokenUsageDisplay();
-    /* Removed initThinkingModeToggle call */
     enhanceAccessibility();
     detectTouchCapability();
     registerKeyboardShortcuts();
-    initModelSelector();
     initConfigHandlers();
+    initTokenUsageDisplay(); // Ensure token usage display toggle is initialized
 
-    // 10. Load conversation from database
+    // 9. Load conversation from database
     await loadConversationFromDb();
     maybeShowWelcomeMessage();
 
-    // 11. Initialize model manager
+    // 10. Initialize model manager
     await modelManager.initialize();
+
+    // 11. Now that modelManager is ready, init the selector
+    initModelSelector();
 
     // 12. Set up window resize event listener for responsive UI
     setupResizeHandler();
@@ -250,6 +260,23 @@ async function initApplication() {
 }
 
 /**
+ * A helper to sync tab panels' display state. 
+ * Called by fixLayoutIssues() and in setupResizeHandler().
+ */
+function syncTabPanelDisplay() {
+  const tabPanels = document.querySelectorAll('[role="tabpanel"]');
+  tabPanels.forEach(panel => {
+    panel.classList.add('relative', 'w-full', 'h-auto');
+
+    const tabId = panel.id;
+    const button = document.querySelector(`[data-target-tab="${tabId}"]`);
+    const shouldBeVisible = button && button.getAttribute('aria-selected') === 'true';
+    panel.classList.toggle('hidden', !shouldBeVisible);
+    panel.setAttribute('aria-hidden', String(!shouldBeVisible));
+  });
+}
+
+/**
  * Fix layout issues by directly manipulating the DOM
  * This runs before any other initialization to ensure proper rendering
  */
@@ -257,50 +284,43 @@ function fixLayoutIssues() {
   console.log('Applying layout fixes...');
 
   // 1. Fix sidebar positioning
+  /*
   const sidebar = document.getElementById('sidebar');
   if (sidebar) {
-    // Remove any transforms from HTML
-    sidebar.classList.remove('translate-x-full', 'md:translate-x-0', 'translate-x-0');
+      // Remove any transforms from HTML
+      sidebar.classList.remove('translate-x-full','md:translate-x-0','translate-x-0');
 
-    // Apply correct positioning and width
-    const isMobile = window.innerWidth < 768;
+      // Apply correct positioning using Tailwind classes
+      // We'll rely on 'fixed top-[64px] bottom-0 right-0 z-50 w-full md:w-96'
+      // and the 'sidebar-open' class controlling translate-x-0 or translate-x-full
+      sidebar.classList.add('fixed','top-[64px]','bottom-0','right-0','z-50');
+      
+      // If mobile, use w-full, else w-96
+      if (window.innerWidth < 768) {
+        sidebar.classList.add('w-full');
+        sidebar.classList.remove('w-96');
+      } else {
+        sidebar.classList.remove('w-full');
+        sidebar.classList.add('w-96');
+      }
 
-    // Set fixed position with correct dimensions
-    sidebar.style.position = 'fixed';
-    sidebar.style.top = '64px';
-    sidebar.style.bottom = '0';
-    sidebar.style.right = '0';
-    sidebar.style.zIndex = '50';
-    sidebar.style.width = isMobile ? '100%' : '384px';
-    if (!sidebar.classList.contains('sidebar-open')) {
-        sidebar.style.transform = 'translateX(100%)';
-    } else {
-        sidebar.style.transform = 'translateX(0)';
-    }
+      // If sidebar isn't open, apply 'translate-x-full' else 'translate-x-0'
+      if (!sidebar.classList.contains('sidebar-open')) {
+        sidebar.classList.add('translate-x-full');
+        sidebar.classList.remove('translate-x-0');
+      } else {
+        sidebar.classList.add('translate-x-0');
+        sidebar.classList.remove('translate-x-full');
+      }
   }
-
+  */
   // 2. Fix tab panels display
-  document.querySelectorAll('[role="tabpanel"]').forEach(panel => {
-    panel.style.position = 'relative';
-    panel.style.width = '100%';
-    panel.style.height = 'auto';
-
-    // Make sure active panel is visible, others are hidden
-    const tabId = panel.id;
-    const button = document.querySelector(`[data-target-tab="${tabId}"]`);
-    if (button && button.getAttribute('aria-selected') === 'true') {
-      panel.classList.remove('hidden');
-      panel.setAttribute('aria-hidden', 'false');
-    } else {
-      panel.classList.add('hidden');
-      panel.setAttribute('aria-hidden', 'true');
-    }
-  });
+  syncTabPanelDisplay();
 
   // 3. Fix overlay pointer events
   const overlay = document.getElementById('sidebar-overlay');
   if (overlay) {
-    overlay.style.pointerEvents = 'auto';
+      overlay.classList.add('pointer-events-auto');
   }
 }
 
@@ -315,9 +335,14 @@ function setupResizeHandler() {
     const chatContainer = document.getElementById('chat-container');
 
     if (sidebar) {
-      // Update sidebar dimensions based on viewport
-      sidebar.style.width = isMobile ? '100%' : '384px';
-
+      // Update sidebar dimensions using Tailwind utility classes instead of inline widths
+      if (isMobile) {
+          sidebar.classList.add('w-full');
+          sidebar.classList.remove('w-96');
+      } else {
+          sidebar.classList.remove('w-full');
+          sidebar.classList.add('w-96');
+      }
       // Check if sidebar is open and update layout accordingly
       const isOpen = sidebar.classList.contains('sidebar-open');
       if (isOpen) {
@@ -326,29 +351,16 @@ function setupResizeHandler() {
         } else if (chatContainer) {
           chatContainer.classList.remove('sidebar-open');
         }
-
         if (overlay) {
           overlay.classList.toggle('hidden', !isMobile);
         }
       }
     }
-
-    // Re-apply tab panel fixes in case they were lost
-    document.querySelectorAll('[role="tabpanel"]').forEach(panel => {
-      if (panel.id) {
-        const button = document.querySelector(`[data-target-tab="${panel.id}"]`);
-        const shouldBeVisible = button && button.getAttribute('aria-selected') === 'true';
-        panel.classList.toggle('hidden', !shouldBeVisible);
-        panel.setAttribute('aria-hidden', String(!shouldBeVisible));
-
-        // Ensure proper positioning
-        panel.style.position = 'relative';
-        panel.style.width = '100%';
-      }
-    });
+    // Re-apply tab panel fixes
+    syncTabPanelDisplay();
   }, 250);
 
-  window.addEventListener('resize', handleResize);
+  // window.addEventListener('resize', handleResize);
 }
 
 /* ------------------------------------------------------------------
@@ -361,9 +373,9 @@ function setupResizeHandler() {
  */
 function initPerformanceStats() {
   try {
-    // Only initialize once to avoid duplicate instances
-    if (!window.statsDisplay) {
-      window.statsDisplay = new StatsDisplay('performance-stats');
+    // Initialize only once
+    if (!globalStore.statsDisplay) {
+      globalStore.statsDisplay = new StatsDisplay('performance-stats');
     }
   } catch (err) {
     console.error('Failed to initialize performance stats:', err);
@@ -393,17 +405,15 @@ function initErrorDisplay() {
 }
 
 /**
- * Checks localStorage for a conversation; if not found, show welcome once
+ * Checks globalStore for conversation; if none found, show welcome once
  */
 function maybeShowWelcomeMessage() {
-  const conversationExists =
-    localStorage.getItem('conversation') &&
-    JSON.parse(localStorage.getItem('conversation')).length > 0;
-  const welcomeShown = sessionStorage.getItem('welcome_message_shown');
+  const conversationExists = globalStore.conversation && globalStore.conversation.length > 0;
+  const welcomeShown = globalStore.welcomeMessageShown ? 'true' : '';
 
   if (!conversationExists && !welcomeShown) {
     showWelcomeMessage();
-    sessionStorage.setItem('welcome_message_shown', 'true');
+    globalStore.welcomeMessageShown = true;
   }
 }
 
@@ -417,15 +427,19 @@ function showWelcomeMessage() {
   const welcomeMessage = document.createElement('div');
   welcomeMessage.className =
     'mx-auto max-w-2xl text-center p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-8';
-  welcomeMessage.innerHTML = `
-    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Welcome to Azure OpenAI Chat</h2>
-    <p class="text-gray-600 dark:text-gray-300 mb-4">
-      This chat application uses Azure OpenAI's powerful language models.
-    </p>
-    <p class="text-gray-600 dark:text-gray-300">
-      Type a message below to get started!
-    </p>
-  `;
+  const heading = document.createElement('h2');
+  heading.className = 'text-xl font-semibold text-gray-900 dark:text-white mb-4';
+  heading.textContent = 'Welcome to Azure OpenAI Chat';
+  
+  const para1 = document.createElement('p');
+  para1.className = 'text-gray-600 dark:text-gray-300 mb-4';
+  para1.textContent = 'This chat application uses Azure OpenAI\'s powerful language models.';
+  
+  const para2 = document.createElement('p');
+  para2.className = 'text-gray-600 dark:text-gray-300';
+  para2.textContent = 'Type a message below to get started!';
+
+  welcomeMessage.append(heading, para1, para2);
   chatHistory.appendChild(welcomeMessage);
 }
 
@@ -583,9 +597,8 @@ function initUserInput() {
         charCount.textContent = userInput.value.length;
       }
 
-      // Auto-resize the textarea
-      userInput.style.height = 'auto';
-      userInput.style.height = Math.min(userInput.scrollHeight, 200) + 'px';
+      // Convert inline styling to Tailwind utility classes for height
+      userInput.classList.add('h-auto', 'overflow-y-auto', 'max-h-52');
     });
 
     // Add event listener for send button
@@ -657,16 +670,6 @@ function openFileInSidebar(filename) {
 }
 
 /**
- * Conversation controls container
- */
-function initConversationControls() {
-  console.log('Initializing conversation control buttons...');
-
-  // Make sure buttons are initialized with proper event handlers
-  // This is already handled in initUserInput
-}
-
-/**
  * Initialize token usage display toggle
  */
 function initTokenUsageDisplay() {
@@ -676,7 +679,6 @@ function initTokenUsageDisplay() {
   const tokenChevron = document.getElementById('token-chevron');
 
   if (tokenUsage && toggleButton) {
-    // Remove any existing event listeners to prevent duplicates
     safeAddEventListener(toggleButton, 'click', () => {
       if (tokenDetails) {
         tokenDetails.classList.toggle('hidden');
@@ -684,11 +686,11 @@ function initTokenUsageDisplay() {
       if (tokenChevron) {
         tokenChevron.classList.toggle('rotate-180');
       }
-      localStorage.setItem('tokenDetailsVisible', !tokenDetails.classList.contains('hidden'));
+      globalStore.tokenDetailsVisible = !tokenDetails || !tokenDetails.classList.contains('hidden');
     });
 
     // Check for stored preference
-    const tokenDetailsVisible = localStorage.getItem('tokenDetailsVisible') === 'true';
+    const tokenDetailsVisible = globalStore.tokenDetailsVisible;
     if (tokenDetailsVisible && tokenDetails) {
       tokenDetails.classList.remove('hidden');
       if (tokenChevron) {
@@ -697,11 +699,6 @@ function initTokenUsageDisplay() {
     }
   }
 }
-
-/**
- * Initialize the thinking mode toggle
- */
-/* Removed the initThinkingModeToggle function and all references to enableThinkingMode */
 
 /**
  * Register global keyboard shortcuts
@@ -753,12 +750,12 @@ function detectTouchCapability() {
 
   if (isTouchDevice) {
     document.documentElement.classList.add('touch-device');
-    const defaultFontSize = localStorage.getItem('fontSize') || 'text-base';
-    if (!localStorage.getItem('fontSize') && window.matchMedia('(max-width: 640px)').matches) {
+    const currentFontSize = globalStore.fontSize; // default is text-base
+    if (currentFontSize === 'text-base' && window.matchMedia('(max-width: 640px)').matches) {
       document.documentElement.classList.add('text-lg');
-      localStorage.setItem('fontSize', 'text-lg');
+      globalStore.fontSize = 'text-lg';
     } else {
-      document.documentElement.classList.add(defaultFontSize);
+      document.documentElement.classList.add(currentFontSize);
     }
   }
 }
@@ -770,24 +767,39 @@ function initModelSelector() {
   const modelSelect = document.getElementById('model-select');
   if (!modelSelect) return;
 
-  // Load default models
-  import('./models.js').then(module => {
-    const { modelManager } = module;
+  // Use a single import chain
+  import('./models.js').then(async ({ modelManager }) => {
 
     // Make sure the local model configs are created first before trying to use them
     modelManager.ensureLocalModelConfigs();
+    if (!modelManager.modelConfigs) {
+      console.error("modelManager.modelConfigs is undefined");
+      return;
+    }
+    if (!modelManager.modelConfigs) {
+      console.warn("modelManager.modelConfigs is undefined, calling ensureLocalModelConfigs()");
+      modelManager.ensureLocalModelConfigs();
+      if (!modelManager.modelConfigs) {
+        console.error("modelManager.modelConfigs still undefined, skipping initModelSelector");
+        return;
+      }
+    }
     console.log("Local model configs initialized:", Object.keys(modelManager.modelConfigs));
 
     // Add with a slight delay to ensure model configs are fully processed
     setTimeout(() => {
       if (modelSelect.options.length === 0) {
         const models = modelManager.modelConfigs;
+        if (!models) {
+          console.error("modelManager.modelConfigs is undefined");
+          return;
+        }
         if (Object.keys(models).length > 0) {
           modelSelect.innerHTML = '';
           for (const [id, config] of Object.entries(models)) {
             const option = document.createElement('option');
             option.value = id;
-            option.textContent = `${id}${config.description ? ` (${config.description})` : ''}`;
+            option.textContent = id + (config.description ? ' (' + config.description + ')' : '');
             modelSelect.appendChild(option);
           }
 
@@ -802,33 +814,33 @@ function initModelSelector() {
         }
       }
     }, 500);
-  });
 
-  // Asynchronously initialize the model manager
-  setTimeout(() => {
-    import('./models.js')
-      .then(module => {
-        const { modelManager } = module;
-        // Ensure model configs exist
-        if (Object.keys(modelManager.modelConfigs).length === 0) {
-          modelManager.ensureLocalModelConfigs();
-        }
+    // Ensure local model configs are fully loaded
+    try {
+      await modelManager.refreshModelsList();
+    } catch (err) {
+      console.warn("Error in refreshing model list:", err);
+    }
 
-        // Initialize model manager
-        modelManager.initialize()
-          .then(() => {
-            console.log("Model manager initialized with models:", Object.keys(modelManager.modelConfigs));
+    console.log("Local model configs loaded:", Object.keys(modelManager.modelConfigs));
 
-            // Initialize model management UI
-            modelManager.initModelManagement();
+    // Safely initialize and set up the model manager
+    try {
+      await modelManager.initialize();
+      if (!modelManager.modelConfigs) {
+        console.error("modelManager.modelConfigs is undefined");
+        return;
+      }
+      console.log("Model manager initialized with models:", Object.keys(modelManager.modelConfigs));
 
-            // Force refresh models list
-            modelManager.refreshModelsList();
-          })
-          .catch(err => console.error('Error initializing ModelManager:', err));
-      })
-      .catch(err => console.error('Failed to load models.js:', err));
-  }, 1000);
+      modelManager.initModelManagement();
+      // Force refresh models list once more if needed
+      await modelManager.refreshModelsList();
+    } catch (err) {
+      console.error('Error initializing ModelManager:', err);
+    }
+  })
+  .catch(err => console.error('Failed to load models.js:', err));
 }
 
 /* ------------------------------------------------------------------
@@ -844,6 +856,19 @@ function initMobileUI() {
   initPullToRefresh();
   setupMobileStatsToggle();
   setupMobileFontControls();
+
+  // Improve chat layout on mobile devices
+  const chatContainer = document.getElementById('chat-container');
+  if (chatContainer) {
+    // Make the container fill the screen and scroll properly
+    chatContainer.classList.add('flex', 'flex-col', 'h-screen', 'overflow-hidden');
+
+    const chatHistory = document.getElementById('chat-history');
+    if (chatHistory) {
+      // Allow chat history to expand and scroll
+      chatHistory.classList.add('flex-grow', 'overflow-y-auto');
+    }
+  }
 }
 
 /**
@@ -1062,10 +1087,6 @@ function setupMobileFontControls() {
                   SHARED FONT-SIZE ADJUSTMENT LOGIC
    ------------------------------------------------------------------ */
 
-/**
- * Adjust font size of the document
- * @param {number} direction - 1 to increase, -1 to decrease, 0 to reset
- */
 function adjustFontSize(direction) {
   const sizes = ['text-sm', 'text-base', 'text-lg', 'text-xl'];
 
@@ -1073,7 +1094,7 @@ function adjustFontSize(direction) {
   if (direction === 0) {
     document.documentElement.classList.remove(...sizes);
     document.documentElement.classList.add('text-base');
-    localStorage.removeItem('fontSize');
+    globalStore.fontSize = 'text-base';
     return;
   }
 
@@ -1089,7 +1110,7 @@ function adjustFontSize(direction) {
   // Apply new size
   document.documentElement.classList.remove(...sizes);
   document.documentElement.classList.add(sizes[newIndex]);
-  localStorage.setItem('fontSize', sizes[newIndex]);
+  globalStore.fontSize = sizes[newIndex];
 }
 
 /**
@@ -1100,8 +1121,8 @@ function initFontSizeControls() {
   const biggerBtn = document.getElementById('font-size-up');
   const resetBtn = document.getElementById('font-size-reset');
 
-  // Apply stored font size
-  const storedSize = localStorage.getItem('fontSize') || 'text-base';
+  // Apply stored font size via globalStore
+  const storedSize = globalStore.fontSize;
   document.documentElement.classList.add(storedSize);
 
   if (smallerBtn) {

@@ -10,6 +10,7 @@
     "lint:css": "postcss static/css/tailwind.css --output static/css/tailwind.compiled.css --verbose"
   },
   "dependencies": {
+    "daisyui": "^5.0.2",
     "dompurify": "^3.2.4",
     "markdown-it": "^14.1.0",
     "prismjs": "^1.29.0",

@@ -1,19 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from passlib.hash import bcrypt
-import jwt as pyjwt
+from jose import jwt
 from datetime import datetime, timedelta
 import time
 import uuid
 import sentry_sdk
 
-from pydantic_models import UserCreate, UserLogin
+from pydantic_models import UserCreate
 from database import get_db_session
 from models import User
 import config
 from sqlalchemy import select
 from services.tracing_utils import trace_function, trace_block, set_user_context, add_breadcrumb
 from logging_config import get_logger
+from services.session_service import SessionService
 
 # Set up logger
 logger = get_logger(__name__)
@@ -64,7 +65,7 @@ async def register_user(
                 
                 add_breadcrumb(
                     category="auth",
-                    message=f"Registration failed - email exists",
+                    message="Registration failed - email exists",
                     level="warning",
                     data={"email": form.email}
                 )
@@ -149,8 +150,9 @@ async def register_user(
 @router.post("/login")
 @trace_function(op="auth.login", name="login_user")
 async def login_user(
-    form: UserLogin,
     request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
     db: AsyncSession = Depends(get_db_session)
 ):
     """
@@ -161,31 +163,31 @@ async def login_user(
         name="user_login",
         op="auth.login"
     )
-    
+
     # Capture client info
     client_ip = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("user-agent", "unknown")
     transaction.set_data("client.ip", client_ip)
     transaction.set_data("client.user_agent", user_agent)
-    
+
     # Mask email in transaction to avoid PII in Sentry
-    masked_email = form.email.split('@')[0][0:3] + "***@" + form.email.split('@')[1]
+    masked_email = email.split('@')[0][0:3] + "***@" + email.split('@')[1]
     transaction.set_data("masked_email", masked_email)
-    
+
     start_time = time.time()
-    
+
     try:
         # Look up user
         with trace_block("Find User", op="db.query") as span:
-            stmt = select(User).where(User.email == form.email)
+            stmt = select(User).where(User.email == email)
             result = await db.execute(stmt)
             user = result.scalars().first()
-            
+
             if not user:
                 span.set_data("user_found", False)
                 transaction.set_data("login_success", False)
                 transaction.set_data("failure_reason", "invalid_credentials")
-                
+
                 # Add breadcrumb for failed login
                 add_breadcrumb(
                     category="auth",
@@ -193,31 +195,31 @@ async def login_user(
                     level="warning",
                     data={"masked_email": masked_email}
                 )
-                
+
                 logger.warning(
                     f"Login failed - user not found: {masked_email}",
                     extra={"masked_email": masked_email, "ip": client_ip}
                 )
-                
+
                 raise HTTPException(
                     status_code=401,
                     detail="Invalid credentials"
                 )
-                
+
             span.set_data("user_found", True)
             span.set_data("user_id", str(user.id))
-        
+
         # Verify password
         with trace_block("Verify Password", op="auth.verify_password") as span:
             verify_start = time.time()
-            valid_password = bcrypt.verify(form.password, user.hashed_password)
+            valid_password = bcrypt.verify(password, str(user.hashed_password))
             span.set_data("duration_seconds", time.time() - verify_start)
             span.set_data("password_valid", valid_password)
-            
+
             if not valid_password:
                 transaction.set_data("login_success", False)
                 transaction.set_data("failure_reason", "invalid_password")
-                
+
                 # Add breadcrumb for failed login
                 add_breadcrumb(
                     category="auth",
@@ -225,72 +227,91 @@ async def login_user(
                     level="warning",
                     data={"user_id": str(user.id)}
                 )
-                
+
                 logger.warning(
                     f"Login failed - invalid password for user: {str(user.id)}",
                     extra={"user_id": str(user.id), "ip": client_ip}
                 )
-                
+
                 raise HTTPException(
                     status_code=401,
                     detail="Invalid credentials"
                 )
-                
+
         # Generate JWT token
         with trace_block("Generate Token", op="auth.jwt_token") as span:
             token_start = time.time()
-            
+
             # Set expiration time
             expiration = datetime.utcnow() + timedelta(minutes=60)
-            
+
             payload = {
                 "sub": user.email,
                 "user_id": str(user.id),
                 "exp": expiration,
                 "iat": datetime.utcnow(),
             }
-            
-            token = pyjwt.encode(payload, config.settings.JWT_SECRET, algorithm="HS256")
+
+            token = jwt.encode(payload, config.settings.JWT_SECRET, algorithm="HS256")
             span.set_data("duration_seconds", time.time() - token_start)
-            
+
+        # Create a session for the authenticated user
+        with trace_block("Create User Session", op="auth.create_session") as session_span:
+            session_start = time.time()
+
+            # Create a new session associated with this user
+            new_session = await SessionService.create_session(
+                db_session=db,
+                user_id=str(user.id)
+            )
+
+            session_span.set_data("session_id", str(new_session.id))
+            session_span.set_data("duration_seconds", time.time() - session_start)
+
         # Set user context for Sentry
-        set_user_context(user_id=str(user.id), email=user.email)
-        
+        set_user_context(user_id=str(user.id), email=str(user.email))
+
         # Record successful login
         duration = time.time() - start_time
         transaction.set_data("login_success", True)
         transaction.set_data("duration_seconds", duration)
-        
+        transaction.set_data("session_id", str(new_session.id))
+
         # Add success breadcrumb
         add_breadcrumb(
             category="auth",
             message="User logged in successfully",
             level="info",
-            data={"user_id": str(user.id)}
+            data={"user_id": str(user.id), "session_id": str(new_session.id)}
         )
-        
+
         logger.info(
             f"User logged in successfully: {str(user.id)}",
-            extra={"user_id": str(user.id), "duration": duration}
+            extra={"user_id": str(user.id), "session_id": str(new_session.id), "duration": duration}
         )
-        
-        return {"access_token": token, "token_type": "bearer", "user_id": str(user.id)}
-        
+
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user_id": str(user.id),
+            "session_id": str(new_session.id)
+        }
+
     except Exception as e:
         # Set error information
         transaction.set_data("login_success", False)
         transaction.set_data("error.type", e.__class__.__name__)
-        
+
         if not isinstance(e, HTTPException):
             transaction.set_data("error.message", "Internal error during login")
             # Capture the full exception for monitoring
             sentry_sdk.capture_exception(e)
-            
+
             logger.error(
                 f"Login error: {str(e)}",
                 extra={"masked_email": masked_email, "error": str(e)}
             )
-            
+
             # Convert to HTTPException
             raise HTTPException(
                 status_code=500,
@@ -300,7 +321,7 @@ async def login_user(
             # Pass through HTTPExceptions
             transaction.set_data("error.message", e.detail)
             raise
-            
+
     finally:
         # Finish the transaction
         transaction.finish()

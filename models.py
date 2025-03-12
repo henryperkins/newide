@@ -8,7 +8,6 @@ from sqlalchemy import (
     ForeignKey,
     BigInteger,
     text,
-    func,
     Index,
 )
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB

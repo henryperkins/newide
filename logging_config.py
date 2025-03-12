@@ -4,7 +4,7 @@ from logging.handlers import RotatingFileHandler
 import os
 import sys
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 # Import Sentry integration only when available
 try:
@@ -130,8 +130,10 @@ class StructuredLogger(logging.Logger):
         else:
             super()._log(level, msg, args, exc_info, extra, stack_info, stacklevel)
 
+
 # Register the custom logger class
 logging.setLoggerClass(StructuredLogger)
+
 
 # Configure basic logging
 def configure_basic_logging():
@@ -150,6 +152,7 @@ def configure_basic_logging():
     file_handler.setFormatter(JsonLogFormatter())
     file_handler.setLevel(logging.INFO)
     root_logger.addHandler(file_handler)
+
 
 # Configure input/response specific loggers
 input_logger = logging.getLogger("input_logger")
@@ -188,6 +191,7 @@ def get_logger(name: str, **context) -> logging.Logger:
         logger = logger.with_context(**context)
         
     return logger
+
 
 # Initialize basic logging
 configure_basic_logging()

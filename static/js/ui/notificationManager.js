@@ -220,6 +220,9 @@ export function removeNotification(id) {
   if (notification) {
     notification.classList.remove('opacity-100', 'translate-y-0');
     notification.classList.add('opacity-0', 'translate-y-4');
+    if (notification._abortController) {
+      notification._abortController.abort();
+    }
     setTimeout(() => notification.remove(), 300);
   }
 }
@@ -410,6 +413,9 @@ function createNotificationElement(message, type, actions) {
   const tData = getNotificationTypeData(type);
   const el = document.createElement('div');
   el.className = `notification flex items-start p-4 mb-2 rounded-lg shadow-lg border transition-all duration-300 transform opacity-0 translate-y-4 ${tData.bgClass} ${tData.borderClass} ${tData.textClass} pointer-events-auto`;
+  el.setAttribute('role', 'alert');
+  el.setAttribute('aria-live', 'assertive');
+  el.setAttribute('aria-atomic', 'true');
   el.innerHTML = `
     <div class="flex-1 flex items-center gap-2">
       ${tData.icon}
@@ -429,7 +435,9 @@ function createNotificationElement(message, type, actions) {
       btn.className = 'text-sm px-2 py-1 rounded bg-white border shadow-sm hover:bg-gray-50 pointer-events-auto';
       btn.textContent = a.label;
       // Direct event assignment instead of using cloning approach
-      btn.addEventListener('click', a.onClick);
+      const controller = new AbortController();
+      btn.addEventListener('click', a.onClick, { signal: controller.signal });
+      notification._abortController = controller;
       actionsContainer.appendChild(btn);
     });
   }

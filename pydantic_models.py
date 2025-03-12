@@ -1,7 +1,8 @@
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, model_validator
 from datetime import datetime
-import uuid
+from uuid import UUID
+
 
 # -------------------------------------------------------------------------
 # ChatMessage (Pydantic)
@@ -264,12 +265,12 @@ class SessionResponse(BaseModel):
     """
     Response model for session operations.
     """
-
     id: str
     created_at: datetime
     expires_at: Optional[datetime] = None
     last_activity: Optional[datetime] = None
     last_model: Optional[str] = None
+    status: str = "active"
 
 
 class SessionInfoResponse(BaseModel):
@@ -363,3 +364,8 @@ class DeleteAssistantResponse(BaseModel):
     id: str
     object: str = "assistant.deleted"
     deleted: bool = True
+class FilePreview(BaseModel):
+    id: UUID
+    filename: str
+    preview: str
+    mime_type: str
