@@ -17,6 +17,12 @@ module.exports = {
     'bg-success-500',
     'ring-2',
     'focus:ring-2',
+    // Add Dracula colors to safelist to ensure they're generated
+    'bg-dracula-background',
+    'border-dracula-comment',
+    'bg-dracula-currentLine',
+    'text-dracula-foreground',
+    'shadow-dracula-currentLine',
   ],
   darkMode: 'class',
   theme: {

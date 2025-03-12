@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, delete, update, func
+from sqlalchemy import select, delete, update, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 import sentry_sdk
 
@@ -420,11 +420,12 @@ async def list_conversations(
         if search:
             pattern = f"%{search}%"
             base_query = base_query.where(
-                (Conversation.title.ilike(pattern)) 
-                or (Conversation.content.ilike(pattern))
+                or_(
+                    Conversation.title.ilike(pattern),
+                    Conversation.content.ilike(pattern)
+                )
             )
-
-        # pinned / archived filters
+            # pinned / archived filters
         if pinned is not None:
             base_query = base_query.having(func.bool_or(Conversation.pinned) == pinned)
         if archived is not None:

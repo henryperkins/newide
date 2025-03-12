@@ -8,18 +8,8 @@
     <meta name="description" content="Azure OpenAI Chat Application - Interact with Azure OpenAI models">
     <meta name="theme-color" content="#282a36">
 
-    <script id="theme-init">
-        (function () {
-            const storedTheme = localStorage.getItem('theme');
-            const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            const initialTheme = storedTheme || (systemDark ? 'dark' : 'light');
-            document.documentElement.classList.toggle('dark', initialTheme === 'dark');
-            document.documentElement.style.visibility = 'hidden';
-            requestAnimationFrame(() => {
-                document.documentElement.style.visibility = 'visible';
-            });
-        })();
-    </script>
+    <!-- Moved the theme-init script to an external file -->
+    <script src="/static/js/theme-init.js"></script>
 
     <title>Azure OpenAI Chat</title>
     <!-- Load Sentry SDK without integrity check -->
@@ -28,7 +18,6 @@
       crossorigin="anonymous">
     </script>
     <!-- Favicon and app icons -->
-    <link rel="icon" href="/static/img/favicon.ico" type="image/x-icon">
     <link rel="icon" href="/static/img/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/img/apple-touch-icon.png">
     <link rel="manifest" href="/static/site.webmanifest">
@@ -50,125 +39,7 @@
     <script src="/static/lib/prism.min.js" defer></script>
 
     <!-- UI Fix script - ensures buttons work properly -->
-    
-
-    <!-- Inline script to guarantee UI functionality -->
-    <script>
-        // Force the UI controls to work by directly attaching event handlers
-        window.addEventListener('DOMContentLoaded', () => {
-            // Sidebar toggle is now handled by sidebarManager.js
-            console.log("Sidebar functionality now handled by sidebarManager.js");
-
-            // Theme toggle
-            document.getElementById('theme-toggle')?.addEventListener('click', function () {
-                console.log("Direct theme toggle clicked");
-                document.documentElement.classList.toggle('dark');
-                localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
-            });
-
-            // Token usage toggle
-            document.getElementById('token-usage-toggle')?.addEventListener('click', function () {
-                console.log("Direct token usage toggle clicked");
-                const tokenDetails = document.getElementById('token-details');
-                const tokenChevron = document.getElementById('token-chevron');
-                if (tokenDetails && tokenChevron) {
-                    tokenDetails.classList.toggle('hidden');
-                    tokenChevron.classList.toggle('rotate-180');
-                }
-            });
-
-            // Mobile stats toggle
-            document.getElementById('mobile-stats-toggle')?.addEventListener('click', function () {
-                console.log("Direct mobile stats toggle clicked");
-                document.getElementById('mobile-stats-panel')?.classList.toggle('hidden');
-            });
-
-            // Fix for tabs in sidebar
-            document.querySelectorAll('[data-target-tab]').forEach(button => {
-                button.addEventListener('click', function () {
-                    console.log("Direct tab button clicked:", this.getAttribute('data-target-tab'));
-
-                    // Get all tab buttons and content panels
-                    const allTabButtons = document.querySelectorAll('[data-target-tab]');
-                    const allTabContents = document.querySelectorAll('[role="tabpanel"]');
-
-                    // Remove active state from all tabs
-                    allTabButtons.forEach(btn => {
-                        btn.classList.remove('border-primary-500', 'text-primary-700', 'dark:text-primary-300');
-                        btn.classList.add('border-transparent', 'text-dark-500');
-                        btn.setAttribute('aria-selected', 'false');
-                    });
-
-                    // Hide all tab contents
-                    allTabContents.forEach(content => {
-                        content.classList.add('hidden');
-                        content.setAttribute('aria-hidden', 'true');
-                    });
-
-                    // Set active state for clicked tab
-                    this.classList.remove('border-transparent', 'text-dark-500');
-                    this.classList.add('border-primary-500', 'text-primary-700', 'dark:text-primary-300');
-                    this.setAttribute('aria-selected', 'true');
-
-                    // Show corresponding content
-                    const tabId = this.getAttribute('data-target-tab');
-                    const activeContent = document.getElementById(tabId);
-                    if (activeContent) {
-                        activeContent.classList.remove('hidden');
-                        activeContent.setAttribute('aria-hidden', 'false');
-                    }
-                });
-            });
-
-            // Font size control
-            document.getElementById('font-size-up')?.addEventListener('click', function () {
-                console.log("Direct font-size-up clicked");
-                adjustFontSize(1);
-            });
-
-            document.getElementById('font-size-down')?.addEventListener('click', function () {
-                console.log("Direct font-size-down clicked");
-                adjustFontSize(-1);
-            });
-
-            document.getElementById('font-size-reset')?.addEventListener('dblclick', function () {
-                console.log("Direct font-size-reset double-clicked");
-                adjustFontSize(0);
-            });
-
-            document.getElementById('mobile-font-up')?.addEventListener('click', function () {
-                console.log("Direct mobile-font-up clicked");
-                adjustFontSize(1);
-            });
-
-            document.getElementById('mobile-font-down')?.addEventListener('click', function () {
-                console.log("Direct mobile-font-down clicked");
-                adjustFontSize(-1);
-            });
-
-            function adjustFontSize(direction) {
-                console.log("Adjusting font size:", direction);
-                const sizes = ['text-sm', 'text-base', 'text-lg', 'text-xl'];
-
-                // Handle reset case (direction === 0)
-                if (direction === 0) {
-                    document.documentElement.classList.remove(...sizes);
-                    document.documentElement.classList.add('text-base'); // Default size
-                    localStorage.removeItem('fontSize'); // Clear stored preference
-                    return;
-                }
-
-                let currentIndex = sizes.findIndex(sz => document.documentElement.classList.contains(sz));
-                if (currentIndex === -1) currentIndex = 1; // Default to text-base (index 1)
-                const newIndex = Math.min(Math.max(currentIndex + direction, 0), sizes.length - 1);
-                document.documentElement.classList.remove(...sizes);
-                document.documentElement.classList.add(sizes[newIndex]);
-                localStorage.setItem('fontSize', sizes[newIndex]);
-            }
-
-            console.log("✅ Direct event handlers attached in index.html");
-        });
-    </script>
+    <!-- Removed the inline script that attached event handlers to unify in /static/js/ui-controls.js -->
 </head>
 
 <body class="h-full bg-dark-50 dark:bg-dark-900 text-dark-900 dark:text-dark-50">
@@ -202,10 +73,10 @@
                     <!-- Expand/Collapse Stats on Mobile -->
                     <button id="mobile-stats-toggle" aria-label="Toggle statistics"
                         class="btn btn-icon btn-secondary xs:hidden touch-target">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" 
+                             viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
                     </button>
 
@@ -229,37 +100,55 @@
                     <button id="theme-toggle" class="btn btn-icon btn-secondary touch-target"
                         aria-label="Toggle dark mode">
                         <span class="sr-only">Toggle dark mode</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden dark:block" fill="none"
-                            viewBox="0 0 24 24" stroke="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden dark:block" fill="none" 
+                             viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                                  d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707
+                                     m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                         </svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 block dark:hidden" fill="none"
-                            viewBox="0 0 24 24" stroke="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 block dark:hidden" fill="none" 
+                             viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                                  d="M20.354 15.354A9 9 0 018.646 3.646  
+                                     9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                         </svg>
                     </button>
 
                     <!-- Sidebar Toggle - Always Visible -->
                     <button id="sidebar-toggle" class="btn btn-icon btn-secondary touch-target p-2"
                         aria-expanded="false" aria-controls="sidebar" aria-label="Toggle settings menu">
-                        <!-- Confirmed: ID matches JavaScript -->
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" 
+                             viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                  d="M10.325 4.317c.426-1.756 2.924-1.756 
+                                     3.35 0a1.724 1.724 0 002.573 1.066
+                                     c1.543-.94 3.31.826 2.37 2.37
+                                     a1.724 1.724 0 001.065 2.572
+                                     c1.756.426 1.756 2.924 0 3.35
+                                     a1.724 1.724 0 00-1.066 2.573
+                                     c.94 1.543-.826 3.31-2.37 2.37
+                                     a1.724 1.724 0 00-2.572 1.065
+                                     c-.426 1.756-2.924 1.756-3.35 0
+                                     a1.724 1.724 0 00-2.573-1.066
+                                     c-1.543.94-3.31-.826-2.37-2.37
+                                     a1.724 1.724 0 00-1.065-2.572
+                                     c-1.756-.426-1.756-2.924 0-3.35
+                                     a1.724 1.724 0 001.066-2.573
+                                     c-.94-1.543.826-3.31 2.37-2.37
+                                     .996.608 2.296.07 2.572-1.065z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
                     </button>
                     <!-- Add conversation toggle button -->
                     <button id="conversations-toggle" class="btn btn-icon btn-secondary touch-target"
                         aria-expanded="true" aria-label="Toggle conversations">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" 
+                             viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                                  d="M8 10h.01M12 10h.01M16 10h.01
+                                     M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14
+                                     a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                         </svg>
                     </button>
                 </div>
@@ -291,17 +180,19 @@
                 <div
                     class="flex justify-center items-center space-x-3 mt-3 pt-2 border-t border-dark-200 dark:border-dark-700">
                     <button id="mobile-font-down" class="btn btn-secondary touch-target">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" 
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" 
+                                  stroke-width="2" d="M20 12H4" />
                         </svg>
                         <span>A</span>
                     </button>
                     <span class="text-sm text-dark-500 dark:text-dark-400">Text Size</span>
                     <button id="mobile-font-up" class="btn btn-secondary touch-target">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" 
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                  stroke-width="2" d="M12 4v16m8-8H4" />
                         </svg>
                         <span>A</span>
                     </button>
@@ -316,9 +207,13 @@
                 <div class="p-4 border-b border-dark-200 dark:border-dark-700 flex justify-between items-center">
                     <h2 class="text-lg font-semibold">Conversations</h2>
                     <button id="new-conversation-btn" class="btn btn-sm btn-primary" aria-label="New conversation">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" 
+                             fill="currentColor">
                             <path fill-rule="evenodd"
-                                d="M10 3a1 1 0 00-1 1v5H4a1 1 0 100 2h5v5a1 1 0 102 0v-5h5a1 1 0 100-2h-5V4a1 1 0 00-1-1z"
+                                d="M10 3a1 1 0 00-1 1v5H4
+                                   a1 1 0 100 2h5v5a1 1 0 
+                                   102 0v-5h5a1 1 0 100-2
+                                   h-5V4a1 1 0 00-1-1z"
                                 clip-rule="evenodd" />
                         </svg>
                     </button>
@@ -329,10 +224,13 @@
                     <div class="relative">
                         <input type="text" id="conversation-search" placeholder="Search conversations"
                             class="w-full pl-8 pr-3 py-2 rounded-md border border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-900 text-sm">
-                        <svg class="absolute left-2 top-2.5 h-4 w-4 text-dark-400" xmlns="http://www.w3.org/2000/svg"
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        <svg class="absolute left-2 top-2.5 h-4 w-4 text-dark-400" 
+                             xmlns="http://www.w3.org/2000/svg"
+                             fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" 
+                                  stroke-width="2"
+                                  d="M21 21l-6-6m2-5a7 7 0 
+                                     11-14 0 7 7 0 0114 0z" />
                         </svg>
                     </div>
                 </div>
@@ -352,7 +250,9 @@
 
                 <!-- Conversation list -->
                 <div id="conversation-list" class="overflow-y-auto">
-                    <div class="py-2 px-3 text-xs text-dark-500 dark:text-dark-400">Loading conversations...</div>
+                    <div class="py-2 px-3 text-xs text-dark-500 dark:text-dark-400">
+                        Loading conversations...
+                    </div>
                 </div>
             </aside>
 
@@ -360,13 +260,12 @@
             <div id="chat-container" class="flex-1 flex flex-col relative overflow-hidden">
                 <!-- Message History -->
                 <div id="chat-history"
-                    class="flex-1 p-4 overflow-y-auto flex flex-col space-y-4 scroll-smooth pull-down" role="log"
-                    aria-live="polite">
+                    class="flex-1 p-4 overflow-y-auto flex flex-col space-y-4 scroll-smooth pull-down" 
+                    role="log" aria-live="polite">
                     <div id="token-usage-stats"
                         class="sticky top-0 bg-white dark:bg-dark-800 p-4 mb-4 border-b border-dark-200 dark:border-dark-700 z-10 hidden">
                     </div>
                     <!-- Messages injected via JavaScript -->
-
                     <!-- Welcome Message (shown when no conversation exists) -->
                 </div>
 
@@ -376,37 +275,46 @@
                     <!-- Conversation Management Buttons -->
                     <div class="flex justify-center items-center gap-2 py-2 px-4">
                         <button id="load-older-btn" class="btn btn-secondary">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" 
+                                 viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M7 11l5-5m0 0l5 5m-5-5v12" />
+                                      d="M7 11l5-5m0 0l5 5m-5-5v12" />
                             </svg>
                             Load Older Messages
                         </button>
                         <button id="save-older-btn" class="btn btn-secondary" aria-label="Save conversation"
                             title="Save conversation">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0l-4-4m4 4V4" />
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" 
+                                 viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                      stroke-width="2"
+                                      d="M4 16v1a3 3 0 003 3h10a3 
+                                         3 0 003-3v-1m-4-8l-4 4m0 0l-4-4
+                                         m4 4V4" />
                             </svg>
                             Save Conversation
                         </button>
                         <!-- Clear conversation button -->
                         <button id="clear-convo-btn" class="btn btn-danger conversation-button">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v10M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" 
+                                 viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" 
+                                      stroke-width="2"
+                                      d="M19 7l-.867 12.142A2 2 0 
+                                         0116.138 21H7.862a2 2 0 
+                                         01-1.995-1.858L5 7m5 4v10
+                                         M9 7V4a1 1 0 011-1h4a1 1 0
+                                         011 1v3" />
                             </svg>
                             Clear Conversation
                         </button>
                         <!-- New conversation button -->
                         <button id="new-convo-btn" class="btn btn-primary conversation-button">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M12 4v16m8-8H4" />
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" 
+                                 viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" 
+                                      stroke-width="2"
+                                      d="M12 4v16m8-8H4" />
                             </svg>
                             New Conversation
                         </button>
@@ -418,7 +326,6 @@
                             <textarea id="user-input" placeholder="Type your message..." aria-label="Your message"
                                 rows="1"
                                 class="form-input w-full py-3 auto-resize-textarea touch-action-manipulation mobile-text-optimized"></textarea>
-
                             <!-- Character count -->
                             <div id="char-count"
                                 class="absolute bottom-2 right-2 text-xs text-dark-400 dark:text-dark-500">
@@ -430,10 +337,16 @@
                             <button id="send-button" type="button"
                                 class="btn btn-primary h-12 w-12 rounded-full shadow-md touch-target flex items-center justify-center"
                                 aria-label="Send message">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
-                                    fill="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" 
+                                     viewBox="0 0 20 20" fill="currentColor">
                                     <path
-                                        d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                                        d="M10.894 2.553a1 1 0 
+                                           00-1.788 0l-7 14a1 1 0 
+                                           001.169 1.409l5-1.429A1 
+                                           1 0 009 15.571V11a1 1 0 
+                                           112 0v4.571a1 1 0 
+                                           00.725.962l5 1.428a1 
+                                           1 0 001.17-1.408l-7-14z" />
                                 </svg>
                             </button>
                         </div>
@@ -443,25 +356,33 @@
                     <div class="token-usage" id="token-usage">
                         <div id="token-stats" class="space-y-2">
                             <div id="token-usage-compact" class="active">
-                                <!-- Fixed button structure and ID for token usage toggle -->
                                 <div class="token-summary" id="token-usage-toggle">
                                     <div class="flex items-center space-x-4">
                                         <div class="token-label">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                                viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" 
+                                                 fill="none"
+                                                 viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" 
+                                                      stroke-linejoin="round"
+                                                      stroke-width="2"
+                                                      d="M7 7h.01M7 3h5c.512 0 
+                                                         1.024.195 1.414.586l7 
+                                                         7a2 2 0 010 2.828l-7 
+                                                         7a2 2 0 01-2.828 0l-7
+                                                         -7A1.994 1.994 0 
+                                                         013 12V7a4 4 0 
+                                                         014-4z" />
                                             </svg>
                                             <span>Token Usage</span>
                                         </div>
-
                                         <span id="total-tokens-badge" class="token-value">0</span>
                                     </div>
                                     <svg id="token-chevron" xmlns="http://www.w3.org/2000/svg"
                                         class="h-5 w-5 text-dark-400 transition-transform" fill="none"
                                         viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M19 9l-7 7-7-7" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" 
+                                              stroke-width="2"
+                                              d="M19 9l-7 7-7-7" />
                                     </svg>
                                 </div>
 
@@ -469,10 +390,15 @@
                                     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                                         <div>
                                             <div class="token-label">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary-500"
-                                                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                <svg xmlns="http://www.w3.org/2000/svg" 
+                                                     class="h-4 w-4 text-primary-500" 
+                                                     fill="none" viewBox="0 0 24 24" 
+                                                     stroke="currentColor">
+                                                    <path stroke-linecap="round" 
+                                                          stroke-linejoin="round"
+                                                          stroke-width="2" 
+                                                          d="M13 10V3L4 14h7v7l9
+                                                             -11h-7z" />
                                                 </svg>
                                                 <span>Prompt</span>
                                             </div>
@@ -481,11 +407,16 @@
 
                                         <div>
                                             <div class="token-label">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-success-500"
-                                                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2"
-                                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                <svg xmlns="http://www.w3.org/2000/svg" 
+                                                     class="h-4 w-4 text-success-500"
+                                                     fill="none"
+                                                     viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" 
+                                                          stroke-linejoin="round"
+                                                          stroke-width="2"
+                                                          d="M9 12l2 2 4-4m6 2
+                                                             a9 9 0 11-18 0 
+                                                             9 9 0 0118 0z" />
                                                 </svg>
                                                 <span>Completion</span>
                                             </div>
@@ -495,11 +426,27 @@
                                         <div>
                                             <div class="token-label">
                                                 <svg xmlns="http://www.w3.org/2000/svg"
-                                                    class="h-4 w-4 text-secondary-500" fill="none" viewBox="0 0 24 24"
-                                                    stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2"
-                                                        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                                    class="h-4 w-4 text-secondary-500" 
+                                                    fill="none" 
+                                                    viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" 
+                                                          stroke-linejoin="round"
+                                                          stroke-width="2"
+                                                          d="M9.663 17h4.673M12
+                                                             3v1m6.364 1.636l
+                                                             -.707.707M21 12h-1
+                                                             M4 12H3m3.343
+                                                             -5.657l-.707
+                                                             -.707m2.828
+                                                             9.9a5 5 0 117.072
+                                                             0l-.548.547A3.374
+                                                             3.374 0 0014 18.469
+                                                             V19a2 2 0
+                                                             11-4 0v-.531c0
+                                                             -.895-.356
+                                                             -1.754-.988
+                                                             -2.386l
+                                                             -.548-.547z" />
                                                 </svg>
                                                 <span>Reasoning</span>
                                             </div>
@@ -508,11 +455,37 @@
 
                                         <div>
                                             <div class="token-label">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-warning-500"
-                                                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2"
-                                                        d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                                <svg xmlns="http://www.w3.org/2000/svg" 
+                                                     class="h-4 w-4 text-warning-500"
+                                                     fill="none" viewBox="0 0 24 24" 
+                                                     stroke="currentColor">
+                                                    <path stroke-linecap="round" 
+                                                          stroke-linejoin="round"
+                                                          stroke-width="2"
+                                                          d="M11.049 2.927c.3
+                                                             -.921 1.603-.921
+                                                             1.902 0l1.519 
+                                                             4.674a1 1 0 00.95
+                                                             .69h4.915c.969 0 
+                                                             1.371 1.24.588 
+                                                             1.81l-3.976 
+                                                             2.888a1 1 0 
+                                                             00-.363 1.118l
+                                                             1.518 4.674c.3.922
+                                                             -.755 1.688-1.538
+                                                             1.118l-3.976-2.888
+                                                             a1 1 0 00-1.176 
+                                                             0l-3.976 2.888
+                                                             c-.783.57-1.838
+                                                             -.197-1.538-1.118l
+                                                             1.518-4.674a1 1 0
+                                                             00-.363-1.118l
+                                                             -3.976-2.888
+                                                             c-.784-.57-.38
+                                                             -1.81.588-1.81h
+                                                             4.914a1 1 0 00
+                                                             .951-.69l1.519
+                                                             -4.674z" />
                                                 </svg>
                                                 <span>Rate</span>
                                             </div>
@@ -534,10 +507,11 @@
                     <h2 class="text-lg font-semibold">Settings</h2>
                     <button id="close-sidebar" class="md:hidden btn btn-icon btn-secondary touch-target"
                         aria-label="Close settings">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M6 18L18 6M6 6l12 12" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" 
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" 
+                                  stroke-width="2"
+                                  d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
@@ -628,8 +602,6 @@
                                 See responses as they're generated (not available for all models)
                             </p>
                         </div>
-
-                        <!-- Removed the Thinking Mode toggle section entirely -->
                     </div>
 
                     <!-- Files Tab -->
@@ -640,8 +612,12 @@
                                 class="upload-button btn btn-secondary flex items-center text-sm font-medium touch-target">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 folder-icon" fill="none"
                                     viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" 
+                                          stroke-width="2"
+                                          d="M7 16a4 4 0 01-.88-7.903
+                                             A5 5 0 1115.9 6L16 6a5 5 0 
+                                             011 9.9M15 13l-3-3m0 0l-3
+                                             3m3-3v12" />
                                 </svg>
                                 Upload Files
                             </button>
@@ -652,10 +628,13 @@
                                 <span class="text-sm text-dark-700 dark:text-dark-300">Azure Search</span>
                             </label>
                             <button class="ml-1 text-dark-500 group relative" aria-label="Learn about Azure Search">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                                    stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" 
+                                          stroke-width="2"
+                                          d="M13 16h-1v-4h-1m1-4h.01
+                                             M21 12a9 9 0 11-18 0 
+                                             9 9 0 0118 0z" />
                                 </svg>
                                 <span
                                     class="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block group-focus:block bg-dark-800 text-white text-xs p-2 rounded w-60 z-10">
@@ -670,24 +649,42 @@
                             <div class="flex items-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-dark-500" fill="none"
                                     viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" 
+                                          stroke-width="2"
+                                          d="M9 17v-2m3 2v-4m3 4v
+                                             -6m2 10H7a2 2 0 01-2-2V5
+                                             a2 2 0 012-2h5.586a1 1 0 
+                                             01.707.293l5.414 
+                                             5.414a1 1 0 
+                                             01.293.707V19a2 2 0 
+                                             01-2 2z" />
                                 </svg>
                                 Files: <span id="total-files" class="font-mono">0</span>
                             </div>
                             <div class="flex items-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-dark-500" fill="none"
                                     viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" 
+                                          stroke-width="2"
+                                          d="M4 7v10c0 2.21 3.582 4 
+                                             8 4s8-1.79 8-4V7M4 7
+                                             c0 2.21 3.582 4 8 4s8
+                                             -1.79 8-4M4 7c0-2.21 
+                                             3.582-4 8-4s8 1.79 
+                                             8 4" />
                                 </svg>
                                 Size: <span id="total-size" class="font-mono">0 B</span>
                             </div>
                             <div class="flex items-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-dark-500" fill="none"
                                     viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" 
+                                          stroke-width="2"
+                                          d="M7 8h10M7 12h4m1 8l
+                                             -4-4H5a2 2 0 01-2-2
+                                             V6a2 2 0 012-2h14
+                                             a2 2 0 012 2v8a2 2 0 
+                                             01-2 2h-3l-4 4z" />
                                 </svg>
                                 Tokens: <span id="estimated-tokens" class="font-mono">0</span>
                             </div>
@@ -710,17 +707,16 @@
                         <div class="flex justify-between items-center">
                             <h3 class="text-lg font-medium">Available Models</h3>
                             <button id="add-model-btn" class="btn btn-primary touch-target">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none"
-                                    viewBox="0 0 24 24" stroke="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" 
+                                     viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M12 4v16m8-8H4" />
+                                          d="M12 4v16m8-8H4" />
                                 </svg>
                                 Add Model
                             </button>
                         </div>
 
                         <div id="models-list" class="space-y-2 mt-2">
-                            <!-- Models will be listed here -->
                             <div class="text-center text-dark-500 dark:text-dark-400 text-sm py-8">
                                 Loading models...
                             </div>
@@ -788,8 +784,8 @@
                                             <input type="checkbox" id="model-supports-streaming"
                                                 class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-dark-300 rounded">
                                             <label for="model-supports-streaming"
-                                                class="ml-2 text-sm text-dark-700 dark:text-dark-300"></label>
-                                            Supports Streaming
+                                                class="ml-2 text-sm text-dark-700 dark:text-dark-300">
+                                                Supports Streaming
                                             </label>
                                         </div>
 
@@ -830,8 +826,8 @@
         </div>
 
         <!-- Notification Container -->
-        <div id="notification-container" class="fixed top-4 right-4 z-40 space-y-2 pointer-events-none" role="alert"
-            aria-live="polite">
+        <div id="notification-container" class="fixed top-4 right-4 z-40 space-y-2 pointer-events-none" 
+             role="alert" aria-live="polite">
             <!-- Notifications will be injected here -->
         </div>
     </div>
@@ -840,10 +836,8 @@
     <script type="module" src="/static/js/init.js"></script>
     <script type="module" src="/static/js/chat.js" defer></script>
     <script type="module" src="/static/js/streaming.js" defer></script>
-    
 
-    <!-- Emergency Fix Script to ensure proper UI layout -->
-    <!-- Removed the inline fix script to prevent forced transforms from overriding sidebarManager.js logic. -->
+    <!-- Newly extracted JavaScript to handle the former inline event listeners -->
+    <script src="/static/js/ui-controls.js" defer></script>
 </body>
-
 </html>
