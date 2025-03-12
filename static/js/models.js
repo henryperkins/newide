@@ -14,7 +14,10 @@ class ModelManager {
         if (!globalStore.currentModel) {
             globalStore.currentModel = 'DeepSeek-R1';
         }
-        globalStore.modelConfigs = {}; // Initialize modelConfigs to an empty object
+        // Ensure modelConfigs exists so it’s never undefined
+        if (!globalStore.modelConfigs) {
+            globalStore.modelConfigs = {};
+        }
         this.isInitialized = false;
         this.pendingModelActions = {}; // Initialize pendingModelActions to an empty object
         this.modelConfigCache = createCache(5 * 60 * 1000);

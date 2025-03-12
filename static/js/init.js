@@ -754,6 +754,14 @@ function initModelSelector() {
         console.error("modelManager.modelConfigs is undefined");
         return;
     }
+    if (!modelManager.modelConfigs) {
+        console.warn("modelManager.modelConfigs is undefined, calling ensureLocalModelConfigs()");
+        modelManager.ensureLocalModelConfigs();
+        if (!modelManager.modelConfigs) {
+          console.error("modelManager.modelConfigs still undefined, skipping initModelSelector");
+          return;
+        }
+    }
     console.log("Local model configs initialized:", Object.keys(modelManager.modelConfigs));
 
     // Add with a slight delay to ensure model configs are fully processed
