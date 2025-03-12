@@ -411,15 +411,19 @@ function showWelcomeMessage() {
   const welcomeMessage = document.createElement('div');
   welcomeMessage.className =
     'mx-auto max-w-2xl text-center p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-8';
-  welcomeMessage.innerHTML = `
-    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Welcome to Azure OpenAI Chat</h2>
-    <p class="text-gray-600 dark:text-gray-300 mb-4">
-      This chat application uses Azure OpenAI's powerful language models.
-    </p>
-    <p class="text-gray-600 dark:text-gray-300">
-      Type a message below to get started!
-    </p>
-  `;
+  const heading = document.createElement('h2');
+  heading.className = 'text-xl font-semibold text-gray-900 dark:text-white mb-4';
+  heading.textContent = 'Welcome to Azure OpenAI Chat';
+  
+  const para1 = document.createElement('p');
+  para1.className = 'text-gray-600 dark:text-gray-300 mb-4';
+  para1.textContent = 'This chat application uses Azure OpenAI\'s powerful language models.';
+  
+  const para2 = document.createElement('p');
+  para2.className = 'text-gray-600 dark:text-gray-300';
+  para2.textContent = 'Type a message below to get started!';
+
+  welcomeMessage.append(heading, para1, para2);
   chatHistory.appendChild(welcomeMessage);
 }
 

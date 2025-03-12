@@ -71,6 +71,9 @@ export class GlobalStore extends StoreEmitter {
     return this._sessionId;
   }
   set sessionId(value) {
+    if (typeof value !== 'string' && value !== null) {
+      throw new Error('Invalid session ID');
+    }
     if (value !== this._sessionId) {
       this._sessionId = value;
       localStorage.setItem('sessionId', value || '');

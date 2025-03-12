@@ -60,7 +60,7 @@
     --dracula-purple: #bd93f9;
     --dracula-red: #ff5555;
     --dracula-yellow: #f1fa8c;
-    --chat-height: calc(100vh - 64px - 120px);
+    --chat-height: calc(100dvh - 64px - 120px);
     /* Header height & input area */
   }
 
