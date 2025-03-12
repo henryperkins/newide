@@ -23,6 +23,10 @@ class ModelManager {
         this.modelConfigCache = createCache(5 * 60 * 1000);
     }
 
+    get modelConfigs() {
+      return globalStore.modelConfigs;
+    }
+
     async initialize() {
         try {
             // First ensure we have the basic known models loaded
