@@ -151,7 +151,7 @@
         <main id="main-content" class="flex relative overflow-hidden">
             <!-- Conversation Sidebar -->
             <aside id="conversations-sidebar"
-                class="-translate-x-full w-64 flex-shrink-0 border-r border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-800 overflow-y-auto transition-transform duration-300 ease-out">
+                class="translate-x-full hidden w-64 flex-shrink-0 border-r border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-800 overflow-y-auto transition-transform duration-300 ease-out">
                 <div class="p-4 border-b border-dark-200 dark:border-dark-700 flex justify-between items-center">
                     <h2 class="text-lg font-semibold">Conversations</h2>
                     <button id="new-conversation-btn" class="btn btn-sm btn-primary" aria-label="New conversation">
@@ -310,7 +310,7 @@
                         <i class="icon-stats"></i>
                         <span class="sr-only">Stats</span>
                       </button>
-                      <button class="btn btn-icon btn-secondary touch-target" aria-label="Toggle conversation sidebar" onclick="toggleConversationSidebar()">
+                      <button id="mobile-conversations-toggle" class="btn btn-icon btn-secondary touch-target" aria-label="Toggle conversation sidebar" onclick="if(window.toggleConversationSidebar) window.toggleConversationSidebar()">
                         <i class="icon-menu"></i>
                         <span class="sr-only">Conversations</span>
                       </button>

@@ -1,5 +1,6 @@
 // A module for managing conversations in the sidebar
 import { showNotification } from './notificationManager.js';
+import { toggleConversationSidebar } from './sidebarManager.js';
 import { getSessionId, createNewConversation } from '../session.js';
 
 let sidebarInitialized = false;
@@ -280,7 +281,7 @@ function renderConversations() {
   conversations.forEach(conv => {
     // container
     const item = document.createElement('div');
-    item.classList.add('conversation-item', 'p-2', 'border-b', 'border-dark-200', 'dark:border-dark-600', 'flex', 'flex-col', 'gap-1', 'cursor-pointer');
+    item.classList.add('conversation-item', 'p-1.5', 'border-b', 'border-dark-200', 'dark:border-dark-600', 'flex', 'flex-col', 'gap-0.5', 'cursor-pointer');
     item.setAttribute('data-id', conv.id);
 
     // pinned (visual) highlight
@@ -290,44 +291,46 @@ function renderConversations() {
 
     // conversation title
     const titleEl = document.createElement('div');
-    titleEl.classList.add('conversation-title', 'font-semibold', 'truncate');
+    titleEl.classList.add('conversation-title', 'font-semibold', 'truncate', 'text-sm');
     titleEl.textContent = conv.title || '(untitled)';
 
     // container for action buttons
     const actionContainer = document.createElement('div');
-    actionContainer.classList.add('flex', 'gap-2');
+    actionContainer.classList.add('flex', 'flex-wrap', 'gap-1');
 
     // pin/unpin button
     const pinBtn = document.createElement('button');
-    pinBtn.classList.add('pin-conversation-btn', 'border', 'py-1', 'px-2');
+    pinBtn.classList.add('pin-conversation-btn', 'border', 'py-0.5', 'px-1', 'text-xs', 'rounded', 'hover:bg-primary-50', 'dark:hover:bg-primary-900/30', 'transition-colors');
     if (conv.pinned) {
-      pinBtn.classList.add('pinned');
+      pinBtn.classList.add('pinned', 'bg-primary-100', 'dark:bg-primary-900/20', 'text-primary-700', 'dark:text-primary-300', 'border-primary-200', 'dark:border-primary-700/30');
       pinBtn.textContent = 'Unpin';
     } else {
+      pinBtn.classList.add('text-primary-600', 'dark:text-primary-400', 'border-primary-200', 'dark:border-primary-700/30');
       pinBtn.textContent = 'Pin';
     }
     actionContainer.appendChild(pinBtn);
 
     // archive/unarchive button
     const archiveBtn = document.createElement('button');
-    archiveBtn.classList.add('archive-conversation-btn', 'border', 'py-1', 'px-2');
+    archiveBtn.classList.add('archive-conversation-btn', 'border', 'py-0.5', 'px-1', 'text-xs', 'rounded', 'hover:bg-dark-100', 'dark:hover:bg-dark-700/50', 'transition-colors');
     if (conv.archived) {
-      archiveBtn.classList.add('archived');
+      archiveBtn.classList.add('archived', 'bg-dark-100', 'dark:bg-dark-700/30', 'text-dark-700', 'dark:text-dark-300', 'border-dark-200', 'dark:border-dark-600');
       archiveBtn.textContent = 'Unarchive';
     } else {
+      archiveBtn.classList.add('text-dark-600', 'dark:text-dark-400', 'border-dark-200', 'dark:border-dark-600');
       archiveBtn.textContent = 'Archive';
     }
     actionContainer.appendChild(archiveBtn);
 
     // delete button
     const deleteBtn = document.createElement('button');
-    deleteBtn.classList.add('delete-conversation-btn', 'border', 'py-1', 'px-2');
+    deleteBtn.classList.add('delete-conversation-btn', 'border', 'py-0.5', 'px-1', 'text-xs', 'rounded', 'text-red-600', 'dark:text-red-400', 'border-red-200', 'dark:border-red-700/30', 'hover:bg-red-50', 'dark:hover:bg-red-900/20', 'transition-colors');
     deleteBtn.textContent = 'Delete';
     actionContainer.appendChild(deleteBtn);
 
     // Rename button
     const renameBtn = document.createElement('button');
-    renameBtn.classList.add('rename-conversation-btn', 'border', 'py-1', 'px-2');
+    renameBtn.classList.add('rename-conversation-btn', 'border', 'py-0.5', 'px-1', 'text-xs', 'rounded', 'text-secondary-600', 'dark:text-secondary-400', 'border-secondary-200', 'dark:border-secondary-700/30', 'hover:bg-secondary-50', 'dark:hover:bg-secondary-900/20', 'transition-colors');
     renameBtn.textContent = 'Rename';
     actionContainer.appendChild(renameBtn);
 
@@ -590,52 +593,47 @@ async function renameConversation(conversationId, newTitle) {
 }
 
 /**
- * Toggle the conversation sidebar with consistent show/hide logic
+ * Toggle the conversation sidebar
+ * This function now uses the sidebarManager.js implementation
  */
-export function toggleConversationSidebar() {
-  const conversationsSidebar = document.getElementById('conversations-sidebar');
-  const conversationsToggleBtn = document.getElementById('conversations-toggle');
-  if (!conversationsSidebar || !conversationsToggleBtn) return;
-
-  const isOpen = conversationsSidebar.classList.contains('sidebar-open');
-
-  if (isOpen) {
-    // Close
-    conversationsSidebar.classList.remove('sidebar-open', 'translate-x-0');
-    conversationsSidebar.classList.add('-translate-x-full');
-    conversationsToggleBtn.setAttribute('aria-expanded', 'false');
-  } else {
-    // Open
-    conversationsSidebar.classList.add('sidebar-open', 'translate-x-0');
-    conversationsSidebar.classList.remove('-translate-x-full');
-    conversationsToggleBtn.setAttribute('aria-expanded', 'true');
-  }
-  
-  // For mobile, handle the 'hidden' class too
-  if (window.innerWidth < 768) {
-    conversationsSidebar.classList.toggle('hidden', isOpen);
-  }
-  window.toggleConversationSidebar = toggleConversationSidebar;
-}
+// toggleConversationSidebar is now imported from sidebarManager.js
 
 // Set up conversation sidebar toggle
 function initConversationSidebarToggle() {
   console.log("[initConversationSidebarToggle] called");
   const conversationsToggleBtn = document.getElementById('conversations-toggle');
+  const mobileConversationsToggleBtn = document.getElementById('mobile-conversations-toggle');
   const conversationsSidebar = document.getElementById('conversations-sidebar');
+  
+  if (!conversationsSidebar) {
+    console.log("[initConversationSidebarToggle] no sidebar found");
+    return;
+  }
+
+  // Set up header toggle button
   if (conversationsToggleBtn) {
     console.log("[initConversationSidebarToggle] found toggle button");
     conversationsToggleBtn.addEventListener('click', (e) => {
       e.preventDefault();
       console.log("[initConversationSidebarToggle] toggle button clicked");
-      toggleConversationSidebar();
+      const isOpen = conversationsSidebar.classList.contains('sidebar-open');
+      toggleConversationSidebar(!isOpen); // Call with the inverse of current state
     });
   } else {
-    console.log("[initConversationSidebarToggle] no toggle button found");
+    console.log("[initConversationSidebarToggle] no header toggle button found");
   }
 
-  if (!conversationsSidebar) {
-    console.log("[initConversationSidebarToggle] no sidebar found");
+  // Set up mobile toggle button
+  if (mobileConversationsToggleBtn) {
+    console.log("[initConversationSidebarToggle] found mobile toggle button");
+    mobileConversationsToggleBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      console.log("[initConversationSidebarToggle] mobile toggle button clicked");
+      const isOpen = conversationsSidebar.classList.contains('sidebar-open');
+      toggleConversationSidebar(!isOpen); // Call with the inverse of current state
+    });
+  } else {
+    console.log("[initConversationSidebarToggle] no mobile toggle button found");
   }
 }
 

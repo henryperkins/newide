@@ -3,7 +3,7 @@ import { deepSeekProcessor } from './ui/deepseekProcessor.js';
 import { modelManager } from './models.js';
 import { initThemeSwitcher } from './ui/themeSwitcher.js';
 import { initTabSystem } from './ui/tabManager.js';
-import { initSidebar } from './ui/sidebarManager.js';
+import { initSidebar, initConversationSidebar } from './ui/sidebarManager.js';
 import { configureMarkdown } from './ui/markdownParser.js';
 import { loadConversationFromDb, loadOlderMessages } from './ui/displayManager.js';
 import { StatsDisplay } from './ui/statsDisplay.js';
@@ -209,6 +209,7 @@ async function initApplication() {
 
     // 4. Initialize sidebar with corrected mobile/desktop behavior
     initSidebar();
+    initConversationSidebar();
 
     // 5. Initialize conversation manager (for sidebar)
     import('./ui/conversationManager.js').then(module => {

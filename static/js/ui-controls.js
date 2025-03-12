@@ -1,6 +1,29 @@
 window.addEventListener('DOMContentLoaded', () => {
-  // Sidebar toggle is now handled elsewhere
-  console.log("Sidebar functionality now handled by sidebarManager.js");
+  // Import the proper sidebar toggle function
+  import('./ui/sidebarManager.js').then(module => {
+    // Set up direct access to toggleConversationSidebar for inline handlers
+    window.toggleConversationSidebar = function() {
+      const sidebar = document.getElementById('conversations-sidebar');
+      const isOpen = sidebar ? sidebar.classList.contains('sidebar-open') : false;
+      module.toggleConversationSidebar(!isOpen);
+    };
+    
+    // Set up mobile conversation toggle button
+    const mobileConversationsToggle = document.getElementById('mobile-conversations-toggle');
+    if (mobileConversationsToggle) {
+      mobileConversationsToggle.addEventListener('click', (e) => {
+        console.log("Mobile conversations toggle clicked from ui-controls.js");
+        e.preventDefault();
+        const sidebar = document.getElementById('conversations-sidebar');
+        const isOpen = sidebar ? sidebar.classList.contains('sidebar-open') : false;
+        module.toggleConversationSidebar(!isOpen);
+      });
+    }
+  }).catch(err => {
+    console.error("Error setting up conversation toggle:", err);
+  });
+  
+  console.log("Sidebar functionality enhanced in ui-controls.js");
 
   // Theme toggle
   const themeToggle = document.getElementById('theme-toggle');
