@@ -268,6 +268,7 @@ function fixLayoutIssues() {
   console.log('Applying layout fixes...');
 
   // 1. Fix sidebar positioning
+  /*
   const sidebar = document.getElementById('sidebar');
   if (sidebar) {
       // Remove any transforms from HTML
@@ -296,7 +297,7 @@ function fixLayoutIssues() {
         sidebar.classList.remove('translate-x-full');
       }
   }
-
+  */
   // 2. Fix tab panels display
   syncTabPanelDisplay();
 
@@ -343,7 +344,7 @@ function setupResizeHandler() {
     syncTabPanelDisplay();
   }, 250);
 
-  window.addEventListener('resize', handleResize);
+  // window.addEventListener('resize', handleResize);
 }
 
 /* ------------------------------------------------------------------
