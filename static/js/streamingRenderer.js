@@ -12,7 +12,6 @@
  * @param {string} newHTML - New HTML content to render
  * @param {Object} options - Rendering options (e.g., scroll behavior)
  */
-// In streamingRenderer.js
 export function renderContentEfficiently(container, newHTML, options = {}) {
   if (!container) {
     console.error('[renderContentEfficiently] No container provided!');
@@ -36,72 +35,87 @@ export function renderContentEfficiently(container, newHTML, options = {}) {
     container.style.opacity = '1';
     container.style.visibility = 'visible';
     
-    // For incremental updates: if new content starts with old content, just append the remainder
+    // IMPROVED APPROACH: For incremental updates, handle both appending and replacements more efficiently
     if (newHTML.startsWith(oldHTML)) {
+      // If new content starts with old content, just append the remainder
       const remainder = newHTML.slice(oldHTML.length);
       if (remainder) {
-        // Log the remainder to help with debugging
-        console.log('[renderContentEfficiently] Appending remainder:', 
-          remainder.length, 'chars', 
-          remainder.substring(0, 20) + '...');
-        
-        // Always treat remainder as new HTML content
-        container.innerHTML = newHTML;
-
-        console.log('[renderContentEfficiently] Appended new content');
+        // For simple text increments, directly append textNode for better performance
+        if (!/<[a-z][\s\S]*>/i.test(remainder)) {
+          container.appendChild(document.createTextNode(remainder));
+        } else {
+          // For HTML content, use a temporary element and append nodes properly
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = remainder;
+          
+          // Use document fragment for bulk insertion (better performance)
+          const fragment = document.createDocumentFragment();
+          Array.from(tempDiv.childNodes).forEach(node => {
+            fragment.appendChild(node.cloneNode(true));
+          });
+          
+          container.appendChild(fragment);
+        }
       }
+    } else if (oldHTML && newHTML.includes(oldHTML) && 
+              (newHTML.indexOf(oldHTML) < 100 || newHTML.length - oldHTML.length < 100)) {
+      // If old content is somewhere within new content (with reasonable distance),
+      // it's safer to update the whole content to prevent weird partial updates
+      container.innerHTML = newHTML;
     } else {
-      // Full content replace (this part was working correctly)
-      console.log('[renderContentEfficiently] Full content replace');
-
-      // Make sure the container is visible and has width/height
-      container.style.display = 'block';
-      container.style.minHeight = '20px';
-
-      // Use appropriate method based on content type
-      // FIXED: Don't limit by content length - render the full content regardless of size
+      // Full content replace when necessary
+      
+      // CRITICAL FIX: Store references to existing elements to prevent full reflow
+      const oldHeight = container.offsetHeight;
+      
+      // For text-only content use textContent, otherwise innerHTML
       if (!/<[a-z][\s\S]*>/i.test(newHTML)) {
         container.textContent = newHTML;
-        console.log(`[renderContentEfficiently] Rendered ${newHTML.length} chars as text`);
       } else {
-        container.innerHTML = newHTML;
-        console.log(`[renderContentEfficiently] Rendered ${newHTML.length} chars as HTML`);
+        // Use a document fragment to build the new content
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newHTML;
+        
+        // Clear container while preserving its layout
+        container.style.minHeight = `${Math.max(oldHeight, 20)}px`;
+        container.innerHTML = '';
+        
+        // Append fragment
+        const fragment = document.createDocumentFragment();
+        Array.from(tempDiv.childNodes).forEach(node => {
+          fragment.appendChild(node.cloneNode(true));
+        });
+        container.appendChild(fragment);
+        
+        // Release height constraint after a short delay
+        setTimeout(() => {
+          container.style.minHeight = '20px';
+        }, 50);
       }
     }
 
-    // CRITICAL FIX: Force container to be visible after content update
-    container.style.display = 'block';
-    
     // Update stored HTML reference
     container.__previousHtml = newHTML;
 
-    // Optional scroll behavior remains unchanged
+    // Optional scroll behavior
     if (options.scroll) {
       const chatHistory = document.getElementById('chat-history');
       if (chatHistory) {
         requestAnimationFrame(() => {
           chatHistory.scrollTo({
             top: chatHistory.scrollHeight,
-            ...options.scrollOptions
+            behavior: options.scrollSmooth ? 'smooth' : 'auto'
           });
         });
       }
     }
-    
-    // CRITICAL FIX: Verify content is not empty after rendering
-    if (container.innerHTML === '' && newHTML !== '') {
-      console.warn('[renderContentEfficiently] Container is empty despite having content to render!');
-      // Force fallback rendering
-      container.textContent = newHTML;
-    }
   } catch (err) {
-    console.error('[renderContentEfficiently] Error in incremental render:', err);
+    console.error('[renderContentEfficiently] Error in render:', err);
 
-    // Fallback remains unchanged
+    // Fallback to simple approach
     try {
       container.textContent = newHTML;
       container.__previousHtml = newHTML;
-      console.log('[renderContentEfficiently] Used textContent fallback');
     } catch (fallbackErr) {
       console.error('[renderContentEfficiently] Even fallback failed:', fallbackErr);
     }

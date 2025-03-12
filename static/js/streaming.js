@@ -590,15 +590,30 @@ function handleDataChunk(data) {
    Rendering logic
    ------------------------------------------------------------------ */
 function scheduleRender() {
+  // Cancel any pending render to avoid duplicate renders
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+
   if (shouldRenderNow(lastRenderTimestamp, RENDER_INTERVAL_MS)) {
-    if (animationFrameId) {
-      cancelAnimationFrame(animationFrameId);
-    }
+    // Immediate render if enough time has passed
     animationFrameId = requestAnimationFrame(() => {
       renderBufferedContent();
       lastRenderTimestamp = Date.now();
       animationFrameId = null;
     });
+  } else {
+    // Otherwise, schedule for later
+    setTimeout(() => {
+      if (!animationFrameId) { // Only schedule if no render is pending
+        animationFrameId = requestAnimationFrame(() => {
+          renderBufferedContent();
+          lastRenderTimestamp = Date.now();
+          animationFrameId = null;
+        });
+      }
+    }, RENDER_INTERVAL_MS - (Date.now() - lastRenderTimestamp));
   }
 }
 
@@ -618,22 +633,53 @@ function renderBufferedContent() {
     }
     if (!messageContainer) return;
 
-    messageContainer.innerHTML = "";
-    messageContainer.setAttribute("data-streaming", "true");
+    // First time setup - create the container structure
+    if (!messageContainer.querySelector(".message-content")) {
+      messageContainer.innerHTML = "";
+      messageContainer.setAttribute("data-streaming", "true");
+      
+      // Create initial container structure
+      const messageContentContainer = document.createElement("div");
+      messageContentContainer.className = "message-content";
+      messageContainer.appendChild(messageContentContainer);
+      
+      // Create containers (even if empty) to maintain stable structure
+      const thinkingContainer = document.createElement("div");
+      thinkingContainer.className = "thinking-container";
+      messageContentContainer.appendChild(thinkingContainer);
+      
+      const responseContentDiv = document.createElement("div");
+      responseContentDiv.className = "response-content";
+      messageContentContainer.appendChild(responseContentDiv);
+    }
+    
+    // Get references to existing containers
+    const messageContentContainer = messageContainer.querySelector(".message-content");
+    const thinkingContainer = messageContentContainer.querySelector(".thinking-container");
+    const responseContentDiv = messageContentContainer.querySelector(".response-content");
+    
+    // Update thinking content if needed (without replacing the entire container)
+    if (thinkingTextBuffer && thinkingTextBuffer.trim()) {
+      // Update existing thinking block or create a new one
+      deepSeekProcessor.renderThinkingContainer(
+        thinkingContainer,
+        thinkingTextBuffer,
+        { createNew: !thinkingContainer.querySelector(".deepseek-cot-block"), isComplete: !rollingBuffer && !isThinking }
+      );
+      
+      // Make sure thinking container is visible
+      thinkingContainer.style.display = "block";
+    } else {
+      // Hide thinking container if no content
+      thinkingContainer.style.display = "none";
+    }
 
-    deepSeekProcessor.renderThinkingContainer(
-      messageContainer,
-      thinkingTextBuffer,
-      { createNew: true, isComplete: !rollingBuffer && !isThinking }
-    );
-
-    const contentDiv = document.createElement("div");
-    contentDiv.className = "message-content";
-    messageContainer.appendChild(contentDiv);
-
+    // Render the main content with minimal DOM changes
     let cleaned = renderMarkdown(mainTextBuffer.trim());
-    renderContentEfficiently(contentDiv, cleaned, { scroll: true });
-    highlightCode(contentDiv);
+    renderContentEfficiently(responseContentDiv, cleaned, { scroll: true });
+    
+    // Highlight code blocks if needed
+    highlightCode(responseContentDiv);
   } catch (err) {
     console.error("[renderBufferedContent] Error:", err);
 

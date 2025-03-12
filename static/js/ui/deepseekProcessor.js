@@ -201,6 +201,7 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
     console.warn("[renderThinkingContainer] No parentContainer provided");
     return null;
   }
+  
   // Allow empty initial content during streaming
   const textToRender = thinkingText || "";
 
@@ -210,16 +211,24 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
 
   let existing = parentContainer.querySelector(".deepseek-cot-block");
   let wrapper = existing;
+  let contentElement = existing ? existing.querySelector(".thinking-content") : null;
   
+  // Create container if it doesn't exist and we should create new
   if (!existing && shouldCreateNew) {
     wrapper = document.createElement("div");
     wrapper.className = "deepseek-cot-block mt-2";
+    
+    // IMPORTANT: Set data-streaming="true" so CSS transitions are disabled during streaming
+    wrapper.setAttribute("data-streaming", "true");
+    
+    // Add min-height to prevent layout shifts
+    wrapper.style.minHeight = "80px";
     
     wrapper.innerHTML = `
       <details open>
         <summary class="thought-header">
           <div class="header-content">
-            <svg xmlns="http://www.w3.org/2000/svg" class="thought-icon complete" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" class="thought-icon thinking" viewBox="0 0 20 20" fill="currentColor">
               <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z" />
             </svg>
             <span class="thought-title">Chain of Thought</span>
@@ -228,12 +237,13 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
             <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
           </svg>
         </summary>
-        <div class="thinking-content"></div>
+        <div class="thinking-content" style="min-height: 20px; transition: none;"></div>
       </details>
     `;
     
+    // Insert at the beginning of parent to maintain order
     parentContainer.insertBefore(wrapper, parentContainer.firstChild);
-    existing = wrapper.querySelector(".thinking-content");
+    contentElement = wrapper.querySelector(".thinking-content");
     
     // Add event listener to toggle chevron icon direction
     const details = wrapper.querySelector("details");
@@ -241,11 +251,17 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
     details.addEventListener("toggle", () => {
       chevron.classList.toggle("rotate-180", details.open);
     });
+  } else if (existing) {
+    // If we already have a container, just update it
+    contentElement = existing.querySelector(".thinking-content");
   }
 
-  if (!existing) return null; // no container to update
+  if (!contentElement) return null; // no container to update
+  
+  // CRITICAL FIX: Store previous height before updating content
+  const previousHeight = contentElement.offsetHeight;
 
-  // Update thinking state
+  // Update thinking state icon
   if (wrapper) {
     const thoughtIcon = wrapper.querySelector(".thought-icon");
     if (thoughtIcon) {
@@ -257,13 +273,34 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
         thoughtIcon.classList.remove("complete");
       }
     }
+    
+    // CRITICAL FIX: Keep data-streaming attribute during streaming
+    if (!isComplete) {
+      wrapper.setAttribute("data-streaming", "true");
+    } else {
+      wrapper.removeAttribute("data-streaming");
+    }
   }
 
-  // Just do textContent or minimal sanitize
-  // For more advanced formatting, parse markdown
-  existing.textContent = textToRender;
+  // IMPROVED: Update content with minimal DOM changes
+  if (textToRender !== contentElement.textContent) {
+    // Use a more efficient way to update text content
+    // For pre-formatted text, textContent is better than innerHTML
+    contentElement.textContent = textToRender;
+    
+    // CRITICAL FIX: Preserve height during content change if new content would be smaller
+    if (previousHeight > contentElement.offsetHeight && previousHeight > 20) {
+      contentElement.style.minHeight = `${previousHeight}px`;
+      
+      // After a brief delay, allow height to adjust naturally
+      setTimeout(() => {
+        contentElement.style.minHeight = "20px"; // Reset to minimum
+        contentElement.style.transition = "min-height 0.3s ease-out";
+      }, 100);
+    }
+  }
 
-  return existing;
+  return contentElement;
 }
 
 //

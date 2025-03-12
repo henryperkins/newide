@@ -593,12 +593,6 @@ function createAssistantMessageElement(response) {
     content = String(response);
   }
 
-  console.log('Processing assistant message:', {
-    contentLength: content?.length || 0,
-    hasThinking: content?.includes('<think>') || false,
-    sample: content?.substring(0, 50) || ''
-  });
-
   // Create a unique ID
   const messageId = `msg-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
@@ -608,14 +602,13 @@ function createAssistantMessageElement(response) {
   el.setAttribute('aria-live', 'polite');
   el.setAttribute('data-id', messageId);
 
-  // Handle any <think> blocks
+  // Extract thinking content from <think> tags
   let mainContent = content || '';
   let thinkingContent = '';
 
   if (content && content.includes('<think>')) {
     const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/g);
     if (thinkMatches) {
-      console.log('Found thinking blocks:', thinkMatches.length);
       thinkingContent = thinkMatches
         .map(m => m.replace(/<\/?think>/g, ''))
         .join('\n\n');
@@ -625,40 +618,36 @@ function createAssistantMessageElement(response) {
     }
   }
 
-  // Convert main content to markdown
-  const md = renderMarkdown(mainContent.trim());
-  // You might do further transforms on code blocks or images
-  const enhanced = processCodeBlocks(md);
-  const lazy = processImagesForLazyLoading(enhanced);
+  // Create the same structure as streaming.js produces
+  const messageContentContainer = document.createElement('div');
+  messageContentContainer.className = 'message-content';
+  el.appendChild(messageContentContainer);
 
-  // Build container
-  const contentContainer = document.createElement('div');
-  contentContainer.className = 'message-container flex flex-col gap-2 w-full';
+  // Add thinking container (even if empty, for consistent structure)
+  const thinkingContainer = document.createElement('div');
+  thinkingContainer.className = 'thinking-container';
+  messageContentContainer.appendChild(thinkingContainer);
 
-  // If chain-of-thought (thinkingContent) exists, show it
+  // Add response content container
+  const responseContentDiv = document.createElement('div');
+  responseContentDiv.className = 'response-content';
+  messageContentContainer.appendChild(responseContentDiv);
+
+  // If there's thinking content, render it using the same deepSeekProcessor
   if (thinkingContent && thinkingContent.trim()) {
-    const thinkingSection = document.createElement('div');
-    thinkingSection.className = 'thinking-section bg-gray-50 dark:bg-gray-800 p-3 rounded-lg';
-    thinkingSection.innerHTML = `
-      <div class="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">Thinking process</div>
-      <div class="thinking-content markdown-body text-gray-700 dark:text-gray-200">
-        ${renderMarkdown(thinkingContent)}
-      </div>
-    `;
-    contentContainer.appendChild(thinkingSection);
+    // Use the same processor as streaming.js for consistency
+    deepSeekProcessor.renderThinkingContainer(
+      thinkingContainer,
+      thinkingContent,
+      { createNew: true, isComplete: true }
+    );
+    thinkingContainer.style.display = 'block';
+  } else {
+    thinkingContainer.style.display = 'none';
   }
 
-  // Create response section
-  const responseSection = document.createElement('div');
-  responseSection.className = 'response-section bg-white dark:bg-gray-700 p-4 rounded-lg shadow-sm';
-
-  const contentDiv = document.createElement('div');
-  contentDiv.className = 'message-content prose dark:prose-invert max-w-none';
-  contentDiv.innerHTML = lazy;
-
-  responseSection.appendChild(contentDiv);
-  contentContainer.appendChild(responseSection);
-  el.appendChild(contentContainer);
+  // Render the main content
+  responseContentDiv.innerHTML = renderMarkdown(mainContent.trim());
 
   return el;
 }
