@@ -320,6 +320,9 @@ async def refresh_session(
                     else session_response.model_dump()
                 )
 
+                # Add explicit session_id field for client validation
+                session_dict["session_id"] = str(session_obj.id)
+
                 # Use json.dumps with custom serializer to handle datetime objects
                 json_data = json.dumps(session_dict, default=serialize_datetime_objects)
                 
