@@ -1,7 +1,7 @@
 // sentryInit.js - Sentry initialization and configuration for frontend
 
-// (UPDATED) Keep references to Sentry objects in top-level variables
-let Sentry, BrowserTracing, Replay;
+// Keep references to Sentry objects in top-level variables
+let Sentry, BrowserTracing, Replay, FeedbackIntegration;
 let isSentryInitialized = false; // Flag to prevent multiple initializations
 
 /**
@@ -97,9 +97,9 @@ export function initSentry(options = {}) {
       enableLongTask: true,
     },
 
-    // (UPDATED) Enhanced beforeSend hook for context + grouping
+    // Enhanced beforeSend hook for context + grouping
     beforeSend: (event, hint) => {
-      // Example: attach additional environment info
+      // Attach additional environment info
       event.tags = event.tags || {};
       // Merge default tags
       Object.assign(event.tags, buildDefaultTags(), event.tags);
@@ -109,16 +109,53 @@ export function initSentry(options = {}) {
         event.exception.values &&
         event.exception.values.length > 0
       ) {
+        // Add browser context
         event.contexts = event.contexts || {};
         event.contexts.browser = {
           name: navigator.userAgent,
           viewport_width: window.innerWidth,
           viewport_height: window.innerHeight,
+          language: navigator.language,
+          platform: navigator.platform,
+          memory: navigator.deviceMemory ? `${navigator.deviceMemory}GB` : 'unknown',
+          connection: navigator.connection ? 
+            (navigator.connection.effectiveType || navigator.connection.type || 'unknown') : 'unknown'
+        };
+        
+        // Add page context
+        event.contexts.page = {
+          url: window.location.href,
+          referrer: document.referrer,
+          title: document.title
         };
 
-        // (NEW) Example: adding a custom “fingerprint” for grouping
-        // This can unify or separate error grouping. Adjust as your app requires.
-        // event.fingerprint = ['{{ default }}', window.location.pathname];
+        // Improve error grouping with custom fingerprinting
+        const exception = event.exception.values[0];
+        const errorType = exception.type || '';
+        const errorValue = exception.value || '';
+        
+        // Group similar network errors together
+        if (errorType.includes('NetworkError') || errorValue.includes('network') || 
+            errorValue.includes('failed to fetch')) {
+          event.fingerprint = ['network-error', window.location.pathname];
+        }
+        
+        // Group similar API errors together
+        else if (errorValue.includes('API') || errorValue.includes('api') || 
+                errorValue.match(/status (?:4|5)\d\d/)) {
+          // Extract status code if present
+          const statusMatch = errorValue.match(/status (\d+)/);
+          const status = statusMatch ? statusMatch[1] : 'unknown';
+          event.fingerprint = ['api-error', status, window.location.pathname];
+        }
+        
+        // Group model-specific errors
+        else if (errorValue.includes('model') || errorValue.includes('inference')) {
+          // Extract model name if present
+          const modelMatch = errorValue.match(/model[:\s]+([a-zA-Z0-9-]+)/i);
+          const model = modelMatch ? modelMatch[1] : 'unknown-model';
+          event.fingerprint = ['model-error', model];
+        }
       }
 
       return event;
@@ -129,8 +166,98 @@ export function initSentry(options = {}) {
   if (typeof BrowserTracing === "function") {
     config.integrations.push(
       new BrowserTracing({
-        // (NEW) Example: routing instrumentation if using e.g. React Router
-        // routingInstrumentation: Sentry.reactRouterV6Instrumentation(...),
+        // Trace all XHR/fetch requests
+        tracingOrigins: ["localhost", /^\//],
+        
+        // Track long tasks
+        enableLongTask: true,
+        
+        // Track resource timing
+        enableResourceTimingTracking: true,
+        
+        // Track navigation timing
+        enableNavigationTimingTracking: true,
+        
+        // Track first input delay
+        enableUserInteractionTracing: true,
+        
+        // Custom transaction name based on URL path
+        beforeNavigate: (context) => {
+          try {
+            const url = context.name;
+            
+            // Check if the URL is valid before trying to parse it
+            if (!url || typeof url !== 'string') {
+              console.warn('Invalid URL in beforeNavigate (not a string):', url);
+              return context; // Return unchanged context if URL is invalid
+            }
+            
+            // For path-only URLs, use the current origin
+            if (url.startsWith('/')) {
+              try {
+                const fullUrl = `${window.location.origin}${url}`;
+                const parsedUrl = new URL(fullUrl);
+                const path = parsedUrl.pathname;
+                
+                // Clean up path for better grouping
+                const cleanPath = path.replace(/\/\d+\/?/g, '/{id}/');
+                
+                return {
+                  ...context,
+                  name: cleanPath || '/',
+                  tags: {
+                    ...context.tags,
+                    route: cleanPath
+                  }
+                };
+              } catch (pathError) {
+                console.warn('Failed to parse path URL in beforeNavigate:', url, pathError);
+                return context;
+              }
+            }
+            
+            // For URLs with protocol but no domain (e.g., https:///)
+            if (/^https?:\/\/\/?$/.test(url) || url === 'https://' || url === 'http://') {
+              console.warn('Invalid URL format (protocol only) in beforeNavigate:', url);
+              return context;
+            }
+            
+            // Make sure the URL has a protocol and valid domain
+            let urlToProcess = url;
+            if (!url.startsWith('http')) {
+              urlToProcess = `https://${url.startsWith('//') ? url.slice(2) : url}`;
+            }
+            
+            // Additional validation to ensure URL has a domain
+            if (urlToProcess.match(/^https?:\/\/\/?$/)) {
+              console.warn('URL missing domain in beforeNavigate:', urlToProcess);
+              return context;
+            }
+            
+            try {
+              const parsedUrl = new URL(urlToProcess);
+              const path = parsedUrl.pathname;
+              
+              // Clean up path for better grouping
+              const cleanPath = path.replace(/\/\d+\/?/g, '/{id}/');
+              
+              return {
+                ...context,
+                name: cleanPath || '/',
+                tags: {
+                  ...context.tags,
+                  route: cleanPath
+                }
+              };
+            } catch (urlError) {
+              console.warn('Failed to parse URL in beforeNavigate:', urlToProcess, urlError);
+              return context; // Return unchanged context if URL parsing fails
+            }
+          } catch (error) {
+            console.warn('Error in beforeNavigate:', error);
+            return context; // Return unchanged context on any error
+          }
+        }
       }),
     );
   }
@@ -139,11 +266,50 @@ export function initSentry(options = {}) {
   if (typeof Replay === "function") {
     config.integrations.push(
       new Replay({
+        // Privacy settings
         maskAllText: options.maskAllText ?? false,
         blockAllMedia: options.blockAllMedia ?? false,
-        maskAllInputs:
-          options.maskAllInputs !== undefined ? options.maskAllInputs : true,
+        maskAllInputs: options.maskAllInputs !== undefined ? options.maskAllInputs : true,
+        
+        // Additional privacy settings
+        maskTextSelector: "[data-sensitive], .user-content, .private-data",
+        blockSelector: ".do-not-record, .private-media",
+        
+        // Network capture settings
+        networkDetailAllowUrls: [
+          // Allow capturing details for API calls to our own domain
+          window.location.origin,
+          // Add other allowed domains here
+        ],
+        networkRequestHeaders: ["content-type", "content-length"],
+        networkResponseHeaders: ["content-type", "content-length"],
+        
+        // Performance optimization
+        minReplayDuration: 5000, // Only record sessions longer than 5 seconds
+        
+        // Capture console logs in replay
+        captureConsoleIntegration: true
       }),
+    );
+  }
+  
+  // Add Feedback integration if available
+  if (typeof FeedbackIntegration === "function") {
+    config.integrations.push(
+      new FeedbackIntegration({
+        // Feedback widget configuration
+        colorScheme: "system",
+        autoInject: false, // We'll manually trigger the feedback dialog
+        buttonLabel: "Send Feedback",
+        submitButtonLabel: "Submit Feedback",
+        formTitle: "Report an issue",
+        emailLabel: "Your email (optional)",
+        emailPlaceholder: "email@example.com",
+        messageLabel: "What happened?",
+        messagePlaceholder: "Tell us what happened...",
+        successMessageText: "Thank you for your feedback!",
+        closeButtonLabel: "Close"
+      })
     );
   }
 
@@ -318,5 +484,140 @@ export function setExtra(key, value) {
   }
 }
 
-// (NEW) Export the Sentry object directly for advanced usage if needed
+/**
+ * Create a performance transaction for tracking frontend operations
+ * @param {string} name - Transaction name
+ * @param {string} op - Operation category (e.g., 'ui.render', 'ui.interaction')
+ * @param {Object} data - Additional metadata
+ * @returns {Transaction|null} The Sentry transaction or null if unavailable
+ */
+export function createUITransaction(name, op = "ui.interaction", data = {}) {
+  if (!Sentry || !isSentryInitialized) {
+    console.warn("(sentryInit) createUITransaction: Sentry not initialized.");
+    return null;
+  }
+  
+  const transaction = Sentry.startTransaction({ 
+    name, 
+    op,
+    data: {
+      ...data,
+      timestamp: new Date().toISOString()
+    }
+  });
+  
+  // Add default UI context
+  transaction.setTag("ui.viewport_width", window.innerWidth);
+  transaction.setTag("ui.viewport_height", window.innerHeight);
+  transaction.setTag("ui.path", window.location.pathname);
+  
+  return transaction;
+}
+
+/**
+ * Track a UI component render time
+ * @param {string} componentName - Name of the component being rendered
+ * @param {number} renderTime - Time in milliseconds it took to render
+ */
+export function trackComponentRender(componentName, renderTime) {
+  if (!Sentry || !isSentryInitialized) {
+    return;
+  }
+  
+  // Add as a span if there's an active transaction
+  const transaction = Sentry.getCurrentHub().getScope().getTransaction();
+  if (transaction) {
+    const span = transaction.startChild({
+      op: "ui.render",
+      description: `Render ${componentName}`
+    });
+    
+    span.setData("render_time_ms", renderTime);
+    span.finish();
+  }
+  
+  // Also record as a measurement
+  Sentry.setTag("last_component_render", componentName);
+  Sentry.addBreadcrumb({
+    category: "ui.performance",
+    message: `Rendered ${componentName} in ${renderTime}ms`,
+    data: { component: componentName, render_time_ms: renderTime }
+  });
+}
+
+/**
+ * Track a user interaction with timing
+ * @param {string} action - The action being performed
+ * @param {string} element - The element being interacted with
+ * @param {number} responseTime - Time in milliseconds for the action to complete
+ */
+export function trackUserInteraction(action, element, responseTime) {
+  if (!Sentry || !isSentryInitialized) {
+    return;
+  }
+  
+  Sentry.addBreadcrumb({
+    category: "ui.interaction",
+    message: `User ${action} on ${element}`,
+    data: {
+      action,
+      element,
+      response_time_ms: responseTime
+    }
+  });
+  
+  // If response time is slow, capture as a performance issue
+  if (responseTime > 300) { // 300ms is generally considered slow for UI
+    Sentry.captureMessage(
+      `Slow UI interaction: ${action} on ${element} took ${responseTime}ms`,
+      "warning",
+      {
+        tags: {
+          ui_performance: "slow_interaction"
+        },
+        extra: {
+          action,
+          element,
+          response_time_ms: responseTime
+        }
+      }
+    );
+  }
+}
+
+/**
+ * Show the feedback dialog to collect user feedback
+ * @param {string} title - Custom title for the feedback form
+ * @param {Object} context - Additional context to include with the feedback
+ */
+export function showFeedbackDialog(title = "Send Feedback", context = {}) {
+  if (!Sentry || !isSentryInitialized) {
+    console.warn("(sentryInit) showFeedbackDialog: Sentry not initialized.");
+    return;
+  }
+  
+  try {
+    Sentry.showReportDialog({
+      title,
+      subtitle: "Help us improve your experience",
+      subtitle2: "Tell us what happened or what we can do better",
+      labelName: "Name (optional)",
+      labelEmail: "Email (optional)",
+      labelComments: "What happened?",
+      labelSubmit: "Submit Feedback",
+      successMessage: "Thank you for your feedback!",
+      errorFormEntry: "Some fields were invalid. Please correct the errors and try again.",
+      errorGeneric: "An unknown error occurred while submitting your feedback. Please try again.",
+      user: {
+        name: localStorage.getItem("user_name") || "",
+        email: localStorage.getItem("user_email") || ""
+      },
+      ...context
+    });
+  } catch (e) {
+    console.error("Error showing feedback dialog:", e);
+  }
+}
+
+// Export the Sentry object directly for advanced usage if needed
 export { Sentry };

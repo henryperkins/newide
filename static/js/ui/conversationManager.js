@@ -50,11 +50,10 @@ export function initConversationManager() {
   const conversationsSidebar = document.getElementById('conversations-sidebar');
   if (conversationsSidebar) {
     // Ensure proper positioning for the conversation sidebar
-    if (window.innerWidth < 768) {
-      conversationsSidebar.classList.add('hidden');
-    } else {
-      conversationsSidebar.classList.remove('hidden');
-    }
+    /**
+     * Removed forced hidden logic on initialization so that the toggleConversationSidebar
+     * function can manage sidebar visibility consistently across all viewports.
+     */
 
     // Ensure this sidebar doesn't interfere with the settings sidebar
     conversationsSidebar.classList.add('z-10'); // Lower than settings sidebar
@@ -621,14 +620,22 @@ export function toggleConversationSidebar() {
 
 // Set up conversation sidebar toggle
 function initConversationSidebarToggle() {
+  console.log("[initConversationSidebarToggle] called");
   const conversationsToggleBtn = document.getElementById('conversations-toggle');
+  const conversationsSidebar = document.getElementById('conversations-sidebar');
   if (conversationsToggleBtn) {
-    // Remove any existing listeners to avoid duplicates
-    const newBtn = conversationsToggleBtn.cloneNode(true);
-    conversationsToggleBtn.parentNode.replaceChild(newBtn, conversationsToggleBtn);
-    
-    // Add our listener to the NEW button (this line was missing)
-    newBtn.addEventListener('click', toggleConversationSidebar);
+    console.log("[initConversationSidebarToggle] found toggle button");
+    conversationsToggleBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      console.log("[initConversationSidebarToggle] toggle button clicked");
+      toggleConversationSidebar();
+    });
+  } else {
+    console.log("[initConversationSidebarToggle] no toggle button found");
+  }
+
+  if (!conversationsSidebar) {
+    console.log("[initConversationSidebarToggle] no sidebar found");
   }
 }
 

@@ -15,7 +15,11 @@ from services.tracing_utils import (
     trace_function,
     profile_block,
     add_breadcrumb,
-    create_transaction
+    create_transaction,
+    add_ai_prompt_breadcrumb,
+    set_ai_token_counts,
+    ai_operation_block,
+    set_measurement
 )
 from clients import get_model_client_dependency
 
@@ -113,10 +117,7 @@ def prepare_model_parameters(
             maybe_max_tokens = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
         params["max_tokens"] = int(min(maybe_max_tokens, config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS))
     elif is_o_series:
-        params["max_completion_tokens"] = (
-            chat_message.max_completion_tokens
-            or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
-        )
+        params["max_completion_tokens"] = chat_message.max_completion_tokens or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
         # Enforce O1 context limit of 200,000 tokens
         params["max_completion_tokens"] = min(params["max_completion_tokens"], 200000)
         params["reasoning_effort"] = chat_message.reasoning_effort or "medium"

@@ -243,8 +243,10 @@ class SessionService:
         )
         # Tag in Sentry
         sentry_sdk.set_tag("session_id", str(session_obj.id))
-        if session_obj.session_metadata and 'owner_id' in session_obj.session_metadata:
-            owner_id = session_obj.session_metadata.get('owner_id')
+        
+        metadata_val = session_obj.session_metadata
+        if isinstance(metadata_val, dict) and 'owner_id' in metadata_val:
+            owner_id = metadata_val['owner_id']
             sentry_sdk.set_user({"id": owner_id})
 
         return session_obj
@@ -358,8 +360,10 @@ class SessionService:
         If user_id is provided, confirm that session_obj's owner_id matches. 
         Raise 403 if not matching and require_valid=True.
         """
-        if user_id and session_obj.session_metadata and 'owner_id' in session_obj.session_metadata:
-            owner_id = session_obj.session_metadata.get('owner_id')
+        metadata_val = session_obj.session_metadata
+        
+        if user_id and isinstance(metadata_val, dict) and 'owner_id' in metadata_val:
+            owner_id = metadata_val.get('owner_id')
             if owner_id != str(user_id):
                 if require_valid:
                     add_breadcrumb(

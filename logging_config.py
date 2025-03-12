@@ -9,10 +9,12 @@ from typing import Dict, Any
 # Import Sentry integration only when available
 try:
     import sentry_sdk
+    from sentry_sdk.integrations.logging import LoggingIntegration
     SENTRY_AVAILABLE = True
 except ImportError:
     SENTRY_AVAILABLE = False
     sentry_sdk = None  # Define as None for type checking
+    LoggingIntegration = None
 
 # Create logs directory if it doesn't exist
 if not os.path.exists("logs"):
@@ -30,6 +32,8 @@ class JsonLogFormatter(logging.Formatter):
             "message": record.getMessage(),
             "module": record.module,
             "line": record.lineno,
+            "process_id": record.process,
+            "thread_id": record.thread,
         }
         
         # Include exception information if available
@@ -53,14 +57,41 @@ class JsonLogFormatter(logging.Formatter):
         span_id = getattr(record, "span_id", None)
         if span_id:
             log_record["span_id"] = span_id
+            
+        # Add transaction name if available
+        transaction_name = getattr(record, "transaction", None)
+        if transaction_name:
+            log_record["transaction"] = transaction_name
         
-        # Add to Sentry breadcrumbs if available and level is warning or higher
-        if SENTRY_AVAILABLE and sentry_sdk is not None and record.levelno >= logging.WARNING:
+        # Add to Sentry breadcrumbs if available
+        if SENTRY_AVAILABLE and sentry_sdk is not None:
+            # Always add as breadcrumb, but adjust level based on severity
+            breadcrumb_level = record.levelname.lower()
+            # Normalize level names to match Sentry's expectations
+            if breadcrumb_level == "critical":
+                breadcrumb_level = "fatal"
+            elif breadcrumb_level not in ("debug", "info", "warning", "error", "fatal"):
+                breadcrumb_level = "info"
+                
+            # Extract relevant data for the breadcrumb
+            breadcrumb_data = {
+                "logger": record.name,
+                "module": record.module,
+                "line": record.lineno,
+            }
+            
+            # Add extra data if available
+            if extra:
+                # Filter out sensitive or redundant information
+                safe_extra = {k: v for k, v in extra.items() 
+                             if not k.startswith("_") and k not in ("password", "token", "secret")}
+                breadcrumb_data.update(safe_extra)
+            
             sentry_sdk.add_breadcrumb(
-                category=record.name,
+                category="logging",
                 message=record.getMessage(),
-                level=record.levelname.lower(),
-                data=getattr(record, "extra", {})
+                level=breadcrumb_level,
+                data=breadcrumb_data
             )
             
         return json.dumps(log_record)
@@ -152,6 +183,25 @@ def configure_basic_logging():
     file_handler.setFormatter(JsonLogFormatter())
     file_handler.setLevel(logging.INFO)
     root_logger.addHandler(file_handler)
+    
+    # Error file handler - separate file for errors and above
+    error_handler = RotatingFileHandler("logs/error.log", maxBytes=10_000_000, backupCount=5)
+    error_handler.setFormatter(JsonLogFormatter())
+    error_handler.setLevel(logging.ERROR)
+    root_logger.addHandler(error_handler)
+    
+    # Configure Sentry logging integration if available
+    if SENTRY_AVAILABLE and sentry_sdk is not None and LoggingIntegration is not None:
+        # This will be used if Sentry is initialized elsewhere
+        # It configures how logging events are sent to Sentry
+        sentry_logging = LoggingIntegration(
+            level=logging.INFO,        # Capture info and above as breadcrumbs
+            event_level=logging.ERROR  # Send errors and above as events
+        )
+        
+        # Store the integration for later use during Sentry initialization
+        global sentry_logging_integration
+        sentry_logging_integration = sentry_logging
 
 
 # Configure input/response specific loggers
@@ -173,6 +223,9 @@ response_logger.propagate = False
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+# Global variable to store the Sentry logging integration
+sentry_logging_integration = None
+
 # Helper function to get a logger with Sentry trace context
 def get_logger(name: str, **context) -> logging.Logger:
     """
@@ -191,6 +244,69 @@ def get_logger(name: str, **context) -> logging.Logger:
         logger = logger.with_context(**context)
         
     return logger
+
+def configure_sentry(dsn: str, environment: str, release: str, 
+                    traces_sample_rate: float = 0.1,
+                    profiles_sample_rate: float = 0.0,
+                    **options):
+    """
+    Configure Sentry SDK with proper logging integration.
+    
+    Args:
+        dsn: Sentry DSN
+        environment: Environment name (e.g., "production", "staging")
+        release: Release version
+        traces_sample_rate: Sample rate for performance monitoring (0.0 to 1.0)
+        profiles_sample_rate: Sample rate for profiling (0.0 to 1.0)
+        **options: Additional Sentry options
+    """
+    if not SENTRY_AVAILABLE or sentry_sdk is None:
+        logger.warning("Sentry SDK not available. Skipping Sentry configuration.")
+        return
+    
+    # Default integrations to use
+    integrations = []
+    
+    # Add logging integration if available
+    if sentry_logging_integration is not None:
+        integrations.append(sentry_logging_integration)
+    
+    # Initialize Sentry with our configuration
+    sentry_sdk.init(
+        dsn=dsn,
+        environment=environment,
+        release=release,
+        traces_sample_rate=traces_sample_rate,
+        profiles_sample_rate=profiles_sample_rate,
+        integrations=integrations,
+        
+        # Set reasonable defaults for the application
+        max_breadcrumbs=options.get("max_breadcrumbs", 100),
+        send_default_pii=options.get("send_default_pii", False),
+        attach_stacktrace=options.get("attach_stacktrace", True),
+        
+        # Set reasonable defaults for the application
+        
+        # Configure event sampling
+        sample_rate=options.get("sample_rate", 1.0),
+        
+        # Configure before_send hook if provided
+        before_send=options.get("before_send", None),
+        
+        # Configure before_breadcrumb hook if provided
+        before_breadcrumb=options.get("before_breadcrumb", None),
+    )
+    
+    # Set default tags after initialization
+    default_tags = options.get("tags", {
+        "service": "newide",
+        "logger": "python"
+    })
+    
+    for tag_name, tag_value in default_tags.items():
+        sentry_sdk.set_tag(tag_name, tag_value)
+    
+    logger.info(f"Sentry initialized: environment={environment}, release={release}")
 
 
 # Initialize basic logging

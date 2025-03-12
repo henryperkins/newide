@@ -23,7 +23,9 @@ from mcp.types import (
 DEBUG = True
 def debug_log(message):
     if DEBUG:
-        with open("/tmp/sentry-mcp-debug.log", "a") as f:
+        import os
+        log_path = os.path.join(os.environ.get("TEMP", "C:\\Windows\\Temp"), "sentry-mcp-debug.log")
+        with open(log_path, "a") as f:
             f.write(f"{message}\n")
 
 

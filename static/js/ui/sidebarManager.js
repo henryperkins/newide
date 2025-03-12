@@ -138,9 +138,70 @@ export function toggleSidebar(show) {
       overlay.classList.add('hidden');
     }
   }
-
+  
   // Publish sidebar state change event
   if (window.eventBus) {
     window.eventBus.publish('sidebarStateChange', { isOpen: show });
+  }
+}
+
+/*
+ * Conversation sidebar logic is defined outside the toggleSidebar function
+ */
+export function initConversationSidebar() {
+  console.log("Initializing conversation sidebar...");
+  const toggleButton = document.getElementById('conversations-toggle');
+  const sidebar = document.getElementById('conversations-sidebar');
+  const overlay = document.getElementById('sidebar-overlay'); // Reuse the existing overlay if desired
+
+  if (!sidebar) {
+    console.error("Conversations sidebar element not found");
+    return;
+  }
+
+  if (toggleButton) {
+    toggleButton.addEventListener('click', () => {
+      console.log("Conversations toggle clicked");
+      const isOpen = sidebar.classList.contains('sidebar-open');
+      toggleConversationSidebar(!isOpen);
+    });
+  }
+}
+
+export function toggleConversationSidebar(show) {
+  console.log('toggleConversationSidebar:', show ? 'opening' : 'closing', 'conversations-sidebar');
+  const sidebar = document.getElementById('conversations-sidebar');
+  const toggleButton = document.getElementById('conversations-toggle');
+  const overlay = document.getElementById('sidebar-overlay');
+
+  if (!sidebar) return;
+
+  const isMobile = window.innerWidth < 768;
+
+  if (show) {
+    // Show the sidebar
+    sidebar.classList.add('sidebar-open', 'translate-x-0');
+    sidebar.classList.remove('hidden', 'translate-x-full');
+    if (isMobile && overlay) {
+      overlay.classList.remove('hidden');
+    }
+    if (toggleButton) {
+      toggleButton.setAttribute('aria-expanded', 'true');
+    }
+  } else {
+    // Hide the sidebar
+    sidebar.classList.remove('sidebar-open', 'translate-x-0');
+    sidebar.classList.add('hidden', 'translate-x-full');
+    if (toggleButton) {
+      toggleButton.setAttribute('aria-expanded', 'false');
+    }
+    if (overlay) {
+      overlay.classList.add('hidden');
+    }
+  }
+
+  // Publish an event if needed (e.g. for external listeners)
+  if (window.eventBus) {
+    window.eventBus.publish('conversationSidebarStateChange', { isOpen: show });
   }
 }

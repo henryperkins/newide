@@ -450,6 +450,48 @@ async def init_database():
                 text("ALTER TABLE conversations ALTER COLUMN session_id SET NOT NULL")
             )
 
+            # Ensure pinned, archived columns match ORM (not null, default false)
+            await conn.execute(
+                text("""
+                    ALTER TABLE conversations
+                    ADD COLUMN IF NOT EXISTS pinned BOOLEAN
+                """)
+            )
+            await conn.execute(
+                text("""
+                    ALTER TABLE conversations
+                    ADD COLUMN IF NOT EXISTS archived BOOLEAN
+                """)
+            )
+            await conn.execute(
+                text("""
+                    UPDATE conversations
+                    SET pinned = false
+                    WHERE pinned IS NULL
+                """)
+            )
+            await conn.execute(
+                text("""
+                    UPDATE conversations
+                    SET archived = false
+                    WHERE archived IS NULL
+                """)
+            )
+            await conn.execute(
+                text("""
+                    ALTER TABLE conversations
+                    ALTER COLUMN pinned SET DEFAULT false,
+                    ALTER COLUMN pinned SET NOT NULL
+                """)
+            )
+            await conn.execute(
+                text("""
+                    ALTER TABLE conversations
+                    ALTER COLUMN archived SET DEFAULT false,
+                    ALTER COLUMN archived SET NOT NULL
+                """)
+            )
+
             await conn.execute(
                 text("ALTER TABLE vector_stores ALTER COLUMN session_id SET NOT NULL")
             )
@@ -522,6 +564,8 @@ async def init_database():
             "CREATE INDEX IF NOT EXISTS ix_uploaded_files_upload_time ON uploaded_files(upload_time)",  # Ensure missing index
             "CREATE INDEX IF NOT EXISTS ix_uploaded_files_status ON uploaded_files(status)",  # Ensure missing index
             # Model transitions indexes
+            "CREATE INDEX IF NOT EXISTS ix_file_citations_conversation_id ON file_citations(conversation_id)",
+            "CREATE INDEX IF NOT EXISTS ix_uploaded_files_session_id ON uploaded_files(session_id)",
             "CREATE INDEX IF NOT EXISTS idx_model_transitions_session_id ON model_transitions(session_id)",
             "CREATE INDEX IF NOT EXISTS idx_model_transitions_models ON model_transitions(from_model, to_model)",
             "CREATE INDEX IF NOT EXISTS idx_model_transitions_timestamp ON model_transitions(timestamp)",

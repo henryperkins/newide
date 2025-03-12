@@ -61,14 +61,24 @@ async def validate_session_ownership(
             return True, session
             
         # Check if the session has an owner
-        if not session.session_metadata or 'owner_id' not in session.session_metadata:
+        session_metadata_val = session.session_metadata
+
+        if session_metadata_val is None:
             # Session has no owner, so it's publicly accessible
             return True, session
-            
-        # Check if the owner matches the user_id
-        if session.session_metadata['owner_id'] == str(user_id):
+
+        if not isinstance(session_metadata_val, dict):
+            # Session has no valid metadata
             return True, session
-            
+
+        if 'owner_id' not in session_metadata_val:
+            # Session has no owner, so it's publicly accessible
+            return True, session
+
+        owner_id_value = session_metadata_val.get("owner_id", "")
+        if str(owner_id_value) == str(user_id):
+            return True, session
+        
         # User does not own this session
         return False, session
         
@@ -102,9 +112,17 @@ async def get_current_user(
         result = await db.execute(stmt)
         user = result.scalar_one_or_none()
         
-        if not user or not bool(user.is_active):
+        if not user:
             return None
-
+        
+        # Avoid directly evaluating a ColumnElement as bool.
+        # Instead, retrieve the actual Python value and compare.
+        try:
+            if getattr(user, "is_active", None) is not True:
+                return None
+        except:
+            return None
+        
         return user
     except (JWTError, ExpiredSignatureError):
         # Return None instead of raising an exception

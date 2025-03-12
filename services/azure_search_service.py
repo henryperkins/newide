@@ -2,7 +2,7 @@
 import aiohttp
 import logging
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union, Sequence
 import config
 
 logger = logging.getLogger(__name__)

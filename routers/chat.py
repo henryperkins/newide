@@ -659,8 +659,8 @@ async def chat_sse(  # noqa: C901
             sentry_sdk.set_tag("session_auto_created", "true")
             session_info = {
                 "id": str(session_db.id),
-                "created_at": session_db.created_at.isoformat() if session_db.created_at else None,
-                "expires_at": session_db.expires_at.isoformat() if session_db.expires_at else None
+                "created_at": session_db.created_at.isoformat() if session_db.created_at is not None else None,  # type: ignore
+                "expires_at": session_db.expires_at.isoformat() if session_db.expires_at is not None else None,  # type: ignore
             }
             logger.info(f"Automatically created new Session: {session_info}")
             
@@ -780,7 +780,7 @@ async def generate_stream_chunks(  # noqa: C901
             # Suppress Pylance type issues by forcing these entries to Any
             params["max_completion_tokens"] = int(O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS)  # type: ignore
             params["reasoning_effort"] = str(reasoning_effort)  # type: ignore
-            params["model"] = model_name  # Ensure model is included
+            params["model"] = model_name  # type: ignore
             # O-series uses different client
             stream_response = await client.chat.completions.create(**params)
             async for chunk in stream_response:

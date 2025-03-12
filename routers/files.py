@@ -385,9 +385,19 @@ async def process_file_with_azure(
     - Update the record with relevant Azure metadata
     """
     try:
+        file_service = None
+        search_service = None
+
+        # Define them within the time-limited block
         with move_on_after(300):
             file_service = AzureFileService(azure_client)
-        search_service = AzureSearchService(azure_client)
+            search_service = AzureSearchService(azure_client)
+
+        # If they weren't defined (timed out), define them anyway outside the block
+        if file_service is None:
+            file_service = AzureFileService(azure_client)
+        if search_service is None:
+            search_service = AzureSearchService(azure_client)
 
         # Create/ensure search index for this session
         await search_service.create_search_index(session_id)

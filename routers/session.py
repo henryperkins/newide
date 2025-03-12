@@ -83,8 +83,9 @@ def is_session_expired(session_obj: Session) -> bool:
     """
     Check if the given session has expired.
     """
-    if session_obj.expires_at:
-        expires_at_naive = session_obj.expires_at.replace(tzinfo=None)
+    expires_val = session_obj.expires_at
+    if expires_val is not None:
+        expires_at_naive = expires_val.replace(tzinfo=None)
         now = datetime.utcnow()
         return expires_at_naive < now
     return False
@@ -190,9 +191,9 @@ async def get_current_session(
 
             return {
                 "id": str(session_obj.id),
-                "created_at": session_obj.created_at.isoformat() if session_obj.created_at else None,
-                "last_activity": session_obj.last_activity.isoformat() if session_obj.last_activity else None,
-                "expires_at": session_obj.expires_at.isoformat() if session_obj.expires_at else None,
+                "created_at": session_obj.created_at.isoformat() if isinstance(session_obj.created_at, datetime) else None,
+                "last_activity": session_obj.last_activity.isoformat() if isinstance(session_obj.last_activity, datetime) else None,
+                "expires_at": session_obj.expires_at.isoformat() if isinstance(session_obj.expires_at, datetime) else None,
                 "last_model": session_obj.last_model,
             }
 
