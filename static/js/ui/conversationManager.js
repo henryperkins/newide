@@ -278,7 +278,10 @@ async function togglePinConversation(conversationId, pinned) {
 
         const response = await fetch(`/api/chat/conversations/${conversationId}/pin`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.cookie.match(/csrftoken=([\w-]+)/)?.[1] || ''
+            },
             body: JSON.stringify({ pinned })
         });
 
