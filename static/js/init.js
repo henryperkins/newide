@@ -217,7 +217,6 @@ async function initApplication() {
     enhanceAccessibility();
     detectTouchCapability();
     registerKeyboardShortcuts();
-    initModelSelector();
     initConfigHandlers();
     initTokenUsageDisplay(); // Ensure token usage display toggle is initialized
 
@@ -747,23 +746,22 @@ function initModelSelector() {
   const modelSelect = document.getElementById('model-select');
   if (!modelSelect) return;
 
-  // Load default models
-  import('./models.js').then(module => {
-    const { modelManager } = module;
+  // Use a single import chain
+  import('./models.js').then(async ({ modelManager }) => {
 
     // Make sure the local model configs are created first before trying to use them
     modelManager.ensureLocalModelConfigs();
     if (!modelManager.modelConfigs) {
-        console.error("modelManager.modelConfigs is undefined");
-        return;
+      console.error("modelManager.modelConfigs is undefined");
+      return;
     }
     if (!modelManager.modelConfigs) {
-        console.warn("modelManager.modelConfigs is undefined, calling ensureLocalModelConfigs()");
-        modelManager.ensureLocalModelConfigs();
-        if (!modelManager.modelConfigs) {
-          console.error("modelManager.modelConfigs still undefined, skipping initModelSelector");
-          return;
-        }
+      console.warn("modelManager.modelConfigs is undefined, calling ensureLocalModelConfigs()");
+      modelManager.ensureLocalModelConfigs();
+      if (!modelManager.modelConfigs) {
+        console.error("modelManager.modelConfigs still undefined, skipping initModelSelector");
+        return;
+      }
     }
     console.log("Local model configs initialized:", Object.keys(modelManager.modelConfigs));
 
@@ -795,40 +793,33 @@ function initModelSelector() {
         }
       }
     }, 500);
-  });
 
-  // Asynchronously initialize model manager without setTimeout
-  import('./models.js')
-    .then(async module => {
-      const { modelManager } = module;
+    // Ensure local model configs are fully loaded
+    try {
+      await modelManager.refreshModelsList();
+    } catch (err) {
+      console.warn("Error in refreshing model list:", err);
+    }
 
-      // Ensure local model configs are loaded
-      // If refreshModelsList is async, we can await it to avoid race conditions
-      try {
-        await modelManager.refreshModelsList();
-      } catch (err) {
-        console.warn("Error in refreshing model list:", err);
+    console.log("Local model configs loaded:", Object.keys(modelManager.modelConfigs));
+
+    // Safely initialize and set up the model manager
+    try {
+      await modelManager.initialize();
+      if (!modelManager.modelConfigs) {
+        console.error("modelManager.modelConfigs is undefined");
+        return;
       }
+      console.log("Model manager initialized with models:", Object.keys(modelManager.modelConfigs));
 
-      console.log("Local model configs loaded:", Object.keys(modelManager.modelConfigs));
-
-      // Now safely initialize the model manager
-      try {
-        await modelManager.initialize();
-        if (!modelManager.modelConfigs) {
-            console.error("modelManager.modelConfigs is undefined");
-            return;
-        }
-        console.log("Model manager initialized with models:", Object.keys(modelManager.modelConfigs));
-
-        modelManager.initModelManagement();
-        // Force refresh models list once more if needed
-        await modelManager.refreshModelsList();
-      } catch (err) {
-        console.error('Error initializing ModelManager:', err);
-      }
-    })
-    .catch(err => console.error('Failed to load models.js:', err));
+      modelManager.initModelManagement();
+      // Force refresh models list once more if needed
+      await modelManager.refreshModelsList();
+    } catch (err) {
+      console.error('Error initializing ModelManager:', err);
+    }
+  })
+  .catch(err => console.error('Failed to load models.js:', err));
 }
 
 /* ------------------------------------------------------------------
