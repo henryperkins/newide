@@ -1,5 +1,3 @@
-// ui-controls.js
-
 window.addEventListener('DOMContentLoaded', () => {
   // Sidebar toggle is now handled elsewhere
   console.log("Sidebar functionality now handled by sidebarManager.js");
