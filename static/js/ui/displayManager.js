@@ -551,7 +551,13 @@ function createUserMessageElement(content) {
   el.className = 'message user-message';
   el.setAttribute('role', 'log');
   el.setAttribute('aria-live', 'polite');
-  el.innerHTML = sanitizeHTML(content).replace(/\n/g, '<br>');
+  const contentLines = content.split('\n');
+  contentLines.forEach((line, index) => {
+    el.appendChild(document.createTextNode(line));
+    if (index < contentLines.length - 1) {
+      el.appendChild(document.createElement('br'));
+    }
+  });
   messageCache.set(cacheKey, el.cloneNode(true));
   return el;
 }
