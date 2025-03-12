@@ -120,10 +120,10 @@ function handleResize() {
   // Update sidebar width
   if (isMobile) {
     sidebar.style.width = '100%';
-    if (chatContainer) chatContainer.classList.remove('md:ml-[384px]');
+    // if (chatContainer) chatContainer.classList.remove('md:ml-[384px]');
   } else {
     sidebar.style.width = '384px';
-    if (isOpen && chatContainer) chatContainer.classList.add('md:ml-[384px]');
+    // if (isOpen && chatContainer) chatContainer.classList.add('md:ml-[384px]');
   }
 
   // Update overlay visibility
@@ -164,9 +164,6 @@ export function toggleSidebar(show) {
       // if (chatContainer) chatContainer.classList.remove('md:ml-[384px]');
     } else {
       // Desktop-specific behavior
-       // if (chatContainer) chatContainer.classList.add('md:ml-[384px]');
-       // Hide overlay on desktop
-       // if (overlay) overlay.classList.add('hidden');
     }
 
     if (toggleButton) toggleButton.setAttribute('aria-expanded', 'true');
@@ -176,9 +173,7 @@ export function toggleSidebar(show) {
     // Force it offscreen again
     sidebar.style.transform = 'translateX(100%)';
 
-     // if (overlay) overlay.classList.add('hidden');
     if (toggleButton) toggleButton.setAttribute('aria-expanded', 'false');
-    // if (chatContainer) chatContainer.classList.remove('md:ml-[384px]');
   }
 
   // Publish sidebar state change event
