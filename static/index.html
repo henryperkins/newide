@@ -155,50 +155,6 @@
                 </div>
             </div>
 
-            <!-- Mobile-only stats panel -->
-            <div id="mobile-stats-panel"
-                 class="block md:hidden p-3 bg-dark-100 dark:bg-dark-800 border-b border-dark-200 dark:border-dark-700">
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="flex flex-col">
-                        <span class="text-xs text-dark-500 dark:text-dark-400">Prompt Tokens</span>
-                        <span id="mobile-prompt-tokens" class="font-mono font-medium">0</span>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="text-xs text-dark-500 dark:text-dark-400">Completion Tokens</span>
-                        <span id="mobile-completion-tokens" class="font-mono font-medium">0</span>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="text-xs text-dark-500 dark:text-dark-400">Total Tokens</span>
-                        <span id="mobile-total-tokens" class="font-mono font-medium">0</span>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="text-xs text-dark-500 dark:text-dark-400">Generation Speed</span>
-                        <span id="mobile-tokens-per-second" class="font-mono font-medium">0 t/s</span>
-                    </div>
-                </div>
-
-                <!-- Mobile font controls -->
-                <div
-                    class="flex justify-center items-center space-x-3 mt-3 pt-2 border-t border-dark-200 dark:border-dark-700">
-                    <button id="mobile-font-down" class="btn btn-secondary touch-target">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" 
-                             viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" 
-                                  stroke-width="2" d="M20 12H4" />
-                        </svg>
-                        <span>A</span>
-                    </button>
-                    <span class="text-sm text-dark-500 dark:text-dark-400">Text Size</span>
-                    <button id="mobile-font-up" class="btn btn-secondary touch-target">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" 
-                             viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                  stroke-width="2" d="M12 4v16m8-8H4" />
-                        </svg>
-                        <span>A</span>
-                    </button>
-                </div>
-            </div>
         </header>
 
         <main id="main-content" class="flex relative overflow-hidden">

@@ -465,11 +465,11 @@ window.addEventListener('resize', () => {
          const conversationsSidebar = document.getElementById('conversations-sidebar');
          if (conversationsSidebar) {
              const isHidden = conversationsSidebar.classList.contains('hidden');
-             if (conversationsSidebar.style.transform === 'translateX(0%)') {
-                 conversationsSidebar.style.transform = 'translateX(-100%)'; // hide sidebar
+             if (conversationsSidebar.classList.contains('sidebar-open')) {
+                 conversationsSidebar.classList.remove('sidebar-open');
                  conversationsToggleBtn.setAttribute('aria-expanded', 'false');
              } else {
-                 conversationsSidebar.style.transform = 'translateX(0%)'; // show sidebar
+                 conversationsSidebar.classList.add('sidebar-open');
                  conversationsToggleBtn.setAttribute('aria-expanded', 'true');
              }
          }
@@ -479,10 +479,10 @@ const settingsIcon = document.getElementById('sidebar-toggle');
 const settingsSidebar = document.getElementById('sidebar');
 if (settingsIcon && settingsSidebar) {
     settingsIcon.addEventListener('click', () => {
-        if (settingsSidebar.style.transform === 'translateX(0%)') {
-            settingsSidebar.style.transform = 'translateX(100%)'; // hide sidebar
+        if (settingsSidebar.classList.contains('sidebar-open')) {
+            settingsSidebar.classList.remove('sidebar-open');
         } else {
-            settingsSidebar.style.transform = 'translateX(0%)';  // show sidebar
+            settingsSidebar.classList.add('sidebar-open');
         }
     });
 }
