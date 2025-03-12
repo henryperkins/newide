@@ -206,6 +206,10 @@ async function handleModelSelectChange(e) {
 }
 
 export async function updateModelSpecificUI(modelName) {
+  if (!modelManager.modelConfigs) {
+    console.error("modelManager.modelConfigs is undefined; cannot update UI");
+    return;
+  }
   try {
     const modelConfig = modelManager.modelConfigs[modelName] || await modelManager.getModelConfig(modelName);
     if (!modelConfig) return;
