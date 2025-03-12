@@ -288,7 +288,10 @@ export async function sendMessage() {
           reasoningEffort,
           controller.signal
         );
-        const assistantMessage = response.choices[0].message.content;
+        const returnedContent = response.choices[0].message?.content;
+        const assistantMessage = (returnedContent && returnedContent.trim().length > 0)
+          ? returnedContent
+          : `[No content returned by model: ${actualModelName}]`;
         renderAssistantMessage(assistantMessage);
         if (response.usage) updateTokenUsage(response.usage);
       }

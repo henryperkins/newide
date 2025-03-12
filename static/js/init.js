@@ -204,36 +204,29 @@ async function initApplication() {
     // 6. Initialize existing thinking blocks
     deepSeekProcessor.initializeExistingBlocks();
 
-    // 7. Initialize stats display
-    window.statsDisplay = new StatsDisplay('performance-stats');
-
-    // 8. Initialize mobile or desktop features
-    // Always run initMobileUI even on desktop so that all interactive elements have listeners
+    // 7. Initialize mobile or desktop features
     initMobileUI();
 
-    // 9. Additional UI init
+    // 8. Additional UI init
     initPerformanceStats();
     configureMarkdown();
     initChatInterface();
     initUserInput();
-    initConversationControls();
     initFontSizeControls();
-    initTokenUsageDisplay();
-    /* Removed initThinkingModeToggle call */
     enhanceAccessibility();
     detectTouchCapability();
     registerKeyboardShortcuts();
     initModelSelector();
     initConfigHandlers();
 
-    // 10. Load conversation from database
+    // 9. Load conversation from database
     await loadConversationFromDb();
     maybeShowWelcomeMessage();
 
-    // 11. Initialize model manager
+    // 10. Initialize model manager
     await modelManager.initialize();
 
-    // 12. Set up window resize event listener for responsive UI
+    // 11. Set up window resize event listener for responsive UI
     setupResizeHandler();
 
     // Add completion breadcrumb
@@ -244,6 +237,25 @@ async function initApplication() {
     captureError(error, { context: 'Application initialization' });
     showFallbackUI(error);
   }
+}
+
+/**
+ * A helper to sync tab panels' display state. 
+ * Called by fixLayoutIssues() and in setupResizeHandler().
+ */
+function syncTabPanelDisplay() {
+  const tabPanels = document.querySelectorAll('[role="tabpanel"]');
+  tabPanels.forEach(panel => {
+    panel.style.position = 'relative';
+    panel.style.width = '100%';
+    panel.style.height = 'auto';
+
+    const tabId = panel.id;
+    const button = document.querySelector(`[data-target-tab="${tabId}"]`);
+    const shouldBeVisible = button && button.getAttribute('aria-selected') === 'true';
+    panel.classList.toggle('hidden', !shouldBeVisible);
+    panel.setAttribute('aria-hidden', String(!shouldBeVisible));
+  });
 }
 
 /**
@@ -277,22 +289,7 @@ function fixLayoutIssues() {
   }
 
   // 2. Fix tab panels display
-  document.querySelectorAll('[role="tabpanel"]').forEach(panel => {
-    panel.style.position = 'relative';
-    panel.style.width = '100%';
-    panel.style.height = 'auto';
-
-    // Make sure active panel is visible, others are hidden
-    const tabId = panel.id;
-    const button = document.querySelector(`[data-target-tab="${tabId}"]`);
-    if (button && button.getAttribute('aria-selected') === 'true') {
-      panel.classList.remove('hidden');
-      panel.setAttribute('aria-hidden', 'false');
-    } else {
-      panel.classList.add('hidden');
-      panel.setAttribute('aria-hidden', 'true');
-    }
-  });
+  syncTabPanelDisplay();
 
   // 3. Fix overlay pointer events
   const overlay = document.getElementById('sidebar-overlay');
@@ -314,7 +311,6 @@ function setupResizeHandler() {
     if (sidebar) {
       // Update sidebar dimensions based on viewport
       sidebar.style.width = isMobile ? '100%' : '384px';
-
       // Check if sidebar is open and update layout accordingly
       const isOpen = sidebar.classList.contains('sidebar-open');
       if (isOpen) {
@@ -323,26 +319,13 @@ function setupResizeHandler() {
         } else if (chatContainer) {
           chatContainer.classList.remove('sidebar-open');
         }
-
         if (overlay) {
           overlay.classList.toggle('hidden', !isMobile);
         }
       }
     }
-
-    // Re-apply tab panel fixes in case they were lost
-    document.querySelectorAll('[role="tabpanel"]').forEach(panel => {
-      if (panel.id) {
-        const button = document.querySelector(`[data-target-tab="${panel.id}"]`);
-        const shouldBeVisible = button && button.getAttribute('aria-selected') === 'true';
-        panel.classList.toggle('hidden', !shouldBeVisible);
-        panel.setAttribute('aria-hidden', String(!shouldBeVisible));
-
-        // Ensure proper positioning
-        panel.style.position = 'relative';
-        panel.style.width = '100%';
-      }
-    });
+    // Re-apply tab panel fixes
+    syncTabPanelDisplay();
   }, 250);
 
   window.addEventListener('resize', handleResize);
@@ -358,7 +341,7 @@ function setupResizeHandler() {
  */
 function initPerformanceStats() {
   try {
-    // Only initialize once to avoid duplicate instances
+    // Initialize only once
     if (!window.statsDisplay) {
       window.statsDisplay = new StatsDisplay('performance-stats');
     }
@@ -654,16 +637,6 @@ function openFileInSidebar(filename) {
 }
 
 /**
- * Conversation controls container
- */
-function initConversationControls() {
-  console.log('Initializing conversation control buttons...');
-
-  // Make sure buttons are initialized with proper event handlers
-  // This is already handled in initUserInput
-}
-
-/**
  * Initialize token usage display toggle
  */
 function initTokenUsageDisplay() {
@@ -673,7 +646,6 @@ function initTokenUsageDisplay() {
   const tokenChevron = document.getElementById('token-chevron');
 
   if (tokenUsage && toggleButton) {
-    // Remove any existing event listeners to prevent duplicates
     safeAddEventListener(toggleButton, 'click', () => {
       if (tokenDetails) {
         tokenDetails.classList.toggle('hidden');
@@ -694,11 +666,6 @@ function initTokenUsageDisplay() {
     }
   }
 }
-
-/**
- * Initialize the thinking mode toggle
- */
-/* Removed the initThinkingModeToggle function and all references to enableThinkingMode */
 
 /**
  * Register global keyboard shortcuts

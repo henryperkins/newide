@@ -312,17 +312,20 @@ async def pin_conversation(
 ):
     """
     Pin or unpin a conversation. Body must have {"pinned": bool}.
+    Enforce ownership checks to prevent unauthorized pinning.
     """
     try:
         body = await request.json()
         pinned_val = body.get("pinned", True)
 
-        # Validate session using SessionService
+        # Validate session with ownership checks
         session_db = await SessionService.validate_session(
             session_id=conversation_id,
             db_session=db,
-            require_valid=False
+            user_id=str(current_user.id) if current_user else None,
+            require_valid=True
         )
+
         if not session_db:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -336,6 +339,10 @@ async def pin_conversation(
         await db.commit()
 
         return {"status": "success", "pinned": pinned_val}
+    except HTTPException as exc:
+        await db.rollback()
+        logger.exception(f"Ownership or session error: {exc}")
+        raise exc
     except Exception as exc:
         await db.rollback()
         logger.exception(f"Error updating pin status: {exc}")
@@ -772,6 +779,7 @@ async def generate_stream_chunks(  # noqa: C901
             # Suppress Pylance type issues by forcing these entries to Any
             params["max_completion_tokens"] = int(O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS)  # type: ignore
             params["reasoning_effort"] = str(reasoning_effort)  # type: ignore
+            params["model"] = model_name  # Ensure model is included
             # O-series uses different client
             stream_response = await client.chat.completions.create(**params)
             async for chunk in stream_response:
@@ -779,13 +787,16 @@ async def generate_stream_chunks(  # noqa: C901
                     break
 
                 chunk_text = ""
-                if hasattr(chunk.choices[0], "delta"):
-                    delta = chunk.choices[0].delta
-                    if hasattr(delta, "content"):
-                        chunk_text = delta.content or ""
-                        full_content += chunk_text
-
-                yield f"data: {json.dumps({'text': chunk_text})}\n\n"
+                if chunk.choices and len(chunk.choices) > 0:
+                    if hasattr(chunk.choices[0], "delta"):
+                        delta = chunk.choices[0].delta
+                        if hasattr(delta, "content"):
+                            chunk_text = delta.content or ""
+                            full_content += chunk_text
+                    yield f"data: {json.dumps({'text': chunk_text})}\n\n"
+                else:
+                    logger.warning("Received empty choices from O1 chunk, skipping.")
+                    yield f"data: {json.dumps({'text': ''})}\n\n"
         else:
             # Default OpenAI-style client
             stream_response = await client.chat.completions.create(**params)

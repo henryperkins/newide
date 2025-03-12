@@ -140,6 +140,10 @@ async def get_apple_touch_icon():
 def serve_login():
     return FileResponse(STATIC_DIR / "login.html")
 
+@app.get("/login.html")
+def serve_login_html():
+    return FileResponse(STATIC_DIR / "login.html")
+
 @app.get("/register")
 def serve_register():
     return FileResponse(STATIC_DIR / "register.html")

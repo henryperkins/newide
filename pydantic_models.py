@@ -1,7 +1,7 @@
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, model_validator
 from datetime import datetime
-import uuid
+
 
 # -------------------------------------------------------------------------
 # ChatMessage (Pydantic)
@@ -264,12 +264,12 @@ class SessionResponse(BaseModel):
     """
     Response model for session operations.
     """
-
     id: str
     created_at: datetime
     expires_at: Optional[datetime] = None
     last_activity: Optional[datetime] = None
     last_model: Optional[str] = None
+    status: str = "active"
 
 
 class SessionInfoResponse(BaseModel):

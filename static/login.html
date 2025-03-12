@@ -222,13 +222,13 @@
           if (submitBtn) submitBtn.disabled = true;
           
           try {
+            const formData = new FormData();
+            formData.append("email", email);
+            formData.append("password", password);
+            
             const response = await fetch("/auth/login", {
               method: "POST",
-              headers: {"Content-Type": "application/json"},
-              body: JSON.stringify({
-                email: email,
-                password: password
-              }),
+              body: formData,
             });
             
             if (!response.ok) {
@@ -238,10 +238,16 @@
             
             const data = await response.json();
             localStorage.setItem("token", data.access_token);
+            localStorage.setItem("sessionId", data.session_id);
             
             // Show success message
             showNotification("Login successful", "success");
             
+            // Integrate session logic (e.g. model selection)
+            await import('/static/js/session.js')
+              .then(({ switchSessionModel }) => switchSessionModel(data.session_id, 'o1model'))
+              .catch(err => console.error('Failed to switch session model:', err));
+
             // Redirect to main application
             setTimeout(() => {
               window.location.href = "/static/index.html";

@@ -9,7 +9,8 @@ module.exports = {
   content: [
     "./static/**/*.{html,js}",
     "./templates/**/*.{html,py}",
-    "./*.{html,py}"
+    "./*.{html,py}",
+    "./node_modules/daisyui/dist/**/*.js"
   ],
   safelist: [
     'text-primary-500',
@@ -490,4 +491,4 @@ module.exports = {
       })
     }
   ]
-};
+}
