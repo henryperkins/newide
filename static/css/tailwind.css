@@ -601,6 +601,41 @@
 
 /* Additional styles from mobile instructions */
 
+/* Mobile file input enhancements */
+.mobile-source-sheet {
+  @apply safe-area-inset-bottom;
+  transition: transform 0.3s ease;
+}
+
+.mobile-source-btn {
+  @apply touch-target text-base;
+  min-height: 48px;
+}
+
+.mobile-upload-progress {
+  @apply touch-target;
+  backdrop-filter: blur(10px);
+}
+
+/* iOS/Safari specific fixes */
+@supports (-webkit-touch-callout: none) {
+  .mobile-source-sheet {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  input[type="file"] {
+    font-size: 16px !important; /* Prevent zoom on focus */
+  }
+}
+
+/* Android Chrome fixes */
+@media (pointer: coarse) {
+  .file-remove-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 /* Hide conversation sidebar on small screens */
 @media (max-width: 768px) {
   #conversations-sidebar {

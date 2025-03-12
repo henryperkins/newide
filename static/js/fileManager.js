@@ -32,6 +32,10 @@ export class FileManager {
     this.initElements();
     this.attachEventListeners();
     this.updateStats();
+
+    // Mobile-specific init
+    this.initMobileFileInput();
+    this.initMobileNetworkHandling();
   }
   
   /**
@@ -185,7 +189,18 @@ export class FileManager {
     setTimeout(() => {
       Array.from(fileList).forEach(file => {
         if (abortController.signal.aborted) return;
-        this.validateAndAddFile(file);
+        const progress = this.showMobileProgress(file);
+        if (file.type.startsWith('image/')) {
+          this.compressImage(file, {
+            quality: 0.8,
+            maxWidth: 1080,
+            maxHeight: 1080
+          }).then(compressed => {
+            this.uploadFile(compressed, progress);
+          });
+        } else {
+          this.uploadFile(file, progress);
+        }
       });
       
       this.updateStats();
@@ -233,7 +248,54 @@ export class FileManager {
       estimatedTokens: this.estimateTokens(file)
     });
   }
-  
+
+  /* Mobile-friendly upload using XHR */
+  uploadFile(file, progress) {
+    const controller = new AbortController();
+    const xhr = new XMLHttpRequest();
+    
+    // Mobile-friendly timeout
+    const effectiveType = navigator.connection?.effectiveType || 'wifi';
+    const timeout = effectiveType === 'cellular' ? 30000 : 15000;
+    
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        const percent = Math.round((e.loaded / e.total) * 100);
+        const bar = progress.querySelector('.bg-blue-500');
+        if (bar) bar.style.width = `${percent}%`;
+        const label = progress.querySelector('.text-gray-500');
+        if (label) label.textContent = `${percent}%`;
+      }
+    });
+    
+    xhr.open('POST', '/api/files/upload', true);
+    
+    xhr.setRequestHeader('X-Mobile-Network', effectiveType);
+    xhr.setRequestHeader('X-Connection-Save', 'true');
+    
+    xhr.timeout = timeout;
+    
+    xhr.addEventListener('error', () => {
+      if (navigator.onLine) {
+        this.retryUpload(file);
+      } else {
+        this.queueUpload(file);
+      }
+    });
+    
+    xhr.ontimeout = () => {
+      this.queueUpload(file);
+    };
+
+    const formData = new FormData();
+    if (window.globalStore && window.globalStore.sessionId) {
+      formData.append('session_id', window.globalStore.sessionId);
+    }
+    formData.append('file', file);
+    
+    xhr.send(formData);
+  }
+
   /**
    * Estimate the number of tokens a file might contain
    * @param {File} file The file to estimate tokens for
@@ -457,6 +519,129 @@ export class FileManager {
    */
   getTotalTokenEstimation() {
     return this.files.reduce((total, file) => total + (file.estimatedTokens || 0), 0);
+  }
+
+  // Mobile-specific file input handling
+  initMobileFileInput() {
+    const mobileInput = document.createElement('input');
+    mobileInput.type = 'file';
+    mobileInput.id = 'mobile-file-input';
+    mobileInput.accept = '.txt,.pdf,.docx,image/*,video/*,audio/*';
+    mobileInput.multiple = true;
+    mobileInput.capture = 'environment'; // For camera access
+    mobileInput.style.display = 'none';
+    
+    // Mobile-specific attributes
+    mobileInput.setAttribute('webkitdirectory', '');
+    mobileInput.setAttribute('allowdirs', '');
+    
+    document.body.appendChild(mobileInput);
+    
+    // Enhanced mobile click handler
+    if (this.uploadButton) {
+      this.uploadButton.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.showMobileSourceSelector();
+      }, { passive: true });
+    }
+  }
+
+  showMobileSourceSelector() {
+    const sources = {
+      '📁 Files': () => document.getElementById('mobile-file-input').click(),
+      '📸 Camera': () => document.getElementById('mobile-file-input').capture = 'environment',
+      '☁️ Cloud': () => this.handleCloudStorage()
+    };
+    
+    // Create mobile-first action sheet
+    const sheet = document.createElement('div');
+    sheet.className = 'mobile-source-sheet fixed bottom-0 w-full bg-white dark:bg-gray-800 shadow-lg';
+    
+    sheet.innerHTML = `
+      <div class="p-4 space-y-2">
+        ${Object.entries(sources).map(([label, action]) => `
+          <button class="mobile-source-btn w-full p-3 text-left rounded-lg bg-gray-100 dark:bg-gray-700">
+            ${label}
+          </button>
+        `).join('')}
+        <button class="cancel-btn w-full p-3 text-center text-red-500">Cancel</button>
+      </div>
+    `;
+
+    // Add handlers
+    sheet.querySelectorAll('.mobile-source-btn').forEach((btn, index) => {
+      btn.addEventListener('click', () => {
+        const action = Object.values(sources)[index];
+        sheet.remove();
+        action();
+      });
+    });
+
+    sheet.querySelector('.cancel-btn').addEventListener('click', () => {
+      sheet.remove();
+    });
+
+    document.body.appendChild(sheet);
+  }
+
+  showMobileProgress(file) {
+    const progress = document.createElement('div');
+    progress.className = 'mobile-upload-progress fixed bottom-20 left-4 right-4 bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg';
+    
+    progress.innerHTML = `
+      <div class="flex items-center gap-3">
+        <div class="flex-1">
+          <div class="text-sm font-medium">${file.name}</div>
+          <div class="h-1 bg-gray-200 dark:bg-gray-700 rounded-full mt-1">
+            <div class="h-full bg-blue-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+        </div>
+        <div class="text-xs text-gray-500">0%</</div>
+      </div>
+    `;
+
+    document.body.appendChild(progress);
+    return progress;
+  }
+
+  initMobileNetworkHandling() {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        this.pauseUploads();
+      } else {
+        this.resumeUploads();
+      }
+    });
+    
+    window.addEventListener('online', () => {
+      this.retryFailedUploads();
+    });
+  }
+
+  pauseUploads() {
+    // Stub for demonstration
+    console.log('Uploads paused (app background/hidden).');
+  }
+
+  resumeUploads() {
+    // Stub for demonstration
+    console.log('Uploads resumed (app foreground/visible).');
+  }
+
+  retryFailedUploads() {
+    // Stub for demonstration
+    console.log('Retrying failed uploads...');
+  }
+
+  handleCloudStorage() {
+    // Stub for cloud storage integration
+    console.log('Opening cloud storage...');
+  }
+
+  compressImage(file, options) {
+    // Stub for demonstration
+    console.log('Compressing image:', file.name, options);
+    return Promise.resolve(file);
   }
 }
 

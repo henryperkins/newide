@@ -81,8 +81,20 @@ _token_count_cache = {}
 async def process_uploaded_file(  # noqa: C901
     file_content: bytes,
     filename: str,
-    model_name: str
+    model_name: str,
+    is_mobile: bool = False
 ) -> Dict[str, Any]:
+    # Mobile-specific optimizations
+    if is_mobile:
+        # Handle mobile image rotation
+        if filename.lower().endswith(('.jpg', '.jpeg', '.heic')):
+            file_content = await fix_mobile_rotation(file_content)
+        
+        # Downsample large media
+        if len(file_content) > 10 * 1024 * 1024:  # 10MB
+            file_content = await downsample_media(file_content, filename)
+
+    # Existing processing logic continues unchanged
     """
     Process an uploaded file based on its type.
 
