@@ -110,17 +110,21 @@ async def process_uploaded_file(  # noqa: C901
     sentry_sdk.set_tag("model.name", model_name)
     
     try:
-        # Validate file extension
+        # Validate file extension and content
         file_extension = os.path.splitext(filename)[1].lower()
         if file_extension not in ALLOWED_EXTENSIONS:
             error_msg = f"Unsupported file type: {file_extension}"
+        # Verify file content matches extension
+        if not verify_file_signature(file_content, file_extension):
+            error_msg = f"File content does not match extension: {file_extension}"
             logger.warning(error_msg, extra={"filename": filename, "file_type": file_extension})
             sentry_sdk.set_tag("error.type", "unsupported_file_type")
             raise ValueError(error_msg)
 
-        # Check file size
+        # Check file size with configurable timeout
         file_size = len(file_content)
         max_size = config.settings.MAX_FILE_SIZE
+        max_processing_time = min(max(30, file_size // (1024*1024)), 300)  # 30s-5min based on size
         if file_size > max_size:
             error_msg = (
                 f"File too large: {file_size} bytes. Maximum allowed: {max_size} bytes"
@@ -143,7 +147,7 @@ async def process_uploaded_file(  # noqa: C901
         # Extract text based on file type
         with trace_block("Text Extraction", op="file.extract_text", file_type=file_extension) as span:
             if file_extension in [".txt", ".md", ".json", ".js", ".py", ".html", ".css"]:
-                text_content = file_content.decode("utf-8", errors="replace")
+                text_content = sanitize_content(file_content.decode("utf-8", errors="replace"))
                 span.set_data("extraction_method", "direct_decode")
             elif file_extension == ".pdf" and PDF_SUPPORTED:
                 text_content = await extract_pdf_text(file_content)
@@ -415,7 +419,10 @@ async def extract_docx_text(file_content: bytes) -> str:
                 docx_file = BytesIO(file_content)
                 with sentry_sdk.start_span(op="file.process_docx", description="Process DOCX"):
                     try:
-                        text = docx2txt.process(docx_file)
+                        with tempfile.NamedTemporaryFile(delete=True) as temp_file:
+                            temp_file.write(docx_file.read())
+                            temp_file.flush()
+                            text = docx2txt.process(temp_file.name)
                     except Exception as e:
                         logger.exception(f"DOCX processing error: {str(e)}")
                         sentry_sdk.capture_exception(e)

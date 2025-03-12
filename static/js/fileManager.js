@@ -179,8 +179,12 @@ export class FileManager {
     }
     
     // Process files with a small delay to allow UI update
+    const abortController = new AbortController();
+    this.currentAbortController = abortController;
+    
     setTimeout(() => {
       Array.from(fileList).forEach(file => {
+        if (abortController.signal.aborted) return;
         this.validateAndAddFile(file);
       });
       
