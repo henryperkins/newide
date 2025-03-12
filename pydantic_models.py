@@ -1,6 +1,7 @@
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, model_validator
 from datetime import datetime
+from uuid import UUID
 
 
 # -------------------------------------------------------------------------
@@ -363,3 +364,8 @@ class DeleteAssistantResponse(BaseModel):
     id: str
     object: str = "assistant.deleted"
     deleted: bool = True
+class FilePreview(BaseModel):
+    id: UUID
+    filename: str
+    preview: str
+    mime_type: str
