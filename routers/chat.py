@@ -250,11 +250,23 @@ async def clear_conversation(
         # Delete messages in that session
         del_stmt = delete(Conversation).where(Conversation.session_id == session_db.id)
         await db.execute(del_stmt)
-        # Delete session row using SessionService
-        # await SessionService.delete_session(str(session_db.id), db_session=db)
+        
+        # Update session timestamps to refresh it
+        session_timeout = 60  # Default 60 minutes timeout
+        await db.execute(
+            update(Session)
+            .where(Session.id == session_db.id)
+            .values(
+                last_activity=datetime.now(timezone.utc),
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=session_timeout)
+            )
+        )
+        
+        await db.commit()
 
         return {"status": "cleared"}
     except Exception as exc:
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(exc))
 
 
