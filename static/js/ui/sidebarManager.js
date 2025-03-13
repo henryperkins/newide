@@ -36,9 +36,6 @@
       }
     });
   }
-    console.error("Sidebar element not found");
-    return;
-  }
 
   // Sidebar toggle button
   if (toggleButton) {
@@ -121,7 +118,6 @@
 
   // Listen for resize events to adjust sidebar
   window.addEventListener('resize', handleResize);
-}
 
 /**
  * Handle window resize events to maintain proper sidebar state
@@ -304,7 +300,6 @@ export const sidebarManager = new SidebarManager();
   if (window.eventBus) {
     window.eventBus.publish('sidebarStateChange', { isOpen: show });
   }
-}
 
 /*
  * Conversation sidebar logic is defined outside the toggleSidebar function
