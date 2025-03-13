@@ -36,8 +36,6 @@
       }
     });
   }
-
-  if (!sidebar) {
     console.error("Sidebar element not found");
     return;
   }
