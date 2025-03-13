@@ -286,8 +286,16 @@ export async function sendMessage() {
           );
         });
       } else {
+        // Example: transform text input into a "messages" structure with images, etc.
+        const processedMessages = [{
+          role: 'user',
+          content: [
+            { type: 'text', text: messageContent }
+          ]
+        }];
+
         const response = await fetchChatResponse(
-          messageContent,
+          processedMessages,
           currentSessionId,
           actualModelName,
           reasoningEffort,

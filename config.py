@@ -234,6 +234,10 @@ O_SERIES_VISION_CONFIG = {
         "low": 1.0,
         "high": 2.5,
         "auto": 1.8
+    },
+    "RATE_LIMITS": {
+        "images_per_minute": 30,
+        "pixels_per_second": 10000000
     }
 }
 

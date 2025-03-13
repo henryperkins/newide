@@ -369,6 +369,23 @@ async def process_chat_message(  # noqa: C901
                 "max_completion_tokens": config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
                 "reasoning_effort": getattr(chat_message, "reasoning_effort", "medium"),
             })
+
+            # Vision checks
+            if any(isinstance(c, dict) and c.get("type") == "image_url"
+                   for msg in messages for c in msg.get("content", [])):
+                from fastapi import HTTPException
+                from routers.chat import validate_vision_request
+                for msg in messages:
+                    await validate_vision_request(msg.get("content", []))
+
+                # Example: add extra headers for vision
+                params.update({
+                    "headers": {
+                        "x-ms-vision": "enable",
+                        "x-ms-image-detail": getattr(chat_message, "detail_level", "auto")
+                    }
+                })
+
         else:
             params["temperature"] = getattr(chat_message, "temperature", 0.7)
             params["max_tokens"] = getattr(chat_message, "max_completion_tokens", 1000)
