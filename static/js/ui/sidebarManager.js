@@ -2,23 +2,32 @@
  * sidebarManager.js - Central module for all sidebar/menu functionality
  */
 
+import { safeAddEventListener } from '../utils/eventManager.js';
+
 /**
  * Initialize the sidebar and mobile menu functionality
  */
+function initSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const toggleButton = document.getElementById('sidebar-toggle');
+  const closeButton = document.getElementById('close-sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+
+  if (!sidebar) return;
 
   // Sidebar toggle button
   if (toggleButton) {
-    toggleButton.addEventListener('click', () => {
+    safeAddEventListener(toggleButton, 'click', 'toggleSidebar', () => {
       console.log("Sidebar toggle button clicked");
       const isOpen = sidebar.classList.contains('sidebar-open');
-      toggleSidebar(!isOpen);
+      toggleSidebar('sidebar', !isOpen);
     });
   }
 
   // Close button in sidebar
   if (closeButton) {
-    closeButton.addEventListener('click', () => {
-      toggleSidebar(false);
+    safeAddEventListener(closeButton, 'click', 'closeSidebar', () => {
+      toggleSidebar('sidebar', false);
     });
   }
 
@@ -28,311 +37,254 @@
   const TOUCH_THRESHOLD = 30;
   const TOUCH_TIME_THRESHOLD = 500;
 
-  sidebar.addEventListener('touchstart', (e) => {
+  safeAddEventListener(sidebar, 'touchstart', 'sidebarTouchStart', (e) => {
     touchStartX = e.touches[0].clientX;
     touchStartTime = Date.now();
   }, { passive: true });
 
-  sidebar.addEventListener('touchmove', (e) => {
-    if (stateMachine.state.status !== 'open') return;
-    
+  safeAddEventListener(sidebar, 'touchmove', 'sidebarTouchMove', (e) => {
     const currentX = e.touches[0].clientX;
     const deltaX = currentX - touchStartX;
     
     if (Math.abs(deltaX) > TOUCH_THRESHOLD) {
       const progress = Math.min(Math.abs(deltaX) / window.innerWidth, 1);
       sidebar.style.transform = `translate3d(${deltaX}px, 0, 0)`;
-      overlay.style.opacity = 1 - progress;
+      if (overlay) overlay.style.opacity = 1 - progress;
     }
   }, { passive: true });
 
-  sidebar.addEventListener('touchend', (e) => {
+  safeAddEventListener(sidebar, 'touchend', 'sidebarTouchEnd', (e) => {
     const deltaX = e.changedTouches[0].clientX - touchStartX;
     const deltaTime = Date.now() - touchStartTime;
     
     if (Math.abs(deltaX) > TOUCH_THRESHOLD && deltaTime < TOUCH_TIME_THRESHOLD) {
-      stateMachine.transition('closing');
-      sidebar.style.transform = 'translate3d(100%, 0, 0)';
-      overlay.style.opacity = 0;
+      sidebar.style.transform = '';
+      toggleSidebar('sidebar', false);
+    } else {
+      // Reset transform if not enough to trigger close
+      sidebar.style.transform = '';
     }
   }, { passive: true });
 
   // Register keyboard shortcut (ESC to close sidebar)
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar && sidebar.classList.contains('sidebar-open')) {
-      toggleSidebar(false);
+  safeAddEventListener(document, 'keydown', 'escCloseSidebar', (e) => {
+    if (e.key === 'Escape') {
+      const rightSidebar = document.getElementById('sidebar');
+      const leftSidebar = document.getElementById('conversations-sidebar');
+      
+      if (rightSidebar?.classList.contains('sidebar-open')) {
+        toggleSidebar('sidebar', false);
+      } else if (leftSidebar?.classList.contains('sidebar-open')) {
+        toggleSidebar('conversations-sidebar', false);
+      }
     }
   });
 
-  // Initially hide sidebar on mobile if needed
-  const isMobile = window.matchMedia('(max-width: 768px)').matches;
-  if (isMobile) {
-    sidebar.classList.remove('sidebar-open');
-    if (toggleButton) toggleButton.setAttribute('aria-expanded', 'false');
-    if (overlay) overlay.classList.add('hidden');
-  }
+  // Initialize conversation sidebar
+  initConversationSidebar();
 
-
-  // Init proper sidebar for first load based on viewport
-  const viewportWidth = window.innerWidth;
-  if (viewportWidth >= 768) {
-    // Desktop view - fix any mobile styles
-    sidebar.classList.add('w-96');
-    sidebar.classList.remove('w-full');
-  } else {
-    // Mobile view - ensure proper mobile styles
-    sidebar.classList.add('w-full');
-    sidebar.classList.remove('w-96');
-  }
+  // Initially set proper sidebar state based on viewport
+  handleResponsive();
 
   // Listen for resize events to adjust sidebar
-  window.addEventListener('resize', handleResize);
+  window.addEventListener('resize', handleResponsive);
+}
 
 /**
  * Handle window resize events to maintain proper sidebar state
  */
-function handleResize() {
-  const sidebar = document.getElementById('sidebar');
-  const overlay = document.getElementById('sidebar-overlay');
-  if (!sidebar) return;
-
+function handleResponsive() {
   const isMobile = window.innerWidth < 768;
-  const isOpen = sidebar.classList.contains('sidebar-open');
-
-  // Use Tailwind classes for width, removing inline overrides
-  if (isMobile) {
-    sidebar.classList.add('w-full');
-    sidebar.classList.remove('w-96');
-  } else {
-    sidebar.classList.add('w-96');
-    sidebar.classList.remove('w-full');
+  
+  // Update sidebar dimensions
+  const rightSidebar = document.getElementById('sidebar');
+  const leftSidebar = document.getElementById('conversations-sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  
+  if (rightSidebar) {
+    // Remove any inline transform styles
+    rightSidebar.style.transform = '';
+    
+    // Use Tailwind classes for width
+    rightSidebar.classList.toggle('w-full', isMobile);
+    rightSidebar.classList.toggle('w-96', !isMobile);
+    
+    const isRightOpen = rightSidebar.classList.contains('sidebar-open');
+    
+    // Update overlay visibility for right sidebar
+    if (overlay && isRightOpen) {
+      overlay.classList.toggle('hidden', !isMobile);
+    }
   }
-
-  // Update overlay visibility
+  
+  if (leftSidebar) {
+    // Remove any inline transform styles
+    leftSidebar.style.transform = '';
+    
+    // Use Tailwind classes for width
+    leftSidebar.classList.toggle('w-full', isMobile);
+    leftSidebar.classList.toggle('w-64', !isMobile);
+    
+    const isLeftOpen = leftSidebar.classList.contains('sidebar-open');
+    
+    // Update overlay visibility for left sidebar
+    if (overlay && isLeftOpen) {
+      overlay.classList.toggle('hidden', !isMobile);
+    }
+  }
+  
+  // If neither sidebar is open, ensure overlay is hidden
   if (overlay) {
-    if (isMobile && isOpen) {
-      overlay.classList.remove('hidden');
-    } else {
+    const rightOpen = rightSidebar?.classList.contains('sidebar-open') || false;
+    const leftOpen = leftSidebar?.classList.contains('sidebar-open') || false;
+    
+    if (!rightOpen && !leftOpen) {
       overlay.classList.add('hidden');
+    } else if (isMobile && (rightOpen || leftOpen)) {
+      overlay.classList.remove('hidden');
     }
   }
 }
 
 /**
- * Toggle sidebar visibility
+ * Centralized function to toggle any sidebar visibility
+ * @param {string} sidebarId - ID of the sidebar element ('sidebar' or 'conversations-sidebar')
  * @param {boolean} show - Whether to show the sidebar (true) or hide it (false)
  */
-export class SidebarStateMachine {
-  constructor() {
-    this.state = {
-      status: 'closed',
-      position: 'right',
-      lastUpdated: Date.now()
-    };
-    this.listeners = new Set();
+export function toggleSidebar(sidebarId, show) {
+  console.log(`toggleSidebar: ${sidebarId}, show: ${show}`);
+  const sidebar = document.getElementById(sidebarId);
+  const toggleButton = document.getElementById(sidebarId === 'sidebar' ? 'sidebar-toggle' : 'conversations-toggle');
+  const overlay = document.getElementById('sidebar-overlay');
+  
+  if (!sidebar) {
+    console.error(`Sidebar with ID ${sidebarId} not found`);
+    return;
   }
-
-  transition(newState) {
-    const validTransitions = {
-      closed: ['opening'],
-      opening: ['open', 'closed'],
-      open: ['closing'],
-      closing: ['closed', 'open']
-    };
-
-    if (validTransitions[this.state.status].includes(newState)) {
-      this.state.status = newState;
-      this.state.lastUpdated = Date.now();
-      this._notifyStateChange();
-      return true;
+  
+  const isLeft = sidebarId === 'conversations-sidebar';
+  const isMobile = window.innerWidth < 768;
+  
+  // Remove any inline transform styles first
+  sidebar.style.transform = '';
+  
+  if (show) {
+    // Show the sidebar
+    sidebar.classList.remove('hidden');
+    sidebar.classList.remove(isLeft ? '-translate-x-full' : 'translate-x-full');
+    sidebar.classList.add('sidebar-open');
+    sidebar.setAttribute('aria-hidden', 'false');
+    
+    if (toggleButton) {
+      toggleButton.setAttribute('aria-expanded', 'true');
     }
-    return false;
-  }
-
-  subscribe(listener) {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-
-  _notifyStateChange() {
-    this.listeners.forEach(listener => listener(this.state));
-  }
-}
-
-class SidebarManager {
-  constructor() {
-    this.sidebars = {
-      right: {
-        element: document.getElementById('sidebar'),
-        toggleButton: document.getElementById('sidebar-toggle'),
-        overlay: document.getElementById('sidebar-overlay')
-      },
-      left: {
-        element: document.getElementById('conversations-sidebar'),
-        toggleButton: document.getElementById('conversations-toggle')
+    
+    if (isMobile) {
+      document.body.classList.add('overflow-hidden');
+      if (overlay) {
+        overlay.classList.remove('hidden');
       }
-    };
+    }
+  } else {
+    // Hide the sidebar
+    sidebar.classList.remove('sidebar-open');
+    sidebar.classList.add(isLeft ? '-translate-x-full' : 'translate-x-full');
+    sidebar.setAttribute('aria-hidden', 'true');
     
-    this.initEventListeners();
-    this.handleResponsive();
-  }
-
-  initEventListeners() {
-    // Window resize handler
-    window.addEventListener('resize', () => this.handleResponsive());
+    if (toggleButton) {
+      toggleButton.setAttribute('aria-expanded', 'false');
+    }
     
-    // Touch event handlers
-    Object.values(this.sidebars).forEach(({element}) => {
-      if (element) {
-        element.addEventListener('touchstart', this.handleTouchStart.bind(this), {passive: true});
-        element.addEventListener('touchend', this.handleTouchEnd.bind(this), {passive: true});
+    document.body.classList.remove('overflow-hidden');
+    if (overlay) {
+      // Check if the other sidebar is open before hiding overlay
+      const otherSidebar = document.getElementById(isLeft ? 'sidebar' : 'conversations-sidebar');
+      const isOtherOpen = otherSidebar?.classList.contains('sidebar-open') || false;
+      
+      if (!isOtherOpen || !isMobile) {
+        overlay.classList.add('hidden');
       }
-    });
-  }
-
-  handleTouchStart(e) {
-    this.touchStartX = e.touches[0].clientX;
-    this.touchStartTime = Date.now();
-  }
-
-  handleTouchEnd(e) {
-    const deltaX = e.changedTouches[0].clientX - this.touchStartX;
-    const deltaTime = Date.now() - this.touchStartTime;
-    
-    if (Math.abs(deltaX) > 30 && deltaTime < 500) {
-      const sidebar = e.target.closest('.sidebar');
-      if (sidebar) this.toggle(sidebar.id);
     }
   }
-
-  handleResponsive() {
-    const breakpoint = window.matchMedia('(min-width: 768px)');
-    Object.values(this.sidebars).forEach(({element}) => {
-      if (breakpoint.matches) {
-        this.close(element.id);
-        document.body.style.overflow = 'auto';
-      }
-    });
-  }
-
-  toggle(sidebarId) {
-    const sidebar = this.sidebars[sidebarId === 'sidebar' ? 'right' : 'left'];
-    const isOpen = sidebar.element.classList.contains('sidebar-open');
-    
-    if (isOpen) {
-      this.close(sidebarId);
-    } else {
-      this.open(sidebarId);
-    }
-  }
-
-  open(sidebarId) {
-    const sidebar = this.sidebars[sidebarId === 'sidebar' ? 'right' : 'left'];
-    sidebar.element.classList.remove('hidden', 'translate-x-full', '-translate-x-full');
-    sidebar.element.classList.add('sidebar-open');
-    sidebar.element.style.transform = 'translate3d(0, 0, 0)';
-    sidebar.element.setAttribute('aria-hidden', 'false');
-    
-    if (sidebar.toggleButton) {
-      sidebar.toggleButton.setAttribute('aria-expanded', 'true');
-    }
-    if (sidebar.overlay) {
-      sidebar.overlay.classList.remove('hidden');
-    }
-    
-    globalStore.sidebars[sidebarId === 'sidebar' ? 'settings' : 'conversations'].open = true;
-    document.body.style.overflow = 'hidden';
-  }
-
-  close(sidebarId) {
-    const sidebar = this.sidebars[sidebarId === 'sidebar' ? 'right' : 'left'];
-    sidebar.element.classList.remove('sidebar-open');
-    sidebar.element.style.transform = `translate3d(${sidebarId === 'sidebar' ? '100%' : '-100%'}, 0, 0)`;
-    sidebar.element.setAttribute('aria-hidden', 'true');
-    
-    if (sidebar.toggleButton) {
-      sidebar.toggleButton.setAttribute('aria-expanded', 'false');
-    }
-    if (sidebar.overlay) {
-      sidebar.overlay.classList.add('hidden');
-    }
-    
-    globalStore.sidebars[sidebarId === 'sidebar' ? 'settings' : 'conversations'].open = false;
-    document.body.style.overflow = 'auto';
-  }
-}
-
-// Initialize sidebar manager on load
-export const sidebarManager = new SidebarManager();
   
   // Publish sidebar state change event
   if (window.eventBus) {
-    window.eventBus.publish('sidebarStateChange', { isOpen: show });
+    window.eventBus.publish('sidebarStateChange', { 
+      id: sidebarId,
+      isOpen: show 
+    });
   }
+  
+  console.log(`Sidebar ${sidebarId} ${show ? 'opened' : 'closed'}`);
+}
 
-/*
- * Conversation sidebar logic is defined outside the toggleSidebar function
+// Export for external use
+export const sidebarManager = {
+  toggleSidebar,
+  handleResponsive,
+  initEventListeners: initSidebar
+};
+
+/**
+ * Initialize the conversation sidebar
  */
-export function initConversationSidebar() {
+function initConversationSidebar() {
   console.log("Initializing conversation sidebar...");
   const toggleButton = document.getElementById('conversations-toggle');
+  const mobileToggleButton = document.getElementById('mobile-conversations-toggle');
   const sidebar = document.getElementById('conversations-sidebar');
-  const overlay = document.getElementById('sidebar-overlay'); // Reuse the existing overlay if desired
 
   if (!sidebar) {
     console.error("Conversations sidebar element not found");
     return;
   }
 
+  // Set up header toggle button
   if (toggleButton) {
-    toggleButton.addEventListener('click', () => {
+    safeAddEventListener(toggleButton, 'click', 'toggleConversationSidebar', () => {
       console.log("Conversations toggle clicked");
       const isOpen = sidebar.classList.contains('sidebar-open');
-      toggleConversationSidebar(!isOpen);
+      toggleSidebar('conversations-sidebar', !isOpen);
+    });
+  }
+  
+  // Set up mobile toggle button
+  if (mobileToggleButton) {
+    safeAddEventListener(mobileToggleButton, 'click', 'mobileToggleConversationSidebar', (e) => {
+      e.preventDefault();
+      console.log("Mobile conversations toggle clicked");
+      const isOpen = sidebar.classList.contains('sidebar-open');
+      toggleSidebar('conversations-sidebar', !isOpen);
+    });
+  }
+  
+  // Set up overlay click to close sidebar
+  const overlay = document.getElementById('sidebar-overlay');
+  if (overlay) {
+    safeAddEventListener(overlay, 'click', 'overlayClickClose', () => {
+      const rightSidebar = document.getElementById('sidebar');
+      const leftSidebar = document.getElementById('conversations-sidebar');
+      
+      if (rightSidebar?.classList.contains('sidebar-open')) {
+        toggleSidebar('sidebar', false);
+      }
+      
+      if (leftSidebar?.classList.contains('sidebar-open')) {
+        toggleSidebar('conversations-sidebar', false);
+      }
     });
   }
 }
 
+// For backward compatibility
 export function toggleConversationSidebar(show) {
-  console.log('toggleConversationSidebar:', show ? 'opening' : 'closing', 'conversations-sidebar');
-  const sidebar = document.getElementById('conversations-sidebar');
-  const toggleButton = document.getElementById('conversations-toggle');
-  const overlay = document.getElementById('sidebar-overlay');
-
-  if (!sidebar) return;
-
-  const isMobile = window.innerWidth < 768;
-
-  if (show) {
-    // Show the sidebar
-    sidebar.classList.remove('hidden', '-translate-x-full');
-    sidebar.classList.add('translate-x-0', 'sidebar-open');
-    document.body.classList.add('overflow-hidden');
-    
-    if (isMobile && overlay) {
-      overlay.classList.remove('hidden');
-      overlay.classList.add('block');
-    }
-    if (toggleButton) {
-      toggleButton.setAttribute('aria-expanded', 'true');
-    }
-  } else {
-    // Hide the sidebar
-    sidebar.classList.remove('translate-x-0', 'sidebar-open');
-    sidebar.classList.add('-translate-x-full');
-    document.body.classList.remove('overflow-hidden');
-    
-    if (toggleButton) {
-      toggleButton.setAttribute('aria-expanded', 'false');
-    }
-    if (overlay) {
-      overlay.classList.add('hidden');
-      overlay.classList.remove('block');
-    }
-  }
-
-  // Publish an event if needed (e.g. for external listeners)
-  if (window.eventBus) {
-    window.eventBus.publish('conversationSidebarStateChange', { isOpen: show });
-  }
+  return toggleSidebar('conversations-sidebar', show);
 }
+
+// Initialize the module
+export function initSidebar() {
+  initSidebar();
+}
+
+// Export for external use
+export { toggleSidebar, initConversationSidebar };

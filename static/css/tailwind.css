@@ -360,35 +360,49 @@
     position: fixed;
     top: 64px;
     bottom: 0;
-    right: 0;
     z-index: 50;
     aria-modal: "true";
     role: "dialog";
-    aria-label: "Settings panel";
     background-color: white;
-    border-left: 1px solid rgba(0, 0, 0, 0.1);
     overflow: hidden;
     display: flex;
     flex-direction: column;
     transition: transform 0.3s cubic-bezier(0.33, 1, 0.68, 1);
-    transform: translate3d(100%, 0, 0);
     backface-visibility: hidden;
     contain: strict;
     will-change: transform;
-
-    /* Mobile-specific styles */
-    width: 100%;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   }
 
   .dark .sidebar {
     background-color: theme('colors.dracula.currentLine');
+  }
+
+  /* Right sidebar (settings) */
+  #sidebar {
+    right: 0;
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+    transform: translateX(100%);
+  }
+
+  .dark #sidebar {
     border-left: 1px solid theme('colors.dracula.comment');
+  }
+
+  /* Left sidebar (conversations) */
+  #conversations-sidebar {
+    left: 0;
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+    transform: translateX(-100%);
+  }
+
+  .dark #conversations-sidebar {
+    border-right: 1px solid theme('colors.dracula.comment');
   }
 
   /* Unified sidebar open state */
   .sidebar.sidebar-open {
-    transform: translate3d(0, 0, 0);
+    transform: translateX(0);
   }
 
   /* Close button for sidebar */
@@ -439,6 +453,19 @@
     @apply fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300 md:hidden;
     pointer-events: auto;
     /* Allow overlay to receive clicks */
+  }
+
+  /* Ensure proper z-index hierarchy */
+  #conversations-sidebar {
+    @apply z-50;
+  }
+
+  #sidebar {
+    @apply z-50;
+  }
+
+  .mobile-nav {
+    @apply z-30;
   }
 
   /* Conversation sidebar styles */
@@ -645,31 +672,22 @@
 /* Mobile sidebar styles */
 @media (max-width: 768px) {
   #conversations-sidebar {
-    left: 0;
-    right: auto;
-    transform: none; /* Remove transform here since we're using Tailwind classes */
     width: 85%;
     max-width: 320px;
     box-shadow: 4px 0 6px -1px rgba(0, 0, 0, 0.1);
-    z-index: 9998;
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  #sidebar {
+    width: 100%;
   }
   
   #sidebar-overlay {
-    z-index: 9997; /* Lower than sidebar */
-  }
-
-  #conversations-sidebar.sidebar-open {
-    transform: translateX(0);
-  }
-
-  #sidebar-overlay {
-    @apply md:hidden;
+    z-index: 45; /* Between content and sidebars */
     background: rgba(0, 0, 0, 0.3);
-    z-index: 60; /* Higher than sidebar */
   }
 
-  #conversations-toggle {
+  #conversations-toggle,
+  #mobile-conversations-toggle {
     min-height: 2.5rem;
     min-width: 2.5rem;
   }
@@ -680,11 +698,20 @@
     left: 0;
     right: 0;
     background-color: #ffffff;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0));
   }
 
   #conversation-list {
     @apply h-[calc(100vh-140px)] overflow-y-auto;
     -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Ensure body doesn't scroll when sidebar is open */
+  body.overflow-hidden {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
   }
 }
 

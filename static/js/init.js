@@ -226,8 +226,26 @@ async function initApplication() {
     
     // 6. Initialize sidebar system first
     const { sidebarManager } = await import('./ui/sidebarManager.js');
-    sidebarManager.initEventListeners();
-    sidebarManager.handleResponsive();
+    if (typeof sidebarManager.initEventListeners === 'function') {
+      sidebarManager.initEventListeners();
+    }
+    
+    // Make sure toggleConversationSidebar is available globally
+    window.toggleConversationSidebar = function(show) {
+      import('./ui/sidebarManager.js').then(module => {
+        const sidebar = document.getElementById('conversations-sidebar');
+        const isOpen = sidebar ? sidebar.classList.contains('sidebar-open') : false;
+        
+        // If show is undefined, toggle based on current state
+        if (typeof show === 'undefined') {
+          show = !isOpen;
+        }
+        
+        module.toggleSidebar('conversations-sidebar', show);
+      }).catch(err => {
+        console.error("Error toggling conversation sidebar:", err);
+      });
+    };
 
     // 7. Initialize conversation system after sidebar
     const { initConversationManager } = await import('./ui/conversationManager.js');

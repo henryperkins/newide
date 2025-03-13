@@ -1,35 +1,21 @@
 window.addEventListener('DOMContentLoaded', () => {
   // Import the proper sidebar toggle function
   import('./ui/sidebarManager.js').then(module => {
-    // Set up direct access to toggleConversationSidebar for inline handlers
-    window.toggleConversationSidebar = function() {
+    // Set up direct access to toggleSidebar for inline handlers
+    window.toggleConversationSidebar = function(show) {
       const sidebar = document.getElementById('conversations-sidebar');
       const isOpen = sidebar ? sidebar.classList.contains('sidebar-open') : false;
-      module.toggleConversationSidebar(!isOpen);
+      
+      // If show is undefined, toggle based on current state
+      if (typeof show === 'undefined') {
+        show = !isOpen;
+      }
+      
+      module.toggleSidebar('conversations-sidebar', show);
     };
     
-    // Set up mobile conversation toggle button
-    const mobileConversationsToggle = document.getElementById('mobile-conversations-toggle');
-    if (mobileConversationsToggle) {
-      mobileConversationsToggle.addEventListener('click', (e) => {
-        console.log("Mobile conversations toggle clicked from ui-controls.js");
-        e.preventDefault();
-        const sidebar = document.getElementById('conversations-sidebar');
-        const isOpen = sidebar ? sidebar.classList.contains('sidebar-open') : false;
-        module.toggleConversationSidebar(!isOpen);
-      });
-    }
-
-    // Add mobile menu button handling
-    const mobileConvoToggle = document.getElementById('mobile-conversations-toggle');
-    if (mobileConvoToggle) {
-      mobileConvoToggle.addEventListener('click', (e) => {
-        e.preventDefault();
-        const sidebar = document.getElementById('conversations-sidebar');
-        const isOpen = sidebar ? sidebar.classList.contains('sidebar-open') : false;
-        module.toggleConversationSidebar(!isOpen);
-      });
-    }
+    // We don't need to set up event listeners here anymore
+    // They are now centralized in sidebarManager.js
   }).catch(err => {
     console.error("Error setting up conversation toggle:", err);
   });
