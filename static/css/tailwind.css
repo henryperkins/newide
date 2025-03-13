@@ -362,16 +362,22 @@
     bottom: 0;
     right: 0;
     z-index: 50;
+    aria-modal: "true";
+    role: "dialog";
+    aria-label: "Settings panel";
     background-color: white;
     border-left: 1px solid rgba(0, 0, 0, 0.1);
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    transition: transform 300ms ease-out;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translate3d(100%, 0, 0);
+    backface-visibility: hidden;
+    contain: strict;
+    will-change: transform;
 
     /* Mobile-specific styles */
     width: 100%;
-    transform: translateX(100%);
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   }
 

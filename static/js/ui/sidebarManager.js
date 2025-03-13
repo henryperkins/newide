@@ -12,6 +12,22 @@ export function initSidebar() {
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
   const closeButton = document.getElementById('close-sidebar');
+  const resizeObserver = new ResizeObserver(() => {
+    sidebar.style.transform = sidebar.classList.contains('sidebar-open') 
+      ? 'translate3d(0, 0, 0)'
+      : 'translate3d(100%, 0, 0)';
+  });
+
+  // Cleanup function to be called when component unmounts
+  const cleanup = () => {
+    resizeObserver.disconnect();
+    window.removeEventListener('resize', handleResize);
+    document.removeEventListener('keydown', handleKeyPress);
+    if (overlay) overlay.removeEventListener('click', handleOverlayClick);
+  };
+
+  // Return cleanup function along with initialization
+  return cleanup;
 
   if (!sidebar) {
     console.error("Sidebar element not found");
@@ -34,12 +50,40 @@ export function initSidebar() {
     });
   }
 
-  // Make the overlay close the sidebar when clicked
-  if (overlay) {
-    overlay.addEventListener('click', () => {
-      toggleSidebar(false);
-    });
-  }
+  // Touch handling
+  let touchStartX = 0;
+  let touchStartTime = 0;
+  const TOUCH_THRESHOLD = 30;
+  const TOUCH_TIME_THRESHOLD = 500;
+
+  sidebar.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartTime = Date.now();
+  }, { passive: true });
+
+  sidebar.addEventListener('touchmove', (e) => {
+    if (stateMachine.state.status !== 'open') return;
+    
+    const currentX = e.touches[0].clientX;
+    const deltaX = currentX - touchStartX;
+    
+    if (Math.abs(deltaX) > TOUCH_THRESHOLD) {
+      const progress = Math.min(Math.abs(deltaX) / window.innerWidth, 1);
+      sidebar.style.transform = `translate3d(${deltaX}px, 0, 0)`;
+      overlay.style.opacity = 1 - progress;
+    }
+  }, { passive: true });
+
+  sidebar.addEventListener('touchend', (e) => {
+    const deltaX = e.changedTouches[0].clientX - touchStartX;
+    const deltaTime = Date.now() - touchStartTime;
+    
+    if (Math.abs(deltaX) > TOUCH_THRESHOLD && deltaTime < TOUCH_TIME_THRESHOLD) {
+      stateMachine.transition('closing');
+      sidebar.style.transform = 'translate3d(100%, 0, 0)';
+      overlay.style.opacity = 0;
+    }
+  }, { passive: true });
 
   // Register keyboard shortcut (ESC to close sidebar)
   document.addEventListener('keydown', (e) => {
@@ -107,26 +151,55 @@ function handleResize() {
  * Toggle sidebar visibility
  * @param {boolean} show - Whether to show the sidebar (true) or hide it (false)
  */
-export function toggleSidebar(show) {
-  console.log('toggleSidebar:', show ? 'opening' : 'closing', 'sidebar');
+export class SidebarStateMachine {
+  constructor() {
+    this.state = {
+      status: 'closed',
+      position: 'right',
+      lastUpdated: Date.now()
+    };
+    this.listeners = new Set();
+  }
 
+  transition(newState) {
+    const validTransitions = {
+      closed: ['opening'],
+      opening: ['open', 'closed'],
+      open: ['closing'],
+      closing: ['closed', 'open']
+    };
+
+    if (validTransitions[this.state.status].includes(newState)) {
+      this.state.status = newState;
+      this.state.lastUpdated = Date.now();
+      this._notifyStateChange();
+      return true;
+    }
+    return false;
+  }
+
+  subscribe(listener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  _notifyStateChange() {
+    this.listeners.forEach(listener => listener(this.state));
+  }
+}
+
+export function toggleSidebar(show) {
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
   const toggleButton = document.getElementById('sidebar-toggle');
   if (!sidebar) return;
 
+  const stateMachine = new SidebarStateMachine();
   const isMobile = window.innerWidth < 768;
 
   if (show) {
-    // Show sidebar using Tailwind classes
-    sidebar.classList.add('sidebar-open', 'translate-x-0');
-    sidebar.classList.remove('hidden', 'translate-x-full');
-    if (isMobile && overlay) {
-      overlay.classList.remove('hidden');
-    }
-    if (toggleButton) {
-      toggleButton.setAttribute('aria-expanded', 'true');
-    }
+    stateMachine.transition('opening');
+    sidebar.style.transform = 'translate3d(0, 0, 0)';
   } else {
     // Hide sidebar
     sidebar.classList.remove('sidebar-open', 'translate-x-0');
