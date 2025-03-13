@@ -111,6 +111,11 @@ class Settings(BaseSettings):
         description="Exponential backoff multiplier for retries",
     )
 
+    O_SERIES_VISION_TIMEOUT: float = Field(
+        default=30.0,
+        description="Timeout for image processing in seconds"
+    )
+
     # Standard model settings
     STANDARD_BASE_TIMEOUT: float = Field(
         default=float(os.getenv("STANDARD_BASE_TIMEOUT", "15.0")),

@@ -52,6 +52,15 @@ class ModelRegistry:
             "token_factor": config.O_SERIES_TOKEN_FACTOR,
             "api_version": config.AZURE_OPENAI_API_VERSION,
             "azure_endpoint": config.AZURE_OPENAI_ENDPOINT,
+            "vision_config": {
+                "max_images": config.O_SERIES_VISION_CONFIG["MAX_IMAGES_PER_REQUEST"],
+                "detail_levels": config.O_SERIES_VISION_CONFIG["DETAIL_LEVELS"],
+                "timeout": config.Settings().O_SERIES_VISION_TIMEOUT
+            },
+            "headers": {
+                "x-ms-vision-enabled": "true",
+                "x-ms-vision-api-version": "2024-02-15-preview"
+            },
         },
     }
 

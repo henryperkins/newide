@@ -624,3 +624,30 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
         logger.error(f"Error summarizing messages: {e}")
         sentry_sdk.capture_exception(e)
         return f"Summary not available due to error: {str(e)}"
+import os
+
+async def process_vision_content(content: list):
+    """Process vision content for o1 model"""
+    processed_content = []
+    
+    for item in content:
+        if item["type"] == "image_url":
+            image_url = item["image_url"]["url"]
+            
+            # Handle base64 encoding for local images
+            if image_url.startswith("/"):  # Assume local path
+                if not os.path.exists(image_url):
+                    raise ValueError(f"Image path not found: {image_url}")
+                image_url = encode_image_to_base64(image_url)
+                
+            processed_content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": image_url,
+                    "detail": item["image_url"].get("detail", "auto")
+                }
+            })
+        else:
+            processed_content.append(item)
+    
+    return processed_content
