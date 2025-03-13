@@ -220,12 +220,22 @@ class ClientPool:
         if config.is_deepseek_model(model_id):
             if config.AZURE_INFERENCE_CREDENTIAL is None:
                 raise ValueError("AZURE_INFERENCE_CREDENTIAL is missing from config")
-            return ChatCompletionsClient(
+            
+            headers = model_config.get("headers", {})
+            required_headers = {
+                "x-ms-thinking-format": "html",
+                "x-ms-streaming-version": model_config.get("api_version", "2024-05-01-preview")
+            }
+            headers = {**headers, **required_headers}
+            
+            client = ChatCompletionsClient(
                 endpoint=model_config["azure_endpoint"],
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
                 api_version=model_config["api_version"],
-                headers=model_config.get("headers", {})
+                headers=headers
             )
+            setattr(client, "headers", headers)
+            return client
         elif config.is_o_series_model(model_id):
             return AsyncAzureOpenAI(
                 api_key=config.AZURE_OPENAI_API_KEY,
