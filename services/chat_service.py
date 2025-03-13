@@ -11,6 +11,16 @@ from pydantic_models import ChatMessage
 import re
 import mimetypes
 import base64
+import aiohttp
+
+async def validate_image_url(url: str) -> bool:
+    """Simple remote URL validator."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.head(url, timeout=5) as resp:
+                return resp.status == 200
+    except:
+        return False
 
 def encode_image_to_base64(image_path: str) -> str:
     with open(image_path, "rb") as f:
