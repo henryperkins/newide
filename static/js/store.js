@@ -36,6 +36,20 @@ export class GlobalStore extends StoreEmitter {
     // Model configs now unified in the global store
     this._modelConfigs = {};
 
+    // Sidebar states
+    this._sidebars = {
+      settings: {
+        open: false,
+        position: 'right',
+        lastInteraction: Date.now()
+      },
+      conversations: {
+        open: false,
+        position: 'left', 
+        lastInteraction: Date.now()
+      }
+    };
+
     // Additional ephemeral states
     this._tokenDetailsVisible = localStorage.getItem('tokenDetailsVisible') === 'true';
     this._conversation = localStorage.getItem('conversation')
