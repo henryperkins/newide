@@ -1,7 +1,6 @@
 /**
  * Centralized event registration system to prevent duplicate handlers
  */
-
 const registeredHandlers = new Map();
 
 /**
@@ -30,6 +29,38 @@ export function registerEventHandler(elementId, eventType, handlerName, handler)
   registeredHandlers.set(handlerKey, handler);
   
   return true;
+}
+
+/**
+ * Remove a registered event handler
+ * @param {string} elementId - ID of the DOM element
+ * @param {string} eventType - Event type (e.g., 'click')
+ * @param {string} handlerName - Unique name for this handler
+ * @returns {boolean} - Whether removal was successful
+ */
+export function removeEventHandler(elementId, eventType, handlerName) {
+  const handlerKey = `${elementId}:${eventType}:${handlerName}`;
+  
+  if (registeredHandlers.has(handlerKey)) {
+    const element = document.getElementById(elementId);
+    if (element) {
+      element.removeEventListener(eventType, registeredHandlers.get(handlerKey));
+    }
+    registeredHandlers.delete(handlerKey);
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Get all registered handlers for an element
+ * @param {string} elementId - ID of the DOM element
+ * @returns {Array} - Array of handler keys
+ */
+export function getRegisteredHandlers(elementId) {
+  return Array.from(registeredHandlers.keys())
+    .filter(key => key.startsWith(`${elementId}:`));
 }
 
 /**

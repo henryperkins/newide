@@ -235,13 +235,19 @@ async function initApplication() {
       import('./ui/sidebarManager.js').then(module => {
         const sidebar = document.getElementById('conversations-sidebar');
         const isOpen = sidebar ? sidebar.classList.contains('sidebar-open') : false;
-        
+      
         // If show is undefined, toggle based on current state
         if (typeof show === 'undefined') {
           show = !isOpen;
         }
-        
-        module.toggleSidebar('conversations-sidebar', show);
+      
+        if (typeof module.toggleSidebar === 'function') {
+          module.toggleSidebar('conversations-sidebar', show);
+        } else if (typeof module.sidebarManager?.toggleSidebar === 'function') {
+          module.sidebarManager.toggleSidebar('conversations-sidebar', show);
+        } else {
+          console.error("toggleSidebar function not found in sidebarManager module");
+        }
       }).catch(err => {
         console.error("Error toggling conversation sidebar:", err);
       });
@@ -317,15 +323,12 @@ function fixLayoutIssues() {
   console.log('Applying layout fixes...');
 
   // 1. Fix sidebar positioning
-  /*
   const sidebar = document.getElementById('sidebar');
   if (sidebar) {
       // Remove any transforms from HTML
       sidebar.classList.remove('translate-x-full','md:translate-x-0','translate-x-0');
 
       // Apply correct positioning using Tailwind classes
-      // We'll rely on 'fixed top-[64px] bottom-0 right-0 z-50 w-full md:w-96'
-      // and the 'sidebar-open' class controlling translate-x-0 or translate-x-full
       sidebar.classList.add('fixed','top-[64px]','bottom-0','right-0','z-50');
       
       // If mobile, use w-full, else w-96
@@ -346,7 +349,35 @@ function fixLayoutIssues() {
         sidebar.classList.remove('translate-x-full');
       }
   }
-  */
+  
+  // Fix conversations sidebar positioning
+  const conversationsSidebar = document.getElementById('conversations-sidebar');
+  if (conversationsSidebar) {
+      // Remove any transforms
+      conversationsSidebar.classList.remove('-translate-x-full','translate-x-0');
+      
+      // Apply correct positioning
+      conversationsSidebar.classList.add('fixed','top-[64px]','bottom-0','left-0','z-50');
+      
+      // If mobile, use max-width
+      if (window.innerWidth < 768) {
+        conversationsSidebar.classList.add('w-[85%]', 'max-w-[320px]');
+        conversationsSidebar.classList.remove('w-64');
+      } else {
+        conversationsSidebar.classList.remove('w-[85%]', 'max-w-[320px]');
+        conversationsSidebar.classList.add('w-64');
+      }
+      
+      // Set correct transform
+      if (!conversationsSidebar.classList.contains('sidebar-open')) {
+        conversationsSidebar.classList.add('-translate-x-full');
+        conversationsSidebar.classList.remove('translate-x-0');
+      } else {
+        conversationsSidebar.classList.add('translate-x-0');
+        conversationsSidebar.classList.remove('-translate-x-full');
+      }
+  }
+
   // 2. Fix tab panels display
   syncTabPanelDisplay();
 
@@ -354,6 +385,12 @@ function fixLayoutIssues() {
   const overlay = document.getElementById('sidebar-overlay');
   if (overlay) {
       overlay.classList.add('pointer-events-auto');
+      overlay.classList.add('z-40');
+      
+      // Hide overlay by default
+      if (!overlay.classList.contains('hidden')) {
+        overlay.classList.add('hidden');
+      }
   }
 }
 
@@ -364,19 +401,22 @@ function setupResizeHandler() {
   const handleResize = debounce(() => {
     const isMobile = window.innerWidth < 768;
     const sidebar = document.getElementById('sidebar');
+    const conversationsSidebar = document.getElementById('conversations-sidebar');
     const overlay = document.getElementById('sidebar-overlay');
     const chatContainer = document.getElementById('chat-container');
 
+    // Handle right sidebar (files, settings)
     if (sidebar) {
-      // Update sidebar dimensions using Tailwind utility classes instead of inline widths
+      // Update sidebar dimensions
       if (isMobile) {
-          sidebar.classList.add('w-full');
-          sidebar.classList.remove('w-96');
+        sidebar.classList.add('w-full');
+        sidebar.classList.remove('w-96');
       } else {
-          sidebar.classList.remove('w-full');
-          sidebar.classList.add('w-96');
+        sidebar.classList.remove('w-full');
+        sidebar.classList.add('w-96');
       }
-      // Check if sidebar is open and update layout accordingly
+      
+      // Check if sidebar is open and update layout
       const isOpen = sidebar.classList.contains('sidebar-open');
       if (isOpen) {
         if (!isMobile && chatContainer) {
@@ -384,16 +424,49 @@ function setupResizeHandler() {
         } else if (chatContainer) {
           chatContainer.classList.remove('sidebar-open');
         }
-        if (overlay) {
-          overlay.classList.toggle('hidden', !isMobile);
+        
+        // Show overlay on mobile when sidebar is open
+        if (overlay && isMobile) {
+          overlay.classList.remove('hidden');
         }
       }
     }
+    
+    // Handle left sidebar (conversations)
+    if (conversationsSidebar) {
+      // Update sidebar dimensions
+      if (isMobile) {
+        conversationsSidebar.classList.add('w-[85%]', 'max-w-[320px]');
+        conversationsSidebar.classList.remove('w-64');
+      } else {
+        conversationsSidebar.classList.remove('w-[85%]', 'max-w-[320px]');
+        conversationsSidebar.classList.add('w-64');
+      }
+      
+      // Check if conversations sidebar is open
+      const isConversationsOpen = conversationsSidebar.classList.contains('sidebar-open');
+      if (isConversationsOpen && overlay && isMobile) {
+        overlay.classList.remove('hidden');
+      }
+    }
+    
+    // Handle overlay visibility
+    if (overlay && isMobile) {
+      const rightOpen = sidebar?.classList.contains('sidebar-open');
+      const leftOpen = conversationsSidebar?.classList.contains('sidebar-open');
+      
+      if (!rightOpen && !leftOpen) {
+        overlay.classList.add('hidden');
+      }
+    } else if (overlay && !isMobile) {
+      overlay.classList.add('hidden');
+    }
+    
     // Re-apply tab panel fixes
     syncTabPanelDisplay();
   }, 250);
 
-  // window.addEventListener('resize', handleResize);
+  window.addEventListener('resize', handleResize);
 }
 
 /* ------------------------------------------------------------------
@@ -680,26 +753,47 @@ function initUserInput() {
  * Open a file in the sidebar
  */
 function openFileInSidebar(filename) {
-  const sidebarToggle = document.getElementById('sidebar-toggle');
-  if (sidebarToggle) {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar?.classList.contains('translate-x-full') || !sidebar?.classList.contains('sidebar-open')) {
-      sidebarToggle.click();
-    }
-  }
-  const filesTab = document.getElementById('files-tab');
-  if (filesTab) filesTab.click();
-  setTimeout(() => {
-    const filesList = document.querySelectorAll('[aria-label^="File:"]');
-    for (const f of filesList) {
-      if (f.innerText.includes(filename)) {
-        f.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        f.classList.add('bg-blue-100', 'dark:bg-blue-900/30');
-        setTimeout(() => f.classList.remove('bg-blue-100', 'dark:bg-blue-900/30'), 1500);
-        break;
+  // Import sidebarManager to use its toggleSidebar function
+  import('./ui/sidebarManager.js').then(module => {
+    // First ensure sidebar is open
+    if (typeof module.toggleSidebar === 'function') {
+      module.toggleSidebar('sidebar', true);
+    } else if (typeof module.sidebarManager?.toggleSidebar === 'function') {
+      module.sidebarManager.toggleSidebar('sidebar', true);
+    } else {
+      // Fallback to direct DOM manipulation
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar) {
+        sidebar.classList.remove('translate-x-full');
+        sidebar.classList.add('translate-x-0', 'sidebar-open');
+        
+        // Show overlay on mobile
+        if (window.innerWidth < 768) {
+          const overlay = document.getElementById('sidebar-overlay');
+          if (overlay) overlay.classList.remove('hidden');
+        }
       }
     }
-  }, 500);
+    
+    // Switch to files tab
+    const filesTab = document.getElementById('files-tab');
+    if (filesTab) filesTab.click();
+    
+    // Find and highlight the file
+    setTimeout(() => {
+      const filesList = document.querySelectorAll('[aria-label^="File:"]');
+      for (const f of filesList) {
+        if (f.innerText.includes(filename)) {
+          f.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          f.classList.add('bg-blue-100', 'dark:bg-blue-900/30');
+          setTimeout(() => f.classList.remove('bg-blue-100', 'dark:bg-blue-900/30'), 1500);
+          break;
+        }
+      }
+    }, 500);
+  }).catch(err => {
+    console.error("Error opening file in sidebar:", err);
+  });
 }
 
 /**
@@ -889,6 +983,7 @@ function initMobileUI() {
   initPullToRefresh();
   setupMobileStatsToggle();
   setupMobileFontControls();
+  initMobileSidebarHandlers();
 
   // Improve chat layout on mobile devices
   const chatContainer = document.getElementById('chat-container');
@@ -900,7 +995,81 @@ function initMobileUI() {
     if (chatHistory) {
       // Allow chat history to expand and scroll
       chatHistory.classList.add('flex-grow', 'overflow-y-auto');
+      
+      // Add iOS viewport hack
+      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+      
+      // Add mobile-specific height calculation
+      const headerHeight = document.querySelector('header')?.offsetHeight || 64;
+      const inputHeight = document.querySelector('.input-area')?.offsetHeight || 120;
+      chatHistory.style.height = `calc(100dvh - ${headerHeight + inputHeight}px)`;
     }
+  }
+  
+  // Fix input area padding for iOS devices
+  const inputArea = document.querySelector('.input-area');
+  if (inputArea) {
+    inputArea.style.paddingBottom = 'calc(1rem + env(safe-area-inset-bottom, 0))';
+  }
+}
+
+/**
+ * Initialize mobile sidebar handlers
+ */
+function initMobileSidebarHandlers() {
+  // Handle mobile conversation toggle button
+  const mobileConversationsToggle = document.getElementById('mobile-conversations-toggle');
+  if (mobileConversationsToggle) {
+    // Remove any existing event listeners to prevent duplicates
+    const newToggleBtn = mobileConversationsToggle.cloneNode(true);
+    if (mobileConversationsToggle.parentNode) {
+      mobileConversationsToggle.parentNode.replaceChild(newToggleBtn, mobileConversationsToggle);
+    }
+    
+    // Add new event listener
+    newToggleBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (typeof window.toggleConversationSidebar === 'function') {
+        window.toggleConversationSidebar();
+      }
+    });
+  }
+  
+  // Handle sidebar overlay clicks
+  const overlay = document.getElementById('sidebar-overlay');
+  if (overlay) {
+    // Remove any existing event listeners
+    const newOverlay = overlay.cloneNode(true);
+    if (overlay.parentNode) {
+      overlay.parentNode.replaceChild(newOverlay, overlay);
+    }
+    
+    // Add new event listener
+    newOverlay.addEventListener('click', () => {
+      import('./ui/sidebarManager.js').then(module => {
+        const sidebar = document.getElementById('sidebar');
+        const conversationsSidebar = document.getElementById('conversations-sidebar');
+        
+        // Close any open sidebars
+        if (sidebar?.classList.contains('sidebar-open')) {
+          if (typeof module.toggleSidebar === 'function') {
+            module.toggleSidebar('sidebar', false);
+          } else if (typeof module.sidebarManager?.toggleSidebar === 'function') {
+            module.sidebarManager.toggleSidebar('sidebar', false);
+          }
+        }
+        
+        if (conversationsSidebar?.classList.contains('sidebar-open')) {
+          if (typeof module.toggleSidebar === 'function') {
+            module.toggleSidebar('conversations-sidebar', false);
+          } else if (typeof module.sidebarManager?.toggleSidebar === 'function') {
+            module.sidebarManager.toggleSidebar('conversations-sidebar', false);
+          }
+        }
+      }).catch(err => {
+        console.error("Error handling overlay click:", err);
+      });
+    });
   }
 }
 
