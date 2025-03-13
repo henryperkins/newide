@@ -107,7 +107,7 @@ class Conversation(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(
-        PGUUID, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+        PGUUID, ForeignKey("sessions.id", ondelete="RESTRICT"), nullable=False
     )
     user_id = Column(PGUUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     role = Column(String(20), nullable=False)
