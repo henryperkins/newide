@@ -1,12 +1,13 @@
-# utils.py
+# utils.py (combined with helpers.py)
+
 import tiktoken
 import os
 import json
+import aiohttp
 from typing import Optional, List, Dict
 import config
 from logging_config import logger
 from azure.core.exceptions import HttpResponseError
-
 
 # Add a helper function to handle different client types
 def handle_client_error(error: Exception) -> dict:
@@ -41,9 +42,7 @@ def handle_client_error(error: Exception) -> dict:
                 if content_str.strip().startswith("{"):
                     error_content = json.loads(content_str)
                     if "error" in error_content:
-                        error_message = error_content["error"].get(
-                            "message", error_message
-                        )
+                        error_message = error_content["error"].get("message", error_message)
                 else:
                     # For non-JSON responses, extract useful information
                     error_message = f"Azure AI error: {content_str[:200]}..."
@@ -82,7 +81,8 @@ def resolve_api_version(deployment_name: str) -> str:
         "gpt-4": "2023-12-01",
     }
     return version_matrix.get(
-        deployment_name.lower(), os.getenv("DEFAULT_API_VERSION", "2025-02-01-preview")
+        deployment_name.lower(),
+        os.getenv("DEFAULT_API_VERSION", "2025-02-01-preview"),
     )
 
 
@@ -183,6 +183,70 @@ def is_deepseek_model(name: str) -> bool:
     return name.lower().startswith("deepseek-")
 
 
+async def process_vision_messages(messages: List[Dict]) -> List[Dict]:
+    """
+    Process messages to format vision content for Azure OpenAI Vision API.
+    
+    Transforms standard message format to the correct format for vision models,
+    handling any image URLs in message content.
+    
+    Args:
+        messages: List of message dictionaries, potentially containing image URLs
+    
+    Returns:
+        Properly formatted messages list for vision API
+    
+    Raises:
+        ValueError: If validation fails for vision content
+    """
+    processed_messages = []
+    
+    for message in messages:
+        if not isinstance(message, dict):
+            raise ValueError(f"Message must be a dictionary, got {type(message)}")
+        
+        # Make a copy to avoid modifying the original
+        new_message = message.copy()
+        content = new_message.get("content", "")
+        
+        # Simple text message
+        if isinstance(content, str):
+            processed_messages.append(new_message)
+            continue
+            
+        # Process multi-part content (text + images)
+        if isinstance(content, list):
+            # Validate content items
+            await validate_vision_request(content)
+            
+            # Format according to Azure OpenAI Vision API requirements
+            formatted_content = []
+            for item in content:
+                if item.get("type") == "text":
+                    formatted_content.append({
+                        "type": "text",
+                        "text": item.get("text", "")
+                    })
+                elif item.get("type") == "image_url":
+                    image_url = item.get("image_url", {})
+                    if isinstance(image_url, dict) and "url" in image_url:
+                        formatted_content.append({
+                            "type": "image_url",
+                            "image_url": {
+                                "url": image_url["url"],
+                                "detail": item.get("detail", "auto")
+                            }
+                        })
+            
+            new_message["content"] = formatted_content
+            processed_messages.append(new_message)
+            continue
+            
+        # If we get here, unsupported content format
+        raise ValueError(f"Unsupported message content format: {type(content)}")
+        
+    return processed_messages
+
 def calculate_model_timeout(messages, model_name, reasoning_effort="medium"):
     """
     Dynamically compute a timeout based on message length
@@ -210,3 +274,59 @@ def calculate_model_timeout(messages, model_name, reasoning_effort="medium"):
             approx_token_count * config.STANDARD_TOKEN_FACTOR,
         )
         return min(config.STANDARD_MAX_TIMEOUT, calculated_timeout)
+
+# These functions come from helpers.py
+
+def calculate_vision_tokens(detail_level: str, width: int, height: int) -> int:
+    """Calculate token cost for images based on Azure's vision token formula"""
+    base_tokens = 85
+    if detail_level == "low":
+        return base_tokens
+    
+    # High detail calculation
+    scaled_width = min(width, 2048)
+    scaled_height = min(height, 2048)
+    tile_width = scaled_width // 512
+    tile_height = scaled_height // 512
+    return base_tokens + 170 * (tile_width * tile_height)
+
+async def get_remote_image_size(url: str) -> int:
+    """Get content length from remote URL"""
+    async with aiohttp.ClientSession() as session:
+        async with session.head(url) as response:
+            return int(response.headers.get("Content-Length", 0))
+
+
+async def validate_vision_request(content: list):
+    """
+    Validate vision-specific requirements for image content
+    
+    Args:
+        content: List of content items to validate
+        
+    Raises:
+        ValueError: If validation fails for any reason
+    """
+    import re
+    
+    image_count = sum(1 for item in content if item.get("type") == "image_url")
+    
+    if image_count > config.O_SERIES_VISION_CONFIG["MAX_IMAGES_PER_REQUEST"]:
+        raise ValueError(
+            f"Maximum {config.O_SERIES_VISION_CONFIG['MAX_IMAGES_PER_REQUEST']} images per request"
+        )
+
+    for item in content:
+        if item.get("type") == "image_url":
+            url = item["image_url"]["url"]
+            if url.startswith("data:"):
+                if not re.match(config.O_SERIES_VISION_CONFIG["BASE64_HEADER_PATTERN"], url):
+                    raise ValueError("Invalid base64 image header format")
+                content_length = len(url) * 3 // 4  # Base64 approximate size
+            else:
+                content_length = await get_remote_image_size(url)
+                
+            if content_length > config.O_SERIES_VISION_CONFIG["MAX_IMAGE_SIZE_BYTES"]:
+                raise ValueError(
+                    f"Image size exceeds {config.O_SERIES_VISION_CONFIG['MAX_IMAGE_SIZE_BYTES']} bytes limit"
+                )

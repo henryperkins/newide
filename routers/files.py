@@ -20,7 +20,7 @@ from sqlalchemy import text, update
 from database import get_db_session, AsyncSessionLocal
 from errors import create_error_response
 from pydantic_models import FileResponseModel, FileListResponse, DeleteFileResponse
-from utils import count_tokens
+from common_utils import count_tokens
 from models import UploadedFile
 from services.azure_file_service import AzureFileService
 from services.azure_search_service import AzureSearchService

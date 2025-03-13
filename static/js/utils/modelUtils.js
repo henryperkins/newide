@@ -23,7 +23,7 @@ export function generateDefaultModelConfig(modelId, modelApiConfig = {}) {
       : isDeepSeek
         ? "Model with chain-of-thought reasoning capabilities"
         : "Generic AI model",
-    azure_endpoint: modelApiConfig.endpoint || "https://o1models.openai.azure.com",
+    azure_endpoint: modelApiConfig.endpoint || "https://o1s.openai.azure.com",
     api_version: modelApiConfig.apiVersion || "2025-02-01-preview",
     max_tokens: modelApiConfig.maxTokens || 128000,
     max_completion_tokens: modelApiConfig.maxCompletionTokens || 100000,
@@ -61,7 +61,7 @@ export const KNOWN_MODELS = [
   {
     id: "o1",
     modelApiConfig: {
-      endpoint: "https://o1models.openai.azure.com",
+      endpoint: "https://o1s.openai.azure.com",
       apiVersion: "2025-02-01-preview", // Match documented API version
       maxTokens: 64000,
       supportsTemperature: false,

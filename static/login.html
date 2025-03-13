@@ -243,9 +243,9 @@
             // Show success message
             showNotification("Login successful", "success");
             
-            // Integrate session logic (e.g. model selection)
+            // Integrate session logic - switch to existing model
             await import('/static/js/session.js')
-              .then(({ switchSessionModel }) => switchSessionModel(data.session_id, 'o1model'))
+              .then(({ switchSessionModel }) => switchSessionModel(data.session_id, 'o1'))
               .catch(err => console.error('Failed to switch session model:', err));
 
             // Redirect to main application

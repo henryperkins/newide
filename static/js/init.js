@@ -1,3 +1,5 @@
+/* eslint-disable no-unused-vars */
+/* Import statements retained as-is */
 import { sendMessage } from './chat.js';
 import { deepSeekProcessor } from './ui/deepseekProcessor.js';
 import { modelManager } from './models.js';
@@ -13,7 +15,6 @@ import { getSessionId, createNewConversation, refreshSession } from './session.j
 import { initSentry, captureError, captureMessage } from './sentryInit.js';
 import { globalStore } from './store.js';
 
-// Configure DOMPurify
 if (typeof DOMPurify !== 'undefined') {
   DOMPurify.setConfig({
     ADD_TAGS: ['div', 'pre'],
@@ -21,94 +22,62 @@ if (typeof DOMPurify !== 'undefined') {
   });
 }
 
-// Disable service worker registration
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then(registrations => {
     for (const registration of registrations) {
       registration.unregister();
-      console.log('Service worker unregistered');
     }
   });
 }
 
-// A single DOMContentLoaded to kick off the entire app
 document.addEventListener('DOMContentLoaded', initApplication);
 
-/**
- * Ensures a valid session exists before proceeding with app initialization
- * Handles 404 errors and other issues gracefully
- * Uses the more reliable SessionService API endpoints
- */
 async function ensureValidSession() {
   try {
-    // Start a Sentry transaction for session initialization
     const transaction = await import('./sentryInit.js').then(module => {
       return module.startTransaction('session_initialization', 'session');
     });
-    
-    // Import the updated session functions
     const { ensureValidSession: sessionValidation, refreshSession } = await import('./session.js');
-    
-    // Use the new centralized method that works with SessionService
     const sessionId = await sessionValidation();
-
     if (!sessionId) {
       console.warn('Failed to get a valid session ID');
       captureMessage('Failed to get a valid session ID', 'warning');
-
-      // Show error notification but don't throw to allow the app to continue
       showNotification(
         'Unable to create a session. Some features may not work correctly.',
         'warning',
         10000,
         [{ label: 'Refresh', onClick: () => window.location.reload() }]
       );
-      console.error('Failed to create a new session after multiple attempts');
       captureMessage('Failed to create a new session after multiple attempts', 'error');
     } else {
-      console.log('Session initialization successful:', sessionId);
       captureMessage('Session initialization successful', 'info', { sessionId });
-      
-      // Refresh the session to extend its validity
       await refreshSession(sessionId);
     }
-    
-    // Finish the transaction
     if (transaction) {
       transaction.finish();
     }
-
     return sessionId;
   } catch (error) {
-    // Log the error but don't throw - let the app continue
     console.error('Session initialization error:', error);
     captureError(error, { context: 'Session initialization' });
-
-    // Show a non-blocking notification
     showNotification(
       'Error initializing session. Please refresh if you encounter problems.',
       'warning',
       10000,
       [{ label: 'Refresh', onClick: () => window.location.reload() }]
     );
-
-    // Return null instead of throwing to allow app to continue
     return null;
   }
 }
 
-/**
- * Show fallback UI when initialization fails
- */
 function showFallbackUI(error) {
   const container = document.getElementById('chat-container') || document.body;
-
   const errorElement = document.createElement('div');
   errorElement.className = 'error-message p-4 m-4 bg-red-50 text-red-700 rounded-md border border-red-200';
   errorElement.innerHTML = `
     <h3 class="text-lg font-semibold mb-2">Application Error</h3>
     <p>The application encountered an error during initialization.</p>
-    <p class="mt-2 text-sm text-red-600">\${(error && error.message) ? error.message : error.toString()}</p>
+    <p class="mt-2 text-sm text-red-600">${(error && error.message) ? error.message : error.toString()}</p>
     <button class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
       Refresh Page
     </button>
@@ -116,83 +85,44 @@ function showFallbackUI(error) {
       Report Error
     </button>
   `;
-
   errorElement.querySelector('button').addEventListener('click', () => {
     window.location.reload();
   });
-  
-  // Add error reporting button
   const reportButton = errorElement.querySelector('#report-error-btn');
   if (reportButton) {
     reportButton.addEventListener('click', () => {
       import('./sentryInit.js').then(module => {
-        module.captureMessage('User manually reported error', 'error', { 
+        module.captureMessage('User manually reported error', 'error', {
           error: error.toString(),
           stack: error.stack,
           location: window.location.href
         });
-        
-        // Show feedback to user
         reportButton.textContent = 'Error Reported';
         reportButton.disabled = true;
         reportButton.classList.add('opacity-50');
       });
     });
   }
-
   container.innerHTML = '';
   container.appendChild(errorElement);
 }
 
-/**
- * Main initialization entry point
- */
 async function initApplication() {
-  console.log('Initializing application...');
-
-  // Mobile touch event stabilization
-  if ('ontouchstart' in window) {
-    document.addEventListener('touchstart', function(e) {
-      if(e.target.closest('.message')) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-      }
-    }, { passive: false });
-
-    document.addEventListener('touchmove', function(e) {
-      if(e.target.closest('#chat-history')) {
-        e.preventDefault();
-      }
-    }, { passive: false });
-  }
-
   try {
-    // Initialize Sentry with Session Replay only if not already initialized
-    // Using the isSentryInitialized flag from sentryInit.js to prevent multiple initializations
     if (typeof window.Sentry === 'undefined' || !window.Sentry._initialized) {
       initSentry({
         dsn: window.SENTRY_DSN || 'https://d815bc9d689a9255598e0007ae5a2f67@o4508070823395328.ingest.us.sentry.io/4508935977238528',
         environment: window.SENTRY_ENVIRONMENT || 'development',
         release: window.SENTRY_RELEASE || '1.0.0',
         tracesSampleRate: 1.0,
-        replaysSessionSampleRate: 0.1, // Record 10% of sessions
-        replaysOnErrorSampleRate: 1.0, // Record 100% of sessions with errors
-        maskAllInputs: true, // Mask all input fields for privacy
+        replaysSessionSampleRate: 0.1,
+        replaysOnErrorSampleRate: 1.0,
+        maskAllInputs: true,
       });
-    } else {
-      console.log('Sentry already initialized, skipping initialization in initApplication');
     }
-    
-    // Add initial breadcrumb
     captureMessage('Application initialization started', 'info');
-
-    // Fix UI layout issues immediately
     fixLayoutIssues();
-
-    // 1. Initialize theme switcher
     initThemeSwitcher();
-
-    // 2. Initialize Sentry before any monitoring calls
     const sentryInitPromise = import('./sentryInit.js').then(module => {
       if (typeof window.Sentry === "undefined") {
         return module.initSentry({
@@ -207,11 +137,7 @@ async function initApplication() {
       }
       return module;
     });
-
-    // 3. Initialize session and wait for completion
     const sessionId = await ensureValidSession();
-    
-    // 4. Configure Sentry with session ID after initialization
     await sentryInitPromise.then(module => {
       if (sessionId) {
         window.sentryUser = { id: sessionId };
@@ -220,43 +146,24 @@ async function initApplication() {
       }
       module.captureMessage('Application initialization started', 'info');
     });
-
-    // 5. Initialize core UI components
     initTabSystem();
-    
-    // 6. Initialize sidebar system first
     const { sidebarManager, initSidebar, toggleSidebar } = await import('./ui/sidebarManager.js');
-    
-    // Initialize using either the direct function or via the manager object
     if (typeof initSidebar === 'function') {
-      console.log("Calling initSidebar directly");
       initSidebar();
     } else if (typeof sidebarManager?.initEventListeners === 'function') {
-      console.log("Calling sidebarManager.initEventListeners");
       sidebarManager.initEventListeners();
-    } else {
-      console.error("Could not find proper sidebar initialization function");
     }
-    
-    // Make sure toggleConversationSidebar is available globally
-    window.toggleConversationSidebar = function(show) {
+    window.toggleConversationSidebar = function (show) {
       const sidebar = document.getElementById('conversations-sidebar');
       const isOpen = sidebar ? sidebar.classList.contains('sidebar-open') : false;
-    
-      // If show is undefined, toggle based on current state
       if (typeof show === 'undefined') {
         show = !isOpen;
       }
-      
-      console.log("[window.toggleConversationSidebar] called with show:", show);
-      
       if (typeof toggleSidebar === 'function') {
         toggleSidebar('conversations-sidebar', show);
       } else if (typeof sidebarManager?.toggleSidebar === 'function') {
         sidebarManager.toggleSidebar('conversations-sidebar', show);
       } else {
-        console.error("toggleSidebar function not found in sidebarManager module");
-        // Fallback implementation as a last resort
         if (sidebar) {
           if (show) {
             sidebar.classList.remove('hidden');
@@ -269,18 +176,10 @@ async function initApplication() {
         }
       }
     };
-
-    // 7. Initialize conversation system after sidebar
     const { initConversationManager } = await import('./ui/conversationManager.js');
     await initConversationManager();
-
-    // 6. Initialize existing thinking blocks
     deepSeekProcessor.initializeExistingBlocks();
-
-    // 7. Initialize mobile or desktop features
     initMobileUI();
-
-    // 8. Additional UI init
     initPerformanceStats();
     configureMarkdown();
     initChatInterface();
@@ -290,24 +189,13 @@ async function initApplication() {
     detectTouchCapability();
     registerKeyboardShortcuts();
     initConfigHandlers();
-    initTokenUsageDisplay(); // Ensure token usage display toggle is initialized
-
-    // 9. Load conversation from database
+    initTokenUsageDisplay();
     await loadConversationFromDb();
     maybeShowWelcomeMessage();
-
-    // 10. Initialize model manager
     await modelManager.initialize();
-
-    // 11. Now that modelManager is ready, init the selector
     initModelSelector();
-
-    // 12. Set up window resize event listener for responsive UI
     setupResizeHandler();
-
-    // Add completion breadcrumb
     captureMessage('Application initialization complete', 'info');
-    console.log('Application initialization complete');
   } catch (error) {
     console.error('Initialization error:', error);
     captureError(error, { context: 'Application initialization' });
@@ -315,15 +203,10 @@ async function initApplication() {
   }
 }
 
-/**
- * A helper to sync tab panels' display state. 
- * Called by fixLayoutIssues() and in setupResizeHandler().
- */
 function syncTabPanelDisplay() {
   const tabPanels = document.querySelectorAll('[role="tabpanel"]');
   tabPanels.forEach(panel => {
     panel.classList.add('relative', 'w-full', 'h-auto');
-
     const tabId = panel.id;
     const button = document.querySelector(`[data-target-tab="${tabId}"]`);
     const shouldBeVisible = button && button.getAttribute('aria-selected') === 'true';
@@ -332,88 +215,56 @@ function syncTabPanelDisplay() {
   });
 }
 
-/**
- * Fix layout issues by directly manipulating the DOM
- * This runs before any other initialization to ensure proper rendering
- */
 function fixLayoutIssues() {
-  console.log('Applying layout fixes...');
-
-  // 1. Fix sidebar positioning
   const sidebar = document.getElementById('sidebar');
   if (sidebar) {
-      // Remove any transforms from HTML
-      sidebar.classList.remove('translate-x-full','md:translate-x-0','translate-x-0');
-
-      // Apply correct positioning using Tailwind classes
-      sidebar.classList.add('fixed','top-[64px]','bottom-0','right-0','z-50');
-      
-      // If mobile, use w-full, else w-96
-      if (window.innerWidth < 768) {
-        sidebar.classList.add('w-full');
-        sidebar.classList.remove('w-96');
-      } else {
-        sidebar.classList.remove('w-full');
-        sidebar.classList.add('w-96');
-      }
-
-      // If sidebar isn't open, apply 'translate-x-full' else 'translate-x-0'
-      if (!sidebar.classList.contains('sidebar-open')) {
-        sidebar.classList.add('translate-x-full');
-        sidebar.classList.remove('translate-x-0');
-      } else {
-        sidebar.classList.add('translate-x-0');
-        sidebar.classList.remove('translate-x-full');
-      }
+    sidebar.classList.remove('translate-x-full', 'md:translate-x-0', 'translate-x-0');
+    sidebar.classList.add('fixed', 'top-[64px]', 'bottom-0', 'right-0', 'z-50');
+    if (window.innerWidth < 768) {
+      sidebar.classList.add('w-full');
+      sidebar.classList.remove('w-96');
+    } else {
+      sidebar.classList.remove('w-full');
+      sidebar.classList.add('w-96');
+    }
+    if (!sidebar.classList.contains('sidebar-open')) {
+      sidebar.classList.add('translate-x-full');
+      sidebar.classList.remove('translate-x-0');
+    } else {
+      sidebar.classList.add('translate-x-0');
+      sidebar.classList.remove('translate-x-full');
+    }
   }
-  
-  // Fix conversations sidebar positioning
   const conversationsSidebar = document.getElementById('conversations-sidebar');
   if (conversationsSidebar) {
-      // Remove any transforms
-      conversationsSidebar.classList.remove('-translate-x-full','translate-x-0');
-      
-      // Apply correct positioning
-      conversationsSidebar.classList.add('fixed','top-[64px]','bottom-0','left-0','z-50');
-      
-      // If mobile, use max-width
-      if (window.innerWidth < 768) {
-        conversationsSidebar.classList.add('w-[85%]', 'max-w-[320px]');
-        conversationsSidebar.classList.remove('w-64');
-      } else {
-        conversationsSidebar.classList.remove('w-[85%]', 'max-w-[320px]');
-        conversationsSidebar.classList.add('w-64');
-      }
-      
-      // Set correct transform
-      if (!conversationsSidebar.classList.contains('sidebar-open')) {
-        conversationsSidebar.classList.add('-translate-x-full');
-        conversationsSidebar.classList.remove('translate-x-0');
-      } else {
-        conversationsSidebar.classList.add('translate-x-0');
-        conversationsSidebar.classList.remove('-translate-x-full');
-      }
+    conversationsSidebar.classList.remove('-translate-x-full', 'translate-x-0');
+    conversationsSidebar.classList.add('fixed', 'top-[64px]', 'bottom-0', 'left-0', 'z-50');
+    if (window.innerWidth < 768) {
+      conversationsSidebar.classList.add('w-[85%]', 'max-w-[320px]');
+      conversationsSidebar.classList.remove('w-64');
+    } else {
+      conversationsSidebar.classList.remove('w-[85%]', 'max-w-[320px]');
+      conversationsSidebar.classList.add('w-64');
+    }
+    if (!conversationsSidebar.classList.contains('sidebar-open')) {
+      conversationsSidebar.classList.add('-translate-x-full');
+      conversationsSidebar.classList.remove('translate-x-0');
+    } else {
+      conversationsSidebar.classList.add('translate-x-0');
+      conversationsSidebar.classList.remove('-translate-x-full');
+    }
   }
-
-  // 2. Fix tab panels display
   syncTabPanelDisplay();
-
-  // 3. Fix overlay pointer events
   const overlay = document.getElementById('sidebar-overlay');
   if (overlay) {
-      overlay.classList.add('pointer-events-auto');
-      overlay.classList.add('z-40');
-      
-      // Hide overlay by default
-      if (!overlay.classList.contains('hidden')) {
-        overlay.classList.add('hidden');
-      }
+    overlay.classList.add('pointer-events-auto');
+    overlay.classList.add('z-40');
+    if (!overlay.classList.contains('hidden')) {
+      overlay.classList.add('hidden');
+    }
   }
 }
 
-/**
- * Set up a window resize event handler to maintain proper layout
- */
 function setupResizeHandler() {
   const handleResize = debounce(() => {
     const isMobile = window.innerWidth < 768;
@@ -421,10 +272,7 @@ function setupResizeHandler() {
     const conversationsSidebar = document.getElementById('conversations-sidebar');
     const overlay = document.getElementById('sidebar-overlay');
     const chatContainer = document.getElementById('chat-container');
-
-    // Handle right sidebar (files, settings)
     if (sidebar) {
-      // Update sidebar dimensions
       if (isMobile) {
         sidebar.classList.add('w-full');
         sidebar.classList.remove('w-96');
@@ -432,8 +280,6 @@ function setupResizeHandler() {
         sidebar.classList.remove('w-full');
         sidebar.classList.add('w-96');
       }
-      
-      // Check if sidebar is open and update layout
       const isOpen = sidebar.classList.contains('sidebar-open');
       if (isOpen) {
         if (!isMobile && chatContainer) {
@@ -441,17 +287,12 @@ function setupResizeHandler() {
         } else if (chatContainer) {
           chatContainer.classList.remove('sidebar-open');
         }
-        
-        // Show overlay on mobile when sidebar is open
         if (overlay && isMobile) {
           overlay.classList.remove('hidden');
         }
       }
     }
-    
-    // Handle left sidebar (conversations)
     if (conversationsSidebar) {
-      // Update sidebar dimensions
       if (isMobile) {
         conversationsSidebar.classList.add('w-[85%]', 'max-w-[320px]');
         conversationsSidebar.classList.remove('w-64');
@@ -459,44 +300,27 @@ function setupResizeHandler() {
         conversationsSidebar.classList.remove('w-[85%]', 'max-w-[320px]');
         conversationsSidebar.classList.add('w-64');
       }
-      
-      // Check if conversations sidebar is open
       const isConversationsOpen = conversationsSidebar.classList.contains('sidebar-open');
       if (isConversationsOpen && overlay && isMobile) {
         overlay.classList.remove('hidden');
       }
     }
-    
-    // Handle overlay visibility
     if (overlay && isMobile) {
       const rightOpen = sidebar?.classList.contains('sidebar-open');
       const leftOpen = conversationsSidebar?.classList.contains('sidebar-open');
-      
       if (!rightOpen && !leftOpen) {
         overlay.classList.add('hidden');
       }
     } else if (overlay && !isMobile) {
       overlay.classList.add('hidden');
     }
-    
-    // Re-apply tab panel fixes
     syncTabPanelDisplay();
   }, 250);
-
   window.addEventListener('resize', handleResize);
 }
 
-/* ------------------------------------------------------------------
-                          INITIALIZATION HELPERS
-   ------------------------------------------------------------------ */
-
-
-/**
- * Initialize performance stats
- */
 function initPerformanceStats() {
   try {
-    // Initialize only once
     if (!globalStore.statsDisplay) {
       globalStore.statsDisplay = new StatsDisplay('performance-stats');
     }
@@ -505,20 +329,13 @@ function initPerformanceStats() {
   }
 }
 
-/**
- * Sets up the main chat interface
- */
 function initChatInterface() {
   initErrorDisplay();
 }
 
-/**
- * Error display setup
- */
 function initErrorDisplay() {
   const errorDisplay = document.getElementById('error-display');
   if (!errorDisplay) return;
-
   const dismissButton = errorDisplay.querySelector('button');
   if (dismissButton) {
     dismissButton.addEventListener('click', () => {
@@ -527,74 +344,48 @@ function initErrorDisplay() {
   }
 }
 
-/**
- * Checks globalStore for conversation; if none found, show welcome once
- */
 function maybeShowWelcomeMessage() {
   const conversationExists = globalStore.conversation && globalStore.conversation.length > 0;
   const welcomeShown = globalStore.welcomeMessageShown ? 'true' : '';
-
   if (!conversationExists && !welcomeShown) {
     showWelcomeMessage();
     globalStore.welcomeMessageShown = true;
   }
 }
 
-/**
- * Renders a basic welcome message
- */
 function showWelcomeMessage() {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return;
-
   const welcomeMessage = document.createElement('div');
   welcomeMessage.className =
     'mx-auto max-w-2xl text-center p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-8';
   const heading = document.createElement('h2');
   heading.className = 'text-xl font-semibold text-gray-900 dark:text-white mb-4';
   heading.textContent = 'Welcome to Azure OpenAI Chat';
-  
   const para1 = document.createElement('p');
   para1.className = 'text-gray-600 dark:text-gray-300 mb-4';
   para1.textContent = 'This chat application uses Azure OpenAI\'s powerful language models.';
-  
   const para2 = document.createElement('p');
   para2.className = 'text-gray-600 dark:text-gray-300';
   para2.textContent = 'Type a message below to get started!';
-
   welcomeMessage.append(heading, para1, para2);
   chatHistory.appendChild(welcomeMessage);
 }
 
-/**
- * Sets up user input controls, conversation save/clear, and older messages
- */
 function initUserInput() {
   const userInput = document.getElementById('user-input');
   const sendButton = document.getElementById('send-button');
   window.triggerSendMessage = function () {
     window.dispatchEvent(new CustomEvent('send-message'));
   };
-
-  // Handle save conversation button
   const saveConvoBtn = document.getElementById('save-older-btn');
   if (saveConvoBtn) {
     safeAddEventListener(saveConvoBtn, 'click', async () => {
       try {
-        // Add breadcrumb for user action
-        import('./sentryInit.js').then(module => {
-          module.addBreadcrumb({
-            category: 'ui.action',
-            message: 'User clicked save conversation button',
-            level: 'info'
-          });
-        });
-        
         const module = await import('./ui/displayManager.js');
         if (typeof module.saveConversation === 'function') {
           module.saveConversation();
         } else {
-          console.error('saveConversation function not found');
           captureMessage('saveConversation function not found', 'error');
         }
       } catch (err) {
@@ -603,26 +394,14 @@ function initUserInput() {
       }
     });
   }
-
-  // Handle clear conversation button
   const clearConvoBtn = document.getElementById('clear-convo-btn');
   if (clearConvoBtn) {
     safeAddEventListener(clearConvoBtn, 'click', async () => {
       try {
-        // Add breadcrumb for user action
-        import('./sentryInit.js').then(module => {
-          module.addBreadcrumb({
-            category: 'ui.action',
-            message: 'User clicked clear conversation button',
-            level: 'info'
-          });
-        });
-        
         const module = await import('./ui/displayManager.js');
         if (typeof module.deleteConversation === 'function') {
           module.deleteConversation();
         } else {
-          console.error('deleteConversation function not found');
           captureMessage('deleteConversation function not found', 'error');
         }
       } catch (err) {
@@ -631,26 +410,14 @@ function initUserInput() {
       }
     });
   }
-
-  // Handle new conversation button
   const newConvoBtn = document.getElementById('new-convo-btn');
   if (newConvoBtn) {
     safeAddEventListener(newConvoBtn, 'click', async () => {
       try {
-        // Add breadcrumb for user action
-        import('./sentryInit.js').then(module => {
-          module.addBreadcrumb({
-            category: 'ui.action',
-            message: 'User clicked new conversation button',
-            level: 'info'
-          });
-        });
-        
         const module = await import('./ui/displayManager.js');
         if (typeof module.createNewConversation === 'function') {
           module.createNewConversation();
         } else {
-          console.error('createNewConversation function not found');
           captureMessage('createNewConversation function not found', 'error');
         }
       } catch (err) {
@@ -659,26 +426,14 @@ function initUserInput() {
       }
     });
   }
-
-  // Handle load older messages button
   const loadOlderBtn = document.getElementById('load-older-btn');
   if (loadOlderBtn) {
     safeAddEventListener(loadOlderBtn, 'click', async () => {
       try {
-        // Add breadcrumb for user action
-        import('./sentryInit.js').then(module => {
-          module.addBreadcrumb({
-            category: 'ui.action',
-            message: 'User clicked load older messages button',
-            level: 'info'
-          });
-        });
-        
         const module = await import('./ui/displayManager.js');
         if (typeof module.loadOlderMessages === 'function') {
           module.loadOlderMessages();
         } else {
-          console.error('loadOlderMessages function not found');
           captureMessage('loadOlderMessages function not found', 'error');
         }
       } catch (err) {
@@ -687,75 +442,33 @@ function initUserInput() {
       }
     });
   }
-
-  // File reference links
   document.addEventListener('click', e => {
     const link = e.target.closest('.file-ref-link');
     if (link) {
       e.preventDefault();
       const fname = link.getAttribute('data-file-name');
-      
-      // Add breadcrumb for file reference click
-      import('./sentryInit.js').then(module => {
-        module.addBreadcrumb({
-          category: 'ui.action',
-          message: 'User clicked file reference link',
-          data: { filename: fname },
-          level: 'info'
-        });
-      });
-      
       openFileInSidebar(fname);
     }
   });
-
-  // Autosize the user input
   if (userInput && sendButton) {
     setTimeout(() => userInput.focus(), 100);
-
-    // Add event listener for user input
     userInput.addEventListener('input', () => {
       const charCount = document.getElementById('char-count');
       if (charCount) {
         charCount.textContent = userInput.value.length;
       }
-
-      // Convert inline styling to Tailwind utility classes for height
       userInput.classList.add('h-auto', 'overflow-y-auto', 'max-h-52');
     });
-
-    // Add event listener for send button
     sendButton.addEventListener('click', () => {
-      // Add breadcrumb for send message
-      import('./sentryInit.js').then(module => {
-        module.addBreadcrumb({
-          category: 'ui.action',
-          message: 'User clicked send message button',
-          level: 'info'
-        });
-      });
-      
       if (typeof sendMessage === 'function') {
         sendMessage();
       } else if (typeof window.sendMessage === 'function') {
         window.sendMessage();
       }
     });
-
-    // Add event listener for Enter key
     userInput.addEventListener('keydown', (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
-        
-        // Add breadcrumb for keyboard shortcut
-        import('./sentryInit.js').then(module => {
-          module.addBreadcrumb({
-            category: 'ui.action',
-            message: 'User used Ctrl+Enter keyboard shortcut',
-            level: 'info'
-          });
-        });
-        
         if (typeof sendMessage === 'function') {
           sendMessage();
         } else if (typeof window.sendMessage === 'function') {
@@ -766,37 +479,25 @@ function initUserInput() {
   }
 }
 
-/**
- * Open a file in the sidebar
- */
 function openFileInSidebar(filename) {
-  // Import sidebarManager to use its toggleSidebar function
   import('./ui/sidebarManager.js').then(module => {
-    // First ensure sidebar is open
     if (typeof module.toggleSidebar === 'function') {
       module.toggleSidebar('sidebar', true);
     } else if (typeof module.sidebarManager?.toggleSidebar === 'function') {
       module.sidebarManager.toggleSidebar('sidebar', true);
     } else {
-      // Fallback to direct DOM manipulation
       const sidebar = document.getElementById('sidebar');
       if (sidebar) {
         sidebar.classList.remove('translate-x-full');
         sidebar.classList.add('translate-x-0', 'sidebar-open');
-        
-        // Show overlay on mobile
         if (window.innerWidth < 768) {
           const overlay = document.getElementById('sidebar-overlay');
           if (overlay) overlay.classList.remove('hidden');
         }
       }
     }
-    
-    // Switch to files tab
     const filesTab = document.getElementById('files-tab');
     if (filesTab) filesTab.click();
-    
-    // Find and highlight the file
     setTimeout(() => {
       const filesList = document.querySelectorAll('[aria-label^="File:"]');
       for (const f of filesList) {
@@ -813,15 +514,11 @@ function openFileInSidebar(filename) {
   });
 }
 
-/**
- * Initialize token usage display toggle
- */
 function initTokenUsageDisplay() {
   const tokenUsage = document.getElementById('token-usage');
   const toggleButton = document.getElementById('token-usage-toggle');
   const tokenDetails = document.getElementById('token-details');
   const tokenChevron = document.getElementById('token-chevron');
-
   if (tokenUsage && toggleButton) {
     safeAddEventListener(toggleButton, 'click', () => {
       if (tokenDetails) {
@@ -832,8 +529,6 @@ function initTokenUsageDisplay() {
       }
       globalStore.tokenDetailsVisible = !tokenDetails || !tokenDetails.classList.contains('hidden');
     });
-
-    // Check for stored preference
     const tokenDetailsVisible = globalStore.tokenDetailsVisible;
     if (tokenDetailsVisible && tokenDetails) {
       tokenDetails.classList.remove('hidden');
@@ -844,17 +539,12 @@ function initTokenUsageDisplay() {
   }
 }
 
-/**
- * Register global keyboard shortcuts
- */
 function registerKeyboardShortcuts() {
   document.addEventListener('keydown', e => {
-    // Ctrl/Cmd + Enter => Send
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       const sendButton = document.getElementById('send-button');
       if (sendButton) sendButton.click();
     }
-    // Esc => close sidebar on mobile
     if (e.key === 'Escape') {
       const sidebar = document.getElementById('sidebar');
       if (sidebar && sidebar.classList.contains('sidebar-open') && window.innerWidth < 768) {
@@ -865,17 +555,12 @@ function registerKeyboardShortcuts() {
   });
 }
 
-/**
- * Additional ARIA enhancements
- */
 function enhanceAccessibility() {
   const liveRegion = document.createElement('div');
   liveRegion.id = 'a11y-announcements';
   liveRegion.className = 'sr-only';
   liveRegion.setAttribute('aria-live', 'polite');
   document.body.appendChild(liveRegion);
-
-  // Provide default aria-label to unlabeled buttons with no text
   document.querySelectorAll('button:not([aria-label])').forEach(button => {
     if (!button.textContent.trim()) {
       button.setAttribute('aria-label', 'Button');
@@ -883,18 +568,14 @@ function enhanceAccessibility() {
   });
 }
 
-/**
- * Detects if device is a touch device; sets default mobile font sizing
- */
 function detectTouchCapability() {
   const isTouchDevice =
     'ontouchstart' in window ||
     navigator.maxTouchPoints > 0 ||
     navigator.msMaxTouchPoints > 0;
-
   if (isTouchDevice) {
     document.documentElement.classList.add('touch-device');
-    const currentFontSize = globalStore.fontSize; // default is text-base
+    const currentFontSize = globalStore.fontSize;
     if (currentFontSize === 'text-base' && window.matchMedia('(max-width: 640px)').matches) {
       document.documentElement.classList.add('text-lg');
       globalStore.fontSize = 'text-lg';
@@ -904,40 +585,18 @@ function detectTouchCapability() {
   }
 }
 
-/**
- * Model selector initialization
- */
 function initModelSelector() {
   const modelSelect = document.getElementById('model-select');
   if (!modelSelect) return;
-
-  // Use a single import chain
   import('./models.js').then(async ({ modelManager }) => {
-
-    // Make sure the local model configs are created first before trying to use them
     modelManager.ensureLocalModelConfigs();
     if (!modelManager.modelConfigs) {
-      console.error("modelManager.modelConfigs is undefined");
       return;
     }
-    if (!modelManager.modelConfigs) {
-      console.warn("modelManager.modelConfigs is undefined, calling ensureLocalModelConfigs()");
-      modelManager.ensureLocalModelConfigs();
-      if (!modelManager.modelConfigs) {
-        console.error("modelManager.modelConfigs still undefined, skipping initModelSelector");
-        return;
-      }
-    }
-    console.log("Local model configs initialized:", Object.keys(modelManager.modelConfigs));
-
-    // Add with a slight delay to ensure model configs are fully processed
     setTimeout(() => {
       if (modelSelect.options.length === 0) {
         const models = modelManager.modelConfigs;
-        if (!models) {
-          console.error("modelManager.modelConfigs is undefined");
-          return;
-        }
+        if (!models) return;
         if (Object.keys(models).length > 0) {
           modelSelect.innerHTML = '';
           for (const [id, config] of Object.entries(models)) {
@@ -946,8 +605,6 @@ function initModelSelector() {
             option.textContent = id + (config.description ? ' (' + config.description + ')' : '');
             modelSelect.appendChild(option);
           }
-
-          // Default to DeepSeek-R1 if available, otherwise fall back to o1
           if (models['DeepSeek-R1']) {
             modelSelect.value = 'DeepSeek-R1';
             modelManager.updateModelSpecificUI('DeepSeek-R1');
@@ -958,92 +615,51 @@ function initModelSelector() {
         }
       }
     }, 500);
-
-    // Ensure local model configs are fully loaded
     try {
       await modelManager.refreshModelsList();
-    } catch (err) {
-      console.warn("Error in refreshing model list:", err);
-    }
-
-    console.log("Local model configs loaded:", Object.keys(modelManager.modelConfigs));
-
-    // Safely initialize and set up the model manager
+    } catch (err) { }
     try {
       await modelManager.initialize();
-      if (!modelManager.modelConfigs) {
-        console.error("modelManager.modelConfigs is undefined");
-        return;
-      }
-      console.log("Model manager initialized with models:", Object.keys(modelManager.modelConfigs));
-
       modelManager.initModelManagement();
-      // Force refresh models list once more if needed
       await modelManager.refreshModelsList();
     } catch (err) {
       console.error('Error initializing ModelManager:', err);
     }
   })
-  .catch(err => console.error('Failed to load models.js:', err));
+    .catch(err => console.error('Failed to load models.js:', err));
 }
 
-/* ------------------------------------------------------------------
-                      MOBILE-SPECIFIC FUNCTIONS
-   ------------------------------------------------------------------ */
-
-/**
- * Initialize all mobile-specific UI features
- */
 function initMobileUI() {
-  console.log('Initializing mobile features...');
   initDoubleTapToCopy();
   initPullToRefresh();
   setupMobileStatsToggle();
   setupMobileFontControls();
   initMobileSidebarHandlers();
-
-  // Improve chat layout on mobile devices
   const chatContainer = document.getElementById('chat-container');
   if (chatContainer) {
-    // Make the container fill the screen and scroll properly
     chatContainer.classList.add('flex', 'flex-col', 'h-screen', 'overflow-hidden');
-
     const chatHistory = document.getElementById('chat-history');
     if (chatHistory) {
-      // Allow chat history to expand and scroll
       chatHistory.classList.add('flex-grow', 'overflow-y-auto');
-      
-      // Add iOS viewport hack
       document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
-      
-      // Add mobile-specific height calculation
       const headerHeight = document.querySelector('header')?.offsetHeight || 64;
       const inputHeight = document.querySelector('.input-area')?.offsetHeight || 120;
       chatHistory.style.height = `calc(100dvh - ${headerHeight + inputHeight}px)`;
     }
   }
-  
-  // Fix input area padding for iOS devices
   const inputArea = document.querySelector('.input-area');
   if (inputArea) {
     inputArea.style.paddingBottom = 'calc(1rem + env(safe-area-inset-bottom, 0))';
   }
 }
 
-/**
- * Initialize mobile sidebar handlers
- */
 function initMobileSidebarHandlers() {
-  // Handle mobile conversation toggle button
   const mobileConversationsToggle = document.getElementById('mobile-conversations-toggle');
   if (mobileConversationsToggle) {
-    // Remove any existing event listeners to prevent duplicates
     const newToggleBtn = mobileConversationsToggle.cloneNode(true);
     if (mobileConversationsToggle.parentNode) {
       mobileConversationsToggle.parentNode.replaceChild(newToggleBtn, mobileConversationsToggle);
     }
-    
-    // Add new event listener
     newToggleBtn.addEventListener('click', (e) => {
       e.preventDefault();
       if (typeof window.toggleConversationSidebar === 'function') {
@@ -1051,23 +667,16 @@ function initMobileSidebarHandlers() {
       }
     });
   }
-  
-  // Handle sidebar overlay clicks
   const overlay = document.getElementById('sidebar-overlay');
   if (overlay) {
-    // Remove any existing event listeners
     const newOverlay = overlay.cloneNode(true);
     if (overlay.parentNode) {
       overlay.parentNode.replaceChild(newOverlay, overlay);
     }
-    
-    // Add new event listener
     newOverlay.addEventListener('click', () => {
       import('./ui/sidebarManager.js').then(module => {
         const sidebar = document.getElementById('sidebar');
         const conversationsSidebar = document.getElementById('conversations-sidebar');
-        
-        // Close any open sidebars
         if (sidebar?.classList.contains('sidebar-open')) {
           if (typeof module.toggleSidebar === 'function') {
             module.toggleSidebar('sidebar', false);
@@ -1075,7 +684,6 @@ function initMobileSidebarHandlers() {
             module.sidebarManager.toggleSidebar('sidebar', false);
           }
         }
-        
         if (conversationsSidebar?.classList.contains('sidebar-open')) {
           if (typeof module.toggleSidebar === 'function') {
             module.toggleSidebar('conversations-sidebar', false);
@@ -1090,22 +698,16 @@ function initMobileSidebarHandlers() {
   }
 }
 
-/**
- * Double-tap to copy for assistant messages
- */
 function initDoubleTapToCopy() {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return;
-
   let lastTap = 0;
   let lastElement = null;
-
   chatHistory.addEventListener(
     'touchend',
     e => {
       const messageDiv = e.target.closest('.assistant-message');
       if (!messageDiv) return;
-
       const currentTime = new Date().getTime();
       if (currentTime - lastTap < 500 && lastElement === messageDiv) {
         const content = messageDiv.textContent || '';
@@ -1116,15 +718,6 @@ function initDoubleTapToCopy() {
           feedback.textContent = 'Copied to clipboard';
           document.body.appendChild(feedback);
           setTimeout(() => feedback.remove(), 1500);
-          
-          // Add breadcrumb for copy action
-          import('./sentryInit.js').then(module => {
-            module.addBreadcrumb({
-              category: 'ui.action',
-              message: 'User double-tapped to copy message',
-              level: 'info'
-            });
-          });
         });
         e.preventDefault();
       }
@@ -1135,18 +728,13 @@ function initDoubleTapToCopy() {
   );
 }
 
-/**
- * Mobile "pull-to-refresh" for loading older messages
- */
 function initPullToRefresh() {
   const chatHistory = document.getElementById('chat-history');
   if (!chatHistory) return;
-
   let startY = 0;
   let isPulling = false;
   const threshold = 80;
   let indicator = null;
-
   chatHistory.addEventListener(
     'touchstart',
     e => {
@@ -1156,7 +744,6 @@ function initPullToRefresh() {
     },
     { passive: true }
   );
-
   chatHistory.addEventListener(
     'touchmove',
     e => {
@@ -1165,10 +752,7 @@ function initPullToRefresh() {
       const pullDistance = currentY - startY;
       if (pullDistance > 0 && chatHistory.scrollTop <= 0) {
         e.preventDefault();
-        chatHistory.style.setProperty('--pull-distance', `${Math.min(
-          pullDistance / 2,
-          threshold
-        )}px`);
+        chatHistory.style.setProperty('--pull-distance', `${Math.min(pullDistance / 2, threshold)}px`);
         if (!indicator) {
           indicator = document.createElement('div');
           indicator.className =
@@ -1184,7 +768,6 @@ function initPullToRefresh() {
     },
     { passive: false }
   );
-
   chatHistory.addEventListener(
     'touchend',
     e => {
@@ -1194,17 +777,6 @@ function initPullToRefresh() {
       chatHistory.style.removeProperty('--pull-distance');
       if (pullDistance > threshold && chatHistory.scrollTop <= 0) {
         if (indicator) indicator.textContent = 'Loading...';
-        
-        // Add breadcrumb for pull-to-refresh action
-        import('./sentryInit.js').then(module => {
-          module.addBreadcrumb({
-            category: 'ui.action',
-            message: 'User pulled to refresh messages',
-            level: 'info'
-          });
-        });
-
-        // Load older messages
         import('./ui/displayManager.js')
           .then(module => {
             if (typeof module.loadOlderMessages === 'function') {
@@ -1228,178 +800,88 @@ function initPullToRefresh() {
   );
 }
 
-/**
- * Toggles the stats panel in mobile view
- */
 function setupMobileStatsToggle() {
   const mobileStatsToggle = document.getElementById('mobile-stats-toggle');
   const mobileStatsPanel = document.getElementById('mobile-stats-panel');
   if (!mobileStatsToggle || !mobileStatsPanel) return;
-
   safeAddEventListener(mobileStatsToggle, 'click', e => {
     e.stopPropagation();
     const hidden = mobileStatsPanel.classList.contains('hidden');
     mobileStatsPanel.classList.toggle('hidden');
     mobileStatsPanel.setAttribute('aria-hidden', String(!hidden));
     mobileStatsToggle.setAttribute('aria-expanded', String(hidden));
-
-    if ('vibrate' in navigator) navigator.vibrate(10);
-
     const liveRegion = document.getElementById('a11y-announcements');
     if (liveRegion) {
       liveRegion.textContent = hidden
         ? 'Settings panel opened'
         : 'Settings panel closed';
     }
-    
-    // Add breadcrumb for stats toggle
-    import('./sentryInit.js').then(module => {
-      module.addBreadcrumb({
-        category: 'ui.action',
-        message: `User ${hidden ? 'opened' : 'closed'} mobile stats panel`,
-        level: 'info'
-      });
-    });
   });
-
   mobileStatsPanel.setAttribute('aria-hidden', 'true');
   mobileStatsToggle.setAttribute('aria-expanded', 'false');
 }
 
-/**
- * Controls for changing font size on mobile
- */
 function setupMobileFontControls() {
   const mobileFontUp = document.getElementById('mobile-font-up');
   const mobileFontDown = document.getElementById('mobile-font-down');
-
   if (mobileFontUp) {
     safeAddEventListener(mobileFontUp, 'click', () => {
       adjustFontSize(1);
-      // Add breadcrumb for font size change
-      import('./sentryInit.js').then(module => {
-        module.addBreadcrumb({
-          category: 'ui.action',
-          message: 'User increased font size on mobile',
-          level: 'info'
-        });
-      });
     });
   }
-
   if (mobileFontDown) {
     safeAddEventListener(mobileFontDown, 'click', () => {
       adjustFontSize(-1);
-      // Add breadcrumb for font size change
-      import('./sentryInit.js').then(module => {
-        module.addBreadcrumb({
-          category: 'ui.action',
-          message: 'User decreased font size on mobile',
-          level: 'info'
-        });
-      });
     });
   }
 }
 
-/* ------------------------------------------------------------------
-                  SHARED FONT-SIZE ADJUSTMENT LOGIC
-   ------------------------------------------------------------------ */
-
 function adjustFontSize(direction) {
   const sizes = ['text-sm', 'text-base', 'text-lg', 'text-xl'];
-
-  // Handle reset
   if (direction === 0) {
     document.documentElement.classList.remove(...sizes);
     document.documentElement.classList.add('text-base');
     globalStore.fontSize = 'text-base';
     return;
   }
-
-  // Find current size
   let currentIndex = sizes.findIndex(size =>
     document.documentElement.classList.contains(size)
   );
-  if (currentIndex === -1) currentIndex = 1; // default to text-base
-
-  // Calculate new index within bounds
+  if (currentIndex === -1) currentIndex = 1;
   const newIndex = Math.max(0, Math.min(sizes.length - 1, currentIndex + direction));
-
-  // Apply new size
   document.documentElement.classList.remove(...sizes);
   document.documentElement.classList.add(sizes[newIndex]);
   globalStore.fontSize = sizes[newIndex];
 }
 
-/**
- * Set up "increase"/"decrease" font size controls (desktop)
- */
 function initFontSizeControls() {
   const smallerBtn = document.getElementById('font-size-down');
   const biggerBtn = document.getElementById('font-size-up');
   const resetBtn = document.getElementById('font-size-reset');
-
-  // Apply stored font size via globalStore
   const storedSize = globalStore.fontSize;
   document.documentElement.classList.add(storedSize);
-
   if (smallerBtn) {
     safeAddEventListener(smallerBtn, 'click', () => {
       adjustFontSize(-1);
-      // Add breadcrumb for font size change
-      import('./sentryInit.js').then(module => {
-        module.addBreadcrumb({
-          category: 'ui.action',
-          message: 'User decreased font size',
-          level: 'info'
-        });
-      });
     });
   }
-
   if (biggerBtn) {
     safeAddEventListener(biggerBtn, 'click', () => {
       adjustFontSize(1);
-      // Add breadcrumb for font size change
-      import('./sentryInit.js').then(module => {
-        module.addBreadcrumb({
-          category: 'ui.action',
-          message: 'User increased font size',
-          level: 'info'
-        });
-      });
     });
   }
-
   if (resetBtn) {
     safeAddEventListener(resetBtn, 'dblclick', () => {
       adjustFontSize(0);
-      // Add breadcrumb for font size reset
-      import('./sentryInit.js').then(module => {
-        module.addBreadcrumb({
-          category: 'ui.action',
-          message: 'User reset font size',
-          level: 'info'
-        });
-      });
     });
   }
 }
 
-/* ------------------------------------------------------------------
-                  EXPORTED MOBILE STATS SYNC FUNCTION
-   ------------------------------------------------------------------ */
-
-/**
- * Sync stats on mobile displays
- */
 export function syncMobileStats(stats) {
   const mobilePromptTokens = document.getElementById('mobile-prompt-tokens');
   const mobileCompletionTokens = document.getElementById('mobile-completion-tokens');
   const mobileTotalTokens = document.getElementById('mobile-total-tokens');
   const mobileTokensPerSecond = document.getElementById('mobile-tokens-per-second');
-
   if (mobilePromptTokens) mobilePromptTokens.textContent = stats.promptTokens || 0;
   if (mobileCompletionTokens) {
     mobileCompletionTokens.textContent = stats.completionTokens || 0;
@@ -1410,17 +892,12 @@ export function syncMobileStats(stats) {
   }
 }
 
-/**
- * Initialize config form event handlers
- */
 function initConfigHandlers() {
-  // Import the config module and call setupConfigEventHandlers
   import('./config.js')
     .then(module => {
       if (typeof module.setupConfigEventHandlers === 'function') {
         module.setupConfigEventHandlers();
       } else {
-        console.error('setupConfigEventHandlers function not found in config.js');
         captureMessage('setupConfigEventHandlers function not found', 'error');
       }
     })
@@ -1430,25 +907,12 @@ function initConfigHandlers() {
     });
 }
 
-/**
- * Safely add event listener ensuring no duplicates
- * @param {Element} element - DOM element to attach listener to
- * @param {string} eventType - Event type (e.g., 'click')
- * @param {Function} handler - Event handler function
- * @param {Object} options - addEventListener options
- */
 function safeAddEventListener(element, eventType, handler, options = {}) {
   if (!element) return false;
-
-  // Store event handlers on the element
   if (!element._eventHandlers) {
     element._eventHandlers = {};
   }
-
-  // Create a unique key for this handler
   const handlerKey = `${eventType}_${handler.name || 'anonymous'}`;
-
-  // If handler with this key exists, remove it first
   if (element._eventHandlers[handlerKey]) {
     element.removeEventListener(
       eventType,
@@ -1456,23 +920,14 @@ function safeAddEventListener(element, eventType, handler, options = {}) {
       element._eventHandlers[handlerKey].options
     );
   }
-
-  // Store reference to handler
   element._eventHandlers[handlerKey] = {
     fn: handler,
     options
   };
-
-  // Add the event listener
   element.addEventListener(eventType, handler, options);
   return true;
 }
 
-/**
- * Simple debounce function to prevent excessive function calls
- * @param {Function} func - The function to debounce
- * @param {number} wait - Debounce wait time in milliseconds
- */
 function debounce(func, wait) {
   let timeout;
   return function () {
@@ -1484,3 +939,4 @@ function debounce(func, wait) {
     }, wait);
   };
 }
+

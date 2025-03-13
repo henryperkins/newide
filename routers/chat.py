@@ -27,10 +27,11 @@ from models import Conversation, User
 from routers.security import get_current_user
 from services.chat_service import save_conversation
 from services.session_service import SessionService
-from utils import (
-    count_tokens,
+from common_utils import (
     is_o_series_model,
     is_deepseek_model,
+    process_vision_messages,
+    count_vision_tokens
 )
 
 router = APIRouter(prefix="/chat")
@@ -864,34 +865,4 @@ async def _model_chunks_async(stream_response):
         # Fallback if the response is not async for some reason
         for chunk in stream_response:
             yield chunk
-import re
-from utils.helpers import get_remote_image_size
-
-async def validate_vision_request(content: list):
-    """Validate vision-specific requirements"""
-    image_count = sum(1 for item in content if item.get("type") == "image_url")
-    
-    if image_count > config.O_SERIES_VISION_CONFIG["MAX_IMAGES_PER_REQUEST"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Maximum {config.O_SERIES_VISION_CONFIG['MAX_IMAGES_PER_REQUEST']} images per request"
-        )
-
-    for item in content:
-        if item.get("type") == "image_url":
-            url = item["image_url"]["url"]
-            if url.startswith("data:"):
-                if not re.match(config.O_SERIES_VISION_CONFIG["BASE64_HEADER_PATTERN"], url):
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Invalid base64 image header format"
-                    )
-                content_length = len(url) * 3 // 4  # Base64 approximate size
-            else:
-                content_length = await get_remote_image_size(url)
-                
-            if content_length > config.O_SERIES_VISION_CONFIG["MAX_IMAGE_SIZE_BYTES"]:
-                raise HTTPException(
-                    status_code=413,
-                    detail=f"Image size exceeds {config.O_SERIES_VISION_CONFIG['MAX_IMAGE_SIZE_BYTES']} bytes limit"
-                )
+# End of file

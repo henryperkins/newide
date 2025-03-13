@@ -220,7 +220,21 @@
             
             if (!response.ok) {
               const error = await response.json();
-              throw new Error(error.detail || response.statusText || "Registration failed");
+              
+              // Special handling for common errors like email already exists
+              if (error.detail === "Email already exists") {
+                // Highlight the email field directly
+                document.getElementById('email-error').textContent = 'This email is already registered. Please sign in instead.';
+                document.getElementById('email-error').classList.remove('hidden');
+                
+                // Also show in form error for visibility
+                document.getElementById('form-error').textContent = 'This email is already registered. Please try signing in instead.';
+                document.getElementById('form-error').classList.remove('hidden');
+                
+                throw new Error(error.detail);
+              } else {
+                throw new Error(error.detail || response.statusText || "Registration failed");
+              }
             }
             
             // Show success message
@@ -228,10 +242,14 @@
             
             // Auto-login after registration
             try {
+              // Create form data for login to match the expected Format(...) in the backend
+              const loginFormData = new FormData();
+              loginFormData.append("email", email);
+              loginFormData.append("password", password);
+
               const loginResp = await fetch("/auth/login", {
-                method: "POST", 
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({ email, password }),
+                method: "POST",
+                body: loginFormData
               });
               
               if (!loginResp.ok) {
@@ -246,7 +264,13 @@
               
               const loginData = await loginResp.json();
               localStorage.setItem("token", loginData.access_token);
+              localStorage.setItem("sessionId", loginData.session_id);
               
+              // Set the model for this session
+              await import('/static/js/session.js')
+                .then(({ switchSessionModel }) => switchSessionModel(loginData.session_id, 'o1'))
+                .catch(err => console.error('Failed to switch session model:', err));
+                
               // Redirect to main application
               setTimeout(() => {
                 window.location.href = "/static/index.html";
@@ -269,8 +293,12 @@
             formError.textContent = error.message || "Failed to register. Please try again.";
             formError.classList.remove('hidden');
             
-            // Show notification
-            showNotification("Registration failed", "error");
+            // Show notification with different messages based on error type
+            if (error.message === "Email already exists") {
+              showNotification("This email is already registered. Please sign in instead.", "warning", true);
+            } else {
+              showNotification("Registration failed", "error");
+            }
           } finally {
             // Hide loading indicator
             if (loader) loader.classList.add('hidden');
@@ -281,7 +309,7 @@
     });
     
     // Simple notification system
-    function showNotification(message, type = 'info') {
+    function showNotification(message, type = 'info', persist = false) {
       const container = document.getElementById('notification-container');
       if (!container) return;
       
@@ -315,7 +343,7 @@
         setTimeout(() => {
           notification.remove();
         }, 300);
-      }, 5000);
+      }, persist ? 10000 : 5000); // Display longer for important messages
     }
   </script>
 </body>

@@ -1,49 +1,36 @@
-// BEGIN FULL FILE CONTENT (de-duplicated createModelOnServer)
-
 import { showNotification, showConfirmDialog } from './ui/notificationManager.js';
 import { fetchWithErrorHandling, createCache, eventBus } from './utils/helpers.js';
 import { getModelAPIConfig, updateConfig } from './config.js';
 import { getSessionId } from './session.js';
 import { generateDefaultModelConfig, KNOWN_MODELS } from './utils/modelUtils.js';
-
 import { globalStore } from './store.js';
 
 class ModelManager {
     constructor() {
-        // If globalStore.currentModel is not set, default to 'DeepSeek-R1'
         if (!globalStore.currentModel) {
             globalStore.currentModel = 'DeepSeek-R1';
         }
-        // Ensure modelConfigs exists so it’s never undefined
         if (!globalStore.modelConfigs) {
             globalStore.modelConfigs = {};
         }
         this.isInitialized = false;
-        this.pendingModelActions = {}; // Initialize pendingModelActions to an empty object
+        this.pendingModelActions = {};
         this.modelConfigCache = createCache(5 * 60 * 1000);
     }
 
     get modelConfigs() {
-      return globalStore.modelConfigs;
+        return globalStore.modelConfigs;
     }
 
     async initialize() {
         try {
-            // First ensure we have the basic known models loaded
-            console.log("Pre-loading known models before server request");
             this.ensureLocalModelConfigs();
-
-            // Update the UI with what we have so far
             this.updateModelsList();
-
-            // Then try to fetch from server (will add any additional models)
             await this.refreshModelsList();
-
             if (!this.isInitialized) {
                 this.initModelManagement();
                 this.isInitialized = true;
             }
-
             const currentModel = await this.getCurrentModelFromServer() || Object.keys(globalStore.modelConfigs)[0];
             if (currentModel) {
                 globalStore.currentModel = currentModel;
@@ -53,16 +40,12 @@ class ModelManager {
             return true;
         } catch (error) {
             console.error('Error initializing ModelManager:', error);
-
-            // Make sure we at least have the known models
             this.ensureLocalModelConfigs();
             this.updateModelsList();
-
             if (!this.isInitialized) {
                 this.initModelManagement();
                 this.isInitialized = true;
             }
-
             eventBus.publish('modelInitError', { error });
             return false;
         }
@@ -80,12 +63,7 @@ class ModelManager {
             return models;
         } catch (error) {
             console.error('Error loading models:', error);
-
-            // Create known models from local defaults
-            console.log("Creating known models from local defaults");
             this.ensureLocalModelConfigs();
-
-            // Now update the models list using the local configs
             this.updateModelsList();
             return globalStore.modelConfigs;
         } finally {
@@ -101,7 +79,8 @@ class ModelManager {
                 <div class="flex items-center justify-center p-4 text-dark-500 dark:text-dark-400 text-sm">
                     <svg class="animate-spin h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                     Loading models...
                 </div>
@@ -144,14 +123,12 @@ class ModelManager {
 
             const cardHeader = document.createElement('div');
             cardHeader.className = 'flex flex-col sm:flex-row justify-between sm:items-center';
-
             const modelInfo = document.createElement('div');
             modelInfo.className = 'mb-2 sm:mb-0';
             modelInfo.innerHTML = `
                 <h3 class="font-medium text-base">${id}</h3>
                 <p class="text-sm text-dark-500 dark:text-dark-400">${modelConfig.description || 'No description'}</p>
             `;
-
             const actionButtons = document.createElement('div');
             actionButtons.className = 'flex space-x-2';
             actionButtons.innerHTML = `
@@ -168,7 +145,6 @@ class ModelManager {
                     </svg>
                 </button>
             `;
-
             cardHeader.appendChild(modelInfo);
             cardHeader.appendChild(actionButtons);
             card.appendChild(cardHeader);
@@ -200,7 +176,6 @@ class ModelManager {
                 useModelBtn.setAttribute('data-model-id', id);
                 card.appendChild(useModelBtn);
             }
-
             listContainer.appendChild(card);
         }
         this.attachModelActionListeners();
@@ -209,7 +184,6 @@ class ModelManager {
     attachModelActionListeners() {
         const listContainer = document.getElementById('models-list');
         if (!listContainer) return;
-
         listContainer.querySelectorAll('.edit-model-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -219,19 +193,16 @@ class ModelManager {
                 this.showModelForm('edit', modelId);
             });
         });
-
         listContainer.querySelectorAll('.delete-model-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 btn.classList.add('transform', 'scale-95');
                 setTimeout(() => btn.classList.remove('transform', 'scale-95'), 150);
-
                 const modelId = btn.getAttribute('data-model-id');
                 if (globalStore.currentModel === modelId) {
                     showNotification('Cannot delete the currently active model', 'warning');
                     return;
                 }
-
                 showConfirmDialog(
                     'Delete Model',
                     `Are you sure you want to delete the model "${modelId}"? This action cannot be undone.`,
@@ -239,7 +210,6 @@ class ModelManager {
                 );
             });
         });
-
         listContainer.querySelectorAll('.use-model-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -259,7 +229,6 @@ class ModelManager {
                 }
             });
         });
-
         listContainer.querySelectorAll('.card').forEach(card => {
             card.addEventListener('click', (e) => {
                 if (!e.target.closest('button')) {
@@ -285,12 +254,9 @@ class ModelManager {
             this.pendingModelActions[modelId] = 'delete';
             const modelCard = document.querySelector(`.card[data-model-id="${modelId}"]`);
             if (modelCard) modelCard.classList.add('opacity-50', 'pointer-events-none');
-
             const response = await fetch(`${window.location.origin}/api/config/models/${modelId}`, { method: 'DELETE' });
-
             delete this.pendingModelActions[modelId];
             if (modelCard) modelCard.classList.remove('opacity-50', 'pointer-events-none');
-
             if (response.ok) {
                 if (globalStore.modelConfigs[modelId]) delete globalStore.modelConfigs[modelId];
                 this.modelConfigCache.clear();
@@ -318,16 +284,12 @@ class ModelManager {
         const formMode = document.getElementById('model-form-mode');
         const formIdField = document.getElementById('model-form-id');
         const form = document.getElementById('model-form');
-
         if (!formContainer || !formTitle || !formMode || !formIdField || !form) return;
-
         form.reset();
         form.querySelectorAll('.form-error').forEach(el => el.remove());
         form.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
-
         formMode.value = mode;
         formTitle.textContent = (mode === 'add') ? 'Add New Model' : 'Edit Model';
-
         if (mode === 'edit' && modelId && globalStore.modelConfigs[modelId]) {
             const config = globalStore.modelConfigs[modelId];
             formIdField.value = modelId;
@@ -343,11 +305,10 @@ class ModelManager {
         } else {
             formIdField.value = '';
             document.getElementById('model-name').disabled = false;
-            document.getElementById('model-endpoint').value = 'https://o1models.openai.azure.com';
+            document.getElementById('model-endpoint').value = 'https://o1s.openai.azure.com';
             document.getElementById('model-api-version').value = '2025-01-01-preview';
             document.getElementById('model-max-tokens').value = '4096';
         }
-
         formContainer.classList.remove('hidden');
         requestAnimationFrame(() => {
             setTimeout(() => {
@@ -470,97 +431,49 @@ class ModelManager {
 
     async switchModel(modelId) {
         if (globalStore.currentModel === modelId) return true;
-
-        // Abort current streaming/inference if it's in progress
         if (window.currentController) {
-            console.log("[switchModel] Aborting current streaming inference...");
             window.currentController.abort();
             window.currentController = null;
-            // Provide a small user-facing confirmation
             showNotification('Stopped the current model inference; switching now...', 'info');
         }
-        console.log('[switchModel] Initiating switchModel for:', modelId, 'currentModel:', globalStore.currentModel);
-
-        // Check if model exists in configurations, create if it doesn't
         if (!globalStore.modelConfigs[modelId]) {
-            console.log(`Model ${modelId} not found in configurations, attempting to create it...`);
-
-            // Check if it's a known model
             const knownModel = KNOWN_MODELS.find(m => m.id.toLowerCase() === modelId.toLowerCase());
-
             if (knownModel) {
-                // Create the model config
                 const newConfig = generateDefaultModelConfig(modelId, knownModel.modelApiConfig);
                 globalStore.modelConfigs[modelId] = newConfig;
-
                 try {
-                    // Try to save to server
-                    const result = await this.createModelOnServer(modelId, newConfig);
-                    console.log(`Created model ${modelId} on server:`, result);
-                } catch (err) {
-                    console.warn(`Failed to create ${modelId} on server: ${err.message}`);
-                    // We still continue with the local config
-                }
+                    await this.createModelOnServer(modelId, newConfig);
+                } catch (err) { }
             } else {
                 console.error(`Model ${modelId} is not a known model and not in configurations`);
                 showNotification(`Model ${modelId} not available`, 'error');
                 return false;
             }
         }
-
         try {
             showNotification(`Switching to ${modelId}...`, 'info');
             this.pendingModelActions[modelId] = 'switch';
-            
-            // Get a valid session ID
             const sessionId = await getSessionId();
-            if (!sessionId) {
-                throw new Error('No valid session ID available');
-            }
-            
+            if (!sessionId) throw new Error('No valid session ID available');
             const modelConfig = globalStore.modelConfigs[modelId];
             const modelType = modelConfig.model_type || 'standard';
-
-            // Import the switchSessionModel function from session.js
             const { switchSessionModel } = await import('./session.js');
-            
-            // Use the dedicated session API to update the model
             const success = await switchSessionModel(sessionId, modelId);
-            
             delete this.pendingModelActions[modelId];
-
-            if (!success) {
-                throw new Error(`Failed to update session model to ${modelId}`);
-            }
-            
-            // Also update configs for consistency
+            if (!success) throw new Error(`Failed to update session model to ${modelId}`);
             try {
-                // Legacy config endpoint for backward compatibility
-                const configResponse = await fetch(`${window.location.origin}/api/config/models/switch`, {
+                await fetch(`${window.location.origin}/api/config/models/switch`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        model_id: modelId,
-                        session_id: sessionId
-                    })
+                    body: JSON.stringify({ model_id: modelId, session_id: sessionId })
                 });
-                
-                if (!configResponse.ok) {
-                    console.warn(`Legacy config model switch returned status ${configResponse.status}`);
-                }
-            } catch (configError) {
-                console.warn('Error updating legacy config endpoint:', configError);
-                // Continue anyway as the session update is the primary path
-            }
-
-            // Update UI or config as needed
+            } catch { }
             globalStore.currentModel = modelId;
             updateConfig({
                 selectedModel: modelId,
                 modelType: modelType,
                 apiVersion: modelConfig.api_version
             });
-
             showNotification(`Now using model: ${modelId}`, 'success');
             return true;
         } catch (error) {
@@ -572,81 +485,40 @@ class ModelManager {
     }
 
     ensureLocalModelConfigs() {
-        console.log("Beginning ensureLocalModelConfigs...");
-        console.log("KNOWN_MODELS:", KNOWN_MODELS);
-        console.log("Current modelConfigs:", Object.keys(globalStore.modelConfigs));
-
-        // Make sure o1 model is always created first and consistently
         const o1Model = KNOWN_MODELS.find(m => m.id.toLowerCase() === 'o1');
         let newConfig;
-        if (o1Model) {
-            console.log("Found o1 model in KNOWN_MODELS:", o1Model);
-            // Only create o1 if it doesn't exist
-            if (!globalStore.modelConfigs['o1']) {
-                newConfig = generateDefaultModelConfig('o1', o1Model.modelApiConfig);
-                globalStore.modelConfigs['o1'] = newConfig;
-            }
-            console.log("Explicitly added o1 model to modelConfigs");
-
-            // Skip server creation if it would fail or block
+        if (o1Model && !globalStore.modelConfigs['o1']) {
+            newConfig = generateDefaultModelConfig('o1', o1Model.modelApiConfig);
+            globalStore.modelConfigs['o1'] = newConfig;
             if (!this.pendingModelActions['o1'] && newConfig) {
-                this.createModelOnServer('o1', newConfig).catch(err =>
-                    console.warn(`Failed to create o1 on server: ${err.message}`)
-                );
+                this.createModelOnServer('o1', newConfig).catch(() => { });
             }
-        } else {
-            console.warn("O1 model not found in KNOWN_MODELS, this is unexpected");
         }
-
-        // Process remaining known models
         for (const { id, modelApiConfig } of KNOWN_MODELS) {
-            // Skip if already exists
-            if (globalStore.modelConfigs[id]) {
-                console.log(`Model ${id} already exists, skipping creation`);
-                continue;
-            }
-            // Skip o1 as we already explicitly handled it above
+            if (globalStore.modelConfigs[id]) continue;
             if (id.toLowerCase() === 'o1') continue;
-
-            console.log(`Processing known model: ${id}`);
-            const existingModel = Object.keys(globalStore.modelConfigs).find(
-                k => k.toLowerCase() === id.toLowerCase()
-            );
-
+            const existingModel = Object.keys(globalStore.modelConfigs).find(k => k.toLowerCase() === id.toLowerCase());
             if (!existingModel) {
-                console.log(`Model ${id} not found in configs, creating it...`);
                 const newConfig = generateDefaultModelConfig(id, modelApiConfig);
                 globalStore.modelConfigs[id] = newConfig;
-
                 if (!this.pendingModelActions[id] && newConfig) {
-                    this.createModelOnServer(id, newConfig)
-                        .catch(err => console.error(`Failed to create ${id} on server: ${err.message}`));
+                    this.createModelOnServer(id, newConfig).catch(() => { });
                 }
             } else if (existingModel !== id) {
-                console.log(`Found model with different case: ${existingModel} vs ${id}`);
                 globalStore.modelConfigs[id] = globalStore.modelConfigs[existingModel];
                 delete globalStore.modelConfigs[existingModel];
             }
         }
-
-        // Final verification
-        console.log("After ensuring configs - models available:", Object.keys(globalStore.modelConfigs));
-
-        // Add DeepSeek-R1 if missing (case-insensitive check)
-        console.log("Checking for DeepSeek-R1 existence...");
         const hasDeepSeek = Object.keys(globalStore.modelConfigs).some(k => k.toLowerCase().includes('deepseek'));
         if (!hasDeepSeek) {
-            console.log("Creating DeepSeek-R1 from template");
             const deepseekConfig = generateDefaultModelConfig('DeepSeek-R1', KNOWN_MODELS[1].modelApiConfig);
             if (deepseekConfig) {
                 globalStore.modelConfigs['DeepSeek-R1'] = deepseekConfig;
             }
         }
-
         if (!globalStore.modelConfigs['o1']) {
-            console.warn("O1 STILL MISSING - forcing creation with default config");
             const o1Default = {
-                endpoint: "https://o1models.openai.azure.com",
+                endpoint: "https://o1s.openai.azure.com",
                 apiVersion: "2025-01-01-preview",
                 maxTokens: 64000,
                 supportsTemperature: false,
@@ -658,7 +530,6 @@ class ModelManager {
                 globalStore.modelConfigs['o1'] = newConfig;
             }
         }
-
         return globalStore.modelConfigs;
     }
 
@@ -678,9 +549,7 @@ class ModelManager {
                 this.modelConfigCache.set(modelId, config);
                 return config;
             }
-        } catch (error) {
-            console.warn(`Failed to fetch model config for ${modelId}:`, error);
-        }
+        } catch { }
         const defaultConfig = await this.createDefaultModelConfig(modelId);
         if (defaultConfig) {
             globalStore.modelConfigs[modelId] = defaultConfig;
@@ -717,42 +586,29 @@ class ModelManager {
         const modelFormClose = document.getElementById('model-form-close');
         const modelFormCancel = document.getElementById('model-form-cancel');
         const modelForm = document.getElementById('model-form');
-
-        // Ensure the add model button works
         if (addModelBtn) {
-            // Remove any existing event listeners to prevent duplicates
             const newAddModelBtn = addModelBtn.cloneNode(true);
             addModelBtn.parentNode.replaceChild(newAddModelBtn, addModelBtn);
-
-            // Add the event listener to show model form
             newAddModelBtn.addEventListener('click', () => {
-                console.log('Add Model button clicked');
                 this.showModelForm('add');
             });
         }
-
         if (modelFormClose) {
             modelFormClose.addEventListener('click', () => this.hideModelForm());
         }
-
         if (modelFormCancel) {
             modelFormCancel.addEventListener('click', (e) => {
                 e.preventDefault();
                 this.hideModelForm();
             });
         }
-
         if (modelForm) {
-            // Ensure we don't have duplicate listeners
             const newModelForm = modelForm.cloneNode(true);
             modelForm.parentNode.replaceChild(newModelForm, modelForm);
-
             newModelForm.addEventListener('submit', (e) => {
-                console.log('Model form submitted');
                 this.handleModelFormSubmit(e);
             });
         }
-
         const modelSelect = document.getElementById('model-select');
         if (modelSelect) {
             modelSelect.addEventListener('change', async (e) => {
@@ -762,8 +618,6 @@ class ModelManager {
                 }
             });
         }
-
-        console.log('Model management UI initialized');
     }
 
     async updateModelSpecificUI(modelName) {
@@ -780,56 +634,39 @@ class ModelManager {
             const response = await fetch(`${window.location.origin}/api/config/current-model`);
             if (response.ok) {
                 const data = await response.json();
+                if (data.currentModel && data.currentModel.toLowerCase() === 'o1model') {
+                    data.currentModel = 'o1';
+                }
                 return data.currentModel || null;
             } else if (response.status === 404) {
-                console.info('Server returned 404 when getting current model - using first available model instead');
                 return Object.keys(globalStore.modelConfigs)[0] || null;
             } else {
-                console.warn(`Server returned ${response.status} when getting current model - using first available model instead`);
                 return Object.keys(globalStore.modelConfigs)[0] || null;
             }
-        } catch (error) {
-            console.warn('Failed to get current model from server:', error);
+        } catch {
             return Object.keys(globalStore.modelConfigs)[0] || null;
         }
     }
 
-    /**
-     * Creates or updates a model on the server using a POST request.
-     * @param {string} modelId - The ID of the model to create.
-     * @param {Object} modelConfig - The configuration object for the model.
-     * @returns {Promise<Object>} The server response JSON if successful.
-     */
     async createModelOnServer(modelId, modelConfig) {
-        // If there's already a pending action for this model, skip
-        if (this.pendingModelActions[modelId]) {
-            console.log('[createModelOnServer] Already pending creation for:', modelId, 'pendingAction:', this.pendingModelActions[modelId]);
-            return;
-        }
-
-        console.log('[createModelOnServer] Creating model on server:', modelId);
+        if (this.pendingModelActions[modelId]) return;
         this.pendingModelActions[modelId] = 'create';
-
         try {
             const response = await fetch(`${window.location.origin}/api/config/models/${encodeURIComponent(modelId)}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(modelConfig)
             });
-
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`[createModelOnServer] ${modelId} creation failed:`, errorText);
                 throw new Error(`Failed to create model ${modelId} on server: ${errorText}`);
             }
-
             const data = await response.json().catch(() => ({}));
             globalStore.modelConfigs[modelId] = modelConfig;
             this.modelConfigCache.clear();
-            console.log(`[createModelOnServer] ${modelId} created successfully on server.`, data);
             return data;
         } catch (error) {
-            console.error(`[createModelOnServer] Error creating model ${modelId}:`, error);
+            console.error(`[createModelOnServer] Error creating ${modelId}:`, error);
             throw error;
         } finally {
             delete this.pendingModelActions[modelId];
@@ -837,7 +674,4 @@ class ModelManager {
     }
 }
 
-// Final export (single instance)
 export const modelManager = new ModelManager();
-
-// END FULL FILE CONTENT
