@@ -62,6 +62,9 @@ export function initConversationManager() {
   // Set initialization flag
   sidebarInitialized = true;
 
+  // Initialize the conversation sidebar toggle
+  initConversationSidebarToggle();
+
   // Continue with normal setup
   setupEventListeners();
   loadConversations();
@@ -630,7 +633,7 @@ function initConversationSidebarToggle() {
   // Set up header toggle button
   if (conversationsToggleBtn) {
     console.log("[initConversationSidebarToggle] found toggle button");
-    conversationsToggleBtn.addEventListener('click', (e) => {
+    conversationsToggleBtn.addEventListener('click', function headerToggleClickHandler(e) {
       e.preventDefault();
       console.log("[initConversationSidebarToggle] toggle button clicked");
       const isOpen = conversationsSidebar.classList.contains('sidebar-open');
@@ -643,7 +646,7 @@ function initConversationSidebarToggle() {
   // Set up mobile toggle button
   if (mobileConversationsToggleBtn) {
     console.log("[initConversationSidebarToggle] found mobile toggle button");
-    mobileConversationsToggleBtn.addEventListener('click', (e) => {
+    mobileConversationsToggleBtn.addEventListener('click', function mobileToggleClickHandler(e) {
       e.preventDefault();
       console.log("[initConversationSidebarToggle] mobile toggle button clicked");
       const isOpen = conversationsSidebar.classList.contains('sidebar-open');

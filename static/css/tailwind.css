@@ -146,13 +146,14 @@
     position: relative;
   }
 
+  /* Fix: Use a grid layout for chat container with explicit footer area */
   .chat-container {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
+    display: grid;
+    grid-template-rows: 1fr auto;
+    height: 100%;
     position: relative;
     z-index: 10;
-    /* Ensure higher than sidebar */
+    overflow: hidden;
   }
 
   /* Remove overflow: hidden on smaller screens */
@@ -242,13 +243,13 @@
     height: calc(var(--vh, 1vh) * 100);
   }
 
+  /* Fix: Make chat history overflow properly without impacting input area */
   #chat-history {
-    height: var(--chat-height);
     overflow-y: auto;
     scroll-behavior: smooth;
     padding-bottom: 1rem;
     overscroll-behavior-y: contain;
-    /* Prevent page scrolling when chat history is scrolled */
+    max-height: calc(100vh - 185px); /* Header + input area height */
   }
 
   /* Conversation area enhancements */
@@ -336,11 +337,13 @@
     color: #e5e7eb;
   }
 
-  /* Ensure the send button is always visible */
+  /* Fix: Make input area fixed in grid layout to prevent scrolling issues */
   .input-area {
-    position: relative;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
     z-index: 30;
-    /* Higher than sidebar z-index */
     padding: 1rem;
     padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0));
     background-color: white;
@@ -519,9 +522,7 @@
     }
 
     #chat-history {
-      padding-bottom: 1rem;
-      /* Provide a max-height to prevent overscroll beyond input area */
-      max-height: calc(100vh - 64px - 80px - 2rem);
+      padding-bottom: 80px; /* Add extra padding to account for fixed input area height */
       @apply scrollbar-hide;
     }
 
@@ -622,6 +623,11 @@
   }
 }
 
+/* Add extra bottom margin to the last message to ensure visibility above input area */
+.message:last-child {
+  margin-bottom: 70px;
+}
+
 /* Override any CSS that might be hiding message content */
 .assistant-message[data-streaming="true"],
 .assistant-message[data-streaming="true"]>div,
@@ -692,13 +698,10 @@
     min-width: 2.5rem;
   }
 
-  .input-area {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background-color: #ffffff;
-    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0));
+  /* Input area is already fixed in the main styles */
+  
+  .dark .input-area {
+    background-color: theme('colors.dracula.background');
   }
 
   #conversation-list {
@@ -758,4 +761,14 @@
     touch-action: pan-y;
     user-select: text;
   }
+}
+
+/* Fix the main container to allow proper positioning of input area */
+#main-content {
+  position: relative;
+}
+
+/* Ensure chat container has enough padding at the bottom */
+#chat-container {
+  padding-bottom: 100px;
 }

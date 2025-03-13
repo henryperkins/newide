@@ -225,32 +225,49 @@ async function initApplication() {
     initTabSystem();
     
     // 6. Initialize sidebar system first
-    const { sidebarManager } = await import('./ui/sidebarManager.js');
-    if (typeof sidebarManager.initEventListeners === 'function') {
+    const { sidebarManager, initSidebar, toggleSidebar } = await import('./ui/sidebarManager.js');
+    
+    // Initialize using either the direct function or via the manager object
+    if (typeof initSidebar === 'function') {
+      console.log("Calling initSidebar directly");
+      initSidebar();
+    } else if (typeof sidebarManager?.initEventListeners === 'function') {
+      console.log("Calling sidebarManager.initEventListeners");
       sidebarManager.initEventListeners();
+    } else {
+      console.error("Could not find proper sidebar initialization function");
     }
     
     // Make sure toggleConversationSidebar is available globally
     window.toggleConversationSidebar = function(show) {
-      import('./ui/sidebarManager.js').then(module => {
-        const sidebar = document.getElementById('conversations-sidebar');
-        const isOpen = sidebar ? sidebar.classList.contains('sidebar-open') : false;
+      const sidebar = document.getElementById('conversations-sidebar');
+      const isOpen = sidebar ? sidebar.classList.contains('sidebar-open') : false;
+    
+      // If show is undefined, toggle based on current state
+      if (typeof show === 'undefined') {
+        show = !isOpen;
+      }
       
-        // If show is undefined, toggle based on current state
-        if (typeof show === 'undefined') {
-          show = !isOpen;
-        }
+      console.log("[window.toggleConversationSidebar] called with show:", show);
       
-        if (typeof module.toggleSidebar === 'function') {
-          module.toggleSidebar('conversations-sidebar', show);
-        } else if (typeof module.sidebarManager?.toggleSidebar === 'function') {
-          module.sidebarManager.toggleSidebar('conversations-sidebar', show);
-        } else {
-          console.error("toggleSidebar function not found in sidebarManager module");
+      if (typeof toggleSidebar === 'function') {
+        toggleSidebar('conversations-sidebar', show);
+      } else if (typeof sidebarManager?.toggleSidebar === 'function') {
+        sidebarManager.toggleSidebar('conversations-sidebar', show);
+      } else {
+        console.error("toggleSidebar function not found in sidebarManager module");
+        // Fallback implementation as a last resort
+        if (sidebar) {
+          if (show) {
+            sidebar.classList.remove('hidden');
+            sidebar.classList.remove('-translate-x-full');
+            sidebar.classList.add('sidebar-open');
+          } else {
+            sidebar.classList.remove('sidebar-open');
+            sidebar.classList.add('-translate-x-full');
+          }
         }
-      }).catch(err => {
-        console.error("Error toggling conversation sidebar:", err);
-      });
+      }
     };
 
     // 7. Initialize conversation system after sidebar

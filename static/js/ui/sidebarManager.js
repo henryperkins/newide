@@ -17,7 +17,7 @@ function initSidebar() {
 
   // Sidebar toggle button
   if (toggleButton) {
-    safeAddEventListener(toggleButton, 'click', 'toggleSidebar', () => {
+    safeAddEventListener(toggleButton, 'click', 'toggleSidebar', function toggleSidebarHandler() {
       console.log("Sidebar toggle button clicked");
       const isOpen = sidebar.classList.contains('sidebar-open');
       toggleSidebar('sidebar', !isOpen);
@@ -26,7 +26,7 @@ function initSidebar() {
 
   // Close button in sidebar
   if (closeButton) {
-    safeAddEventListener(closeButton, 'click', 'closeSidebar', () => {
+    safeAddEventListener(closeButton, 'click', 'closeSidebar', function closeSidebarHandler() {
       toggleSidebar('sidebar', false);
     });
   }
@@ -37,12 +37,12 @@ function initSidebar() {
   const TOUCH_THRESHOLD = 30;
   const TOUCH_TIME_THRESHOLD = 500;
 
-  safeAddEventListener(sidebar, 'touchstart', 'sidebarTouchStart', (e) => {
+  safeAddEventListener(sidebar, 'touchstart', 'sidebarTouchStart', function sidebarTouchStartHandler(e) {
     touchStartX = e.touches[0].clientX;
     touchStartTime = Date.now();
   }, { passive: true });
 
-  safeAddEventListener(sidebar, 'touchmove', 'sidebarTouchMove', (e) => {
+  safeAddEventListener(sidebar, 'touchmove', 'sidebarTouchMove', function sidebarTouchMoveHandler(e) {
     const currentX = e.touches[0].clientX;
     const deltaX = currentX - touchStartX;
     
@@ -53,7 +53,7 @@ function initSidebar() {
     }
   }, { passive: true });
 
-  safeAddEventListener(sidebar, 'touchend', 'sidebarTouchEnd', (e) => {
+  safeAddEventListener(sidebar, 'touchend', 'sidebarTouchEnd', function sidebarTouchEndHandler(e) {
     const deltaX = e.changedTouches[0].clientX - touchStartX;
     const deltaTime = Date.now() - touchStartTime;
     
@@ -67,7 +67,7 @@ function initSidebar() {
   }, { passive: true });
 
   // Register keyboard shortcut (ESC to close sidebar)
-  safeAddEventListener(document, 'keydown', 'escCloseSidebar', (e) => {
+  safeAddEventListener(document, 'keydown', 'escCloseSidebar', function escCloseSidebarHandler(e) {
     if (e.key === 'Escape') {
       const rightSidebar = document.getElementById('sidebar');
       const leftSidebar = document.getElementById('conversations-sidebar');
@@ -241,7 +241,7 @@ function initConversationSidebar() {
 
   // Set up header toggle button
   if (toggleButton) {
-    safeAddEventListener(toggleButton, 'click', 'toggleConversationSidebar', () => {
+    safeAddEventListener(toggleButton, 'click', 'toggleConversationSidebar', function toggleConversationHandler() {
       console.log("Conversations toggle clicked");
       const isOpen = sidebar.classList.contains('sidebar-open');
       toggleSidebar('conversations-sidebar', !isOpen);
@@ -250,7 +250,7 @@ function initConversationSidebar() {
   
   // Set up mobile toggle button
   if (mobileToggleButton) {
-    safeAddEventListener(mobileToggleButton, 'click', 'mobileToggleConversationSidebar', (e) => {
+    safeAddEventListener(mobileToggleButton, 'click', 'mobileToggleConversationSidebar', function mobileToggleHandler(e) {
       e.preventDefault();
       console.log("Mobile conversations toggle clicked");
       const isOpen = sidebar.classList.contains('sidebar-open');
@@ -261,7 +261,7 @@ function initConversationSidebar() {
   // Set up overlay click to close sidebar
   const overlay = document.getElementById('sidebar-overlay');
   if (overlay) {
-    safeAddEventListener(overlay, 'click', 'overlayClickClose', () => {
+    safeAddEventListener(overlay, 'click', 'overlayClickClose', function overlayClickHandler() {
       const rightSidebar = document.getElementById('sidebar');
       const leftSidebar = document.getElementById('conversations-sidebar');
       
@@ -282,9 +282,5 @@ export function toggleConversationSidebar(show) {
 }
 
 // Initialize the module
-export function initSidebar() {
-  initSidebar();
-}
-
-// Export for external use
-export { toggleSidebar, initConversationSidebar };
+// Export the initSidebar function directly for imports that use it
+export { initSidebar, initConversationSidebar };

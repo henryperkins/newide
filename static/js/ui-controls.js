@@ -1,5 +1,5 @@
 window.addEventListener('DOMContentLoaded', () => {
-  // Import the proper sidebar toggle function
+  // Import the proper sidebar toggle function and set it globally
   import('./ui/sidebarManager.js').then(module => {
     // Set up direct access to toggleSidebar for inline handlers
     window.toggleConversationSidebar = function(show) {
@@ -11,11 +11,24 @@ window.addEventListener('DOMContentLoaded', () => {
         show = !isOpen;
       }
       
-      module.toggleSidebar('conversations-sidebar', show);
+      console.log("[window.toggleConversationSidebar] called with show:", show);
+      
+      if (typeof module.toggleSidebar === 'function') {
+        module.toggleSidebar('conversations-sidebar', show);
+      } else if (typeof module.sidebarManager?.toggleSidebar === 'function') {
+        module.sidebarManager.toggleSidebar('conversations-sidebar', show);
+      } else {
+        console.error("toggleSidebar function not found in sidebarManager module");
+      }
     };
     
-    // We don't need to set up event listeners here anymore
-    // They are now centralized in sidebarManager.js
+    // Initialize the sidebar functionality
+    if (typeof module.initSidebar === 'function') {
+      module.initSidebar();
+    } else if (typeof module.sidebarManager?.initEventListeners === 'function') {
+      module.sidebarManager.initEventListeners();
+    }
+    
   }).catch(err => {
     console.error("Error setting up conversation toggle:", err);
   });

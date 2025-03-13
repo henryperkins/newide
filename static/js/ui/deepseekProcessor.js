@@ -222,7 +222,8 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
     wrapper.setAttribute("data-streaming", "true");
     
     // Add min-height to prevent layout shifts
-    wrapper.style.minHeight = "80px";
+    // Removed forced minHeight to reduce layout jitter
+    // wrapper.style.minHeight = "";
     
     wrapper.innerHTML = `
       <details open>
@@ -289,15 +290,10 @@ function renderThinkingContainer(parentContainer, thinkingText, options = {}) {
     contentElement.textContent = textToRender;
     
     // CRITICAL FIX: Preserve height during content change if new content would be smaller
-    if (previousHeight > contentElement.offsetHeight && previousHeight > 20) {
-      contentElement.style.minHeight = `${previousHeight}px`;
-      
-      // After a brief delay, allow height to adjust naturally
-      setTimeout(() => {
-        contentElement.style.minHeight = "20px"; // Reset to minimum
-        contentElement.style.transition = "min-height 0.3s ease-out";
-      }, 100);
-    }
+    /*
+    Removed forced minHeight adjustments and transition to reduce jitter
+    during final display of DeepSeek-R1 chain-of-thought content.
+    */
   }
 
   return contentElement;
