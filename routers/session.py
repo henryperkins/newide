@@ -140,7 +140,16 @@ async def initialize_session_services(session_id: str, azure_client: Any):
         # Only initialize Azure search if this is the DeepSeek-R1 model
         if azure_deployment == "DeepSeek-R1":
             logger.info(f"Initializing Azure Search for DeepSeek-R1 session {session_id}")
-            search_service = AzureSearchService(azure_client)
+            
+            # Get headers from client if available
+            existing_headers = getattr(azure_client, "headers", {})
+            required_headers = {
+                "x-ms-thinking-format": "html",
+                "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION
+            }
+            merged_headers = {**existing_headers, **required_headers}
+            
+            search_service = AzureSearchService(azure_client, headers=merged_headers)
             await search_service.create_search_index(session_id)
 
     except Exception as e:

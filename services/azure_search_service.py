@@ -11,13 +11,14 @@ logger = logging.getLogger(__name__)
 class AzureSearchService:
     """Service for interacting with Azure AI Search"""
 
-    def __init__(self, azure_client=None):
+    def __init__(self, azure_client=None, headers=None):
         self.endpoint = config.AZURE_SEARCH_ENDPOINT
         self.api_key = config.AZURE_SEARCH_KEY
         self.api_version = config.MODEL_API_VERSIONS.get(
             "default", "2025-02-01-preview"
         )
         self.azure_client = azure_client
+        self.headers = headers or {}
 
     async def create_search_index(self, session_id: str) -> bool:
         """
@@ -43,6 +44,9 @@ class AzureSearchService:
             # Create index
             url = f"{self.endpoint}/indexes/{index_name}?api-version={self.api_version}"
             headers = {"Content-Type": "application/json", "api-key": self.api_key}
+            
+            # Merge with custom headers
+            headers.update(self.headers)
 
             async with aiohttp.ClientSession() as session:
                 async with session.put(url, headers=headers, json=index_schema) as response:
@@ -77,6 +81,9 @@ class AzureSearchService:
             # Delete index
             url = f"{self.endpoint}/indexes/{index_name}?api-version={self.api_version}"
             headers = {"api-key": self.api_key}
+            
+            # Merge with custom headers
+            headers.update(self.headers)
 
             async with aiohttp.ClientSession() as session:
                 async with session.delete(url, headers=headers) as response:
@@ -200,6 +207,9 @@ class AzureSearchService:
             # Upload documents to index
             url = f"{self.endpoint}/indexes/{index_name}/docs/index?api-version={self.api_version}"
             headers = {"Content-Type": "application/json", "api-key": self.api_key}
+            
+            # Merge with custom headers
+            headers.update(self.headers)
 
             # Split into batches if many documents
             batch_size = 10
@@ -244,6 +254,9 @@ class AzureSearchService:
             # Query to find documents to delete
             url = f"{self.endpoint}/indexes/{index_name}/docs/search?api-version={self.api_version}"
             headers = {"Content-Type": "application/json", "api-key": self.api_key}
+            
+            # Merge with custom headers
+            headers.update(self.headers)
 
             search_payload = {
                 "search": "*",
@@ -367,6 +380,9 @@ class AzureSearchService:
             # Execute search
             url = f"{self.endpoint}/indexes/{index_name}/docs/search?api-version={self.api_version}"
             headers = {"Content-Type": "application/json", "api-key": self.api_key}
+            
+            # Merge with custom headers
+            headers.update(self.headers)
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=search_payload) as response:
