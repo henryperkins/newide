@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select, delete, update, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 import sentry_sdk
+from common_utils import count_tokens
 
 # Local modules
 from logging_config import logger
@@ -250,7 +251,7 @@ async def clear_conversation(
         del_stmt = delete(Conversation).where(Conversation.session_id == session_db.id)
         await db.execute(del_stmt)
         # Delete session row using SessionService
-        await SessionService.delete_session(str(session_db.id), db_session=db)
+        # await SessionService.delete_session(str(session_db.id), db_session=db)
 
         return {"status": "cleared"}
     except Exception as exc:

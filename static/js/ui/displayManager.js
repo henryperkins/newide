@@ -528,6 +528,11 @@ export async function createAndSetupNewConversation() {
 }
 
 export async function createNewConversation(pinned = false, archived = false, title = 'New Conversation') {
+  const existingSessionId = sessionStorage.getItem('sessionId');
+  if (existingSessionId) {
+    console.log('Reusing existing session:', existingSessionId);
+    return existingSessionId;
+  }
   try {
     const response = await fetch(`${window.location.origin}/api/chat/conversations`, {
       method: 'POST',
