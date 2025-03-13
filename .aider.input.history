@@ -13299,3 +13299,99 @@
 
 # 2025-03-13 02:40:15.095364
 +no
+
+# 2025-03-13 03:18:10.395345
++/web https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/gpt-with-vision?tabs=python
+
+# 2025-03-13 03:18:13.055291
++yes
+
+# 2025-03-13 03:18:52.795153
++add vision support for o1
+
+# 2025-03-13 03:19:13.795128
++yes
+
+# 2025-03-13 03:19:45.654964
++no
+
+# 2025-03-13 03:19:51.995127
++/add clients.py
+
+# 2025-03-13 03:20:01.735099
++/add chat.py
+
+# 2025-03-13 03:20:04.380221
++no
+
+# 2025-03-13 03:20:08.595135
++/add routers/chat.py
+
+# 2025-03-13 03:20:15.335037
++/add services/chat_service.py
+
+# 2025-03-13 03:20:21.915140
++/add static/js/chat.js
+
+# 2025-03-13 03:20:26.714909
++/add services/streaming_helpers.py
+
+# 2025-03-13 03:20:36.775181
++/add static/js/streaming.js
+
+# 2025-03-13 03:20:55.444754
++add vision support for o1
+
+# 2025-03-13 03:21:23.574307
++no
+
+# 2025-03-13 03:21:29.774473
++/add docs/o1models-reference-guide.md
+
+# 2025-03-13 03:21:32.854733
++add vision support for o1
+
+# 2025-03-13 03:22:09.536013
++yes
+
+# 2025-03-13 03:26:55.147817
++add vision support for o1
+
+# 2025-03-13 03:27:43.907531
++yes
+
+# 2025-03-13 03:30:06.972761
++add vision support for o1
+
+# 2025-03-13 03:31:07.132201
++yes
+
+# 2025-03-13 03:36:53.000420
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-13 03:37:00.230314
++yes
+
+# 2025-03-13 03:37:06.090399
++/add utils/helpers.py
+
+# 2025-03-13 03:37:15.030236
++whats wrong?
+
+# 2025-03-13 03:38:19.774249
++yes
+
+# 2025-03-13 03:42:42.251299
++no
+
+# 2025-03-13 03:42:45.731406
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-13 03:42:51.710988
++yee
+
+# 2025-03-13 03:42:53.631193
++yes
+
+# 2025-03-13 03:44:41.236693
++no
