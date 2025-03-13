@@ -764,3 +764,18 @@ function adjustFontSize(direction) {
   document.documentElement.classList.add(sizes[newIndex]);
   localStorage.setItem('fontSize', sizes[newIndex]);
 }
+function createMessageWithImages(text, images) {
+    return {
+        role: "user",
+        content: [
+            { type: "text", text: text },
+            ...images.map(img => ({
+                type: "image_url",
+                image_url: {
+                    url: img.url,
+                    detail: img.detail || "auto"
+                }
+            }))
+        ]
+    };
+}

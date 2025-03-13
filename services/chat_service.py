@@ -650,19 +650,32 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
 import os
 
 async def process_vision_content(content: list):
-    """Process vision content for o1 model"""
+    """Process vision content for o1 model with improved validation"""
     processed_content = []
     
     for item in content:
         if item["type"] == "image_url":
             image_url = item["image_url"]["url"]
             
-            # Handle base64 encoding for local images
-            if image_url.startswith("/"):  # Assume local path
-                if not os.path.exists(image_url):
-                    raise ValueError(f"Image path not found: {image_url}")
-                image_url = encode_image_to_base64(image_url)
+            # Handle local files with proper MIME type detection
+            if image_url.startswith(('http://', 'https://')):
+                # Validate remote URL
+                if not await validate_image_url(image_url):
+                    raise ValueError(f"Invalid image URL: {image_url}")
+            elif os.path.isfile(image_url):
+                # Encode local file with proper MIME type
+                mime_type, _ = mimetypes.guess_type(image_url)
+                if mime_type not in config.O_SERIES_VISION_CONFIG["ALLOWED_MIME_TYPES"]:
+                    raise ValueError(f"Unsupported image type: {mime_type}")
                 
+                with open(image_url, "rb") as image_file:
+                    encoded = base64.b64encode(image_file.read()).decode("utf-8")
+                    image_url = f"data:{mime_type};base64,{encoded}"
+            elif image_url.startswith("data:"):
+                # Validate base64 format
+                if not re.match(config.O_SERIES_VISION_CONFIG["BASE64_HEADER_PATTERN"], image_url):
+                    raise ValueError("Invalid base64 image format")
+
             processed_content.append({
                 "type": "image_url",
                 "image_url": {

@@ -777,10 +777,20 @@ async def generate_stream_chunks(  # noqa: C901
                 yield f"data: {json.dumps({'text': 'Error generating streaming response. Please try again.'})}\n\n"
                 
         elif is_o_series:
-            # Suppress Pylance type issues by forcing these entries to Any
-            params["max_completion_tokens"] = int(O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS)  # type: ignore
-            params["reasoning_effort"] = str(reasoning_effort)  # type: ignore
-            params["model"] = model_name  # type: ignore
+            params.update({
+                "max_completion_tokens": O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
+                "detail": "auto",
+                "headers": {
+                    "x-ms-vision": "enable",
+                    "x-ms-image-detail": "auto"
+                }
+            })
+            try:
+                params["messages"] = await process_vision_messages(params["messages"])
+            except ValueError as e:
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                return
+
             # O-series uses different client
             stream_response = await client.chat.completions.create(**params)
             async for chunk in stream_response:
