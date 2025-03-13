@@ -1,37 +1,7 @@
 window.addEventListener('DOMContentLoaded', () => {
   // Import the proper sidebar toggle function and set it globally
-  import('./ui/sidebarManager.js').then(module => {
-    // Set up direct access to toggleSidebar for inline handlers
-    window.toggleConversationSidebar = function(show) {
-      const sidebar = document.getElementById('conversations-sidebar');
-      const isOpen = sidebar ? sidebar.classList.contains('sidebar-open') : false;
-      
-      // If show is undefined, toggle based on current state
-      if (typeof show === 'undefined') {
-        show = !isOpen;
-      }
-      
-      console.log("[window.toggleConversationSidebar] called with show:", show);
-      
-      if (typeof module.toggleSidebar === 'function') {
-        module.toggleSidebar('conversations-sidebar', show);
-      } else if (typeof module.sidebarManager?.toggleSidebar === 'function') {
-        module.sidebarManager.toggleSidebar('conversations-sidebar', show);
-      } else {
-        console.error("toggleSidebar function not found in sidebarManager module");
-      }
-    };
-    
-    // Initialize the sidebar functionality
-    if (typeof module.initSidebar === 'function') {
-      module.initSidebar();
-    } else if (typeof module.sidebarManager?.initEventListeners === 'function') {
-      module.sidebarManager.initEventListeners();
-    }
-    
-  }).catch(err => {
-    console.error("Error setting up conversation toggle:", err);
-  });
+  /* Removed duplicated 'toggleConversationSidebar' setup to avoid conflicts.
+     Rely on conversationManager.js and sidebarManager.js for toggle logic. */
   
   console.log("Sidebar functionality enhanced in ui-controls.js");
 

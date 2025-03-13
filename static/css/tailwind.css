@@ -82,10 +82,7 @@
   }
 
   @media (min-width: 768px) {
-    body {
-      overflow: hidden;
-      /* Only restrict overflow on larger screens */
-    }
+      /* Removed forced overflow hidden on larger screens */
   }
 
   .dark {
