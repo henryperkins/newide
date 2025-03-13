@@ -218,6 +218,25 @@ AZURE_INFERENCE_API_VERSION = os.getenv(
 )
 AZURE_INFERENCE_ENDPOINT = os.getenv("AZURE_INFERENCE_ENDPOINT", "")
 
+O_SERIES_VISION_CONFIG = {
+    "ENABLED": True,
+    "MAX_IMAGE_SIZE_BYTES": 20000000,  # 20MB
+    "MAX_IMAGES_PER_REQUEST": 10,
+    "ALLOWED_MIME_TYPES": [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif"
+    ],
+    "DETAIL_LEVELS": ["low", "high", "auto"],
+    "BASE64_HEADER_PATTERN": r"^data:image/(jpeg|png|webp|gif);base64,",
+    "MAX_TOKENS_MULTIPLIER": {
+        "low": 1.0,
+        "high": 2.5,
+        "auto": 1.8
+    }
+}
+
 # o-series specific settings (o1, o3-mini)
 O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS = (
     100000  # o-series uses max_completion_tokens instead of max_tokens
