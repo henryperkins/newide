@@ -55,7 +55,8 @@ class ModelRegistry:
             "vision_config": {
                 "max_images": config.O_SERIES_VISION_CONFIG["MAX_IMAGES_PER_REQUEST"],
                 "detail_levels": config.O_SERIES_VISION_CONFIG["DETAIL_LEVELS"],
-                "timeout": config.Settings().O_SERIES_VISION_TIMEOUT
+                "timeout": config.Settings().O_SERIES_VISION_TIMEOUT,
+                "token_multipliers": config.O_SERIES_VISION_CONFIG["MAX_TOKENS_MULTIPLIER"]
             },
             "headers": {
                 "x-ms-vision-enabled": "true",

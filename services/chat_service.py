@@ -8,6 +8,8 @@ from sqlalchemy import insert, text
 from logging_config import logger, response_logger
 import config
 from pydantic_models import ChatMessage
+import re
+import mimetypes
 import base64
 
 def encode_image_to_base64(image_path: str) -> str:
