@@ -5,37 +5,6 @@
 /**
  * Initialize the sidebar and mobile menu functionality
  */
-  initEventListeners() {
-    // Unified key handler for all sidebars
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        const openSidebars = Object.values(this.sidebars).filter(({element}) => 
-          element.classList.contains('sidebar-open')
-        );
-        if (openSidebars.length > 0) {
-          e.preventDefault();
-          openSidebars.forEach(({element}) => this.close(element.id));
-        }
-      }
-    });
-
-    // Window resize handler
-    window.addEventListener('resize', () => this.handleResponsive());
-    
-    // Initialize all sidebar toggle buttons
-    Object.entries(this.sidebars).forEach(([position, {element, toggleButton, overlay}]) => {
-      if (toggleButton) {
-        toggleButton.addEventListener('click', (e) => {
-          e.preventDefault();
-          this.toggle(element.id);
-        });
-      }
-
-      if (overlay) {
-        overlay.addEventListener('click', () => this.close(element.id));
-      }
-    });
-  }
 
   // Sidebar toggle button
   if (toggleButton) {

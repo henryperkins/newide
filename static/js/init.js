@@ -232,10 +232,6 @@ async function initApplication() {
     // 7. Initialize conversation system after sidebar
     const { initConversationManager } = await import('./ui/conversationManager.js');
     await initConversationManager();
-    }).catch(err => {
-      console.error('Failed to load conversationManager:', err);
-      captureError(err, { context: 'Loading conversation manager' });
-    });
 
     // 6. Initialize existing thinking blocks
     deepSeekProcessor.initializeExistingBlocks();
