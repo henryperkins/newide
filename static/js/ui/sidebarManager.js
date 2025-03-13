@@ -5,29 +5,37 @@
 /**
  * Initialize the sidebar and mobile menu functionality
  */
-export function initSidebar() {
-  console.log("Initializing sidebar and menu functionality...");
+  initEventListeners() {
+    // Unified key handler for all sidebars
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const openSidebars = Object.values(this.sidebars).filter(({element}) => 
+          element.classList.contains('sidebar-open')
+        );
+        if (openSidebars.length > 0) {
+          e.preventDefault();
+          openSidebars.forEach(({element}) => this.close(element.id));
+        }
+      }
+    });
 
-  const toggleButton = document.getElementById('sidebar-toggle');
-  const sidebar = document.getElementById('sidebar');
-  const overlay = document.getElementById('sidebar-overlay');
-  const closeButton = document.getElementById('close-sidebar');
-  const resizeObserver = new ResizeObserver(() => {
-    sidebar.style.transform = sidebar.classList.contains('sidebar-open') 
-      ? 'translate3d(0, 0, 0)'
-      : 'translate3d(100%, 0, 0)';
-  });
+    // Window resize handler
+    window.addEventListener('resize', () => this.handleResponsive());
+    
+    // Initialize all sidebar toggle buttons
+    Object.entries(this.sidebars).forEach(([position, {element, toggleButton, overlay}]) => {
+      if (toggleButton) {
+        toggleButton.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.toggle(element.id);
+        });
+      }
 
-  // Cleanup function to be called when component unmounts
-  const cleanup = () => {
-    resizeObserver.disconnect();
-    window.removeEventListener('resize', handleResize);
-    document.removeEventListener('keydown', handleKeyPress);
-    if (overlay) overlay.removeEventListener('click', handleOverlayClick);
-  };
-
-  // Return cleanup function along with initialization
-  return cleanup;
+      if (overlay) {
+        overlay.addEventListener('click', () => this.close(element.id));
+      }
+    });
+  }
 
   if (!sidebar) {
     console.error("Sidebar element not found");

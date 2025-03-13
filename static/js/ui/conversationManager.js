@@ -654,10 +654,6 @@ function initConversationSidebarToggle() {
   }
 }
 
-// Call this function during initialization
-document.addEventListener('DOMContentLoaded', () => {
-  initConversationSidebarToggle();
-});
 
 /**
  * Create a new conversation and set it in session storage, then clear the conversation list in the UI

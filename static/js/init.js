@@ -192,31 +192,46 @@ async function initApplication() {
     // 1. Initialize theme switcher
     initThemeSwitcher();
 
-    // 2. Initialize session FIRST before other components
-    const sessionId = await ensureValidSession();
-    
-    // Set session ID as user ID for Sentry
-    if (sessionId) {
-      window.sentryUser = { id: sessionId };
-      import('./sentryInit.js').then(module => {
-        module.setUser(window.sentryUser);
-        module.setTag('session_id', sessionId);
-      });
-    }
-
-    // 3. Initialize tab system with proper handling
-    initTabSystem();
-
-    // 4. Initialize sidebar with corrected mobile/desktop behavior
-    initSidebar();
-    import('./ui/sidebarManager.js').then(({ initConversationSidebar }) => {
-      initConversationSidebar();
+    // 2. Initialize Sentry before any monitoring calls
+    const sentryInitPromise = import('./sentryInit.js').then(module => {
+      if (typeof window.Sentry === "undefined") {
+        return module.initSentry({
+          dsn: window.SENTRY_DSN || 'https://d815bc9d689a9255598e0007ae5a2f67@o4508070823395328.ingest.us.sentry.io/4508935977238528',
+          environment: window.SENTRY_ENVIRONMENT || 'development',
+          release: window.SENTRY_RELEASE || '1.0.0',
+          tracesSampleRate: 1.0,
+          replaysSessionSampleRate: 0.1,
+          replaysOnErrorSampleRate: 1.0,
+          maskAllInputs: true,
+        });
+      }
+      return module;
     });
 
-    // 5. Initialize conversation manager (for sidebar)
-    import('./ui/conversationManager.js').then(module => {
-      module.initConversationManager();
-    }).catch(err => {
+    // 3. Initialize session and wait for completion
+    const sessionId = await ensureValidSession();
+    
+    // 4. Configure Sentry with session ID after initialization
+    await sentryInitPromise.then(module => {
+      if (sessionId) {
+        window.sentryUser = { id: sessionId };
+        module.setUser(window.sentryUser);
+        module.setTag('session_id', sessionId);
+      }
+      module.captureMessage('Application initialization started', 'info');
+    });
+
+    // 5. Initialize core UI components
+    initTabSystem();
+    
+    // 6. Initialize sidebar system first
+    const { sidebarManager } = await import('./ui/sidebarManager.js');
+    sidebarManager.initEventListeners();
+    sidebarManager.handleResponsive();
+
+    // 7. Initialize conversation system after sidebar
+    const { initConversationManager } = await import('./ui/conversationManager.js');
+    await initConversationManager();
       console.error('Failed to load conversationManager:', err);
       captureError(err, { context: 'Loading conversation manager' });
     });
