@@ -223,7 +223,6 @@ async def traced_execute(session: AsyncSession, statement, params=None):
         start_time = time.time()
         try:
             # Convert string to an Executable by wrapping in text(...)
-            from sqlalchemy import text
             if isinstance(statement, str):
                 statement = text(statement)
             result = await session.execute(statement, params)

@@ -7,7 +7,7 @@ import json
 import time
 import asyncio
 from typing import Optional, Dict, Any, AsyncIterator
-from uuid import UUID
+from uuid import UUID 
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request, HTTPException, Query
@@ -20,13 +20,14 @@ from common_utils import count_tokens
 # Local modules
 from logging_config import logger
 from database import get_db_session
-from clients import get_model_client_dependency
+from clients import get_model_client_dependency 
 from pydantic_models import (
     CreateChatCompletionRequest,
 )
-from models import Conversation, User
+from models import Conversation, User, Session
 from routers.security import get_current_user
 from services.chat_service import save_conversation
+from datetime import datetime, timezone, timedelta
 from services.session_service import SessionService
 from common_utils import (
     is_o_series_model,
