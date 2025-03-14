@@ -15,7 +15,6 @@ import asyncio
 import functools
 import inspect
 import time
-import uuid
 from typing import Optional, Dict, Any, Callable, TypeVar, cast, Union, List
 from contextlib import contextmanager
 
@@ -551,7 +550,7 @@ def add_ai_prompt_breadcrumb(prompt: Union[str, List[Dict[str, str]]], model: st
         
         # Include a sample of the last user message if available
         user_messages = [msg.get("content", "") for msg in prompt 
-                        if isinstance(msg, dict) and msg.get("role") == "user"]
+                         if isinstance(msg, dict) and msg.get("role") == "user"]
         if user_messages:
             last_user_msg = user_messages[-1]
             if isinstance(last_user_msg, str):

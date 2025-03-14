@@ -2,7 +2,7 @@
 import aiohttp
 import logging
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Union, Sequence
+from typing import List, Dict, Any, Optional
 import config
 
 logger = logging.getLogger(__name__)
@@ -145,6 +145,7 @@ class AzureSearchService:
                 for i, chunk in enumerate(chunks):
                     chunk_id = f"{file_id}-chunk-{i}"
                     chunk_content = chunk.get("content", "")
+                    filename = filename  # Ensure filename is defined
 
                     # Generate embedding for chunk if needed
                     chunk_vector = None
@@ -161,7 +162,7 @@ class AzureSearchService:
                     # Create document for chunk
                     document = {
                         "id": chunk_id,
-                        "filename": f"{filename} (chunk {i+1}/{len(chunks)})",
+                        "chunk_filename": f"{filename} (chunk {i + 1}/{len(chunks)})",
                         "content": chunk_content,
                         "chunk_content": chunk_content,
                         "filepath": f"/files/{file_id}/chunks/{i}",

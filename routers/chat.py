@@ -27,13 +27,12 @@ from pydantic_models import (
 from models import Conversation, User, Session
 from routers.security import get_current_user
 from services.chat_service import save_conversation
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 from services.session_service import SessionService
 from common_utils import (
     is_o_series_model,
     is_deepseek_model,
-    process_vision_messages,
-    count_vision_tokens
+    process_vision_messages
 )
 
 router = APIRouter(prefix="/chat")
@@ -792,22 +791,28 @@ async def generate_stream_chunks(  # noqa: C901
                 yield f"data: {json.dumps({'text': 'Error generating streaming response. Please try again.'})}\n\n"
                 
         elif is_o_series:
-            params.update({
-                "max_completion_tokens": O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
-                "detail": "auto",
+            # Build separate call kwargs for O-series approach
+            messages_for_vision = params["messages"] if isinstance(params["messages"], list) else []
+            try:
+                vision_out = await process_vision_messages(messages_for_vision)
+                if not isinstance(vision_out, list):
+                    vision_out = []
+            except ValueError as e:
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                return
+        
+            call_kwargs = {
+                "model": model_name,
+                "messages": vision_out,
+                "max_tokens": O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
+                "stream": True,
                 "headers": {
                     "x-ms-vision": "enable",
                     "x-ms-image-detail": "auto"
                 }
-            })
-            try:
-                params["messages"] = await process_vision_messages(params["messages"])
-            except ValueError as e:
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
-                return
-
-            # O-series uses different client
-            stream_response = await client.chat.completions.create(**params)
+            }
+        
+            stream_response = await client.chat.completions.create(**call_kwargs)
             async for chunk in stream_response:
                 if await request.is_disconnected():
                     break

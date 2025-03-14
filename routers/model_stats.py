@@ -106,7 +106,7 @@ async def get_model_stats(
 
 INTERVAL_MAP = {
     "1h": "hour",
-    "24h": "day", 
+    "24h": "day",
     "7d": "week",
     "30d": "month"
 }
@@ -118,7 +118,6 @@ async def get_model_usage_trend(
     points: int = Query(24, ge=1, le=1000),
     db: AsyncSession = Depends(get_db_session)
 ):
-    safe_interval = INTERVAL_MAP[interval]
     """
     Get token usage trend over time for a specific model.
     """
@@ -197,25 +196,28 @@ async def get_connection_stats(
     recent connection attempts, and connection trends.
     """
     global _connection_stats_cache
-    
+
     # Return cached data if it's less than 15 seconds old
     now = datetime.utcnow()
-    if (_connection_stats_cache["timestamp"] and 
-        _connection_stats_cache["data"] and
-        (now - _connection_stats_cache["timestamp"]).total_seconds() < 15):
+    if (
+        _connection_stats_cache["timestamp"]
+        and _connection_stats_cache["data"]
+        and (now - _connection_stats_cache["timestamp"]).total_seconds() < 15
+    ):
         return {"connections": _connection_stats_cache["data"]}
-    
-    # Otherwise get fresh data
+
+    # Otherwise, get fresh data
     stats_service = ModelStatsService(db)
     connections = await stats_service.get_connection_stats()
-    
+
     # Update cache
     _connection_stats_cache = {
         "data": connections,
-        "timestamp": now
+        "timestamp": now,
     }
-    
+
     return {"connections": connections}
+
 
 @router.get("/summary")
 async def get_usage_summary(

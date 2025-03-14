@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, Form, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from passlib.hash import bcrypt
-from jose import jwt
+from jose import jwt, JWTError
 from datetime import datetime, timedelta
 import time
 import uuid
 import sentry_sdk
+from typing import Optional
 
 from pydantic_models import UserCreate
 from database import get_db_session
@@ -325,3 +326,81 @@ async def login_user(
     finally:
         # Finish the transaction
         transaction.finish()
+
+
+@router.get("/validate-token")
+@trace_function(op="auth.validate", name="validate_token")
+async def validate_token(
+    request: Request,
+    token: Optional[str] = Header(None, alias="Authorization")
+):
+    """
+    Validates a JWT token to ensure it's still valid.
+    This endpoint is used for client-side authentication checks.
+    """
+    transaction = sentry_sdk.start_transaction(
+        name="token_validation",
+        op="auth.validate"
+    )
+    
+    # Extract token from Authorization header if it includes Bearer prefix
+    if token and token.startswith("Bearer "):
+        token = token.replace("Bearer ", "")
+    
+    # If no token was provided in the Authorization header
+    if not token:
+        transaction.set_data("token_provided", False)
+        transaction.set_status("invalid_arguments")
+        transaction.finish()
+        return {"valid": False, "reason": "No token provided"}
+    
+    transaction.set_data("token_provided", True)
+    
+    try:
+        # Decode and verify the token
+        payload = jwt.decode(
+            token, 
+            config.settings.JWT_SECRET, 
+            algorithms=["HS256"]
+        )
+        
+        # Get user ID from payload
+        user_id = payload.get("user_id")
+        if not user_id:
+            transaction.set_data("reason", "missing_user_id")
+            transaction.set_status("invalid_token")
+            transaction.finish()
+            return {"valid": False, "reason": "Invalid token format"}
+            
+        # Successfully validated token
+        transaction.set_data("user_id", user_id)
+        transaction.set_status("ok")
+        transaction.finish()
+        
+        # Get expiration timestamp from payload
+        exp_timestamp = payload.get("exp")
+        expires_at = datetime.fromtimestamp(exp_timestamp).isoformat() if exp_timestamp else None
+        
+        # Return success with user info
+        return {
+            "valid": True,
+            "user_id": user_id,
+            "expires_at": expires_at
+        }
+        
+    except JWTError as e:
+        # JWT validation error (expired, invalid signature, etc)
+        logger.info(f"Token validation failed: {str(e)}")
+        transaction.set_data("reason", str(e))
+        transaction.set_status("invalid_token")
+        transaction.finish()
+        return {"valid": False, "reason": "Invalid or expired token"}
+        
+    except Exception as e:
+        # Unexpected error
+        logger.error(f"Error validating token: {str(e)}")
+        sentry_sdk.capture_exception(e)
+        transaction.set_data("error", str(e))
+        transaction.set_status("internal_error")
+        transaction.finish()
+        return {"valid": False, "reason": "Error validating token"}

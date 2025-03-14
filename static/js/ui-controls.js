@@ -1,3 +1,6 @@
+// Module for handling UI controls and user interactions
+import { logout } from './auth.js';
+
 window.addEventListener('DOMContentLoaded', () => {
   // Add event listeners for sidebar and conversations toggles
   const sidebarToggle = document.getElementById('sidebar-toggle');
@@ -74,6 +77,43 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+  
+  // Setup user account menu
+  const userMenuButton = document.getElementById('user-menu-button');
+  const userMenu = document.getElementById('user-menu');
+  const logoutButton = document.getElementById('logout-button');
+  
+  if (userMenuButton && userMenu) {
+    userMenuButton.addEventListener('click', () => {
+      console.log("User menu toggle clicked");
+      const isOpen = !userMenu.classList.contains('hidden');
+      if (isOpen) {
+        userMenu.classList.add('hidden');
+        userMenuButton.setAttribute('aria-expanded', 'false');
+      } else {
+        userMenu.classList.remove('hidden');
+        userMenuButton.setAttribute('aria-expanded', 'true');
+      }
+    });
+    
+    // Close menu when clicking outside
+    document.addEventListener('click', (event) => {
+      if (!userMenuButton.contains(event.target) && !userMenu.contains(event.target)) {
+        userMenu.classList.add('hidden');
+        userMenuButton.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+  
+  // Setup logout functionality
+  if (logoutButton) {
+    logoutButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      console.log("Logout clicked");
+      logout(); // Call the logout function from auth.js
+    });
+  }
+  
   console.log("Sidebar functionality enhanced in ui-controls.js");
 
   // Theme toggle

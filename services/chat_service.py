@@ -1,17 +1,29 @@
+import time
+import base64
+import mimetypes
+import os
+import re
 from time import perf_counter
 from typing import Optional, List, Dict, Any
 
-import time
-import sentry_sdk
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import insert, text
-from logging_config import logger, response_logger
-import config
-from pydantic_models import ChatMessage
-import re
-import mimetypes
-import base64
 import aiohttp
+import sentry_sdk
+from azure.core.exceptions import HttpResponseError
+from sqlalchemy import insert, text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+import config
+from clients import get_model_client_dependency
+from logging_config import logger, response_logger
+from models import Conversation
+from pydantic_models import ChatMessage
+from services.tracing_utils import (
+    trace_function,
+    profile_block,
+    add_breadcrumb,
+)
+from services.model_stats_service import ModelStatsService
+
 
 async def validate_image_url(url: str) -> bool:
     """Simple remote URL validator."""
@@ -19,27 +31,15 @@ async def validate_image_url(url: str) -> bool:
         async with aiohttp.ClientSession() as session:
             async with session.head(url, timeout=5) as resp:
                 return resp.status == 200
-    except:
+    except Exception:
         return False
+
 
 def encode_image_to_base64(image_path: str) -> str:
     with open(image_path, "rb") as f:
         data = f.read()
     return f"data:image/jpeg;base64,{base64.b64encode(data).decode('utf-8')}"
-from models import Conversation
-from azure.core.exceptions import HttpResponseError
 
-from services.tracing_utils import (
-    trace_function,
-    profile_block,
-    add_breadcrumb,
-    create_transaction,
-    add_ai_prompt_breadcrumb,
-    set_ai_token_counts,
-    ai_operation_block,
-    set_measurement
-)
-from clients import get_model_client_dependency
 
 class TokenManager:
     """
@@ -93,7 +93,6 @@ class TokenManager:
 def prepare_model_parameters(
     chat_message: ChatMessage, model_name: str, is_deepseek: bool, is_o_series: bool
 ) -> Dict[str, Any]:
-    # Validate parameters against model requirements
     if is_deepseek and chat_message.temperature not in (None, 0.5):
         raise ValueError("DeepSeek models require temperature=0.0")
 
@@ -115,15 +114,13 @@ def prepare_model_parameters(
     }
 
     if is_o_series:
-        # O1 temperature validation
         if params.get("temperature") is not None:
             params.pop("temperature", None)
 
     if is_deepseek:
-        # Enforce DeepSeek-R1 token limits
         params["max_tokens"] = min(
             chat_message.max_completion_tokens or config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
-            131072,  # Max context size
+            131072,
         )
         params["temperature"] = (
             chat_message.temperature
@@ -135,13 +132,13 @@ def prepare_model_parameters(
             maybe_max_tokens = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
         params["max_tokens"] = int(min(maybe_max_tokens, config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS))
     elif is_o_series:
-        params["max_completion_tokens"] = chat_message.max_completion_tokens or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
-        # Enforce O1 context limit of 200,000 tokens
+        params["max_completion_tokens"] = (
+            chat_message.max_completion_tokens or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
+        )
         params["max_completion_tokens"] = min(params["max_completion_tokens"], 200000)
         params["reasoning_effort"] = chat_message.reasoning_effort or "medium"
         params.pop("temperature", None)
     else:
-        # DeepSeek recommends temperature 0.0 for best results
         params["temperature"] = chat_message.temperature or (
             0.0 if is_deepseek else 0.7
         )
@@ -151,28 +148,26 @@ def prepare_model_parameters(
 
 
 @trace_function(op="file.context", name="get_file_context")
-async def get_file_context(  # noqa: C901
+async def get_file_context(
     db_session: AsyncSession, file_ids: List[str], use_search: bool = False
 ) -> Optional[str]:
     """
     Retrieve file content to be used as context in the chat.
     If Azure Search is enabled, use it to get content. Otherwise,
-    retrieve directly from the database. 
+    retrieve directly from the database.
     """
     if not file_ids:
         return None
 
-    # Add breadcrumb for file context retrieval
     add_breadcrumb(
         category="file.context",
         message=f"Retrieving file context for {len(file_ids)} file(s)",
         level="info",
         file_ids=file_ids[:5] if len(file_ids) <= 5 else file_ids[:5] + ["..."],
-        use_search=use_search
+        use_search=use_search,
     )
 
     try:
-        # If Azure Search is enabled, use it to get content
         if use_search:
             try:
                 with profile_block(description="Azure Search Context Retrieval", op="search.context") as search_span:
@@ -181,8 +176,8 @@ async def get_file_context(  # noqa: C901
                     file_result = await db_session.execute(
                         text(
                             """
-                            SELECT session_id 
-                            FROM uploaded_files 
+                            SELECT session_id
+                            FROM uploaded_files
                             WHERE id = :file_id::uuid
                             LIMIT 1
                             """
@@ -191,9 +186,7 @@ async def get_file_context(  # noqa: C901
                     )
                     session_id_row = file_result.fetchone()
                     if not session_id_row:
-                        logger.warning(
-                            f"Could not find session_id for file {file_ids[0]}"
-                        )
+                        logger.warning(f"Could not find session_id for file {file_ids[0]}")
                         return None
 
                     session_id = session_id_row[0]
@@ -204,7 +197,7 @@ async def get_file_context(  # noqa: C901
                     search_service = AzureSearchService(azure_client)
                     results = await search_service.query_index(
                         session_id=session_id,
-                        query="",  # Empty query returns all content
+                        query="",
                         file_ids=file_ids,
                         top=10,
                     )
@@ -220,9 +213,7 @@ async def get_file_context(  # noqa: C901
             except Exception as e:
                 logger.error(f"Error using Azure Search for file context: {e}")
                 sentry_sdk.capture_exception(e)
-                # Fall back to direct file content retrieval
 
-        # Get the file contents directly from database
         with profile_block(description="DB File Content Retrieval", op="db.query") as db_span:
             file_contents = []
             total_chars = 0
@@ -231,7 +222,7 @@ async def get_file_context(  # noqa: C901
                     text(
                         """
                         SELECT filename, content, file_type
-                        FROM uploaded_files 
+                        FROM uploaded_files
                         WHERE id = :file_id::uuid
                         """
                     ),
@@ -247,11 +238,7 @@ async def get_file_context(  # noqa: C901
                             + f"\n\n[File truncated due to size. Original length: {len(content)} characters]"
                         )
                     file_contents.append(
-                        {
-                            "filename": filename,
-                            "content": content,
-                            "file_type": file_type,
-                        }
+                        {"filename": filename, "content": content, "file_type": file_type}
                     )
                     total_chars += len(content) if content else 0
 
@@ -263,11 +250,10 @@ async def get_file_context(  # noqa: C901
                 category="file.context",
                 message="No file contents found in DB",
                 level="warning",
-                file_ids=file_ids[:5]
+                file_ids=file_ids[:5],
             )
             return None
 
-        # Format the context string
         with profile_block(description="Format Context String", op="text.format"):
             context = "## Document Context\n\n"
             for file_info in file_contents:
@@ -295,7 +281,7 @@ async def get_file_context(  # noqa: C901
 
 
 @trace_function(op="chat.process", name="process_chat_message")
-async def process_chat_message(  # noqa: C901
+async def process_chat_message(
     chat_message: Any,
     db_session: AsyncSession,
     model_name: Optional[str] = None,
@@ -304,27 +290,21 @@ async def process_chat_message(  # noqa: C901
     Processes a chat message, calls the appropriate model(s) using `client.complete`,
     optionally handles file context, and stores the final conversation data.
     """
-    # Start a Sentry transaction to better track process_chat_message
-    transaction = sentry_sdk.start_transaction(
-        op="chat.process",
-        name="Process Chat Message"
-    )
-    # Tag the transaction for search/filter in Sentry
+    transaction = sentry_sdk.start_transaction(op="chat.process", name="Process Chat Message")
     transaction.set_tag("model_name", model_name or "unknown")
     session_id = getattr(chat_message, "session_id", "unknown")
     transaction.set_tag("session_id", session_id)
 
-    with transaction.start_child(op="task", description="Initial Setup") as span:
-        start_time = perf_counter()
-        span.set_data("model_name", model_name or "unknown")
-        span.set_tag("session_id", session_id)
-        # Add breadcrumb for the start of chat processing
-        add_breadcrumb(
-            category="chat",
-            message=f"Starting chat processing for model {model_name}",
-            level="info",
-            session_id=session_id
-        )
+    with profile_block(description="Initial Setup", op="task"):
+        pass
+    start_time = perf_counter()
+
+    add_breadcrumb(
+        category="chat",
+        message=f"Starting chat processing for model {model_name}",
+        level="info",
+        session_id=session_id,
+    )
 
     session_id = getattr(chat_message, "session_id", None)
     model_name = (
@@ -337,25 +317,23 @@ async def process_chat_message(  # noqa: C901
         model_name = "unknown_model"
 
     try:
-        with profile_block(description="Get Model Client", op="model.client") as client_span:
+        with profile_block(description="Get Model Client", op="model.client"):
             model_client_dep = await get_model_client_dependency(model_name)
             if model_client_dep.get("error"):
                 error_info = model_client_dep["error"]
-                client_span.set_data("error", error_info)
                 add_breadcrumb(
                     category="model.client",
                     message=f"Error initializing model client: {error_info}",
-                    level="error"
+                    level="error",
                 )
                 raise ValueError(f"Error initializing model client: {error_info}")
 
             client = model_client_dep["client"]
             if not client:
-                client_span.set_data("error", "No valid client found")
                 add_breadcrumb(
                     category="model.client",
                     message=f"No valid client found for {model_name}",
-                    level="error"
+                    level="error",
                 )
                 raise ValueError(f"No valid client found for {model_name}")
 
@@ -364,56 +342,62 @@ async def process_chat_message(  # noqa: C901
         if not messages:
             messages = [{"role": "user", "content": user_text}]
 
-        params = {
-            "stream": False,
-            "messages": messages,
-        }
+        params = {"stream": False, "messages": messages}
 
-        # Determine if it's a DeepSeek model or O-series
         from config import is_deepseek_model, is_o_series_model
 
         if is_deepseek_model(model_name):
-            params.update({
-                "model": "DeepSeek-R1",
-                "temperature": 0.5,
-                "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
-                "headers": {
-                    "x-ms-thinking-format": "html",
-                    "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
-                }
-            })
-        elif is_o_series_model(model_name):
-            params.update({
-                "max_completion_tokens": config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
-                "reasoning_effort": getattr(chat_message, "reasoning_effort", "medium"),
-            })
-
-            # Vision checks
-            if any(isinstance(c, dict) and c.get("type") == "image_url"
-                   for msg in messages for c in msg.get("content", [])):
-                from fastapi import HTTPException
-                from routers.chat import validate_vision_request
-                for msg in messages:
-                    await validate_vision_request(msg.get("content", []))
-
-                # Example: add extra headers for vision
-                params.update({
+            params.update(
+                {
+                    "model": "DeepSeek-R1",
+                    "temperature": 0.5,
+                    "max_tokens": config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
                     "headers": {
-                        "x-ms-vision": "enable",
-                        "x-ms-image-detail": getattr(chat_message, "detail_level", "auto")
+                        "x-ms-thinking-format": "html",
+                        "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
+                    },
+                }
+            )
+        elif is_o_series_model(model_name):
+            params.update(
+                {
+                    "max_completion_tokens": config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
+                    "reasoning_effort": getattr(chat_message, "reasoning_effort", "medium"),
+                }
+            )
+            if any(
+                isinstance(c, dict) and c.get("type") == "image_url"
+                for msg in messages
+                for c in (msg.get("content", []) if isinstance(msg.get("content", []), list) else [])
+            ):
+                for msg in messages:
+                    content = msg.get("content")
+                    if isinstance(content, list):
+                        msg["content"] = await process_vision_content(content)
+                    elif isinstance(content, str):
+                        # Convert string content to the expected format for vision processing
+                        msg["content"] = await process_vision_content([{"type": "text", "text": content}])
+                params.update(
+                    {
+                        "headers": {
+                            "x-ms-vision": "enable",
+                            "x-ms-image-detail": getattr(chat_message, "detail_level", "auto"),
+                        }
                     }
-                })
+                )
 
         else:
             params["temperature"] = getattr(chat_message, "temperature", 0.7)
             params["max_tokens"] = getattr(chat_message, "max_completion_tokens", 1000)
 
-        with profile_block(description="Model API Call", op="model.api") as model_span:
+        with profile_block(description="Model API Call", op="model.api"):
             response = await client.complete(**params)
-            # Attempt to log raw response for debugging
             try:
                 import json
-                response_logger.info("Raw model response:\n%s", json.dumps(response, indent=2, default=str))
+
+                response_logger.info(
+                    "Raw model response:\n%s", json.dumps(response, indent=2, default=str)
+                )
             except Exception as dump_error:
                 logger.warning("Failed to dump response as JSON: %s", str(dump_error))
                 logger.info("Fallback raw response: %s", str(response))
@@ -424,7 +408,6 @@ async def process_chat_message(  # noqa: C901
         else:
             content = response.choices[0].message.content
 
-        # If the model includes reasoning in the response
         if hasattr(response.choices[0], "reasoning"):
             reasoning_text = getattr(response.choices[0], "reasoning", None) or ""
             if reasoning_text:
@@ -444,14 +427,9 @@ async def process_chat_message(  # noqa: C901
                 "total_tokens": TokenManager.count_tokens(user_text) + TokenManager.count_tokens(content),
             }
 
-        # Some DeepSeek responses have <thinking> blocks
-        if is_deepseek_model(model_name) and "<thinking>" in content:
-            import re
-            thinking_blocks = re.findall(r'<thinking>(.*?)</thinking>', content, flags=re.DOTALL)
-            if thinking_blocks:
-                thinking_output = thinking_blocks[0].strip()
-            else:
-                thinking_output = ""
+        if is_deepseek_model(model_name) and "" in content:
+            thinking_blocks = re.findall(r"(.*?)", content, flags=re.DOTALL)
+            thinking_output = thinking_blocks[0].strip() if thinking_blocks else ""
         else:
             thinking_output = ""
 
@@ -459,21 +437,20 @@ async def process_chat_message(  # noqa: C901
             content += f"\n\n[DeepSeek Thinking]\n{thinking_output}"
 
         processing_time = perf_counter() - start_time
-
-        from services.model_stats_service import ModelStatsService
         import uuid
 
         try:
-            session_uuid = uuid.UUID(session_id) if session_id else uuid.UUID("00000000-0000-0000-0000-000000000000")
+            session_uuid = (
+                uuid.UUID(session_id)
+                if session_id
+                else uuid.UUID("00000000-0000-0000-0000-000000000000")
+            )
         except Exception:
             session_uuid = uuid.UUID("00000000-0000-0000-0000-000000000000")
 
         ms_service = ModelStatsService(db_session)
         await ms_service.record_usage(
-            model=model_name,
-            session_id=session_uuid,
-            usage=usage_data,
-            metadata=None
+            model=model_name, session_id=session_uuid, usage=usage_data, metadata=None
         )
 
         with profile_block(description="Save Conversation", op="db.save"):
@@ -484,10 +461,9 @@ async def process_chat_message(  # noqa: C901
                 user_text=user_text,
                 assistant_text=content,
                 formatted_assistant_text=content,
-                raw_response=response
+                raw_response=response,
             )
 
-        # Mark transaction success
         transaction.set_data("success", True)
         transaction.set_data("usage", usage_data)
         transaction.set_data("processing_time_seconds", processing_time)
@@ -513,20 +489,14 @@ async def process_chat_message(  # noqa: C901
 
     except HttpResponseError as he:
         logger.exception(f"[HttpResponseError] {he}")
-        
-        with transaction.start_child(op="error", description="HTTP Response Error") as err_span:
-            err_span.set_data("error.type", he.__class__.__name__)
-            err_span.set_data("error.message", str(he))
-            err_span.set_data("error.status_code", getattr(he, "status_code", "unknown"))
-            err_span.set_data("model_name", model_name)
-
-        add_breadcrumb(
-            category="http.error",
-            message=f"HTTP error from model service: {he}",
-            level="error",
-            status_code=getattr(he, "status_code", "unknown"),
-            model_name=model_name
-        )
+        with profile_block(description="HTTP Response Error", op="error"):
+            add_breadcrumb(
+                category="http.error",
+                message=f"HTTP error from model service: {he}",
+                level="error",
+                status_code=getattr(he, "status_code", "unknown"),
+                model_name=model_name,
+            )
         sentry_sdk.capture_exception(he)
         transaction.set_status("internal_error")
         transaction.finish()
@@ -537,17 +507,12 @@ async def process_chat_message(  # noqa: C901
         }
     except Exception as e:
         logger.exception(f"Unexpected error in process_chat_message: {e}")
-        
-        with transaction.start_child(op="error", description="Unexpected Error") as err_span:
-            err_span.set_data("error.type", e.__class__.__name__)
-            err_span.set_data("error.message", str(e))
-            err_span.set_data("model_name", model_name)
-
-        add_breadcrumb(
-            category="error",
-            message=f"Unexpected error in process_chat_message: {e}",
-            level="error"
-        )
+        with profile_block(description="Unexpected Error", op="error"):
+            add_breadcrumb(
+                category="error",
+                message=f"Unexpected error in process_chat_message: {e}",
+                level="error",
+            )
         sentry_sdk.capture_exception(e)
         transaction.set_status("internal_error")
         transaction.finish()
@@ -606,9 +571,7 @@ async def save_conversation(
         raise
 
 
-async def fetch_conversation_history(
-    db_session: AsyncSession, session_id: str
-) -> List[Dict[str, Any]]:
+async def fetch_conversation_history(db_session: AsyncSession, session_id: str) -> List[Dict[str, Any]]:
     """
     Retrieves prior messages in a conversation, returning them in a format
     suitable for an LLM’s “messages” argument. Adjust the query to match your schema.
@@ -659,43 +622,42 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
         logger.error(f"Error summarizing messages: {e}")
         sentry_sdk.capture_exception(e)
         return f"Summary not available due to error: {str(e)}"
-import os
+
 
 async def process_vision_content(content: list):
     """Process vision content for o1 model with improved validation"""
     processed_content = []
-    
+
     for item in content:
         if item["type"] == "image_url":
             image_url = item["image_url"]["url"]
-            
-            # Handle local files with proper MIME type detection
-            if image_url.startswith(('http://', 'https://')):
-                # Validate remote URL
+
+            if image_url.startswith(("http://", "https://")):
                 if not await validate_image_url(image_url):
                     raise ValueError(f"Invalid image URL: {image_url}")
             elif os.path.isfile(image_url):
-                # Encode local file with proper MIME type
                 mime_type, _ = mimetypes.guess_type(image_url)
-                if mime_type not in config.O_SERIES_VISION_CONFIG["ALLOWED_MIME_TYPES"]:
+                allowed_mime_types = config.O_SERIES_VISION_CONFIG.get("ALLOWED_MIME_TYPES", [])
+                if not isinstance(allowed_mime_types, list):
+                    allowed_mime_types = []
+                if mime_type not in allowed_mime_types:
                     raise ValueError(f"Unsupported image type: {mime_type}")
-                
                 with open(image_url, "rb") as image_file:
                     encoded = base64.b64encode(image_file.read()).decode("utf-8")
                     image_url = f"data:{mime_type};base64,{encoded}"
             elif image_url.startswith("data:"):
-                # Validate base64 format
-                if not re.match(config.O_SERIES_VISION_CONFIG["BASE64_HEADER_PATTERN"], image_url):
+                base64_pattern = str(config.O_SERIES_VISION_CONFIG.get("BASE64_HEADER_PATTERN", ""))
+                if not re.match(base64_pattern, image_url):
                     raise ValueError("Invalid base64 image format")
 
-            processed_content.append({
-                "type": "image_url",
-                "image_url": {
-                    "url": image_url,
-                    "detail": item["image_url"].get("detail", "auto")
+            detail_val = item["image_url"].get("detail", "auto")
+            processed_content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": image_url, "detail": detail_val},
                 }
-            })
+            )
         else:
             processed_content.append(item)
-    
+
     return processed_content

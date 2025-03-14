@@ -115,7 +115,7 @@ app.include_router(files_router, prefix="/api/files")
 app.include_router(chat_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
 app.include_router(model_stats_router)  # Already has prefix="/api/model-stats"
-app.include_router(auth_router, prefix="/auth")
+app.include_router(auth_router, prefix="/api/auth")
 
 # Mount static files at '/static' instead
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

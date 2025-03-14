@@ -327,7 +327,7 @@ async def create_model(
             return {
                 "status": "exists",
                 "model_id": actual_model_id,
-                "message": f"Model already exists",
+                "message": "Model already exists",
             }
 
         # If no model data provided, use template from registry
@@ -496,7 +496,7 @@ async def switch_model(
         if not model_config or not model_config.get("api_version"):
             raise HTTPException(
                 status_code=422,
-                detail=f"Invalid model configuration: Missing API version"
+                detail="Invalid model configuration: Missing API version"
             )
 
         # Handle session operations if session_id is provided

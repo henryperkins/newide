@@ -8,8 +8,8 @@ from typing import Optional, List, Dict
 import config
 from logging_config import logger
 from azure.core.exceptions import HttpResponseError
+import re
 
-# Add a helper function to handle different client types
 def handle_client_error(error: Exception) -> dict:
     """Parse and handle errors from different client types consistently"""
     if isinstance(error, HttpResponseError):
@@ -129,11 +129,9 @@ def count_tokens(content, model: Optional[str] = None) -> int:
     - If 'content' is a list of items (vision or otherwise), delegate to count_vision_tokens.
     - Otherwise, treat 'content' as a string and do tiktoken-based counting.
     """
-    # If this is a list, treat as 'vision' content
     if isinstance(content, list):
         return count_vision_tokens(content, model)
 
-    # Otherwise, assume this is plain text
     try:
         if model and any(m in model.lower() for m in ["o1-", "o3-"]):
             encoding = tiktoken.get_encoding("cl100k_base")
@@ -156,14 +154,9 @@ def count_vision_tokens(items: List[Dict], model: Optional[str] = None) -> int:
 
     for item in items:
         if item["type"] == "text":
-            # Recurse back to count_tokens for text
-            # in case it is a string or nested structure
             token_count += count_tokens(item["text"], model)
-
         elif item["type"] == "image_url":
-            # Base tokens for the presence of an image
             token_count += 85
-            # Add detail-based tokens
             detail = item.get("detail", "auto")
             if detail == "high":
                 token_count += 170 * 2
@@ -200,33 +193,25 @@ async def process_vision_messages(messages: List[Dict]) -> List[Dict]:
         ValueError: If validation fails for vision content
     """
     processed_messages = []
-    
+
     for message in messages:
         if not isinstance(message, dict):
             raise ValueError(f"Message must be a dictionary, got {type(message)}")
-        
-        # Make a copy to avoid modifying the original
+
         new_message = message.copy()
         content = new_message.get("content", "")
-        
-        # Simple text message
+
         if isinstance(content, str):
             processed_messages.append(new_message)
             continue
-            
-        # Process multi-part content (text + images)
+
         if isinstance(content, list):
-            # Validate content items
             await validate_vision_request(content)
-            
-            # Format according to Azure OpenAI Vision API requirements
+
             formatted_content = []
             for item in content:
                 if item.get("type") == "text":
-                    formatted_content.append({
-                        "type": "text",
-                        "text": item.get("text", "")
-                    })
+                    formatted_content.append({"type": "text", "text": item.get("text", "")})
                 elif item.get("type") == "image_url":
                     image_url = item.get("image_url", {})
                     if isinstance(image_url, dict) and "url" in image_url:
@@ -237,15 +222,15 @@ async def process_vision_messages(messages: List[Dict]) -> List[Dict]:
                                 "detail": item.get("detail", "auto")
                             }
                         })
-            
+
             new_message["content"] = formatted_content
             processed_messages.append(new_message)
             continue
-            
-        # If we get here, unsupported content format
+
         raise ValueError(f"Unsupported message content format: {type(content)}")
-        
+
     return processed_messages
+
 
 def calculate_model_timeout(messages, model_name, reasoning_effort="medium"):
     """
@@ -275,20 +260,19 @@ def calculate_model_timeout(messages, model_name, reasoning_effort="medium"):
         )
         return min(config.STANDARD_MAX_TIMEOUT, calculated_timeout)
 
-# These functions come from helpers.py
 
 def calculate_vision_tokens(detail_level: str, width: int, height: int) -> int:
     """Calculate token cost for images based on Azure's vision token formula"""
     base_tokens = 85
     if detail_level == "low":
         return base_tokens
-    
-    # High detail calculation
+
     scaled_width = min(width, 2048)
     scaled_height = min(height, 2048)
     tile_width = scaled_width // 512
     tile_height = scaled_height // 512
     return base_tokens + 170 * (tile_width * tile_height)
+
 
 async def get_remote_image_size(url: str) -> int:
     """Get content length from remote URL"""
@@ -307,26 +291,31 @@ async def validate_vision_request(content: list):
     Raises:
         ValueError: If validation fails for any reason
     """
-    import re
-    
     image_count = sum(1 for item in content if item.get("type") == "image_url")
-    
-    if image_count > config.O_SERIES_VISION_CONFIG["MAX_IMAGES_PER_REQUEST"]:
-        raise ValueError(
-            f"Maximum {config.O_SERIES_VISION_CONFIG['MAX_IMAGES_PER_REQUEST']} images per request"
-        )
+
+    max_images = config.O_SERIES_VISION_CONFIG.get("MAX_IMAGES_PER_REQUEST", 5)
+    if not isinstance(max_images, int):
+        max_images = 5
+
+    if image_count > max_images:
+        raise ValueError(f"Maximum {max_images} images per request")
 
     for item in content:
         if item.get("type") == "image_url":
             url = item["image_url"]["url"]
             if url.startswith("data:"):
-                if not re.match(config.O_SERIES_VISION_CONFIG["BASE64_HEADER_PATTERN"], url):
+                pattern_str = config.O_SERIES_VISION_CONFIG.get("BASE64_HEADER_PATTERN", "")
+                if not isinstance(pattern_str, str):
+                    pattern_str = ""
+                if not re.match(pattern_str, url):
                     raise ValueError("Invalid base64 image header format")
-                content_length = len(url) * 3 // 4  # Base64 approximate size
+                content_length = len(url) * 3 // 4
             else:
                 content_length = await get_remote_image_size(url)
-                
-            if content_length > config.O_SERIES_VISION_CONFIG["MAX_IMAGE_SIZE_BYTES"]:
-                raise ValueError(
-                    f"Image size exceeds {config.O_SERIES_VISION_CONFIG['MAX_IMAGE_SIZE_BYTES']} bytes limit"
-                )
+
+            max_image_size = config.O_SERIES_VISION_CONFIG.get("MAX_IMAGE_SIZE_BYTES", 5_000_000)
+            if not isinstance(max_image_size, int):
+                max_image_size = 5_000_000
+
+            if content_length > max_image_size:
+                raise ValueError(f"Image size exceeds {max_image_size} bytes limit")
