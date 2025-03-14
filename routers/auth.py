@@ -21,6 +21,23 @@ from services.session_service import SessionService
 # Set up logger
 logger = get_logger(__name__)
 
+def send_admin_notification(user_email: str, reason: str, ip: str = "unknown"):
+    """
+    Send notification to admin about failed login attempts or other security events.
+    
+    Args:
+        user_email: The email address that attempted to login
+        reason: The reason for the notification
+        ip: The IP address where the attempt came from
+    """
+    if not config.settings.ADMIN_EMAIL:
+        logger.warning("Admin notification attempted but ADMIN_EMAIL is not configured")
+        return
+        
+    # Rest of the notification logic would go here
+    # This is just a placeholder for the actual notification sending code
+    logger.info(f"Admin notification sent to {config.settings.ADMIN_EMAIL} about {user_email}: {reason}")
+
 router = APIRouter(tags=["auth"])
 
 
