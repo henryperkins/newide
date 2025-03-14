@@ -3,6 +3,7 @@
  */
 
 import { safeAddEventListener } from '../utils/eventManager.js';
+import { globalStore } from '../store.js';
 
 /**
  * Initialize the sidebar and mobile menu functionality
@@ -14,6 +15,25 @@ function initSidebar() {
   const overlay = document.getElementById('sidebar-overlay');
 
   if (!sidebar) return;
+  
+  // Initialize sidebar states in globalStore
+  if (globalStore._sidebars) {
+    // Set initial state based on CSS classes
+    const rightSidebar = document.getElementById('sidebar');
+    const leftSidebar = document.getElementById('conversations-sidebar');
+    
+    if (rightSidebar) {
+      const isOpen = !rightSidebar.classList.contains('translate-x-full');
+      globalStore._sidebars.settings.open = isOpen;
+    }
+    
+    if (leftSidebar) {
+      const isOpen = !leftSidebar.classList.contains('-translate-x-full');
+      globalStore._sidebars.conversations.open = isOpen;
+    }
+    
+    console.log("Initial sidebar state set in globalStore:", globalStore._sidebars);
+  }
 
   // Sidebar toggle button
   if (toggleButton) {
@@ -94,77 +114,113 @@ function initSidebar() {
 
 /**
  * Handle window resize events to maintain proper sidebar state
- */
-function handleResponsive() {
-  const isMobile = window.innerWidth < 768;
-  
-  // Update sidebar dimensions
-  const rightSidebar = document.getElementById('sidebar');
-  const leftSidebar = document.getElementById('conversations-sidebar');
-  const overlay = document.getElementById('sidebar-overlay');
-  
-  if (rightSidebar) {
-    // Remove any inline transform styles
-    rightSidebar.style.transform = '';
-    
-    // Use Tailwind classes for width
-    rightSidebar.classList.toggle('w-full', isMobile);
-    rightSidebar.classList.toggle('w-96', !isMobile);
-    
-    // Use translation property to detect if sidebar is open
-    const isRightOpen = !rightSidebar.classList.contains('translate-x-full');
-    
-    // Update overlay visibility for right sidebar
-    if (overlay && isRightOpen) {
-      overlay.classList.toggle('hidden', !isMobile);
-    }
-  }
-  
-  if (leftSidebar) {
-    // Remove any inline transform styles
-    leftSidebar.style.transform = '';
-    
-    // Use Tailwind classes for width
-    leftSidebar.classList.toggle('w-full', isMobile);
-    leftSidebar.classList.toggle('w-64', !isMobile);
-    
-    // Use translation property to detect if sidebar is open
-    const isLeftOpen = !leftSidebar.classList.contains('-translate-x-full');
-    
-    // Update overlay visibility for left sidebar
-    if (overlay && isLeftOpen) {
-      overlay.classList.toggle('hidden', !isMobile);
-    }
-  }
-  
-  // If neither sidebar is open, ensure overlay is hidden
-  if (overlay) {
-    // Use translation property to detect if sidebar is open
-    const rightOpen = rightSidebar && !rightSidebar.classList.contains('translate-x-full');
-    const leftOpen = leftSidebar && !leftSidebar.classList.contains('-translate-x-full');
-    
-    if (!rightOpen && !leftOpen) {
-      overlay.classList.add('hidden');
-    } else if (isMobile && (rightOpen || leftOpen)) {
-      overlay.classList.remove('hidden');
-    }
-  }
+ function handleResponsive() {
+     console.log("handleResponsive checking globalStore state:", globalStore._sidebars);
+     const isMobile = window.innerWidth < 768;
+     
+     // Update sidebar dimensions
+     const rightSidebar = document.getElementById('sidebar');
+     const leftSidebar = document.getElementById('conversations-sidebar');
+     const overlay = document.getElementById('sidebar-overlay');
+     
+     if (rightSidebar) {
+         // Remove any inline transform styles
+         rightSidebar.style.transform = '';
+         
+         // Use Tailwind classes for width
+         rightSidebar.classList.toggle('w-full', isMobile);
+         rightSidebar.classList.toggle('w-96', !isMobile);
+         
+         // Use globalStore to determine if sidebar is open
+         const isRightOpen = globalStore._sidebars &&
+                            globalStore._sidebars.settings &&
+                            globalStore._sidebars.settings.open;
+         
+         // Apply appropriate classes based on stored state
+         if (isRightOpen) {
+             rightSidebar.classList.remove('translate-x-full');
+             rightSidebar.classList.add('translate-x-0');
+         } else {
+             rightSidebar.classList.add('translate-x-full');
+             rightSidebar.classList.remove('translate-x-0');
+         }
+         
+         // Update overlay visibility for right sidebar
+         if (overlay && isRightOpen) {
+             overlay.classList.toggle('hidden', !isMobile);
+         }
+     }
+     
+     if (leftSidebar) {
+         // Remove any inline transform styles
+         leftSidebar.style.transform = '';
+         
+         // Use Tailwind classes for width
+         leftSidebar.classList.toggle('w-[85%]', isMobile);
+         leftSidebar.classList.toggle('max-w-[320px]', isMobile);
+         leftSidebar.classList.toggle('w-64', !isMobile);
+         
+         // Use globalStore to determine if sidebar is open
+         const isLeftOpen = globalStore._sidebars &&
+                           globalStore._sidebars.conversations &&
+                           globalStore._sidebars.conversations.open;
+         
+         // Apply appropriate classes based on stored state
+         if (isLeftOpen) {
+             leftSidebar.classList.remove('-translate-x-full');
+             leftSidebar.classList.add('translate-x-0');
+         } else {
+             leftSidebar.classList.add('-translate-x-full');
+             leftSidebar.classList.remove('translate-x-0');
+         }
+         
+         // Update overlay visibility for left sidebar
+         if (overlay && isLeftOpen) {
+             overlay.classList.toggle('hidden', !isMobile);
+         }
+     }
+     
+     // If neither sidebar is open, ensure overlay is hidden
+     if (overlay) {
+         // Use globalStore to determine if sidebars are open
+         const rightOpen = globalStore._sidebars &&
+                          globalStore._sidebars.settings &&
+                          globalStore._sidebars.settings.open;
+         const leftOpen = globalStore._sidebars &&
+                         globalStore._sidebars.conversations &&
+                         globalStore._sidebars.conversations.open;
+         
+         if (!rightOpen && !leftOpen) {
+             overlay.classList.add('hidden');
+         } else if (isMobile && (rightOpen || leftOpen)) {
+             overlay.classList.remove('hidden');
+         }
+     }
+ }
 }
 
 /**
  * Centralized function to toggle any sidebar visibility
  * @param {string} sidebarId - ID of the sidebar element ('sidebar' or 'conversations-sidebar')
  * @param {boolean} show - Whether to show the sidebar (true) or hide it (false)
- */
-export function toggleSidebar(sidebarId, show) {
-  console.log(`toggleSidebar: ${sidebarId}, show: ${show}`);
-  const sidebar = document.getElementById(sidebarId);
-  const toggleButton = document.getElementById(sidebarId === 'sidebar' ? 'sidebar-toggle' : 'conversations-toggle');
-  const overlay = document.getElementById('sidebar-overlay');
-
-  if (!sidebar) {
-    console.error(`Sidebar with ID ${sidebarId} not found`);
-    return;
+ export function toggleSidebar(sidebarId, show) {
+     console.log(`toggleSidebar: ${sidebarId}, show: ${show}`);
+     const sidebar = document.getElementById(sidebarId);
+     const toggleButton = document.getElementById(sidebarId === 'sidebar' ? 'sidebar-toggle' : 'conversations-toggle');
+     const overlay = document.getElementById('sidebar-overlay');
+ 
+     if (!sidebar) {
+         console.error(`Sidebar with ID ${sidebarId} not found`);
+         return;
+     }
+     
+     // Update globalStore state
+     const storeKey = sidebarId === 'sidebar' ? 'settings' : 'conversations';
+     if (globalStore._sidebars && globalStore._sidebars[storeKey]) {
+         globalStore._sidebars[storeKey].open = show;
+         globalStore._sidebars[storeKey].lastInteraction = Date.now();
+         console.log(`Sidebar state updated in globalStore: ${storeKey} = ${show}`);
+     }
   }
 
   const isLeft = sidebarId === 'conversations-sidebar';

@@ -1,0 +1,33 @@
+{
+  "configurations": [
+    {
+      "type": "debugpy",
+      "request": "launch",
+      "name": "Launch Program",
+      "program": "${workspaceFolder}/${input:programPath}"
+    }
+  ],
+  "inputs": [
+    {
+      "type": "pickString",
+      "id": "programPath",
+      "description": "Select the Python file to debug",
+      "options": [
+        "main.py",
+        "clients.py",
+        "common_utils.py",
+        "config.py",
+        "database.py",
+        "errors.py",
+        "init_db.py",
+        "logging_config.py",
+        "migrate_utils.py",
+        "migrate.py",
+        "models.py",
+        "pydantic_models.py",
+        "schema_validation.py",
+        "startup_validation.py"
+      ]
+    }
+  ]
+}
