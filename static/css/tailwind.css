@@ -400,9 +400,9 @@
     border-right: 1px solid theme('colors.dracula.comment');
   }
 
-  /* Unified sidebar open state */
-  .sidebar.sidebar-open {
-    transform: translateX(0);
+  /* Sidebar states are controlled by translate classes only */
+  .sidebar {
+    @apply transition-transform duration-300 ease-in-out;
   }
 
   /* Close button for sidebar */
@@ -443,7 +443,8 @@
       box-shadow: none;
     }
 
-    .chat-container.sidebar-open {
+    /* Use right sidebar opening state for chat container padding */
+    .chat-container.with-sidebar {
       padding-right: 384px;
     }
   }

@@ -19,7 +19,8 @@ function initSidebar() {
   if (toggleButton) {
     safeAddEventListener(toggleButton, 'click', 'toggleSidebar', function toggleSidebarHandler() {
       console.log("Sidebar toggle button clicked");
-      const isOpen = sidebar.classList.contains('sidebar-open');
+      // Use translation property to detect if sidebar is open
+      const isOpen = !sidebar.classList.contains('translate-x-full');
       toggleSidebar('sidebar', !isOpen);
     });
   }
@@ -72,9 +73,10 @@ function initSidebar() {
       const rightSidebar = document.getElementById('sidebar');
       const leftSidebar = document.getElementById('conversations-sidebar');
       
-      if (rightSidebar?.classList.contains('sidebar-open')) {
+      // Use translation property to detect if sidebar is open
+      if (rightSidebar && !rightSidebar.classList.contains('translate-x-full')) {
         toggleSidebar('sidebar', false);
-      } else if (leftSidebar?.classList.contains('sidebar-open')) {
+      } else if (leftSidebar && !leftSidebar.classList.contains('-translate-x-full')) {
         toggleSidebar('conversations-sidebar', false);
       }
     }
@@ -109,7 +111,8 @@ function handleResponsive() {
     rightSidebar.classList.toggle('w-full', isMobile);
     rightSidebar.classList.toggle('w-96', !isMobile);
     
-    const isRightOpen = rightSidebar.classList.contains('sidebar-open');
+    // Use translation property to detect if sidebar is open
+    const isRightOpen = !rightSidebar.classList.contains('translate-x-full');
     
     // Update overlay visibility for right sidebar
     if (overlay && isRightOpen) {
@@ -125,7 +128,8 @@ function handleResponsive() {
     leftSidebar.classList.toggle('w-full', isMobile);
     leftSidebar.classList.toggle('w-64', !isMobile);
     
-    const isLeftOpen = leftSidebar.classList.contains('sidebar-open');
+    // Use translation property to detect if sidebar is open
+    const isLeftOpen = !leftSidebar.classList.contains('-translate-x-full');
     
     // Update overlay visibility for left sidebar
     if (overlay && isLeftOpen) {
@@ -135,8 +139,9 @@ function handleResponsive() {
   
   // If neither sidebar is open, ensure overlay is hidden
   if (overlay) {
-    const rightOpen = rightSidebar?.classList.contains('sidebar-open') || false;
-    const leftOpen = leftSidebar?.classList.contains('sidebar-open') || false;
+    // Use translation property to detect if sidebar is open
+    const rightOpen = rightSidebar && !rightSidebar.classList.contains('translate-x-full');
+    const leftOpen = leftSidebar && !leftSidebar.classList.contains('-translate-x-full');
     
     if (!rightOpen && !leftOpen) {
       overlay.classList.add('hidden');
@@ -156,65 +161,69 @@ export function toggleSidebar(sidebarId, show) {
   const sidebar = document.getElementById(sidebarId);
   const toggleButton = document.getElementById(sidebarId === 'sidebar' ? 'sidebar-toggle' : 'conversations-toggle');
   const overlay = document.getElementById('sidebar-overlay');
-  
+
   if (!sidebar) {
     console.error(`Sidebar with ID ${sidebarId} not found`);
     return;
   }
-  
+
   const isLeft = sidebarId === 'conversations-sidebar';
   const isMobile = window.innerWidth < 768;
-  
+
   // Remove any inline transform styles first
   sidebar.style.transform = '';
-  
+
   if (show) {
-    // Show the sidebar
+    // Show the sidebar - first remove hidden class
     sidebar.classList.remove('hidden');
-    sidebar.classList.remove(isLeft ? '-translate-x-full' : 'translate-x-full');
-    sidebar.classList.add('sidebar-open');
-    sidebar.setAttribute('aria-hidden', 'false');
-    
-    if (toggleButton) {
-      toggleButton.setAttribute('aria-expanded', 'true');
-    }
-    
-    if (isMobile) {
-      document.body.classList.add('overflow-hidden');
-      if (overlay) {
-        overlay.classList.remove('hidden');
+
+    // Use setTimeout to ensure DOM updates before changing transform
+    setTimeout(() => {
+      sidebar.classList.remove(isLeft ? '-translate-x-full' : 'translate-x-full');
+      sidebar.setAttribute('aria-hidden', 'false');
+
+      if (toggleButton) {
+        toggleButton.setAttribute('aria-expanded', 'true');
       }
-    }
+
+      if (isMobile) {
+        document.body.classList.add('overflow-hidden');
+        if (overlay) {
+          overlay.classList.remove('hidden');
+        }
+      }
+    }, 10); // Very short timeout to ensure DOM updates
   } else {
     // Hide the sidebar
-    sidebar.classList.remove('sidebar-open');
     sidebar.classList.add(isLeft ? '-translate-x-full' : 'translate-x-full');
     sidebar.setAttribute('aria-hidden', 'true');
-    
+
     if (toggleButton) {
       toggleButton.setAttribute('aria-expanded', 'false');
     }
-    
+
     document.body.classList.remove('overflow-hidden');
     if (overlay) {
       // Check if the other sidebar is open before hiding overlay
       const otherSidebar = document.getElementById(isLeft ? 'sidebar' : 'conversations-sidebar');
-      const isOtherOpen = otherSidebar?.classList.contains('sidebar-open') || false;
-      
+      const isOtherOpen = otherSidebar && (isLeft
+        ? !otherSidebar.classList.contains('translate-x-full')
+        : !otherSidebar.classList.contains('-translate-x-full'));
+
       if (!isOtherOpen || !isMobile) {
         overlay.classList.add('hidden');
       }
     }
   }
-  
+
   // Publish sidebar state change event
   if (window.eventBus) {
-    window.eventBus.publish('sidebarStateChange', { 
+    window.eventBus.publish('sidebarStateChange', {
       id: sidebarId,
-      isOpen: show 
+      isOpen: show
     });
   }
-  
+
   console.log(`Sidebar ${sidebarId} ${show ? 'opened' : 'closed'}`);
 }
 
@@ -243,7 +252,8 @@ function initConversationSidebar() {
   if (toggleButton) {
     safeAddEventListener(toggleButton, 'click', 'toggleConversationSidebar', function toggleConversationHandler() {
       console.log("Conversations toggle clicked");
-      const isOpen = sidebar.classList.contains('sidebar-open');
+      // Use translation property to detect if sidebar is open
+      const isOpen = !sidebar.classList.contains('-translate-x-full');
       toggleSidebar('conversations-sidebar', !isOpen);
     });
   }
@@ -253,7 +263,8 @@ function initConversationSidebar() {
     safeAddEventListener(mobileToggleButton, 'click', 'mobileToggleConversationSidebar', function mobileToggleHandler(e) {
       e.preventDefault();
       console.log("Mobile conversations toggle clicked");
-      const isOpen = sidebar.classList.contains('sidebar-open');
+      // Use translation property to detect if sidebar is open
+      const isOpen = !sidebar.classList.contains('-translate-x-full');
       toggleSidebar('conversations-sidebar', !isOpen);
     });
   }
@@ -265,11 +276,12 @@ function initConversationSidebar() {
       const rightSidebar = document.getElementById('sidebar');
       const leftSidebar = document.getElementById('conversations-sidebar');
       
-      if (rightSidebar?.classList.contains('sidebar-open')) {
+      // Use translation property to detect if sidebar is open
+      if (rightSidebar && !rightSidebar.classList.contains('translate-x-full')) {
         toggleSidebar('sidebar', false);
       }
       
-      if (leftSidebar?.classList.contains('sidebar-open')) {
+      if (leftSidebar && !leftSidebar.classList.contains('-translate-x-full')) {
         toggleSidebar('conversations-sidebar', false);
       }
     });

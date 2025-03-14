@@ -1,4 +1,6 @@
-// Module for handling UI controls and user interactions
+/**
+ * Module for handling UI controls and user interactions
+ */
 import { logout } from './auth.js';
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -7,71 +9,70 @@ window.addEventListener('DOMContentLoaded', () => {
   const sidebar = document.getElementById('sidebar');
   const sidebarOverlay = document.getElementById('sidebar-overlay');
   const closeSidebar = document.getElementById('close-sidebar');
-  
+
   // Setup sidebar toggle
   if (sidebarToggle && sidebar) {
     sidebarToggle.addEventListener('click', () => {
       console.log("Sidebar toggle clicked");
+      // Use translate class directly for state detection
+      const isOpen = !sidebar.classList.contains('translate-x-full');
       import('./ui/sidebarManager.js').then(module => {
-        const isOpen = sidebar.classList.contains('sidebar-open');
-        if (typeof module.toggleSidebar === 'function') {
-          module.toggleSidebar('sidebar', !isOpen);
-        } else {
-          window.toggleSidebarDirect && window.toggleSidebarDirect('sidebar');
-        }
+        module.toggleSidebar('sidebar', !isOpen);
+      }).catch(err => {
+        console.error("Error importing sidebarManager:", err);
       });
     });
   }
-  
+
   // Setup close sidebar button
   if (closeSidebar && sidebar) {
     closeSidebar.addEventListener('click', () => {
-      sidebar.classList.remove('translate-x-0');
-      sidebar.classList.add('translate-x-full');
-      if (sidebarToggle) sidebarToggle.setAttribute('aria-expanded', 'false');
-      if (sidebarOverlay) sidebarOverlay.classList.add('hidden');
-    });
-  }
-  
-  // Setup conversations toggle
-  const conversationsToggle = document.getElementById('conversations-toggle');
-  const conversationsSidebar = document.getElementById('conversations-sidebar');
-  
-  if (conversationsToggle && conversationsSidebar) {
-    conversationsToggle.addEventListener('click', () => {
-      console.log("Conversations toggle clicked");
+      console.log("Close sidebar button clicked");
       import('./ui/sidebarManager.js').then(module => {
-        const isOpen = conversationsSidebar.classList.contains('sidebar-open');
-        if (typeof module.toggleSidebar === 'function') {
-          module.toggleSidebar('conversations-sidebar', !isOpen);
-        } else {
-          window.toggleSidebarDirect && window.toggleSidebarDirect('conversations-sidebar');
-        }
+        module.toggleSidebar('sidebar', false);
+      }).catch(err => {
+        console.error("Error importing sidebarManager:", err);
       });
     });
   }
-  
+
+  // Setup conversations toggle
+  const conversationsToggle = document.getElementById('conversations-toggle');
+  const conversationsSidebar = document.getElementById('conversations-sidebar');
+
+  if (conversationsToggle && conversationsSidebar) {
+    conversationsToggle.addEventListener('click', () => {
+      console.log("Conversations toggle clicked");
+      // Use translate class directly for state detection
+      const isOpen = !conversationsSidebar.classList.contains('-translate-x-full');
+      import('./ui/sidebarManager.js').then(module => {
+        module.toggleSidebar('conversations-sidebar', !isOpen);
+      }).catch(err => {
+        console.error("Error importing sidebarManager:", err);
+      });
+    });
+  }
+
   // Setup mobile conversations toggle (for bottom nav)
   const mobileConversationsToggle = document.getElementById('mobile-conversations-toggle');
   if (mobileConversationsToggle && conversationsSidebar) {
     mobileConversationsToggle.addEventListener('click', () => {
       console.log("Mobile conversations toggle clicked");
+      // Use translate class directly for state detection
+      const isOpen = !conversationsSidebar.classList.contains('-translate-x-full');
       import('./ui/sidebarManager.js').then(module => {
-        const isOpen = conversationsSidebar.classList.contains('sidebar-open');
-        if (typeof module.toggleSidebar === 'function') {
-          module.toggleSidebar('conversations-sidebar', !isOpen);
-        } else {
-          window.toggleSidebarDirect && window.toggleSidebarDirect('conversations-sidebar');
-        }
+        module.toggleSidebar('conversations-sidebar', !isOpen);
+      }).catch(err => {
+        console.error("Error importing sidebarManager:", err);
       });
     });
   }
-  
+
   // Setup user account menu
   const userMenuButton = document.getElementById('user-menu-button');
   const userMenu = document.getElementById('user-menu');
   const logoutButton = document.getElementById('logout-button');
-  
+
   if (userMenuButton && userMenu) {
     userMenuButton.addEventListener('click', () => {
       console.log("User menu toggle clicked");
@@ -84,7 +85,7 @@ window.addEventListener('DOMContentLoaded', () => {
         userMenuButton.setAttribute('aria-expanded', 'true');
       }
     });
-    
+
     // Close menu when clicking outside
     document.addEventListener('click', (event) => {
       if (!userMenuButton.contains(event.target) && !userMenu.contains(event.target)) {
@@ -93,7 +94,7 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-  
+
   // Setup logout functionality
   if (logoutButton) {
     logoutButton.addEventListener('click', (event) => {
@@ -102,7 +103,7 @@ window.addEventListener('DOMContentLoaded', () => {
       logout(); // Call the logout function from auth.js
     });
   }
-  
+
   console.log("Sidebar functionality enhanced in ui-controls.js");
 
   // Theme toggle
@@ -227,11 +228,9 @@ if (closeSidebarBtn) {
   closeSidebarBtn.addEventListener('click', () => {
     console.log("Sidebar close button clicked");
     import('./ui/sidebarManager.js').then(module => {
-      if (typeof module.toggleSidebar === 'function') {
-        module.toggleSidebar('sidebar', false);
-      } else {
-        window.toggleSidebarDirect && window.toggleSidebarDirect('sidebar');
-      }
+      module.toggleSidebar('sidebar', false);
+    }).catch(err => {
+      console.error("Error importing sidebarManager:", err);
     });
   });
 }
