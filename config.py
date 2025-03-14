@@ -77,6 +77,9 @@ class Settings(BaseSettings):
         "AZURE_OPENAI_API_VERSION", "2025-02-01-preview"
     )
 
+    # Admin email for notifications
+    ADMIN_EMAIL: Optional[str] = os.getenv("ADMIN_EMAIL")
+
     # JWT Configuration
     
     # Convert JWT_SECRET to a fallback, ensuring it's always str even if not set
