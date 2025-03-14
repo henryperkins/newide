@@ -91,6 +91,8 @@ class User(Base):
     email = Column(String(120), unique=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
+    requires_password_reset = Column(Boolean, default=False)
+    password_reset_reason = Column(String)
 
 
 # -------------------------------------------------------------------------
