@@ -7,6 +7,7 @@ import time
 import uuid
 import sentry_sdk
 from typing import Optional
+from services.auth_service import flag_user_for_password_reset, notify_admin_about_hash_issue
 
 from pydantic_models import UserCreate
 from database import get_db_session
@@ -83,6 +84,16 @@ async def register_user(
             password_start = time.time()
             hashed = bcrypt.hash(form.password)
             span.set_data("duration_seconds", time.time() - password_start)
+            
+            # Validate the generated hash format
+            try:
+                bcrypt.identify(hashed)
+            except Exception as e:
+                logger.error(f"Generated invalid hash format: {str(e)}")
+                transaction.set_data("registration_success", False)
+                transaction.set_data("failure_reason", "invalid_hash_format")
+                sentry_sdk.capture_exception(e)
+                raise HTTPException(status_code=500, detail="Error during user registration")
         
         # Create user
         with trace_block("Create User", op="db.insert") as span:
@@ -213,30 +224,55 @@ async def login_user(
         # Verify password
         with trace_block("Verify Password", op="auth.verify_password") as span:
             verify_start = time.time()
-            valid_password = bcrypt.verify(password, str(user.hashed_password))
-            span.set_data("duration_seconds", time.time() - verify_start)
-            span.set_data("password_valid", valid_password)
+            try:
+                valid_password = bcrypt.verify(password, str(user.hashed_password))
+                span.set_data("duration_seconds", time.time() - verify_start)
+                span.set_data("password_valid", valid_password)
 
-            if not valid_password:
+                if not valid_password:
+                    transaction.set_data("login_success", False)
+                    transaction.set_data("failure_reason", "invalid_password")
+
+                    # Add breadcrumb for failed login
+                    add_breadcrumb(
+                        category="auth",
+                        message="Login failed - invalid password",
+                        level="warning",
+                        data={"user_id": str(user.id)}
+                    )
+
+                    logger.warning(
+                        f"Login failed - invalid password for user: {str(user.id)}",
+                        extra={"user_id": str(user.id), "ip": client_ip}
+                    )
+
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Invalid credentials"
+                    )
+            except ValueError as e:
+                # Handle invalid hash format
+                logger.error(f"Invalid password hash format for user {user.id}: {str(e)}")
+                
+                # Flag user for password reset
+                await flag_user_for_password_reset(db, user.id)
+                
+                # Notify admin about the issue
+                await notify_admin_about_hash_issue(user.id, user.email)
+                
                 transaction.set_data("login_success", False)
-                transaction.set_data("failure_reason", "invalid_password")
-
-                # Add breadcrumb for failed login
+                transaction.set_data("failure_reason", "invalid_hash_format")
+                
                 add_breadcrumb(
                     category="auth",
-                    message="Login failed - invalid password",
-                    level="warning",
+                    message="Login failed - invalid hash format",
+                    level="error",
                     data={"user_id": str(user.id)}
                 )
-
-                logger.warning(
-                    f"Login failed - invalid password for user: {str(user.id)}",
-                    extra={"user_id": str(user.id), "ip": client_ip}
-                )
-
+                
                 raise HTTPException(
                     status_code=401,
-                    detail="Invalid credentials"
+                    detail="Account requires password reset."
                 )
 
         # Generate JWT token
