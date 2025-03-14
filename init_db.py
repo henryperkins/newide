@@ -42,7 +42,9 @@ async def init_database():
                 id UUID PRIMARY KEY,
                 email VARCHAR(120) UNIQUE NOT NULL,
                 hashed_password VARCHAR NOT NULL,
-                is_active BOOLEAN DEFAULT TRUE
+                is_active BOOLEAN DEFAULT TRUE,
+                requires_password_reset BOOLEAN DEFAULT FALSE,
+                password_reset_reason VARCHAR(100)
             )
         """
             )
@@ -226,15 +228,34 @@ async def init_database():
                 )
             )
 
-            # Add content_analysis to model_usage_stats if not exists
+            # Add password reset columns to users if not exists
             await conn.execute(
                 text(
                     """
-                ALTER TABLE model_usage_stats
-                ADD COLUMN IF NOT EXISTS content_analysis JSONB
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS requires_password_reset BOOLEAN DEFAULT FALSE
             """
                 )
             )
+            
+            await conn.execute(
+                text(
+                    """
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS password_reset_reason VARCHAR(100)
+            """
+                )
+            )
+
+            # Remove content_analysis - this is causing the TooManyColumnsError
+            # await conn.execute(
+            #     text(
+            #         """
+            #     ALTER TABLE model_usage_stats
+            #     ADD COLUMN IF NOT EXISTS content_analysis JSONB
+            # """
+            #     )
+            # )
 
             # Add token_details to model_usage_stats if not exists
             await conn.execute(
@@ -359,23 +380,92 @@ async def init_database():
                 )
             )
 
-            await conn.execute(
-                text(
-                    """
-                ALTER TABLE model_usage_stats
-                DROP COLUMN IF EXISTS usage_metadata
-            """
+            # We need to recreate the model_usage_stats table with the correct schema
+            # since ALTER TABLE is hitting the PostgreSQL column limit
+            try:
+                # First, check if the columns exist before attempting any migration
+                columns_result = await conn.execute(
+                    text(
+                        """
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_name = 'model_usage_stats'
+                        AND (column_name = 'usage_metadata' OR column_name = 'extra_metadata')
+                        """
+                    )
                 )
-            )
-
-            await conn.execute(
-                text(
-                    """
-                ALTER TABLE model_usage_stats
-                DROP COLUMN IF EXISTS extra_metadata
-            """
-                )
-            )
+                missing_columns = [row[0] for row in columns_result]
+                
+                if len(missing_columns) < 2:
+                    print(f"Found {len(missing_columns)} of 2 required metadata columns. Will attempt to recreate table.")
+                    
+                    # Create a temporary table with the correct schema
+                    await conn.execute(
+                        text(
+                            """
+                            CREATE TABLE IF NOT EXISTS model_usage_stats_new (
+                                id SERIAL PRIMARY KEY,
+                                model VARCHAR(50) NOT NULL,
+                                session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
+                                prompt_tokens INTEGER NOT NULL,
+                                completion_tokens INTEGER NOT NULL,
+                                total_tokens INTEGER NOT NULL,
+                                reasoning_tokens INTEGER,
+                                cached_tokens INTEGER,
+                                active_tokens INTEGER,
+                                token_details JSONB,
+                                timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                tracking_id VARCHAR(64),
+                                model_metadata JSONB,
+                                usage_metadata JSONB,
+                                extra_metadata JSONB,
+                                model_type VARCHAR(20) NOT NULL DEFAULT 'standard',
+                                deepseek_specific_tokens INTEGER,
+                                o_series_specific_tokens INTEGER,
+                                o_series_effort VARCHAR(20),
+                                deepseek_thoughts INTEGER
+                            )
+                            """
+                        )
+                    )
+                    
+                    # Copy data from old table to new one, handling missing columns
+                    await conn.execute(
+                        text(
+                            """
+                            INSERT INTO model_usage_stats_new(
+                                model, session_id, prompt_tokens, completion_tokens,
+                                total_tokens, reasoning_tokens, cached_tokens,
+                                active_tokens, token_details, timestamp,
+                                tracking_id, model_metadata, model_type,
+                                deepseek_specific_tokens, o_series_specific_tokens,
+                                o_series_effort, deepseek_thoughts
+                            )
+                            SELECT
+                                model, session_id, prompt_tokens, completion_tokens,
+                                total_tokens, reasoning_tokens, cached_tokens,
+                                active_tokens, token_details, timestamp,
+                                tracking_id, model_metadata, model_type,
+                                deepseek_specific_tokens, o_series_specific_tokens,
+                                o_series_effort, deepseek_thoughts
+                            FROM model_usage_stats
+                            """
+                        )
+                    )
+                    
+                    # Drop the old table
+                    await conn.execute(text("DROP TABLE model_usage_stats"))
+                    
+                    # Rename the new table
+                    await conn.execute(text("ALTER TABLE model_usage_stats_new RENAME TO model_usage_stats"))
+                    
+                    print("Successfully recreated model_usage_stats table with all required columns")
+            except Exception as e:
+                print(f"Error recreating model_usage_stats table: {e}")
+                # Commit current transaction to prevent cascading failures
+                await conn.execute(text("COMMIT"))
+                # Start a new transaction
+                await conn.execute(text("BEGIN"))
 
             # Add created_at and updated_at to app_configurations if not exists
             await conn.execute(
@@ -435,16 +525,8 @@ async def init_database():
                 )
             )
 
-            await conn.execute(
-                text(
-                    "ALTER TABLE model_usage_stats ADD COLUMN IF NOT EXISTS usage_metadata JSONB"
-                )
-            )
-            await conn.execute(
-                text(
-                    "ALTER TABLE model_usage_stats ADD COLUMN IF NOT EXISTS extra_metadata JSONB"
-                )
-            )
+            # Remove usage_metadata and extra_metadata columns to prevent TooManyColumnsError
+            # These columns are already defined in the CREATE TABLE statement for model_usage_stats
 
             await conn.execute(
                 text("ALTER TABLE conversations ALTER COLUMN session_id SET NOT NULL")
@@ -511,7 +593,7 @@ async def init_database():
         except Exception as e:
             print(f"Error adding columns or dropping old metadata columns: {e}")
 
-        # Add missing indexes
+        # Add missing indexes with transaction error handling
         index_statements = [
             "CREATE INDEX IF NOT EXISTS ix_vector_stores_status ON vector_stores (status)",
             "CREATE INDEX IF NOT EXISTS ix_vector_stores_session_id ON vector_stores (session_id)",
@@ -534,9 +616,16 @@ async def init_database():
         ]
 
         for stmt in index_statements:
-            await conn.execute(text(stmt))
+            try:
+                await conn.execute(text(stmt))
+            except Exception as e:
+                print(f"Error creating index: {e}")
+                # Commit current transaction to prevent cascading failures
+                await conn.execute(text("COMMIT"))
+                # Start a new transaction
+                await conn.execute(text("BEGIN"))
 
-        # Create all needed indexes
+        # Create all needed indexes with transaction error handling
         index_statements = [
             # Sessions indexes
             "CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at)",
@@ -576,7 +665,14 @@ async def init_database():
         ]
 
         for stmt in index_statements:
-            await conn.execute(text(stmt))
+            try:
+                await conn.execute(text(stmt))
+            except Exception as e:
+                print(f"Error creating index: {e}")
+                # Commit current transaction to prevent cascading failures
+                await conn.execute(text("COMMIT"))
+                # Start a new transaction
+                await conn.execute(text("BEGIN"))
 
         model_configs = {
             "o1": {

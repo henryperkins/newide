@@ -386,10 +386,23 @@ async function loadConversation(conversationId) {
     const displayManagerModule = await import('./displayManager.js');
     await displayManagerModule.loadConversationFromDb();
 
-    // On mobile, close the sidebar
-    const conversationsSidebar = document.getElementById('conversations-sidebar');
-    if (window.innerWidth < 768 && conversationsSidebar) {
-      conversationsSidebar.classList.add('hidden');
+    // On mobile, close the sidebar using proper sidebar management
+    if (window.innerWidth < 768) {
+      import('./sidebarManager.js').then(module => {
+        if (typeof module.toggleSidebar === 'function') {
+          module.toggleSidebar('conversations-sidebar', false);
+        } else if (window.toggleSidebarDirect) {
+          window.toggleSidebarDirect('conversations-sidebar');
+        }
+      }).catch(err => {
+        console.error("Error importing sidebarManager:", err);
+        // Fallback to direct manipulation if import fails
+        const conversationsSidebar = document.getElementById('conversations-sidebar');
+        if (conversationsSidebar) {
+          conversationsSidebar.classList.add('-translate-x-full');
+          conversationsSidebar.classList.remove('sidebar-open');
+        }
+      });
     }
   } catch (error) {
     console.error('Error loading conversation:', error);
@@ -621,40 +634,18 @@ async function renameConversation(conversationId, newTitle) {
 // Set up conversation sidebar toggle
 function initConversationSidebarToggle() {
   console.log("[initConversationSidebarToggle] called");
-  const conversationsToggleBtn = document.getElementById('conversations-toggle');
-  const mobileConversationsToggleBtn = document.getElementById('mobile-conversations-toggle');
-  const conversationsSidebar = document.getElementById('conversations-sidebar');
+  // Note: This function is kept for backward compatibility and log reports
+  // The actual event handlers are now attached in sidebarManager.js's initConversationSidebar
+  // or in ui-controls.js to avoid duplicate event listeners
   
+  const conversationsSidebar = document.getElementById('conversations-sidebar');
   if (!conversationsSidebar) {
     console.log("[initConversationSidebarToggle] no sidebar found");
     return;
   }
-
-  // Set up header toggle button
-  if (conversationsToggleBtn) {
-    console.log("[initConversationSidebarToggle] found toggle button");
-    conversationsToggleBtn.addEventListener('click', function headerToggleClickHandler(e) {
-      e.preventDefault();
-      console.log("[initConversationSidebarToggle] toggle button clicked");
-      const isOpen = conversationsSidebar.classList.contains('sidebar-open');
-      toggleConversationSidebar(!isOpen); // Call with the inverse of current state
-    });
-  } else {
-    console.log("[initConversationSidebarToggle] no header toggle button found");
-  }
-
-  // Set up mobile toggle button
-  if (mobileConversationsToggleBtn) {
-    console.log("[initConversationSidebarToggle] found mobile toggle button");
-    mobileConversationsToggleBtn.addEventListener('click', function mobileToggleClickHandler(e) {
-      e.preventDefault();
-      console.log("[initConversationSidebarToggle] mobile toggle button clicked");
-      const isOpen = conversationsSidebar.classList.contains('sidebar-open');
-      toggleConversationSidebar(!isOpen); // Call with the inverse of current state
-    });
-  } else {
-    console.log("[initConversationSidebarToggle] no mobile toggle button found");
-  }
+  
+  console.log("[initConversationSidebarToggle] sidebar found, delegating to sidebarManager.js");
+  // No longer attaching event listeners here
 }
 
 

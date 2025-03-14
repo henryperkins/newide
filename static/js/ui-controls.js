@@ -12,21 +12,14 @@ window.addEventListener('DOMContentLoaded', () => {
   if (sidebarToggle && sidebar) {
     sidebarToggle.addEventListener('click', () => {
       console.log("Sidebar toggle clicked");
-      const isOpen = sidebar.classList.contains('translate-x-0');
-      if (isOpen) {
-        sidebar.classList.remove('translate-x-0');
-        sidebar.classList.add('translate-x-full');
-        sidebarToggle.setAttribute('aria-expanded', 'false');
-        if (sidebarOverlay) sidebarOverlay.classList.add('hidden');
-      } else {
-        sidebar.classList.remove('hidden', 'translate-x-full');
-        sidebar.classList.add('translate-x-0');
-        sidebarToggle.setAttribute('aria-expanded', 'true');
-        if (sidebarOverlay) {
-          sidebarOverlay.classList.remove('hidden');
-          sidebarOverlay.classList.add('fixed', 'inset-0', 'bg-dark-900', 'bg-opacity-50', 'z-40');
+      import('./ui/sidebarManager.js').then(module => {
+        const isOpen = sidebar.classList.contains('sidebar-open');
+        if (typeof module.toggleSidebar === 'function') {
+          module.toggleSidebar('sidebar', !isOpen);
+        } else {
+          window.toggleSidebarDirect && window.toggleSidebarDirect('sidebar');
         }
-      }
+      });
     });
   }
   
@@ -47,16 +40,14 @@ window.addEventListener('DOMContentLoaded', () => {
   if (conversationsToggle && conversationsSidebar) {
     conversationsToggle.addEventListener('click', () => {
       console.log("Conversations toggle clicked");
-      const isOpen = !conversationsSidebar.classList.contains('-translate-x-full');
-      if (isOpen) {
-        conversationsSidebar.classList.add('-translate-x-full');
-        conversationsSidebar.classList.remove('translate-x-0');
-        conversationsToggle.setAttribute('aria-expanded', 'false');
-      } else {
-        conversationsSidebar.classList.remove('-translate-x-full');
-        conversationsSidebar.classList.add('translate-x-0');
-        conversationsToggle.setAttribute('aria-expanded', 'true');
-      }
+      import('./ui/sidebarManager.js').then(module => {
+        const isOpen = conversationsSidebar.classList.contains('sidebar-open');
+        if (typeof module.toggleSidebar === 'function') {
+          module.toggleSidebar('conversations-sidebar', !isOpen);
+        } else {
+          window.toggleSidebarDirect && window.toggleSidebarDirect('conversations-sidebar');
+        }
+      });
     });
   }
   
@@ -65,16 +56,14 @@ window.addEventListener('DOMContentLoaded', () => {
   if (mobileConversationsToggle && conversationsSidebar) {
     mobileConversationsToggle.addEventListener('click', () => {
       console.log("Mobile conversations toggle clicked");
-      const isOpen = !conversationsSidebar.classList.contains('-translate-x-full');
-      if (isOpen) {
-        conversationsSidebar.classList.add('-translate-x-full');
-        conversationsSidebar.classList.remove('translate-x-0');
-        mobileConversationsToggle.setAttribute('aria-expanded', 'false');
-      } else {
-        conversationsSidebar.classList.remove('-translate-x-full');
-        conversationsSidebar.classList.add('translate-x-0');
-        mobileConversationsToggle.setAttribute('aria-expanded', 'true');
-      }
+      import('./ui/sidebarManager.js').then(module => {
+        const isOpen = conversationsSidebar.classList.contains('sidebar-open');
+        if (typeof module.toggleSidebar === 'function') {
+          module.toggleSidebar('conversations-sidebar', !isOpen);
+        } else {
+          window.toggleSidebarDirect && window.toggleSidebarDirect('conversations-sidebar');
+        }
+      });
     });
   }
   
@@ -236,9 +225,14 @@ window.addEventListener('DOMContentLoaded', () => {
 const closeSidebarBtn = document.querySelector('.sidebar-close');
 if (closeSidebarBtn) {
   closeSidebarBtn.addEventListener('click', () => {
-    document.querySelector('.sidebar')?.classList.remove('sidebar-open');
-    document.getElementById('sidebar-overlay')?.classList.add('hidden');
-    console.log("Sidebar close button clicked, sidebar hidden");
+    console.log("Sidebar close button clicked");
+    import('./ui/sidebarManager.js').then(module => {
+      if (typeof module.toggleSidebar === 'function') {
+        module.toggleSidebar('sidebar', false);
+      } else {
+        window.toggleSidebarDirect && window.toggleSidebarDirect('sidebar');
+      }
+    });
   });
 }
 
