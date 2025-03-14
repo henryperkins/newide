@@ -240,6 +240,13 @@ export async function sendMessage() {
       return;
     }
 
+    // Check if user is logged in
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      showNotification('Please log in to send messages.', 'error');
+      return;
+    }
+
     // Force localStorage to match session ID in case of cross-tab changes
     localStorage.setItem('activeConversationId', currentSessionId);
 

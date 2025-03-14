@@ -1,8 +1,79 @@
 window.addEventListener('DOMContentLoaded', () => {
-  // Import the proper sidebar toggle function and set it globally
-  /* Removed duplicated 'toggleConversationSidebar' setup to avoid conflicts.
-     Rely on conversationManager.js and sidebarManager.js for toggle logic. */
+  // Add event listeners for sidebar and conversations toggles
+  const sidebarToggle = document.getElementById('sidebar-toggle');
+  const sidebar = document.getElementById('sidebar');
+  const sidebarOverlay = document.getElementById('sidebar-overlay');
+  const closeSidebar = document.getElementById('close-sidebar');
   
+  // Setup sidebar toggle
+  if (sidebarToggle && sidebar) {
+    sidebarToggle.addEventListener('click', () => {
+      console.log("Sidebar toggle clicked");
+      const isOpen = sidebar.classList.contains('translate-x-0');
+      if (isOpen) {
+        sidebar.classList.remove('translate-x-0');
+        sidebar.classList.add('translate-x-full');
+        sidebarToggle.setAttribute('aria-expanded', 'false');
+        if (sidebarOverlay) sidebarOverlay.classList.add('hidden');
+      } else {
+        sidebar.classList.remove('hidden', 'translate-x-full');
+        sidebar.classList.add('translate-x-0');
+        sidebarToggle.setAttribute('aria-expanded', 'true');
+        if (sidebarOverlay) {
+          sidebarOverlay.classList.remove('hidden');
+          sidebarOverlay.classList.add('fixed', 'inset-0', 'bg-dark-900', 'bg-opacity-50', 'z-40');
+        }
+      }
+    });
+  }
+  
+  // Setup close sidebar button
+  if (closeSidebar && sidebar) {
+    closeSidebar.addEventListener('click', () => {
+      sidebar.classList.remove('translate-x-0');
+      sidebar.classList.add('translate-x-full');
+      if (sidebarToggle) sidebarToggle.setAttribute('aria-expanded', 'false');
+      if (sidebarOverlay) sidebarOverlay.classList.add('hidden');
+    });
+  }
+  
+  // Setup conversations toggle
+  const conversationsToggle = document.getElementById('conversations-toggle');
+  const conversationsSidebar = document.getElementById('conversations-sidebar');
+  
+  if (conversationsToggle && conversationsSidebar) {
+    conversationsToggle.addEventListener('click', () => {
+      console.log("Conversations toggle clicked");
+      const isOpen = !conversationsSidebar.classList.contains('-translate-x-full');
+      if (isOpen) {
+        conversationsSidebar.classList.add('-translate-x-full');
+        conversationsSidebar.classList.remove('translate-x-0');
+        conversationsToggle.setAttribute('aria-expanded', 'false');
+      } else {
+        conversationsSidebar.classList.remove('-translate-x-full');
+        conversationsSidebar.classList.add('translate-x-0');
+        conversationsToggle.setAttribute('aria-expanded', 'true');
+      }
+    });
+  }
+  
+  // Setup mobile conversations toggle (for bottom nav)
+  const mobileConversationsToggle = document.getElementById('mobile-conversations-toggle');
+  if (mobileConversationsToggle && conversationsSidebar) {
+    mobileConversationsToggle.addEventListener('click', () => {
+      console.log("Mobile conversations toggle clicked");
+      const isOpen = !conversationsSidebar.classList.contains('-translate-x-full');
+      if (isOpen) {
+        conversationsSidebar.classList.add('-translate-x-full');
+        conversationsSidebar.classList.remove('translate-x-0');
+        mobileConversationsToggle.setAttribute('aria-expanded', 'false');
+      } else {
+        conversationsSidebar.classList.remove('-translate-x-full');
+        conversationsSidebar.classList.add('translate-x-0');
+        mobileConversationsToggle.setAttribute('aria-expanded', 'true');
+      }
+    });
+  }
   console.log("Sidebar functionality enhanced in ui-controls.js");
 
   // Theme toggle

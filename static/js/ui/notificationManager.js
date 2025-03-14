@@ -283,8 +283,8 @@ function createNotificationContainer() {
     c.id = 'notification-container';
     const iOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     c.className = iOSSafari
-      ? 'sticky top-4 right-4 z-50 flex flex-col gap-2 max-w-md ml-auto mr-4 pointer-events-none'
-      : 'fixed right-4 top-4 z-50 flex flex-col gap-2 max-w-md pointer-events-none';
+      ? 'sticky top-4 left-1/2 transform -translate-x-1/2 z-[1000] flex flex-col gap-2 max-w-md pointer-events-none'
+      : 'fixed top-4 left-1/2 transform -translate-x-1/2 z-[1000] flex flex-col gap-2 max-w-md pointer-events-none';
     document.body.appendChild(c);
   }
   return c;
@@ -293,10 +293,11 @@ function createNotificationContainer() {
 function createNotificationElement(message, type, actions) {
   const tData = getNotificationTypeData(type);
   const el = document.createElement('div');
-  el.className = `notification flex items-start p-4 mb-2 rounded-lg shadow-lg border transition-all duration-300 transform opacity-0 translate-y-4 ${tData.bgClass} ${tData.borderClass} ${tData.textClass} pointer-events-auto`;
+  el.className = `notification flex items-start p-4 mb-2 rounded-lg shadow-xl border transition-all duration-300 transform opacity-0 translate-y-4 ${tData.bgClass} ${tData.borderClass} ${tData.textClass} pointer-events-auto`;
   el.setAttribute('role', 'alert');
   el.setAttribute('aria-live', 'assertive');
   el.setAttribute('aria-atomic', 'true');
+  el.style.zIndex = '1000';
   el.innerHTML = `
     <div class="flex-1 flex items-center gap-2">
       ${tData.icon}
