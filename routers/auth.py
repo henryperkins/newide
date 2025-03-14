@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Form, Header
 from sqlalchemy.ext.asyncio import AsyncSession
-from passlib.hash import bcrypt
+from passlib.hash import bcrypt_sha256 as bcrypt
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 import time

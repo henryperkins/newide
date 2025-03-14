@@ -66,30 +66,41 @@ def create_error_response(
         detail=APIErrorResponse(error=error).model_dump(),
         headers=headers_dict
     )
+
 class VisionError(APIErrorResponse):
-    error: Error = Error(
-        code="vision_error",
-        message="Invalid image input",
-        type="invalid_request_error",
-        param=None,
-        inner_error=InnerError(
-            code="vision_validation",
-            content_filter_results={
-                "vision": {"filtered": True, "severity": "high"}
-            }
+    def __init__(self, **data: Any):
+        super().__init__(
+            error=Error(
+                code="vision_error",
+                message="Invalid image input",
+                type="invalid_request_error",
+                param=None,
+                inner_error=InnerError(
+                    code="vision_validation",
+                    content_filter_results={
+                        "vision": {"filtered": True, "severity": "high"}
+                    }
+                )
+            ),
+            **data
         )
-    )
+
 
 class ImageSizeError(APIErrorResponse):
-    error: Error = Error(
-        code="image_size_exceeded",
-        message="Image exceeds size limit",
-        type="invalid_request_error",
-        param="max_image_size",
-        inner_error=InnerError(
-            code="vision_validation",
-            content_filter_results={
-                "vision": {"filtered": True, "severity": "high"}
-            }
+    def __init__(self, **data: Any):
+        super().__init__(
+            error=Error(
+                code="image_size_exceeded",
+                message="Image exceeds size limit",
+                type="invalid_request_error",
+                param="max_image_size",
+                inner_error=InnerError(
+                    code="vision_validation",
+                    content_filter_results={
+                        "vision": {"filtered": True, "severity": "high"}
+                    }
+                )
+            ),
+            **data
         )
-    )
+
