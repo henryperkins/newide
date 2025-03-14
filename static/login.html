@@ -54,6 +54,11 @@
         <form id="login-form" class="space-y-4" novalidate>
           <!-- Form error placeholder -->
           <div id="form-error" class="hidden alert alert-danger" role="alert"></div>
+          
+          <!-- Password reset message -->
+          <div id="password-reset-msg" class="hidden alert alert-info mb-4" role="alert">
+            Your account requires a password reset. Please click "Forgot password?" to reset your password.
+          </div>
         
           <div>
             <label for="login-email" class="form-label">Email Address</label>
@@ -72,7 +77,7 @@
           <div>
             <div class="flex items-center justify-between">
               <label for="login-password" class="form-label">Password</label>
-              <a href="#" class="text-sm text-primary-600 dark:text-primary-400 hover:underline focus-ring rounded-sm">
+              <a href="#" id="forgot-password-link" class="text-sm text-primary-600 dark:text-primary-400 hover:underline focus-ring rounded-sm">
                 Forgot password?
               </a>
             </div>
@@ -143,6 +148,63 @@
   <!-- Notification container -->
   <div id="notification-container" class="fixed top-4 right-4 z-50 space-y-2 pointer-events-none"></div>
 
+  <!-- Password Reset Modal -->
+  <div id="password-reset-modal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      <!-- Background overlay -->
+      <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+      
+      <!-- Modal panel -->
+      <div class="inline-block align-bottom bg-white dark:bg-dark-600 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+        <div class="bg-white dark:bg-dark-600 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div class="sm:flex sm:items-start">
+            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+              <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white" id="modal-title">
+                Reset Password
+              </h3>
+              <div class="mt-2">
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                  Enter your email address and we'll send you a link to reset your password.
+                </p>
+                
+                <form id="reset-password-form" class="mt-4">
+                  <div id="reset-form-error" class="hidden alert alert-danger mb-4" role="alert"></div>
+                  <div id="reset-form-success" class="hidden alert alert-success mb-4" role="alert"></div>
+                  
+                  <div class="mb-4">
+                    <label for="reset-email" class="form-label">Email Address</label>
+                    <input 
+                      type="email" 
+                      id="reset-email" 
+                      name="email" 
+                      class="form-input"
+                      placeholder="you@example.com"
+                      required
+                    />
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bg-gray-50 dark:bg-dark-500 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          <button id="submit-reset" type="button" class="btn btn-primary w-full sm:w-auto sm:ml-3">
+            <span>Send Reset Link</span>
+            <span id="reset-loader" class="ml-2 hidden">
+              <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </span>
+          </button>
+          <button id="close-modal" type="button" class="btn btn-secondary w-full sm:w-auto mt-3 sm:mt-0">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Theme toggling functionality
     document.addEventListener('DOMContentLoaded', () => {
@@ -180,6 +242,97 @@
         });
       }
       
+      // Handle password reset modal
+      const forgotPasswordLink = document.getElementById('forgot-password-link');
+      const passwordResetModal = document.getElementById('password-reset-modal');
+      const closeModalBtn = document.getElementById('close-modal');
+      const resetForm = document.getElementById('reset-password-form');
+      const resetEmailInput = document.getElementById('reset-email');
+      const submitResetBtn = document.getElementById('submit-reset');
+      const resetLoader = document.getElementById('reset-loader');
+      const resetFormError = document.getElementById('reset-form-error');
+      const resetFormSuccess = document.getElementById('reset-form-success');
+      
+      // Import auth utilities
+      let authModule;
+      import('/static/js/auth.js')
+        .then(module => {
+          authModule = module;
+        })
+        .catch(err => console.error('Failed to load auth module:', err));
+      
+      // Show password reset modal
+      if (forgotPasswordLink) {
+        forgotPasswordLink.addEventListener('click', (e) => {
+          e.preventDefault();
+          
+          // Pre-fill email if it exists in the login form
+          const loginEmail = document.getElementById('login-email').value.trim();
+          if (loginEmail) {
+            resetEmailInput.value = loginEmail;
+          }
+          
+          // Show the modal
+          passwordResetModal.classList.remove('hidden');
+        });
+      }
+      
+      // Close modal when clicking the close button
+      if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', () => {
+          passwordResetModal.classList.add('hidden');
+          resetForm.reset();
+          resetFormError.classList.add('hidden');
+          resetFormSuccess.classList.add('hidden');
+        });
+      }
+      
+      // Handle password reset form submission
+      if (submitResetBtn) {
+        submitResetBtn.addEventListener('click', async () => {
+          // Reset previous messages
+          resetFormError.classList.add('hidden');
+          resetFormSuccess.classList.add('hidden');
+          
+          const email = resetEmailInput.value.trim();
+          
+          if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            resetFormError.textContent = 'Please enter a valid email address';
+            resetFormError.classList.remove('hidden');
+            return;
+          }
+          
+          // Show loading state
+          resetLoader.classList.remove('hidden');
+          submitResetBtn.disabled = true;
+          
+          try {
+            // Call the password reset function
+            const success = await authModule.requestPasswordReset(email);
+            
+            if (success) {
+              resetFormSuccess.textContent = 'Password reset link has been sent to your email address.';
+              resetFormSuccess.classList.remove('hidden');
+              resetForm.reset();
+              
+              // Close modal after a delay
+              setTimeout(() => {
+                passwordResetModal.classList.add('hidden');
+                resetFormSuccess.classList.add('hidden');
+              }, 5000);
+            } else {
+              throw new Error('Failed to request password reset');
+            }
+          } catch (error) {
+            resetFormError.textContent = error.message || 'An error occurred. Please try again.';
+            resetFormError.classList.remove('hidden');
+          } finally {
+            resetLoader.classList.add('hidden');
+            submitResetBtn.disabled = false;
+          }
+        });
+      }
+      
       // Form validation and submission
       const form = document.getElementById('login-form');
       if (form) {
@@ -190,6 +343,7 @@
           document.getElementById('form-error').classList.add('hidden');
           document.getElementById('email-error').classList.add('hidden');
           document.getElementById('password-error').classList.add('hidden');
+          document.getElementById('password-reset-msg').classList.add('hidden');
           
           // Basic form validation
           let isValid = true;
@@ -233,7 +387,21 @@
             
             if (!response.ok) {
               const error = await response.json();
-              throw new Error(error.detail || response.statusText || "Login failed");
+              const errorMsg = error.detail || response.statusText || "Login failed";
+              
+              // Check if this is a password reset requirement
+              if (authModule && authModule.requiresPasswordReset(errorMsg)) {
+                // Show password reset message and highlight forgot password link
+                document.getElementById('password-reset-msg').classList.remove('hidden');
+                document.getElementById('forgot-password-link').classList.add('animate-pulse');
+                
+                // Auto-fill reset form with email
+                resetEmailInput.value = email;
+                
+                throw new Error("Your account requires a password reset. Please use the 'Forgot password?' link.");
+              }
+              
+              throw new Error(errorMsg);
             }
             
             const data = await response.json();

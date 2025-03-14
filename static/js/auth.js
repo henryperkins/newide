@@ -42,10 +42,20 @@ export async function validateToken() {
     // Parse the response
     const data = await response.json();
     
-    // If token is invalid, clear it and return false
+    // If token is invalid or expired, clear it and return false
     if (!data.valid) {
       console.log('Token validation failed:', data.reason);
+      
+      // Check if it's an expiration issue - we may want to auto-refresh in the future
+      if (data.reason?.includes("expired")) {
+        console.log('Token has expired. Redirecting to login page.');
+      }
+      
+      // Clear auth data
       localStorage.removeItem('token');
+      localStorage.removeItem('sessionId');
+      localStorage.removeItem('userId');
+      
       return false;
     }
     
@@ -56,6 +66,42 @@ export async function validateToken() {
   } catch (error) {
     // Error during validation
     console.error('Error validating token:', error);
+    return false;
+  }
+}
+
+/**
+ * Check if a user requires password reset
+ * @param {string} errorMessage - The error message from login attempt
+ * @returns {boolean} True if user needs password reset, false otherwise
+ */
+export function requiresPasswordReset(errorMessage) {
+  return errorMessage.includes('requires password reset') || 
+         errorMessage.includes('Account requires password reset');
+}
+
+/**
+ * Handle password reset request
+ * @param {string} email - User's email address
+ * @returns {Promise<boolean>} True if request was successful
+ */
+export async function requestPasswordReset(email) {
+  try {
+    const formData = new FormData();
+    formData.append("email", email);
+    
+    const response = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to request password reset");
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Password reset request error:", error);
     return false;
   }
 }
