@@ -25,38 +25,7 @@ class StoreEmitter {
 export class GlobalStore extends StoreEmitter {
   constructor() {
     super();
-
-    // Try to load persisted fields from localStorage
-    this._theme = localStorage.getItem('appTheme') || 'light';
-    this._sessionId = localStorage.getItem('sessionId') || null;
-    this._currentModel = localStorage.getItem('currentModel') || null;
-    // Stats is ephemeral; optionally can track usage details but no localStorage usage by default
-    this._statsDisplay = null;
-
-    // Model configs now unified in the global store
-    this._modelConfigs = {};
-
-    // Sidebar states
-    this._sidebars = {
-      settings: {
-        open: false,
-        position: 'right',
-        lastInteraction: Date.now()
-      },
-      conversations: {
-        open: false,
-        position: 'left', 
-        lastInteraction: Date.now()
-      }
-    };
-
-    // Additional ephemeral states
-    this._tokenDetailsVisible = localStorage.getItem('tokenDetailsVisible') === 'true';
-    this._conversation = localStorage.getItem('conversation')
-      ? JSON.parse(localStorage.getItem('conversation'))
-      : [];
-    // We'll store welcomeMessageShown in localStorage so it persists between sessions if desired
-    this._welcomeMessageShown = localStorage.getItem('welcomeMessageShown') === 'true';
+    this._loadPersistedState();
   }
 
   _STATE_VERSION = 2;

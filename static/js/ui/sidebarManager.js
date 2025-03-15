@@ -227,79 +227,68 @@ function handleResponsive() {
  * @param {boolean} show - Whether to show the sidebar (true) or hide it (false)
  */
 export function toggleSidebar(sidebarId, show) {
-  console.log(`toggleSidebar: ${sidebarId}, show: ${show}`);
-  const sidebar = document.getElementById(sidebarId);
-  const toggleButton = document.getElementById(
-    sidebarId === 'sidebar' ? 'sidebar-toggle' : 'conversations-toggle'
-  );
-  const overlay = document.getElementById('sidebar-overlay');
+  globalStore.transaction(state => {
+    const storeKey = sidebarId === 'sidebar' ? 'settings' : 'conversations';
+    state.sidebars[storeKey] = {
+      ...state.sidebars[storeKey],
+      open: show,
+      lastInteraction: Date.now()
+    };
+    return state;
+  }).then(() => {
+    console.log(`toggleSidebar: ${sidebarId}, show: ${show}`);
+    const sidebar = document.getElementById(sidebarId);
+    const toggleButton = document.getElementById(
+      sidebarId === 'sidebar' ? 'sidebar-toggle' : 'conversations-toggle'
+    );
+    const overlay = document.getElementById('sidebar-overlay');
 
-  if (!sidebar) {
-    console.error(`Sidebar with ID ${sidebarId} not found`);
-    return;
-  }
+    if (!sidebar) {
+      console.error(`Sidebar with ID ${sidebarId} not found`);
+      return;
+    }
 
-  // Update globalStore state
-  const storeKey = sidebarId === 'sidebar' ? 'settings' : 'conversations';
-  if (globalStore._sidebars && globalStore._sidebars[storeKey]) {
-    globalStore._sidebars[storeKey].open = show;
-    globalStore._sidebars[storeKey].lastInteraction = Date.now();
-    console.log(`Sidebar state updated in globalStore: ${storeKey} = ${show}`);
-  }
+    const isLeft = sidebarId === 'conversations-sidebar';
+    const isMobile = window.innerWidth < 768;
+    sidebar.style.transform = '';
 
-  const isLeft = sidebarId === 'conversations-sidebar';
-  const isMobile = window.innerWidth < 768;
-
-  // Remove any inline transform styles first
-  sidebar.style.transform = '';
-  
-  // CRITICAL FIX: Force visibility with fixed class management
-  if (show) {
-    // First remove hidden class
-    sidebar.classList.remove('hidden');
-    
-    // Critical: Force the DOM to perform layout calculations
-    void sidebar.offsetWidth;
-    
-    // Then update transform classes - this is the crucial fix
-    if (isLeft) {
-      sidebar.classList.remove('-translate-x-full');
+    if (show) {
+      sidebar.classList.remove('hidden');
+      void sidebar.offsetWidth;
+      if (isLeft) {
+        sidebar.classList.remove('-translate-x-full');
+      } else {
+        sidebar.classList.remove('translate-x-full');
+      }
+      sidebar.classList.add('translate-x-0');
+      sidebar.setAttribute('aria-hidden', 'false');
+      if (toggleButton) {
+        toggleButton.setAttribute('aria-expanded', 'true');
+      }
+      if (isMobile && overlay) {
+        overlay.classList.remove('hidden');
+      }
     } else {
-      sidebar.classList.remove('translate-x-full');
-    }
-    sidebar.classList.add('translate-x-0');
-    sidebar.setAttribute('aria-hidden', 'false');
-    
-    if (toggleButton) {
-      toggleButton.setAttribute('aria-expanded', 'true');
-    }
-    
-    // Show overlay on mobile
-    if (isMobile && overlay) {
-      overlay.classList.remove('hidden');
-    }
-  } else {
-    if (isLeft) {
-      sidebar.classList.add('-translate-x-full');
-    } else {
-      sidebar.classList.add('translate-x-full');
-    }
-    sidebar.classList.remove('translate-x-0');
-    sidebar.setAttribute('aria-hidden', 'true');
-    
-    // Hide overlay if both sidebars are closed
-    const otherSidebarId = isLeft ? 'sidebar' : 'conversations-sidebar';
-    const otherSidebar = document.getElementById(otherSidebarId);
-    const isOtherSidebarOpen = otherSidebar && 
-      ((isLeft && !otherSidebar.classList.contains('translate-x-full')) ||
-       (!isLeft && !otherSidebar.classList.contains('-translate-x-full')));
-       
-    if (isMobile && overlay && !isOtherSidebarOpen) {
-      overlay.classList.add('hidden');
-    }
-  }
+      if (isLeft) {
+        sidebar.classList.add('-translate-x-full');
+      } else {
+        sidebar.classList.add('translate-x-full');
+      }
+      sidebar.classList.remove('translate-x-0');
+      sidebar.setAttribute('aria-hidden', 'true');
 
-  console.log(`Sidebar ${sidebarId} ${show ? 'opened' : 'closed'}`);
+      const otherSidebarId = isLeft ? 'sidebar' : 'conversations-sidebar';
+      const otherSidebar = document.getElementById(otherSidebarId);
+      const isOtherSidebarOpen = otherSidebar &&
+        ((isLeft && !otherSidebar.classList.contains('translate-x-full')) ||
+         (!isLeft && !otherSidebar.classList.contains('-translate-x-full')));
+
+      if (isMobile && overlay && !isOtherSidebarOpen) {
+        overlay.classList.add('hidden');
+      }
+    }
+    console.log(`Sidebar ${sidebarId} ${show ? 'opened' : 'closed'}`);
+  });
 }
 
 /**
@@ -359,11 +348,18 @@ function initConversationSidebar() {
 function setupCrossTabSync() {
   window.addEventListener('storage', (event) => {
     if (event.key === 'globalStore') {
-      const newState = JSON.parse(event.newValue);
-      if (newState._sidebars) {
-        globalStore._sidebars = newState._sidebars;
-        handleResponsive();
+      const newState = JSON.parse(event.newValue || '{}');
+      if (typeof newState.version === 'number' && newState.version !== globalStore._STATE_VERSION) {
+        return;
       }
+      globalStore._theme = newState.theme ?? 'light';
+      globalStore._activeConversationId = newState.activeConversationId ?? null;
+      globalStore._sidebars = newState.sidebars ?? {
+        settings: { open: false, position: 'right', lastInteraction: Date.now() },
+        conversations: { open: false, position: 'left', lastInteraction: Date.now() }
+      };
+      globalStore.emit('fullUpdate', newState);
+      handleResponsive();
     }
   });
 }
