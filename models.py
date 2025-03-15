@@ -21,6 +21,8 @@ Base = declarative_base()
 # -------------------------------------------------------------------------
 # Sessions
 # -------------------------------------------------------------------------
+from sqlalchemy.orm import relationship
+
 class Session(Base):
     __tablename__ = "sessions"
     __table_args__ = (
@@ -28,6 +30,13 @@ class Session(Base):
         Index("ix_sessions_expires_at", "expires_at"),
         Index("ix_sessions_user_expiry", "user_id", "expires_at"),
         Index("ix_sessions_activity", "last_activity"),
+    )
+
+    conversations = relationship(
+        "Conversation",
+        backref="session_obj",
+        cascade="all, delete-orphan",
+        passive_deletes=True
     )
 
     id = Column(PGUUID, primary_key=True)
@@ -115,7 +124,7 @@ class Conversation(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(
-        PGUUID, ForeignKey("sessions.id", ondelete="RESTRICT"), nullable=False
+        PGUUID, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
     )
     user_id = Column(PGUUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     role = Column(String(20), nullable=False)

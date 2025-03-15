@@ -245,7 +245,11 @@ async def create_session(
                     value=str(session_id),
                     httponly=True,
                     secure=True,
-                    samesite="none",
+                    samesite="Lax",
+                    max_age=1800,
+                    domain=config.COOKIE_DOMAIN,
+                    path='/',
+                    partitioned=True
                 )
 
                 span.set_data("success", True)
@@ -328,7 +332,11 @@ async def refresh_session(
                     value=str(session_obj.id),
                     httponly=True,
                     secure=True,
-                    samesite="none",
+                    samesite="Lax",
+                    max_age=1800,
+                    domain=config.COOKIE_DOMAIN,
+                    path='/',
+                    partitioned=True
                 )
                 return response
             except Exception as resp_error:
