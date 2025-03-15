@@ -392,6 +392,14 @@ async function fetchChatResponse(
         messages
       };
 
+      // Insert a developer message if it's an o-series model
+      if (isOSeriesModel) {
+        payload.messages.unshift({
+          role: "system",
+          content: "Formatting re-enabled - use markdown code blocks"
+        });
+      }
+
       // Only add reasoning_effort for O-series models
       if (isOSeriesModel) {
         payload.reasoning_effort = effort;
