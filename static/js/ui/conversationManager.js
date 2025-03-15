@@ -420,8 +420,7 @@ async function togglePinConversation(conversationId, pinned) {
       const response = await fetch(`/api/chat/conversations/${conversationId}/pin`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': document.cookie.match(/csrftoken=([\w-]+)/)?.[1] || ''
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ pinned })
       });
@@ -583,8 +582,7 @@ async function renameConversation(conversationId, newTitle) {
     const response = await fetch(`/api/chat/conversations/${conversationId}/rename`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': document.cookie.match(/csrftoken=([\w-]+)/)?.[1] || ''
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({ newTitle })
     });

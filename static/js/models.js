@@ -260,7 +260,6 @@ class ModelManager {
             const response = await fetch(`${window.location.origin}/api/config/models/${modelId}`, {
               method: 'DELETE',
               headers: {
-                'X-CSRFToken': await getCSRFToken(),
                 'Content-Type': 'application/json'
               }
             });
