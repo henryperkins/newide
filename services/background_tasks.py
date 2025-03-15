@@ -2,6 +2,7 @@
 Service for handling background tasks.
 """
 import sentry_sdk
+import time
 from typing import Optional, Dict
 
 from logging_config import get_logger
@@ -49,6 +50,8 @@ def send_email_background(
     try:
         loop.run_until_complete(_send_email())
     finally:
+        duration = time.monotonic() - start_time
+        # metrics.timing("email_task_duration", duration)
         loop.close()
 
 # Specific background tasks for different email types

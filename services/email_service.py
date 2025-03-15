@@ -77,7 +77,7 @@ class EmailService:
         """
         try:
             # Create a SendGrid Mail object
-            mail = Mail()
+            mail = Mail(from_email=None, to_emails=None, subject=None, plain_text_content=None, html_content=None)
             
             # Set from email
             mail.from_email = Email(

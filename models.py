@@ -26,6 +26,8 @@ class Session(Base):
     __table_args__ = (
         Index("ix_sessions_created_at", "created_at"),
         Index("ix_sessions_expires_at", "expires_at"),
+        Index("ix_sessions_user_expiry", "user_id", "expires_at"),
+        Index("ix_sessions_activity", "last_activity"),
     )
 
     id = Column(PGUUID, primary_key=True)
