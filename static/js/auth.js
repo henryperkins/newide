@@ -7,8 +7,9 @@
  */
 export function logout() {
   // Clear all authentication data from local storage
-  localStorage.removeItem('token');
-  localStorage.removeItem('sessionId');
+  // Align key names with chat.js usage
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('activeConversationId');
   localStorage.removeItem('userId');
   
   // Optionally show a logout notification
@@ -23,13 +24,14 @@ export function logout() {
  * @returns {Promise<boolean>} True if token is valid, false otherwise
  */
 export async function validateToken() {
-  const token = localStorage.getItem('token');
-  
+  // Check BOTH possible token locations
+  const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+
   // If no token exists, return false immediately
   if (!token) {
     return false;
   }
-  
+
   try {
     // Call the token validation endpoint
     const response = await fetch('/api/auth/validate-token', {
@@ -38,23 +40,25 @@ export async function validateToken() {
         'Authorization': `Bearer ${token}`
       }
     });
-    
+
     // Parse the response
     const data = await response.json();
-    
-    // If token is invalid, clear it and return false
+
+    // If token is invalid, clear both possible keys and return false
     if (!data.valid) {
       console.log('Token validation failed:', data.reason);
+      localStorage.removeItem('authToken');
       localStorage.removeItem('token');
       return false;
     }
-    
-    // Token is valid
-    console.log('Authentication valid for user:', data.user_id);
+
+    // Ensure token is stored consistently with a single key name
+    if (token && !localStorage.getItem('authToken')) {
+      localStorage.setItem('authToken', token);
+    }
+
     return true;
-    
   } catch (error) {
-    // Error during validation
     console.error('Error validating token:', error);
     return false;
   }

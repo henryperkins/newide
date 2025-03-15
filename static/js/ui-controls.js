@@ -1,5 +1,6 @@
 // Module for handling UI controls and user interactions
 import { logout } from './auth.js';
+import { toggleSidebar } from './ui/sidebarManager.js';
 
 window.addEventListener('DOMContentLoaded', () => {
   // Add event listeners for sidebar and conversations toggles
@@ -12,24 +13,17 @@ window.addEventListener('DOMContentLoaded', () => {
   if (sidebarToggle && sidebar) {
     sidebarToggle.addEventListener('click', () => {
       console.log("Sidebar toggle clicked");
-      import('./ui/sidebarManager.js').then(module => {
-        const isOpen = sidebar.classList.contains('sidebar-open');
-        if (typeof module.toggleSidebar === 'function') {
-          module.toggleSidebar('sidebar', !isOpen);
-        } else {
-          window.toggleSidebarDirect && window.toggleSidebarDirect('sidebar');
-        }
-      });
+      // Use the directly imported toggleSidebar function
+      const isOpen = !sidebar.classList.contains('translate-x-full');
+      toggleSidebar('sidebar', !isOpen);
     });
   }
   
   // Setup close sidebar button
   if (closeSidebar && sidebar) {
     closeSidebar.addEventListener('click', () => {
-      sidebar.classList.remove('translate-x-0');
-      sidebar.classList.add('translate-x-full');
-      if (sidebarToggle) sidebarToggle.setAttribute('aria-expanded', 'false');
-      if (sidebarOverlay) sidebarOverlay.classList.add('hidden');
+      console.log("Close sidebar button clicked");
+      toggleSidebar('sidebar', false);
     });
   }
   
@@ -40,14 +34,9 @@ window.addEventListener('DOMContentLoaded', () => {
   if (conversationsToggle && conversationsSidebar) {
     conversationsToggle.addEventListener('click', () => {
       console.log("Conversations toggle clicked");
-      import('./ui/sidebarManager.js').then(module => {
-        const isOpen = conversationsSidebar.classList.contains('sidebar-open');
-        if (typeof module.toggleSidebar === 'function') {
-          module.toggleSidebar('conversations-sidebar', !isOpen);
-        } else {
-          window.toggleSidebarDirect && window.toggleSidebarDirect('conversations-sidebar');
-        }
-      });
+      // Use transform class for consistent state detection
+      const isOpen = !conversationsSidebar.classList.contains('-translate-x-full');
+      toggleSidebar('conversations-sidebar', !isOpen);
     });
   }
   
@@ -56,14 +45,8 @@ window.addEventListener('DOMContentLoaded', () => {
   if (mobileConversationsToggle && conversationsSidebar) {
     mobileConversationsToggle.addEventListener('click', () => {
       console.log("Mobile conversations toggle clicked");
-      import('./ui/sidebarManager.js').then(module => {
-        const isOpen = conversationsSidebar.classList.contains('sidebar-open');
-        if (typeof module.toggleSidebar === 'function') {
-          module.toggleSidebar('conversations-sidebar', !isOpen);
-        } else {
-          window.toggleSidebarDirect && window.toggleSidebarDirect('conversations-sidebar');
-        }
-      });
+      const isOpen = !conversationsSidebar.classList.contains('-translate-x-full');
+      toggleSidebar('conversations-sidebar', !isOpen);
     });
   }
   
@@ -226,13 +209,7 @@ const closeSidebarBtn = document.querySelector('.sidebar-close');
 if (closeSidebarBtn) {
   closeSidebarBtn.addEventListener('click', () => {
     console.log("Sidebar close button clicked");
-    import('./ui/sidebarManager.js').then(module => {
-      if (typeof module.toggleSidebar === 'function') {
-        module.toggleSidebar('sidebar', false);
-      } else {
-        window.toggleSidebarDirect && window.toggleSidebarDirect('sidebar');
-      }
-    });
+    toggleSidebar('sidebar', false);
   });
 }
 

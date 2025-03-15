@@ -1,7 +1,7 @@
 /**
  * sidebarManager.js - Central module for all sidebar/menu functionality
  */
-
+import { globalStore } from '../store.js';
 import { safeAddEventListener } from '../utils/eventManager.js';
 
 /**
@@ -151,79 +151,85 @@ function handleResponsive() {
  * @param {string} sidebarId - ID of the sidebar element ('sidebar' or 'conversations-sidebar')
  * @param {boolean} show - Whether to show the sidebar (true) or hide it (false)
  */
+// In static/js/ui/sidebarManager.js, around line 113, fix toggleSidebar:
 export function toggleSidebar(sidebarId, show) {
   console.log(`toggleSidebar: ${sidebarId}, show: ${show}`);
   const sidebar = document.getElementById(sidebarId);
   const toggleButton = document.getElementById(sidebarId === 'sidebar' ? 'sidebar-toggle' : 'conversations-toggle');
   const overlay = document.getElementById('sidebar-overlay');
-  
+
   if (!sidebar) {
     console.error(`Sidebar with ID ${sidebarId} not found`);
     return;
   }
   
+  // Update globalStore state
+  const storeKey = sidebarId === 'sidebar' ? 'settings' : 'conversations';
+  if (globalStore._sidebars && globalStore._sidebars[storeKey]) {
+    globalStore._sidebars[storeKey].open = show;
+    globalStore._sidebars[storeKey].lastInteraction = Date.now();
+    console.log(`Sidebar state updated in globalStore: ${storeKey} = ${show}`);
+  }
+  
   const isLeft = sidebarId === 'conversations-sidebar';
   const isMobile = window.innerWidth < 768;
-  
+
   // Remove any inline transform styles first
   sidebar.style.transform = '';
-  
+
   if (show) {
-    // Show the sidebar
+    // Show the sidebar - first remove hidden class
     sidebar.classList.remove('hidden');
-    sidebar.classList.remove(isLeft ? '-translate-x-full' : 'translate-x-full');
-    sidebar.classList.add('sidebar-open');
-    sidebar.setAttribute('aria-hidden', 'false');
-    
-    if (toggleButton) {
-      toggleButton.setAttribute('aria-expanded', 'true');
-    }
-    
-    if (isMobile) {
-      document.body.classList.add('overflow-hidden');
-      if (overlay) {
-        overlay.classList.remove('hidden');
+
+    // Use setTimeout to ensure DOM updates before changing transform
+    setTimeout(() => {
+      sidebar.classList.remove(isLeft ? '-translate-x-full' : 'translate-x-full');
+      sidebar.setAttribute('aria-hidden', 'false');
+
+      if (toggleButton) {
+        toggleButton.setAttribute('aria-expanded', 'true');
       }
-    }
+
+      if (isMobile) {
+        document.body.classList.add('overflow-hidden');
+        if (overlay) {
+          overlay.classList.remove('hidden');
+        }
+      }
+    }, 10); // Very short timeout to ensure DOM updates
   } else {
     // Hide the sidebar
-    sidebar.classList.remove('sidebar-open');
     sidebar.classList.add(isLeft ? '-translate-x-full' : 'translate-x-full');
     sidebar.setAttribute('aria-hidden', 'true');
-    
+
     if (toggleButton) {
       toggleButton.setAttribute('aria-expanded', 'false');
     }
-    
+
     document.body.classList.remove('overflow-hidden');
     if (overlay) {
       // Check if the other sidebar is open before hiding overlay
       const otherSidebar = document.getElementById(isLeft ? 'sidebar' : 'conversations-sidebar');
-      const isOtherOpen = otherSidebar?.classList.contains('sidebar-open') || false;
-      
+      const isOtherOpen = otherSidebar && (isLeft
+        ? !otherSidebar.classList.contains('translate-x-full')
+        : !otherSidebar.classList.contains('-translate-x-full'));
+
       if (!isOtherOpen || !isMobile) {
         overlay.classList.add('hidden');
       }
     }
   }
-  
+
   // Publish sidebar state change event
   if (window.eventBus) {
-    window.eventBus.publish('sidebarStateChange', { 
+    window.eventBus.publish('sidebarStateChange', {
       id: sidebarId,
-      isOpen: show 
+      isOpen: show
     });
   }
-  
+
   console.log(`Sidebar ${sidebarId} ${show ? 'opened' : 'closed'}`);
 }
-
-// Export for external use
-export const sidebarManager = {
-  toggleSidebar,
-  handleResponsive,
-  initEventListeners: initSidebar
-};
 
 /**
  * Initialize the conversation sidebar
@@ -277,10 +283,7 @@ function initConversationSidebar() {
 }
 
 // For backward compatibility
+export { initSidebar, initConversationSidebar };
 export function toggleConversationSidebar(show) {
   return toggleSidebar('conversations-sidebar', show);
 }
-
-// Initialize the module
-// Export the initSidebar function directly for imports that use it
-export { initSidebar, initConversationSidebar };

@@ -544,8 +544,20 @@ async def create_chat_completion(
     Here it's just a stub that returns an empty string for assistant text.
     """
     try:
-        if not request.messages:
-            raise HTTPException(status_code=400, detail="Missing 'messages' field")
+        # If session_id is missing or empty, create a new one.
+        if not request.session_id or not request.session_id.strip():
+            from services.session_service import SessionService
+            new_session = await SessionService.create_session(db_session=db)
+            request.session_id = str(new_session.id)
+            logger.info(f"[create_chat_completion] session_id was empty. Created new session: {request.session_id}")
+    
+        # Check messages properly before proceeding
+        if not request.messages or len(request.messages) == 0:
+            logger.debug(f"[create_chat_completion] Incoming request body: {request.dict()}")
+            if not request.messages or len(request.messages) == 0:
+                # Auto-generate a basic user message if it's missing
+                request.messages = [{"role": "user", "content": "(No user message provided)"}]
+                logger.warning("[create_chat_completion] No messages provided. Using placeholder message.")
 
         model_name = request.model or "o1"
 

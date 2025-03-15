@@ -91,7 +91,7 @@ class CreateChatCompletionRequest(BaseModel):
     """
 
     messages: List[Dict[str, str]]
-    session_id: str
+    session_id: Optional[str] = Field(None, description="Optional session ID. If not provided, a new session will be created.")
     model: Optional[str] = None
     reasoning_effort: Optional[str] = "medium"
     include_files: bool = False

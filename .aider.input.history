@@ -13395,3 +13395,75 @@
 
 # 2025-03-13 03:44:41.236693
 +no
+
+# 2025-03-15 03:23:37.653549
++yes
+
+# 2025-03-15 03:25:13.171144
++/run venv/bin/uvicorn main:app --reload
+
+# 2025-03-15 03:25:50.764928
++yes
+
+# 2025-03-15 03:25:59.769978
++/architect
+
+# 2025-03-15 03:26:15.367323
++/add clients.py
+
+# 2025-03-15 03:26:22.591720
++/add config.py
+
+# 2025-03-15 03:26:31.656542
++/add services/chat_service.py
+
+# 2025-03-15 03:26:38.151303
++/add routers/chat.py
+
+# 2025-03-15 03:26:43.686943
++/add static/js/chat.js
+
+# 2025-03-15 03:26:49.361079
++/add static/js/streaming.js
+
+# 2025-03-15 03:26:54.966391
++/add static/index.html
+
+# 2025-03-15 03:27:00.051753
++/add static/css/tailwind.css
+
+# 2025-03-15 03:27:19.532468
++/add tailwind.config.js
+
+# 2025-03-15 03:27:31.997923
++/add static/js/ui/displayManager.js
+
+# 2025-03-15 03:28:02.451009
++responses are not showing up in the chat window
+
+# 2025-03-15 03:30:53.743096
++analyze the available files. respond in english
+
+# 2025-03-15 03:32:31.303335
++/web https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/reasoning?tabs=python
+
+# 2025-03-15 03:32:33.518306
++yes
+
+# 2025-03-15 03:35:34.544442
++analyze the available files. respond in english
+
+# 2025-03-15 03:37:20.226796
++/add static/js/init.js
+
+# 2025-03-15 03:37:24.952959
++/drop static/index.html
+
+# 2025-03-15 03:37:39.300057
++/add pydantic_models.py
+
+# 2025-03-15 03:37:52.672474
++/add services/config_service.py
+
+# 2025-03-15 03:38:09.226866
++why arent messages and responses being displayed?

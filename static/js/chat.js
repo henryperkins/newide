@@ -240,15 +240,22 @@ export async function sendMessage() {
       return;
     }
 
-    // Check if user is logged in
-    const token = localStorage.getItem('authToken');
+    // Check if user is logged in (try localStorage first, then sessionStorage)
+    // Check both "authToken" and "token" keys in localStorage/sessionStorage
+    const token = localStorage.getItem('authToken')
+          || sessionStorage.getItem('authToken');
     if (!token) {
       showNotification('Please log in to send messages.', 'error');
       return;
     }
 
-    // Force localStorage to match session ID in case of cross-tab changes
-    localStorage.setItem('activeConversationId', currentSessionId);
+    // Use 'activeConversationId' from localStorage if present,
+    // otherwise use the newly retrieved 'currentSessionId'
+    let conversationId = localStorage.getItem('activeConversationId') || currentSessionId;
+    if (!conversationId) {
+      conversationId = currentSessionId;
+    }
+    localStorage.setItem('activeConversationId', conversationId);
 
     // Refresh the session to extend its validity
     try {
@@ -293,12 +300,10 @@ export async function sendMessage() {
           );
         });
       } else {
-        // Example: transform text input into a "messages" structure with images, etc.
+        // Transform text input into the structure that matches server expectations:
         const processedMessages = [{
           role: 'user',
-          content: [
-            { type: 'text', text: messageContent }
-          ]
+          content: messageContent
         }];
 
         const response = await fetchChatResponse(
@@ -367,7 +372,8 @@ async function fetchChatResponse(
   sessionId,
   modelName = 'DeepSeek-R1',
   effort = 'medium',
-  signal
+  signal,
+  useStreaming = false
 ) {
   console.log('[fetchChatResponse] Attempting with modelName:', modelName, 'sessionId:', sessionId, 'effort:', effort);
   const maxRetries = 2;
@@ -389,13 +395,19 @@ async function fetchChatResponse(
       const payload = {
         session_id: sessionId,
         model: modelName,
-        messages
+        messages,
+        reasoning_effort: isOSeriesModel ? effort : undefined,
+        include_files: false,
+        file_ids: null,
+        use_file_search: false,
+        response_format: null,
+        stream: useStreaming, // Align with CreateChatCompletionRequest schema
       };
 
       // Insert a developer message if it's an o-series model
       if (isOSeriesModel) {
         payload.messages.unshift({
-          role: "system",
+          role: "developer",
           content: "Formatting re-enabled - use markdown code blocks"
         });
       }
