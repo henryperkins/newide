@@ -127,27 +127,17 @@ def validate_streaming(model_id: str) -> bool:
     return False
 
 
+from services.token_service import TokenService
+
 def count_tokens(content, model: Optional[str] = None) -> int:
     """
-    Count tokens for either text or vision-based content.
-
-    - If 'content' is a list of items (vision or otherwise), delegate to count_vision_tokens.
-    - Otherwise, treat 'content' as a string and do tiktoken-based counting.
+    Use the unified TokenService to count tokens,
+    delegating lists to count_vision_tokens as needed.
     """
     if isinstance(content, list):
         return count_vision_tokens(content, model)
 
-    try:
-        if model and any(m in model.lower() for m in ["o1-", "o3-"]):
-            encoding = tiktoken.get_encoding("cl100k_base")
-        else:
-            encoding = tiktoken.get_encoding("cl100k_base")
-
-        return len(encoding.encode(content))
-    except Exception as e:
-        logger.warning(f"Token counting error: {str(e)}")
-        # Fallback: approximate tokens at 1 per 4 characters
-        return len(content) // 4
+    return TokenService.count_tokens(str(content), str(model or "generic"))
 
 
 def count_vision_tokens(items: List[Dict], model: Optional[str] = None) -> int:

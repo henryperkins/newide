@@ -594,6 +594,19 @@ class SessionService:
             )
             return default_model
 
+        @staticmethod
+        def calculate_timeout(session: Session) -> int:
+            """
+            Adaptive timeout calculation based on model and usage.
+            Returns an integer representing minutes.
+            """
+            base_timeout = config.settings.SESSION_TIMEOUT_MINUTES
+            model_factor = 2 if session.last_model and "o1" in session.last_model else 1
+            from math import log
+            activity_score = log(session.request_count + 1) if session.request_count else 0
+            # Cap at 240 minutes (4 hours)
+            return min(240, int(base_timeout * model_factor * (1 + activity_score / 10)))
+
     @staticmethod
     async def get_session_from_request(request, db_session: AsyncSession, require_valid: bool = False):
         """

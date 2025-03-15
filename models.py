@@ -50,49 +50,43 @@ class Session(Base):
     last_request = Column(DateTime(timezone=True), server_default=text("NOW()"))
 
     def check_rate_limit(self):
-        """Check if session exceeds rate limit (10 requests/minute)"""
-        if (
-            self.request_count is not None
-            and isinstance(self.request_count, int)
-            and self.request_count >= 10
-        ):
-            # Get timezone-aware current time
-            now = datetime.now(timezone.utc)
-            one_minute_ago = now - timedelta(minutes=1)
-
-            # Force timezone-aware comparison
-            if (
-                self.last_request is not None
-                and self.last_request.astimezone(timezone.utc) > one_minute_ago
-            ):
-                reset_time = self.last_request + timedelta(minutes=1)
-                seconds_remaining = int((reset_time - now).total_seconds())
-
-                raise HTTPException(
-                    status_code=429,
-                    detail={
-                        "error": "rate_limit_exceeded",
-                        "message": "Rate limit exceeded: 10 requests per minute",
-                        "retry_after": seconds_remaining,
-                    },
-                    headers={"Retry-After": str(seconds_remaining)},
-                )
-
-        # Update rate limit counters
+        """
+        Tiered rate limit via a token bucket approach.
+        Adjust default/burst per model or user tier.
+        """
         now = datetime.now(timezone.utc)
-        one_minute_ago = now - timedelta(minutes=1)
+        default_limit = 20  # req/min
+        burst_limit = 5
+        if self.last_model and "o1" in self.last_model.lower():
+            default_limit = 5
+            burst_limit = 1
 
-        if (
-            self.last_request is not None
-            and isinstance(self.last_request, datetime)
-            and self.last_request.astimezone(timezone.utc) < one_minute_ago
-        ):
-            # Reset counter if more than a minute has passed
-            self.request_count = 1
+        if not hasattr(self, "token_bucket") or self.token_bucket is None:
+            self.token_bucket = float(burst_limit)
+
+        if self.last_request:
+            elapsed = (now - self.last_request).total_seconds()
         else:
-            # Increment counter
-            self.request_count += 1
+            elapsed = 60  # assume full refill if first time
 
+        refill_rate = default_limit / 60.0
+        self.token_bucket = min(
+            self.token_bucket + elapsed * refill_rate,
+            float(burst_limit)
+        )
+
+        if self.token_bucket < 1.0:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "rate_limit_exceeded",
+                    "message": "Tiered rate limit exceeded",
+                    "retry_after": 60,
+                },
+                headers={"Retry-After": "60"},
+            )
+
+        self.token_bucket -= 1.0
         self.last_request = now
         return True
 
