@@ -72,23 +72,24 @@ export function highlightCode(element) {
     }
 }
 
-/**
- * Configure markdown parser with required settings
- * @returns {boolean} True if configuration was successful
- */
-export function configureMarkdown() {
-    try {
-        if (typeof markdownit === 'undefined') {
-            console.warn('markdownit library not loaded');
-            return false;
-        }
+let markdownParser = null;
 
-        markdownParser = markdownit({
+export async function configureMarkdown() {
+    if (markdownParser) return true;
+
+    try {
+        const [{ default: MarkdownIt }, { default: emoji }, { default: footnote }] = await Promise.all([
+            import('markdown-it'),
+            import('markdown-it-emoji'),
+            import('markdown-it-footnote')
+        ]);
+
+        markdownParser = new MarkdownIt({
             html: true,
             linkify: true,
             typographer: true,
             breaks: true,
-            highlight: function (str, lang) {
+            highlight(str, lang) {
                 if (typeof Prism !== 'undefined' && lang && Prism.languages[lang]) {
                     try {
                         return Prism.highlight(str, Prism.languages[lang], lang);
@@ -96,19 +97,10 @@ export function configureMarkdown() {
                         console.warn('Prism highlighting failed:', e);
                     }
                 }
-                // If we can't highlight, escape the code so it's still displayed
-                return markdownit().utils.escapeHtml(str);
+                return MarkdownIt().utils.escapeHtml(str);
             }
-        });
+        }).use(emoji).use(footnote);
 
-        // Attempt to load some optional plugins for richer formatting
-        if (typeof window.markdownitEmoji !== 'undefined') {
-            markdownParser.use(window.markdownitEmoji);
-        }
-        if (typeof window.markdownitFootnote !== 'undefined') {
-            markdownParser.use(window.markdownitFootnote);
-        }
-        return true;
         return true;
     } catch (error) {
         console.error('Failed to configure markdown parser:', error);
