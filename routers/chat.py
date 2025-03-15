@@ -558,7 +558,7 @@ async def create_chat_completion(
             "choices": [
                 {
                     "index": 0,
-                    "message": {"role": "assistant", "content": ""},
+                    "message": {"role": "assistant", "content": "¡Hola! Esta respuesta viene del stub."},
                     "finish_reason": "stop",
                 }
             ],
