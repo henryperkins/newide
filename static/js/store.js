@@ -59,6 +59,53 @@ export class GlobalStore extends StoreEmitter {
     this._welcomeMessageShown = localStorage.getItem('welcomeMessageShown') === 'true';
   }
 
+  _STATE_VERSION = 2;
+
+  _loadPersistedState() {
+    const raw = localStorage.getItem('globalStore');
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed?.version === this._STATE_VERSION) {
+      // Current version
+      this._theme = parsed.theme ?? 'light';
+      this._activeConversationId = parsed.activeConversationId ?? null;
+      this._sidebars = parsed.sidebars ?? {
+        settings: { open: false, position: 'right', lastInteraction: Date.now() },
+        conversations: { open: false, position: 'left', lastInteraction: Date.now() }
+      };
+      // Add additional fields as needed (stats, conversation, etc.)
+    } else {
+      // Migrate from older version or first run
+      this._theme = localStorage.getItem('appTheme') || 'light';
+      this._activeConversationId = localStorage.getItem('activeConversationId') || null;
+      // Default or legacy sidebar data
+      this._sidebars = {
+        settings: { open: false, position: 'right', lastInteraction: Date.now() },
+        conversations: { open: false, position: 'left', lastInteraction: Date.now() }
+      };
+      this._saveToStorage();
+    }
+  }
+
+  _saveToStorage() {
+    const state = {
+      version: this._STATE_VERSION,
+      theme: this._theme,
+      activeConversationId: this._activeConversationId,
+      sidebars: this._sidebars
+      // Add other persisted fields if needed
+    };
+    localStorage.setItem('globalStore', JSON.stringify(state));
+  }
+
+  async transaction(updateFn) {
+    const raw = localStorage.getItem('globalStore');
+    const currentState = raw ? JSON.parse(raw) : {};
+    const newState = await updateFn({ ...currentState });
+    newState.version = this._STATE_VERSION;
+    localStorage.setItem('globalStore', JSON.stringify(newState));
+    this._loadPersistedState(); // Refresh memory with updated state
+  }
+
   // Model Configs
   get modelConfigs() {
     return this._modelConfigs;

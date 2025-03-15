@@ -645,23 +645,13 @@ function initConversationSidebarToggle() {
  * This allows displayManager.js to import and call createAndSetupNewConversation() when a conversation 404s.
  */
 export async function createAndSetupNewConversation() {
-  // Remove the old session ID to avoid reusing it
-  sessionStorage.removeItem("sessionId");
-
-  // Create a fresh conversation
   const newSessionId = await createNewConversation();
   if (!newSessionId) {
     throw new Error('Failed to create new conversation');
   }
+  globalStore.activeConversationId = newSessionId;
 
-  // Ensure sessionId in storage matches the newly created one
-  if (sessionStorage.getItem("sessionId") !== newSessionId) {
-    sessionStorage.setItem("sessionId", newSessionId);
-  }
-  // Also store in localStorage for cross-tab sync
-  localStorage.setItem('activeConversationId', newSessionId);
-
-  // Clear or reset the UI if needed (for example clearing the conversation list in the sidebar)
+  // Example reset of UI
   const conversationList = document.getElementById('conversation-list');
   if (conversationList) {
     conversationList.innerHTML = '';
