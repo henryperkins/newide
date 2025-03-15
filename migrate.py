@@ -46,6 +46,14 @@ def get_alembic_config():
         db_url = app_config.POSTGRES_URL
         # Replace asyncpg with psycopg2 for Alembic compatibility
         db_url = db_url.replace('postgresql+asyncpg', 'postgresql')
+        
+        # Ensure we include ?ssl=true if not already present
+        if '?ssl=' not in db_url:
+            if '?' in db_url:
+                db_url += '&ssl=true'
+            else:
+                db_url += '?ssl=true'
+        
         config.set_main_option('sqlalchemy.url', db_url)
     except ImportError:
         logger.error("Failed to import application config. Please ensure config.py exists.")

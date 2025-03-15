@@ -155,7 +155,7 @@ class Conversation(Base):
 class ConversationSession(Base):
     __tablename__ = "conversation_sessions"
     session_id = Column(PGUUID, ForeignKey("sessions.id"), primary_key=True)
-    conversation_id = Column(PGUUID, ForeignKey("conversations.id"), primary_key=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), primary_key=True)
     context_snapshot = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=text("NOW()"))
 

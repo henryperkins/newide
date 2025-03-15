@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'modify_conversation_session_fk'
-down_revision = '<previous_revision_id>'  # Replace with actual previous revision
+down_revision = None
 branch_labels = None
 depends_on = None
 
