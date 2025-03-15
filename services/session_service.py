@@ -100,14 +100,21 @@ class SessionService:
 
             # Sub-span for configuration
             with sentry_sdk.start_span(op="session.configure", description="Configure Session") as config_span:
-                session_timeout = getattr(config.settings, "SESSION_TIMEOUT_MINUTES", 30)
-                config_span.set_data("session_timeout_minutes", session_timeout)
-                logger.info(f"Using SESSION_TIMEOUT_MINUTES: {session_timeout}")
-
                 session_id = uuid.uuid4()
-                config_span.set_data("session_id", str(session_id))
+                new_session = Session(
+                    id=session_id,
+                    created_at=datetime.utcnow(),
+                    last_activity=datetime.utcnow(),
+                    request_count=0
+                )
 
-                expires_at = datetime.now(timezone.utc) + timedelta(minutes=session_timeout)
+                adaptive_timeout = SessionService.calculate_timeout(new_session)
+                expires_at = datetime.now(timezone.utc) + timedelta(minutes=adaptive_timeout)
+                new_session.expires_at = expires_at
+
+                config_span.set_data("adaptive_timeout", adaptive_timeout)
+                config_span.set_data("session_id", str(session_id))
+                config_span.set_data("expires_at", expires_at.isoformat())
                 config_span.set_data("expires_at", expires_at.isoformat())
 
                 logger.info(f"Created new session ID: {session_id}")

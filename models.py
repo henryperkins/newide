@@ -153,6 +153,13 @@ class Conversation(Base):
     # Add version column for optimistic locking
     version = Column(Integer, default=1, nullable=False)
 
+class ConversationSession(Base):
+    __tablename__ = "conversation_sessions"
+    session_id = Column(PGUUID, ForeignKey("sessions.id"), primary_key=True)
+    conversation_id = Column(PGUUID, ForeignKey("conversations.id"), primary_key=True)
+    context_snapshot = Column(JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=text("NOW()"))
+
 
 # -------------------------------------------------------------------------
 # Uploaded Files
@@ -179,6 +186,15 @@ class UploadedFile(Base):
     token_count = Column(Integer, nullable=True)
     embedding_id = Column(String(255), nullable=True)
     file_metadata = Column(JSONB, nullable=True)
+
+class ConversationHistory(Base):
+    __tablename__ = "conversation_history"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"))
+    content = Column(Text, nullable=False)
+    version = Column(Integer, nullable=False, default=1)
+    valid_from = Column(DateTime(timezone=True), server_default=text("NOW()"))
+    valid_to = Column(DateTime(timezone=True), nullable=True)
     azure_status = Column(String(20), nullable=True)
 
 
