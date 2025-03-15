@@ -6,7 +6,9 @@ from asyncio import Lock  # Changed from threading import Lock
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from openai import AsyncAzureOpenAI  # Use async client
-from azure.ai.inference.aio import ChatCompletionsClient  # Use async version if available
+from azure.ai.inference.aio import (
+    ChatCompletionsClient,
+)  # Use async version if available
 from azure.core.credentials import AzureKeyCredential
 
 import config
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 # Type alias for client objects (all async now)
 AzureAIClient = Union[AsyncAzureOpenAI, ChatCompletionsClient]
 ModelConfigDict = Dict[str, Any]
+
 
 class ModelRegistry:
     """Centralized registry for model configurations and client creation."""
@@ -35,7 +38,7 @@ class ModelRegistry:
             "token_factor": 0.05,
             "headers": {
                 "x-ms-thinking-format": "html",
-                "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION
+                "x-ms-streaming-version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
             },
         },
         "o_series": {
@@ -56,11 +59,13 @@ class ModelRegistry:
                 "max_images": config.O_SERIES_VISION_CONFIG["MAX_IMAGES_PER_REQUEST"],
                 "detail_levels": config.O_SERIES_VISION_CONFIG["DETAIL_LEVELS"],
                 "timeout": config.Settings().O_SERIES_VISION_TIMEOUT,
-                "token_multipliers": config.O_SERIES_VISION_CONFIG["MAX_TOKENS_MULTIPLIER"]
+                "token_multipliers": config.O_SERIES_VISION_CONFIG[
+                    "MAX_TOKENS_MULTIPLIER"
+                ],
             },
             "headers": {
                 "x-ms-vision-enabled": "true",
-                "x-ms-vision-api-version": "2024-02-15-preview"
+                "x-ms-vision-api-version": "2024-02-15-preview",
             },
         },
     }
@@ -108,9 +113,7 @@ class ModelRegistry:
 
     @classmethod
     def validate_model_config(
-        cls,
-        model_id: str,
-        model_config: Dict[str, Any]
+        cls, model_id: str, model_config: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Validate and fill in missing fields for a model configuration."""
         template = cls.get_model_template(model_id)
@@ -134,10 +137,12 @@ class ModelRegistry:
             template["api_version"] = config.DEEPSEEK_R1_DEFAULT_API_VERSION
             template["headers"] = {
                 "x-ms-thinking-format": "html",
-                "x-ms-streaming-version": template["api_version"]
+                "x-ms-streaming-version": template["api_version"],
             }
             if not config.AZURE_INFERENCE_CREDENTIAL:
-                raise ValueError("AZURE_INFERENCE_CREDENTIAL is required for DeepSeek models")
+                raise ValueError(
+                    "AZURE_INFERENCE_CREDENTIAL is required for DeepSeek models"
+                )
 
         # O-Series validation
         elif config.is_o_series_model(model_id):
@@ -192,27 +197,37 @@ class ClientPool:
                 self._model_configs = db_models
 
             for model_id, model_config in self._model_configs.items():
-                model_config = ModelRegistry.validate_model_config(model_id, model_config)
+                model_config = ModelRegistry.validate_model_config(
+                    model_id, model_config
+                )
                 self._model_configs[model_id] = model_config
 
                 try:
-                    self._clients[model_id] = self._create_client(model_id, model_config)
+                    self._clients[model_id] = self._create_client(
+                        model_id, model_config
+                    )
                     logger.info(f"Initialized client for model: {model_id}")
                 except Exception as e:
-                    logger.error(f"Failed to initialize client for {model_id}: {str(e)}")
+                    logger.error(
+                        f"Failed to initialize client for {model_id}: {str(e)}"
+                    )
 
             if not self._clients:
                 default_model = config.AZURE_OPENAI_DEPLOYMENT_NAME
                 model_config = ModelRegistry.get_model_template(default_model)
                 self._model_configs[default_model] = model_config
-                self._clients[default_model] = self._create_client(default_model, model_config)
+                self._clients[default_model] = self._create_client(
+                    default_model, model_config
+                )
                 logger.info(f"Created fallback client for model: {default_model}")
 
         except Exception as e:
             logger.error(f"Error initializing ClientPool: {str(e)}")
             self._model_configs = ModelRegistry.create_default_models()
 
-    def _create_client(self, model_id: str, model_config: Dict[str, Any]) -> AzureAIClient:
+    def _create_client(
+        self, model_id: str, model_config: Dict[str, Any]
+    ) -> AzureAIClient:
         """
         Create the appropriate async client based on model type.
         Either ChatCompletionsClient or AsyncAzureOpenAI.
@@ -224,7 +239,7 @@ class ClientPool:
                 endpoint=model_config["azure_endpoint"],
                 credential=AzureKeyCredential(config.AZURE_INFERENCE_CREDENTIAL),
                 api_version=model_config["api_version"],
-                headers=model_config.get("headers", {})
+                headers=model_config.get("headers", {}),
             )
         elif config.is_o_series_model(model_id):
             return AsyncAzureOpenAI(
@@ -233,7 +248,7 @@ class ClientPool:
                 api_version=model_config["api_version"],
                 default_headers={
                     "reasoning-effort": model_config.get("reasoning_effort", "medium"),
-                    "x-ms-json-response": "true"
+                    "x-ms-json-response": "true",
                 },
                 max_retries=config.O_SERIES_MAX_RETRIES,
                 timeout=model_config.get("base_timeout", 120.0),
@@ -266,7 +281,9 @@ class ClientPool:
             logger.warning(f"Using {default_model} as fallback for {model_id}")
             return self._clients[default_model]
 
-        raise ValueError(f"No client available for {model_id} and no fallbacks could be created")
+        raise ValueError(
+            f"No client available for {model_id} and no fallbacks could be created"
+        )
 
     def get_model_config(self, model_id: str) -> Optional[Dict[str, Any]]:
         """Get the configuration for a model."""
@@ -280,7 +297,7 @@ class ClientPool:
         self,
         model_id: str,
         model_config: Dict[str, Any],
-        db_session: Optional[AsyncSession] = None
+        db_session: Optional[AsyncSession] = None,
     ) -> bool:
         """Add or update a model configuration and (re)create its client."""
         model_config = ModelRegistry.validate_model_config(model_id, model_config)
@@ -310,9 +327,7 @@ class ClientPool:
         return model_id in self._clients
 
     async def delete_model(
-        self,
-        model_id: str,
-        db_session: Optional[AsyncSession] = None
+        self, model_id: str, db_session: Optional[AsyncSession] = None
     ) -> bool:
         """Delete a model configuration and its client."""
         if model_id == config.AZURE_OPENAI_DEPLOYMENT_NAME:
@@ -344,12 +359,14 @@ class ClientPool:
 # Singleton helper
 _client_pool: Optional[ClientPool] = None
 
+
 async def get_client_pool(db_session: Optional[AsyncSession] = None) -> ClientPool:
     """Get the ClientPool singleton."""
     global _client_pool
     if not _client_pool:
         _client_pool = await ClientPool.get_instance(db_session)
     return _client_pool
+
 
 async def get_model_client_dependency(
     model_name: Optional[str] = None,
@@ -358,7 +375,9 @@ async def get_model_client_dependency(
     try:
         pool = await get_client_pool()
         client = pool.get_client(model_name)
-        model_config = pool.get_model_config(model_name or config.AZURE_OPENAI_DEPLOYMENT_NAME)
+        model_config = pool.get_model_config(
+            model_name or config.AZURE_OPENAI_DEPLOYMENT_NAME
+        )
 
         if not model_config:
             return {"client": None, "error": "No model configuration found."}
@@ -367,14 +386,17 @@ async def get_model_client_dependency(
             "client": client,
             "model_name": model_config["name"],
             "model_config": {
-                "model_type": "deepseek" if config.is_deepseek_model(model_name) else "o-series",
+                "model_type": (
+                    "deepseek" if config.is_deepseek_model(model_name) else "o-series"
+                ),
                 "supports_streaming": model_config.get("supports_streaming", False),
-                "api_version": model_config["api_version"]
-            }
+                "api_version": model_config["api_version"],
+            },
         }
     except Exception as e:
         logger.error(f"Error in get_model_client_dependency: {str(e)}")
         return {"client": None, "error": str(e)}
+
 
 async def init_client_pool(db_session: Optional[AsyncSession] = None):
     """Initialize the client pool at application startup."""

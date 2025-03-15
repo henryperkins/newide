@@ -127,13 +127,18 @@ def prepare_model_parameters(
             if chat_message.temperature is not None
             else config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
         )
-        maybe_max_tokens = params.get("max_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS)
+        maybe_max_tokens = params.get(
+            "max_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+        )
         if not isinstance(maybe_max_tokens, (int, float)):
             maybe_max_tokens = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
-        params["max_tokens"] = int(min(maybe_max_tokens, config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS))
+        params["max_tokens"] = int(
+            min(maybe_max_tokens, config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS)
+        )
     elif is_o_series:
         params["max_completion_tokens"] = (
-            chat_message.max_completion_tokens or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
+            chat_message.max_completion_tokens
+            or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
         )
         params["max_completion_tokens"] = min(params["max_completion_tokens"], 200000)
         params["reasoning_effort"] = chat_message.reasoning_effort or "medium"
@@ -170,7 +175,9 @@ async def get_file_context(
     try:
         if use_search:
             try:
-                with profile_block(description="Azure Search Context Retrieval", op="search.context") as search_span:
+                with profile_block(
+                    description="Azure Search Context Retrieval", op="search.context"
+                ) as search_span:
                     from services.azure_search_service import AzureSearchService
 
                     file_result = await db_session.execute(
@@ -186,7 +193,9 @@ async def get_file_context(
                     )
                     session_id_row = file_result.fetchone()
                     if not session_id_row:
-                        logger.warning(f"Could not find session_id for file {file_ids[0]}")
+                        logger.warning(
+                            f"Could not find session_id for file {file_ids[0]}"
+                        )
                         return None
 
                     session_id = session_id_row[0]
@@ -214,7 +223,9 @@ async def get_file_context(
                 logger.error(f"Error using Azure Search for file context: {e}")
                 sentry_sdk.capture_exception(e)
 
-        with profile_block(description="DB File Content Retrieval", op="db.query") as db_span:
+        with profile_block(
+            description="DB File Content Retrieval", op="db.query"
+        ) as db_span:
             file_contents = []
             total_chars = 0
             for file_id in file_ids:
@@ -238,7 +249,11 @@ async def get_file_context(
                             + f"\n\n[File truncated due to size. Original length: {len(content)} characters]"
                         )
                     file_contents.append(
-                        {"filename": filename, "content": content, "file_type": file_type}
+                        {
+                            "filename": filename,
+                            "content": content,
+                            "file_type": file_type,
+                        }
                     )
                     total_chars += len(content) if content else 0
 
@@ -290,7 +305,9 @@ async def process_chat_message(
     Processes a chat message, calls the appropriate model(s) using `client.complete`,
     optionally handles file context, and stores the final conversation data.
     """
-    transaction = sentry_sdk.start_transaction(op="chat.process", name="Process Chat Message")
+    transaction = sentry_sdk.start_transaction(
+        op="chat.process", name="Process Chat Message"
+    )
     transaction.set_tag("model_name", model_name or "unknown")
     session_id = getattr(chat_message, "session_id", "unknown")
     transaction.set_tag("session_id", session_id)
@@ -362,13 +379,19 @@ async def process_chat_message(
             params.update(
                 {
                     "max_completion_tokens": config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
-                    "reasoning_effort": getattr(chat_message, "reasoning_effort", "medium"),
+                    "reasoning_effort": getattr(
+                        chat_message, "reasoning_effort", "medium"
+                    ),
                 }
             )
             if any(
                 isinstance(c, dict) and c.get("type") == "image_url"
                 for msg in messages
-                for c in (msg.get("content", []) if isinstance(msg.get("content", []), list) else [])
+                for c in (
+                    msg.get("content", [])
+                    if isinstance(msg.get("content", []), list)
+                    else []
+                )
             ):
                 for msg in messages:
                     content = msg.get("content")
@@ -376,12 +399,16 @@ async def process_chat_message(
                         msg["content"] = await process_vision_content(content)
                     elif isinstance(content, str):
                         # Convert string content to the expected format for vision processing
-                        msg["content"] = await process_vision_content([{"type": "text", "text": content}])
+                        msg["content"] = await process_vision_content(
+                            [{"type": "text", "text": content}]
+                        )
                 params.update(
                     {
                         "headers": {
                             "x-ms-vision": "enable",
-                            "x-ms-image-detail": getattr(chat_message, "detail_level", "auto"),
+                            "x-ms-image-detail": getattr(
+                                chat_message, "detail_level", "auto"
+                            ),
                         }
                     }
                 )
@@ -396,7 +423,8 @@ async def process_chat_message(
                 import json
 
                 response_logger.info(
-                    "Raw model response:\n%s", json.dumps(response, indent=2, default=str)
+                    "Raw model response:\n%s",
+                    json.dumps(response, indent=2, default=str),
                 )
             except Exception as dump_error:
                 logger.warning("Failed to dump response as JSON: %s", str(dump_error))
@@ -424,7 +452,8 @@ async def process_chat_message(
             usage_data = {
                 "prompt_tokens": TokenManager.count_tokens(user_text),
                 "completion_tokens": TokenManager.count_tokens(content),
-                "total_tokens": TokenManager.count_tokens(user_text) + TokenManager.count_tokens(content),
+                "total_tokens": TokenManager.count_tokens(user_text)
+                + TokenManager.count_tokens(content),
             }
 
         if is_deepseek_model(model_name) and "" in content:
@@ -571,7 +600,9 @@ async def save_conversation(
         raise
 
 
-async def fetch_conversation_history(db_session: AsyncSession, session_id: str) -> List[Dict[str, Any]]:
+async def fetch_conversation_history(
+    db_session: AsyncSession, session_id: str
+) -> List[Dict[str, Any]]:
     """
     Retrieves prior messages in a conversation, returning them in a format
     suitable for an LLM’s “messages” argument. Adjust the query to match your schema.
@@ -599,7 +630,9 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
     if not messages:
         return ""
 
-    combined_text = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in messages)
+    combined_text = "\n".join(
+        f"{m['role'].capitalize()}: {m['content']}" for m in messages
+    )
     try:
         summarizing_model = "DeepSeek-R1"
         model_dep = await get_model_client_dependency(summarizing_model)
@@ -609,7 +642,10 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
             stream=False,
             messages=[
                 {"role": "system", "content": "You are a summarization assistant."},
-                {"role": "user", "content": f"Summarize this conversation:\n\n{combined_text}"},
+                {
+                    "role": "user",
+                    "content": f"Summarize this conversation:\n\n{combined_text}",
+                },
             ],
             temperature=0.5,
             max_tokens=150,
@@ -637,7 +673,9 @@ async def process_vision_content(content: list):
                     raise ValueError(f"Invalid image URL: {image_url}")
             elif os.path.isfile(image_url):
                 mime_type, _ = mimetypes.guess_type(image_url)
-                allowed_mime_types = config.O_SERIES_VISION_CONFIG.get("ALLOWED_MIME_TYPES", [])
+                allowed_mime_types = config.O_SERIES_VISION_CONFIG.get(
+                    "ALLOWED_MIME_TYPES", []
+                )
                 if not isinstance(allowed_mime_types, list):
                     allowed_mime_types = []
                 if mime_type not in allowed_mime_types:
@@ -646,7 +684,9 @@ async def process_vision_content(content: list):
                     encoded = base64.b64encode(image_file.read()).decode("utf-8")
                     image_url = f"data:{mime_type};base64,{encoded}"
             elif image_url.startswith("data:"):
-                base64_pattern = str(config.O_SERIES_VISION_CONFIG.get("BASE64_HEADER_PATTERN", ""))
+                base64_pattern = str(
+                    config.O_SERIES_VISION_CONFIG.get("BASE64_HEADER_PATTERN", "")
+                )
                 if not re.match(base64_pattern, image_url):
                     raise ValueError("Invalid base64 image format")
 

@@ -2,13 +2,16 @@
 from typing import Dict, Literal, Union, Optional
 import os
 from dotenv import load_dotenv
-from azure.core.credentials import AzureKeyCredential  # Add this import
+from azure.core.credentials import AzureKeyCredential
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from logging_config import logger
 
 # Email configuration
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "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")
+SENDGRID_API_KEY = os.getenv(
+    "SENDGRID_API_KEY",
+    "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",
+)
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@azureopenai-chat.com")
 DEFAULT_FROM_NAME = os.getenv("DEFAULT_FROM_NAME", "Azure OpenAI Chat")
 EMAIL_SENDER = os.getenv("EMAIL_SENDER", DEFAULT_FROM_EMAIL)
@@ -44,12 +47,20 @@ class Settings(BaseSettings):
     SENTRY_DSN: Optional[str] = os.getenv("SENTRY_DSN")
     SENTRY_ENVIRONMENT: str = os.getenv("SENTRY_ENVIRONMENT", "development")
     SENTRY_RELEASE: Optional[str] = os.getenv("SENTRY_RELEASE")
-    SENTRY_TRACES_SAMPLE_RATE: float = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "1.0"))
-    SENTRY_PROFILES_SAMPLE_RATE: float = float(os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "1.0"))
+    SENTRY_TRACES_SAMPLE_RATE: float = float(
+        os.getenv("SENTRY_TRACES_SAMPLE_RATE", "1.0")
+    )
+    SENTRY_PROFILES_SAMPLE_RATE: float = float(
+        os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "1.0")
+    )
     SENTRY_MAX_BREADCRUMBS: int = int(os.getenv("SENTRY_MAX_BREADCRUMBS", "100"))
-    SENTRY_SEND_DEFAULT_PII: bool = os.getenv("SENTRY_SEND_DEFAULT_PII", "false").lower() in ("true", "1", "yes")
+    SENTRY_SEND_DEFAULT_PII: bool = os.getenv(
+        "SENTRY_SEND_DEFAULT_PII", "false"
+    ).lower() in ("true", "1", "yes")
     SENTRY_SERVER_NAME: Optional[str] = os.getenv("SENTRY_SERVER_NAME")
-    SENTRY_ATTACH_STACKTRACE: bool = os.getenv("SENTRY_ATTACH_STACKTRACE", "true").lower() in ("true", "1", "yes")
+    SENTRY_ATTACH_STACKTRACE: bool = os.getenv(
+        "SENTRY_ATTACH_STACKTRACE", "true"
+    ).lower() in ("true", "1", "yes")
 
     POSTGRES_HOST: Optional[str] = os.getenv("POSTGRES_HOST")
     POSTGRES_USER: Optional[str] = os.getenv("POSTGRES_USER")
@@ -86,10 +97,9 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: Optional[str] = os.getenv("ADMIN_EMAIL")
 
     # JWT Configuration
-    
-    # Convert JWT_SECRET to a fallback, ensuring it's always str even if not set
-    # so that Pydantic doesn't complain about str | None
-    JWT_SECRET: str = Field(default_factory=lambda: os.getenv("JWT_SECRET") or "CHANGEME")
+    JWT_SECRET: str = Field(
+        default_factory=lambda: os.getenv("JWT_SECRET") or "CHANGEME"
+    )
 
     # Model configuration
     MODEL_REGISTRY_PATH: str = os.getenv(
@@ -120,8 +130,7 @@ class Settings(BaseSettings):
     )
 
     O_SERIES_VISION_TIMEOUT: float = Field(
-        default=30.0,
-        description="Timeout for image processing in seconds"
+        default=30.0, description="Timeout for image processing in seconds"
     )
 
     # Standard model settings
@@ -143,27 +152,30 @@ class Settings(BaseSettings):
         default=int(os.getenv("SESSION_TIMEOUT_MINUTES", "30")),
         description="Session expiration time in minutes",
     )
-    
+
     # SendGrid configuration
     SENDGRID_API_KEY: str = Field(
-        default=os.getenv("SENDGRID_API_KEY", "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"),
-        description="SendGrid API key for sending emails"
+        default=os.getenv(
+            "SENDGRID_API_KEY",
+            "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",
+        ),
+        description="SendGrid API key for sending emails",
     )
     DEFAULT_FROM_EMAIL: str = Field(
         default=os.getenv("DEFAULT_FROM_EMAIL", "noreply@azureopenai-chat.com"),
-        description="Default sender email address"
+        description="Default sender email address",
     )
     DEFAULT_FROM_NAME: str = Field(
         default=os.getenv("DEFAULT_FROM_NAME", "Azure OpenAI Chat"),
-        description="Default sender name"
+        description="Default sender name",
     )
     EMAIL_SENDER: str = Field(
         default=os.getenv("EMAIL_SENDER", "noreply@azureopenai-chat.com"),
-        description="Email address used as sender"
+        description="Email address used as sender",
     )
     ADMIN_EMAIL: Optional[str] = Field(
         default=os.getenv("ADMIN_EMAIL"),
-        description="Admin email address for receiving system notifications"
+        description="Admin email address for receiving system notifications",
     )
 
     model_config = SettingsConfigDict(
@@ -186,15 +198,9 @@ def validate_azure_credentials():
             f"Missing required environment variables: {', '.join(missing)}"
         )
 
-    # Additional DeepSeek-specific validation check removed as requested
-
-
-# Move the function definition BEFORE the calls at line 127-128
-# Then the rest of your existing config.py content...
 
 # Initialize pydantic settings
 settings = Settings()
-# Debug print to confirm config.py is loaded
 print("DEBUG: config.py is loaded")
 
 # Now these calls will work because the function is defined above
@@ -218,7 +224,7 @@ for setting in required_settings:
         logger.critical(
             f"Required setting {setting} is missing. Proceeding with caution — some functionality may fail."
         )
-        # Instead of raising an immediate ValueError here, we continue, though it may cause subsequent 500 errors
+        # We continue rather than raising an immediate error
 
 # -----------------------------------------------
 # Export constants from Settings
@@ -231,15 +237,13 @@ AZURE_OPENAI_ENDPOINT = settings.AZURE_OPENAI_ENDPOINT
 AZURE_OPENAI_DEPLOYMENT_NAME = settings.AZURE_OPENAI_DEPLOYMENT_NAME
 AZURE_OPENAI_API_KEY = settings.AZURE_OPENAI_API_KEY
 AZURE_OPENAI_API_VERSION = settings.AZURE_OPENAI_API_VERSION
-# MODEL_CONFIGS has been removed from config.py and should be loaded from a database or external config.
 
 # Model-specific settings
 O_SERIES_API_VERSION = "2025-02-01-preview"
 DEEPSEEK_API_VERSION = "2024-05-01-preview"
-O_SERIES_BASE_TIMEOUT = 120  # Longer timeout for complex reasoning
+O_SERIES_BASE_TIMEOUT = 120
 DEEPSEEK_DEFAULT_MAX_TOKENS = 131000
 
-# DeepSeek-R1 specific settings with proper fallbacks
 DEEPSEEK_R1_DEFAULT_TEMPERATURE = 0.5
 DEEPSEEK_R1_DEFAULT_MAX_TOKENS = DEEPSEEK_DEFAULT_MAX_TOKENS
 DEEPSEEK_R1_DEFAULT_API_VERSION = DEEPSEEK_API_VERSION
@@ -252,46 +256,30 @@ O_SERIES_VISION_CONFIG = {
     "ENABLED": True,
     "MAX_IMAGE_SIZE_BYTES": 20000000,  # 20MB
     "MAX_IMAGES_PER_REQUEST": 10,
-    "ALLOWED_MIME_TYPES": [
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "image/gif"
-    ],
+    "ALLOWED_MIME_TYPES": ["image/jpeg", "image/png", "image/webp", "image/gif"],
     "DETAIL_LEVELS": ["low", "high", "auto"],
     "BASE64_HEADER_PATTERN": r"^data:image/(jpeg|png|webp|gif);base64,",
-    "MAX_TOKENS_MULTIPLIER": {
-        "low": 1.0,
-        "high": 2.5,
-        "auto": 1.8
-    },
-    "RATE_LIMITS": {
-        "images_per_minute": 30,
-        "pixels_per_second": 10000000
-    }
+    "MAX_TOKENS_MULTIPLIER": {"low": 1.0, "high": 2.5, "auto": 1.8},
+    "RATE_LIMITS": {"images_per_minute": 30, "pixels_per_second": 10000000},
 }
 
-# o-series specific settings (o1, o3-mini)
-O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS = (
-    100000  # o-series uses max_completion_tokens instead of max_tokens
-)
-O_SERIES_DEFAULT_REASONING_EFFORT = "medium"  # Can be "low", "medium", or "high"
-O_SERIES_INPUT_TOKEN_LIMIT = 200000  # Input token limit for o-series models
-O_SERIES_OUTPUT_TOKEN_LIMIT = 100000  # Output token limit for o-series models
+O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS = 100000
+O_SERIES_DEFAULT_REASONING_EFFORT = "medium"
+O_SERIES_INPUT_TOKEN_LIMIT = 200000
+O_SERIES_OUTPUT_TOKEN_LIMIT = 100000
 
 
 def is_deepseek_model(model_name: Optional[str]) -> bool:
     """Check if the model is a DeepSeek model"""
     if not model_name:
         return False
-    # More restrictive check to avoid accidental substring matches
     return model_name.lower().startswith("deepseek-")
+
 
 def is_o_series_model(model_name: Optional[str]) -> bool:
     """Check if the model is an O-series model"""
     if not model_name:
         return False
-    # More restrictive check for O-series
     return (
         model_name.lower().startswith("o1")
         or model_name.lower().startswith("o3")
@@ -299,7 +287,6 @@ def is_o_series_model(model_name: Optional[str]) -> bool:
     )
 
 
-# Validate DeepSeek endpoint exists
 if not AZURE_INFERENCE_ENDPOINT:
     raise ValueError("AZURE_INFERENCE_ENDPOINT environment variable is not set")
 
@@ -315,32 +302,22 @@ STANDARD_TOKEN_FACTOR = settings.STANDARD_TOKEN_FACTOR
 
 SESSION_TIMEOUT_MINUTES = settings.SESSION_TIMEOUT_MINUTES
 
-# Reasoning effort multipliers (not in Settings to reduce complexity)
 REASONING_EFFORT_MULTIPLIERS = {"low": 1.0, "medium": 2.5, "high": 5.0}
 
-# -----------------------------------------------
-# Model-level fallback API versions
-# -----------------------------------------------
 MODEL_API_VERSIONS: Dict[str, str] = {
     "o1": "2025-02-01-preview",
     "o3-mini": "2025-02-01-preview",
     "o1-preview": "2025-02-01-preview",
     "o1-mini": "2025-02-01-preview",
-    "DeepSeek-R1": "2024-05-01-preview",  # Serverless API version
+    "DeepSeek-R1": "2024-05-01-preview",
     "default": "2024-05-01-preview",
 }
 
-# -----------------------------------------------
-# PostgreSQL Connection String
-# -----------------------------------------------
 POSTGRES_URL = (
     f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}"
     f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
 )
 
-# -----------------------------------------------
-# Azure Search Configuration
-# -----------------------------------------------
 AZURE_SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT")
 AZURE_SEARCH_KEY = os.getenv("AZURE_SEARCH_KEY")
 AZURE_SEARCH_USE_VECTOR = os.getenv("AZURE_SEARCH_USE_VECTOR", "True").lower() in (
@@ -455,7 +432,6 @@ def get_azure_search_index_schema(index_name: str) -> dict:
 
 def build_azure_openai_url(deployment_name: str = "", api_version: str = "") -> str:
     """Build the Azure OpenAI API URL with support for different model types."""
-    # Determine which endpoint to use based on the model
     if is_deepseek_model(deployment_name):
         endpoint = os.getenv("AZURE_INFERENCE_ENDPOINT", "")
         if not endpoint:
@@ -465,32 +441,28 @@ def build_azure_openai_url(deployment_name: str = "", api_version: str = "") -> 
         if not endpoint:
             raise ValueError("AZURE_OPENAI_ENDPOINT environment variable is not set")
 
-    # Use default API version if none provided, selecting the appropriate version for the model
     if not api_version:
         if is_deepseek_model(deployment_name):
             api_version = DEEPSEEK_R1_DEFAULT_API_VERSION
         elif is_o_series_model(deployment_name):
-            # o-series models require specific API versions
             api_version = MODEL_API_VERSIONS.get(
                 deployment_name, MODEL_API_VERSIONS["o1"]
             )
         else:
             api_version = MODEL_API_VERSIONS["default"]
 
-    # Use default deployment if none provided
     if not deployment_name:
         deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "o1")
 
     base_url = endpoint.rstrip("/")
     api_url = f"{base_url}/openai/deployments/{deployment_name}/chat/completions"
-
-    # Add API version as query parameter
     final_url = f"{api_url}?api-version={api_version}"
-
     return final_url
 
 
-def get_azure_credential(model_name: Optional[str] = None) -> Union[str, AzureKeyCredential]:
+def get_azure_credential(
+    model_name: Optional[str] = None,
+) -> Union[str, AzureKeyCredential]:
     """
     Return the appropriate credential for the model.
     For DeepSeek models, returns AzureKeyCredential.

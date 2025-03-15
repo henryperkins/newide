@@ -10,6 +10,7 @@ from logging_config import logger
 from azure.core.exceptions import HttpResponseError
 import re
 
+
 def handle_client_error(error: Exception) -> dict:
     """Parse and handle errors from different client types consistently"""
     if isinstance(error, HttpResponseError):
@@ -42,7 +43,9 @@ def handle_client_error(error: Exception) -> dict:
                 if content_str.strip().startswith("{"):
                     error_content = json.loads(content_str)
                     if "error" in error_content:
-                        error_message = error_content["error"].get("message", error_message)
+                        error_message = error_content["error"].get(
+                            "message", error_message
+                        )
                 else:
                     # For non-JSON responses, extract useful information
                     error_message = f"Azure AI error: {content_str[:200]}..."
@@ -117,7 +120,9 @@ def validate_streaming(model_id: str) -> bool:
     }
 
     if base_model and base_model in STREAMING_MODEL_REGISTRY:
-        return bool(STREAMING_MODEL_REGISTRY[base_model].get("supports_streaming", False))
+        return bool(
+            STREAMING_MODEL_REGISTRY[base_model].get("supports_streaming", False)
+        )
 
     return False
 
@@ -179,16 +184,16 @@ def is_deepseek_model(name: str) -> bool:
 async def process_vision_messages(messages: List[Dict]) -> List[Dict]:
     """
     Process messages to format vision content for Azure OpenAI Vision API.
-    
+
     Transforms standard message format to the correct format for vision models,
     handling any image URLs in message content.
-    
+
     Args:
         messages: List of message dictionaries, potentially containing image URLs
-    
+
     Returns:
         Properly formatted messages list for vision API
-    
+
     Raises:
         ValueError: If validation fails for vision content
     """
@@ -211,17 +216,21 @@ async def process_vision_messages(messages: List[Dict]) -> List[Dict]:
             formatted_content = []
             for item in content:
                 if item.get("type") == "text":
-                    formatted_content.append({"type": "text", "text": item.get("text", "")})
+                    formatted_content.append(
+                        {"type": "text", "text": item.get("text", "")}
+                    )
                 elif item.get("type") == "image_url":
                     image_url = item.get("image_url", {})
                     if isinstance(image_url, dict) and "url" in image_url:
-                        formatted_content.append({
-                            "type": "image_url",
-                            "image_url": {
-                                "url": image_url["url"],
-                                "detail": item.get("detail", "auto")
+                        formatted_content.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": image_url["url"],
+                                    "detail": item.get("detail", "auto"),
+                                },
                             }
-                        })
+                        )
 
             new_message["content"] = formatted_content
             processed_messages.append(new_message)
@@ -284,10 +293,10 @@ async def get_remote_image_size(url: str) -> int:
 async def validate_vision_request(content: list):
     """
     Validate vision-specific requirements for image content
-    
+
     Args:
         content: List of content items to validate
-        
+
     Raises:
         ValueError: If validation fails for any reason
     """
@@ -304,7 +313,9 @@ async def validate_vision_request(content: list):
         if item.get("type") == "image_url":
             url = item["image_url"]["url"]
             if url.startswith("data:"):
-                pattern_str = config.O_SERIES_VISION_CONFIG.get("BASE64_HEADER_PATTERN", "")
+                pattern_str = config.O_SERIES_VISION_CONFIG.get(
+                    "BASE64_HEADER_PATTERN", ""
+                )
                 if not isinstance(pattern_str, str):
                     pattern_str = ""
                 if not re.match(pattern_str, url):
@@ -313,7 +324,9 @@ async def validate_vision_request(content: list):
             else:
                 content_length = await get_remote_image_size(url)
 
-            max_image_size = config.O_SERIES_VISION_CONFIG.get("MAX_IMAGE_SIZE_BYTES", 5_000_000)
+            max_image_size = config.O_SERIES_VISION_CONFIG.get(
+                "MAX_IMAGE_SIZE_BYTES", 5_000_000
+            )
             if not isinstance(max_image_size, int):
                 max_image_size = 5_000_000
 

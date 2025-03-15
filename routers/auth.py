@@ -8,19 +8,20 @@ import uuid
 import sentry_sdk
 from typing import Optional
 
+# Moved these imports to top-level to avoid "import-outside-toplevel"
+from sqlalchemy import select
+from services.auth_service import generate_password_reset_token, verify_password_reset_token, flag_user_for_password_reset
+
 from services.background_tasks import (
     send_welcome_email_background,
     send_login_notification_background,
     send_admin_notification_background,
     send_password_reset_email_background
 )
-
-from services.auth_service import flag_user_for_password_reset
 from pydantic_models import UserCreate
 from database import get_db_session
 from models import User
-from config import settings
-from sqlalchemy import select
+from config import settings  # Ensure config.py has a global "settings"
 from services.tracing_utils import trace_function, trace_block, set_user_context, add_breadcrumb
 from logging_config import get_logger
 from services.session_service import SessionService
@@ -41,12 +42,8 @@ def send_admin_notification(user_email: str, reason: str, ip: str = "unknown"):
         logger.warning("Admin notification attempted but ADMIN_EMAIL is not configured")
         return
     
-    # Use the background task to send notification
-    # Removed unused 'event_data' assignment
-
-    # This needs to be handled differently due to async context
-    # We'll log it for now and expect it to be called with background_tasks in the endpoint
-    logger.info(f"Admin notification queued for {user_email}: {reason}")
+    # Log usage of 'ip' to avoid "unused argument" lint warning:
+    logger.info(f"Admin notification queued from IP: {ip} for {user_email}: {reason}")
 
 
 router = APIRouter(tags=["auth"])
@@ -117,7 +114,10 @@ async def register_user(
                 transaction.set_data("registration_success", False)
                 transaction.set_data("failure_reason", "invalid_hash_format")
                 sentry_sdk.capture_exception(e)
-                raise HTTPException(status_code=500, detail="Error during user registration")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Error during user registration"
+                ) from e
         
         with trace_block("Create User", op="db.insert") as span:
             user_id = str(uuid.uuid4())
@@ -175,7 +175,7 @@ async def register_user(
             raise HTTPException(
                 status_code=500,
                 detail="An error occurred during registration"
-            )
+            ) from e
         else:
             transaction.set_data("error.message", e.detail if hasattr(e, "detail") else str(e))
             raise
@@ -276,7 +276,10 @@ async def login_user(
                 background_tasks.add_task(
                     send_admin_notification_background,
                     subject="Invalid Password Hash Detected",
-                    message=f"User {user.id} has an invalid password hash format. The user has been flagged for password reset.",
+                    message=(
+                        f"User {user.id} has an invalid password hash format. "
+                        f"The user has been flagged for password reset."
+                    ),
                     event_data={
                         "User ID": str(user.id),
                         "User Email": user.email,
@@ -298,7 +301,7 @@ async def login_user(
                 raise HTTPException(
                     status_code=401,
                     detail="Account requires password reset."
-                )
+                ) from e
 
         with trace_block("Generate Token", op="auth.jwt_token") as span:
             token_start = time.time()
@@ -380,7 +383,7 @@ async def login_user(
             raise HTTPException(
                 status_code=500,
                 detail="An error occurred during login"
-            )
+            ) from e
         else:
             transaction.set_data("error.message", e.detail if hasattr(e, "detail") else str(e))
             raise
@@ -391,7 +394,7 @@ async def login_user(
 @router.post("/forgot-password")
 @trace_function(op="auth.forgot_password", name="forgot_password")
 async def forgot_password(
-    background_tasks: BackgroundTasks,  # Add background_tasks parameter
+    background_tasks: BackgroundTasks,
     request: Request,
     email: str = Form(...),
     db: AsyncSession = Depends(get_db_session)
@@ -411,13 +414,11 @@ async def forgot_password(
     transaction.set_data("masked_email", masked_email)
     
     try:
-        from sqlalchemy import select
         stmt = select(User).where(User.email == email)
         result = await db.execute(stmt)
         user = result.scalars().first()
         
         if user:
-            from services.auth_service import generate_password_reset_token
             token = await generate_password_reset_token(str(user.id))
             
             background_tasks.add_task(
@@ -452,7 +453,7 @@ async def forgot_password(
 @router.get("/validate-token")
 @trace_function(op="auth.validate", name="validate_token")
 async def validate_token(
-    request: Request,
+    _request: Request,  # Renamed to _request to avoid "unused-argument" lint warning
     token: Optional[str] = Header(None, alias="Authorization")
 ):
     """
@@ -546,8 +547,6 @@ async def reset_password(
         token: The reset token from the email
         new_password: The new password
     """
-    from services.auth_service import verify_password_reset_token
-    
     transaction = sentry_sdk.start_transaction(
         name="reset_password",
         op="auth.reset_password"
@@ -592,6 +591,7 @@ async def reset_password(
         hashed_password = bcrypt.hash(new_password)
         transaction.set_data("hash_duration", time.time() - hash_start)
         
+        # Type ignore usage for SQLAlchemy fields that might not be typed
         user.hashed_password = hashed_password  # type: ignore
         user.requires_password_reset = bool(False)  # type: ignore
         user.password_reset_reason = None  # type: ignore
@@ -617,6 +617,6 @@ async def reset_password(
         raise HTTPException(
             status_code=500,
             detail="An error occurred during password reset"
-        )
+        ) from e
     finally:
         transaction.finish()

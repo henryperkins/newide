@@ -6,11 +6,13 @@ from database import get_db_session
 from models import AppConfiguration
 from fastapi import Depends
 
+
 class ConfigService:
     """
     Service to manage application configurations stored in the database.
     Each configuration is an AppConfiguration row, keyed by a unique 'key' column.
     """
+
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -21,17 +23,19 @@ class ConfigService:
                 select(AppConfiguration).where(AppConfiguration.key == key)
             )
             config_obj = result.scalar_one_or_none()
-            
+
             # Early exit if no configuration found
             if config_obj is None:
                 return None
-                
+
             # Extract the actual Python value from the model instance
             if hasattr(config_obj, "value") and config_obj.value is not None:
                 # Use dict() to ensure we're returning a proper dictionary
-                return dict(config_obj.value) if isinstance(config_obj.value, dict) else {}
+                return (
+                    dict(config_obj.value) if isinstance(config_obj.value, dict) else {}
+                )
             return {}
-            
+
         except Exception as e:
             logger.error(f"Error retrieving configuration for key {key}: {str(e)}")
             return None
@@ -47,20 +51,18 @@ class ConfigService:
         try:
             # Use upsert operation with PostgreSQL syntax
             from sqlalchemy.dialects.postgresql import insert
+
             insert_stmt = insert(AppConfiguration).values(
-                key=key,
-                value=value,
-                description=description,
-                is_secret=is_secret
+                key=key, value=value, description=description, is_secret=is_secret
             )
             update_stmt = insert_stmt.on_conflict_do_update(
-                index_elements=['key'],
+                index_elements=["key"],
                 set_={
-                    'value': value,
-                    'description': description,
-                    'is_secret': is_secret,
-                    'updated_at': func.now()
-                }
+                    "value": value,
+                    "description": description,
+                    "is_secret": is_secret,
+                    "updated_at": func.now(),
+                },
             )
             await self.db.execute(update_stmt)
             await self.db.commit()

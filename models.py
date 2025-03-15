@@ -40,7 +40,11 @@ class Session(Base):
 
     def check_rate_limit(self):
         """Check if session exceeds rate limit (10 requests/minute)"""
-        if self.request_count is not None and isinstance(self.request_count, int) and self.request_count >= 10:
+        if (
+            self.request_count is not None
+            and isinstance(self.request_count, int)
+            and self.request_count >= 10
+        ):
             # Get timezone-aware current time
             now = datetime.now(timezone.utc)
             one_minute_ago = now - timedelta(minutes=1)
