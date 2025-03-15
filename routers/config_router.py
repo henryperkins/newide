@@ -2,7 +2,7 @@ import logging
 import re
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
-from typing import Any, Dict, Optional, List
+from typing import Any, Optional, Dict
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,27 +37,35 @@ class ConfigUpdate(BaseModel):
 
 
 class ModelConfigModel(BaseModel):
-    name: str = Field(
-        ..., min_length=1, pattern=r"^[a-zA-Z0-9-_]+$"
-    )  # Allow short names like "o1"
+    # Add a simple "model" field to validate; or adapt as needed for your logic
+    model: str = Field(..., description="Model configuration name")
+
+    name: str = Field(..., min_length=1, pattern=r"^[a-zA-Z0-9-_]+$")
     max_tokens: int = Field(..., gt=0, le=200000)
-    supports_streaming: Optional[bool] = False
-    supports_temperature: Optional[bool] = False
+    supports_streaming: bool | None = False
+    supports_temperature: bool | None = False
     api_version: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}(|-preview|-alpha\d+)$")
     azure_endpoint: str
     description: str = ""
     base_timeout: float = 120.0
     max_timeout: float = 300.0
     token_factor: float = 0.05
-    model_type: Optional[str] = Field("standard", alias="type")
+    model_type: str | None = Field("standard", alias="type")
 
     # O-Series specific fields
-    reasoning_effort: Optional[str] = None
-    requires_reasoning_effort: Optional[bool] = False
+    reasoning_effort: str | None = None
+    requires_reasoning_effort: bool | None = False
 
     # DeepSeek specific fields
-    enable_thinking: Optional[bool] = None
-    thinking_tags: Optional[List[str]] = None
+    enable_thinking: bool | None = None
+    thinking_tags: list[str] | None = None
+
+    @field_validator("model")
+    @classmethod
+    def validate_model(cls, v):
+        if not v:
+            raise ValueError("Model configuration cannot be empty")
+        return v
 
     @field_validator("model_type")
     @classmethod
@@ -411,7 +419,7 @@ async def update_model(
 
         # Update model
         success = await client_pool.add_or_update_model(
-            model_id, model.dict(), db_session
+            model_id, model.model_dump(), db_session
         )
 
         if not success:

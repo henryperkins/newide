@@ -108,7 +108,14 @@ function showFallbackUI(error) {
 }
 
 async function initApplication() {
-  try {
+    // Ensure globalStore._sidebars is initialized
+    if (!globalStore._sidebars) {
+      globalStore._sidebars = {
+        settings: { open: false, lastInteraction: null },
+        conversations: { open: false, lastInteraction: null }
+      };
+    }
+    try {
     if (typeof window.Sentry === 'undefined' || !window.Sentry._initialized) {
       initSentry({
         dsn: window.SENTRY_DSN || 'https://d815bc9d689a9255598e0007ae5a2f67@o4508070823395328.ingest.us.sentry.io/4508935977238528',

@@ -209,7 +209,12 @@ export async function sendMessage() {
   if (!userInput) return;
   const messageContent = userInput.value.trim();
   if (!messageContent) return;
-
+  // Validate the stored activeConversationId as a UUID
+  const storedConversationId = localStorage.getItem('activeConversationId');
+  if (storedConversationId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storedConversationId)) {
+    showNotification('Invalid or missing session ID. Please log in again.', 'error');
+    return;
+  }
   // If another request is already in progress, abort it
   if (isProcessing && currentController) {
     currentController.abort();
@@ -275,6 +280,9 @@ export async function sendMessage() {
     if (modelName.toLowerCase() === 'deepseek-r1') {
       console.log('[sendMessage] Setting actualModelName to "DeepSeek-R1" for DeepSeek-R1');
       actualModelName = 'DeepSeek-R1';
+    } else if (modelName.toLowerCase() === 'o1') {
+      console.log('[sendMessage] Setting actualModelName to "o1" for o1 series');
+      actualModelName = 'o1';
     }
 
     const modelConfig = await getModelConfig(actualModelName);
@@ -389,28 +397,38 @@ async function fetchChatResponse(
 
       // Determine if this is an O-series model
       const isOSeriesModel = modelName.toLowerCase().startsWith('o1') || modelName.toLowerCase().startsWith('o3');
+
+      // Add developer role message required for o1 models
+      if (isOSeriesModel) {
+        messages.unshift({
+          role: "developer",
+          content: "Formatting re-enabled - You are a helpful assistant."
+        });
+      }
       const isDeepSeek = modelName.toLowerCase().includes('deepseek');
 
       // Adjust parameters based on model type
-      const payload = {
+      // Build raw payload with all fields
+      const rawPayload = {
         session_id: sessionId,
         model: modelName,
         messages,
-        reasoning_effort: isOSeriesModel ? effort : undefined,
+        reasoning_effort: isOSeriesModel ? effort : null,
         include_files: false,
         file_ids: null,
         use_file_search: false,
-        response_format: null,
-        stream: useStreaming, // Align with CreateChatCompletionRequest schema
+        stream: useStreaming
       };
 
-      // Insert a developer message if it's an o-series model
-      if (isOSeriesModel) {
-        payload.messages.unshift({
-          role: "developer",
-          content: "Formatting re-enabled - use markdown code blocks"
-        });
+      // Remove null/undefined keys
+      const payload = {};
+      for (const [key, value] of Object.entries(rawPayload)) {
+        if (value !== null && value !== undefined) {
+          payload[key] = value;
+        }
       }
+
+      /* Remove insertion of the 'developer' role message to avoid Pydantic 422 errors. */
 
       // Only add reasoning_effort for O-series models
       if (isOSeriesModel) {
@@ -419,7 +437,7 @@ async function fetchChatResponse(
 
       // Use the appropriate parameter name based on model type
       if (isOSeriesModel) {
-        payload.max_completion_tokens = 5000;
+        payload.max_completion_tokens = 4000;  // Reduced from 5000 to match API limits
       } else {
         payload.max_tokens = 5000;
       }

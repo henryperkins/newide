@@ -250,56 +250,51 @@ export function toggleSidebar(sidebarId, show) {
 
   // Remove any inline transform styles first
   sidebar.style.transform = '';
-
+  
+  // CRITICAL FIX: Force visibility with fixed class management
   if (show) {
-    // Show the sidebar - first remove hidden class
+    // First remove hidden class
     sidebar.classList.remove('hidden');
-
-    // Use setTimeout to ensure DOM updates before changing transform
-    setTimeout(() => {
-      sidebar.classList.remove(isLeft ? '-translate-x-full' : 'translate-x-full');
-      sidebar.setAttribute('aria-hidden', 'false');
-
-      if (toggleButton) {
-        toggleButton.setAttribute('aria-expanded', 'true');
-      }
-
-      if (isMobile) {
-        document.body.classList.add('overflow-hidden');
-        if (overlay) {
-          overlay.classList.remove('hidden');
-        }
-      }
-    }, 10); // Very short timeout to ensure DOM updates
-  } else {
-    // Hide the sidebar
-    sidebar.classList.add(isLeft ? '-translate-x-full' : 'translate-x-full');
-    sidebar.setAttribute('aria-hidden', 'true');
-
+    
+    // Critical: Force the DOM to perform layout calculations
+    void sidebar.offsetWidth;
+    
+    // Then update transform classes - this is the crucial fix
+    if (isLeft) {
+      sidebar.classList.remove('-translate-x-full');
+    } else {
+      sidebar.classList.remove('translate-x-full');
+    }
+    sidebar.classList.add('translate-x-0');
+    sidebar.setAttribute('aria-hidden', 'false');
+    
     if (toggleButton) {
-      toggleButton.setAttribute('aria-expanded', 'false');
+      toggleButton.setAttribute('aria-expanded', 'true');
     }
-
-    document.body.classList.remove('overflow-hidden');
-    if (overlay) {
-      // Check if the other sidebar is open before hiding overlay
-      const otherSidebar = document.getElementById(isLeft ? 'sidebar' : 'conversations-sidebar');
-      const isOtherOpen = otherSidebar && (isLeft
-        ? !otherSidebar.classList.contains('translate-x-full')
-        : !otherSidebar.classList.contains('-translate-x-full'));
-
-      if (!isOtherOpen || !isMobile) {
-        overlay.classList.add('hidden');
-      }
+    
+    // Show overlay on mobile
+    if (isMobile && overlay) {
+      overlay.classList.remove('hidden');
     }
-  }
-
-  // Publish sidebar state change event
-  if (window.eventBus) {
-    window.eventBus.publish('sidebarStateChange', {
-      id: sidebarId,
-      isOpen: show
-    });
+  } else {
+    if (isLeft) {
+      sidebar.classList.add('-translate-x-full');
+    } else {
+      sidebar.classList.add('translate-x-full');
+    }
+    sidebar.classList.remove('translate-x-0');
+    sidebar.setAttribute('aria-hidden', 'true');
+    
+    // Hide overlay if both sidebars are closed
+    const otherSidebarId = isLeft ? 'sidebar' : 'conversations-sidebar';
+    const otherSidebar = document.getElementById(otherSidebarId);
+    const isOtherSidebarOpen = otherSidebar && 
+      ((isLeft && !otherSidebar.classList.contains('translate-x-full')) ||
+       (!isLeft && !otherSidebar.classList.contains('-translate-x-full')));
+       
+    if (isMobile && overlay && !isOtherSidebarOpen) {
+      overlay.classList.add('hidden');
+    }
   }
 
   console.log(`Sidebar ${sidebarId} ${show ? 'opened' : 'closed'}`);

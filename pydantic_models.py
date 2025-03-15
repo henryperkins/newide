@@ -3,11 +3,9 @@ from pydantic import BaseModel, Field, model_validator
 from datetime import datetime
 from uuid import UUID
 
-
 # -------------------------------------------------------------------------
 # ChatMessage (Pydantic)
 # -------------------------------------------------------------------------
-
 
 class ChatMessage(BaseModel):
     """
@@ -33,15 +31,6 @@ class ChatMessage(BaseModel):
 
     @model_validator(mode="after")
     def validate_model_specific_rules(self):
-        from config import is_o_series_model
-
-        if is_o_series_model(self.model):
-            if self.response_format and not self.response_format.get("json_schema"):
-                raise ValueError("O-series requires JSON schema for structured output")
-            if self.max_completion_tokens and self.max_completion_tokens > 100000:
-                raise ValueError("O-series completion limited to 100,000 tokens")
-            if self.messages and sum(len(m["content"]) for m in self.messages) > 200000:
-                raise ValueError("O-series context limit is 200,000 tokens")
         """Validate parameters against model-specific constraints"""
         from config import is_o_series_model, is_deepseek_model
 
@@ -49,12 +38,17 @@ class ChatMessage(BaseModel):
         is_o_model = is_o_series_model(model_name)
 
         if is_o_model:
+            # O-series validations
+            if self.response_format and not self.response_format.get("json_schema"):
+                raise ValueError("O-series requires JSON schema for structured output")
+            if self.max_completion_tokens and self.max_completion_tokens > 100000:
+                raise ValueError("O-series completion limited to 100,000 tokens")
+            if self.messages and sum(len(m["content"]) for m in self.messages) > 200000:
+                raise ValueError("O-series context limit is 200,000 tokens")
             if self.temperature is not None:
                 raise ValueError("O-series models don't support temperature parameter")
             if any(msg.get("role") == "system" for msg in self.messages or []):
-                raise ValueError(
-                    "O-series models use 'developer' role instead of 'system'"
-                )
+                raise ValueError("O-series models use 'developer' role instead of 'system'")
 
         # Handle max tokens parameter conversion
         if is_o_model and self.max_tokens is not None:
@@ -85,12 +79,25 @@ class ChatMessage(BaseModel):
 # -------------------------------------------------------------------------
 # CreateChatCompletionRequest (Pydantic)
 # -------------------------------------------------------------------------
+from pydantic import field_validator
+
 class CreateChatCompletionRequest(BaseModel):
     """
     Request format for chat completion API endpoint.
     """
 
-    messages: List[Dict[str, str]]
+    @model_validator(mode="before")
+    @classmethod
+    def handle_single_message(cls, values):
+        """
+        Allows passing a single 'message' key instead of a full 'messages' array.
+        """
+        if "messages" not in values and "message" in values:
+            user_msg = values["message"]
+            values["messages"] = [{"role": "user", "content": user_msg}]
+        return values
+
+    messages: List[Dict[str, Any]]
     session_id: Optional[str] = Field(None, description="Optional session ID. If not provided, a new session will be created.")
     model: Optional[str] = None
     reasoning_effort: Optional[str] = "medium"
@@ -102,6 +109,20 @@ class CreateChatCompletionRequest(BaseModel):
     max_tokens: Optional[int] = None  # Added for non-O-series models
     temperature: Optional[float] = None
     stream: Optional[bool] = None  # Add explicit stream parameter
+
+    @field_validator("messages")
+    @classmethod
+    def validate_messages(cls, v):
+        if not v:
+            raise ValueError("messages field cannot be empty")
+        for idx, msg in enumerate(v):
+            if not isinstance(msg, dict):
+                raise ValueError(f"messages[{idx}] must be a dictionary")
+            if "role" not in msg or "content" not in msg:
+                raise ValueError(f"messages[{idx}] must contain 'role' and 'content' keys")
+            if not isinstance(msg["role"], str) or not isinstance(msg["content"], str):
+                raise ValueError(f"messages[{idx}].role and messages[{idx}].content must be strings")
+        return v
 
     @model_validator(mode="after")
     def validate_and_normalize_max_tokens(self):
@@ -364,6 +385,8 @@ class DeleteAssistantResponse(BaseModel):
     id: str
     object: str = "assistant.deleted"
     deleted: bool = True
+
+
 class FilePreview(BaseModel):
     id: UUID
     filename: str

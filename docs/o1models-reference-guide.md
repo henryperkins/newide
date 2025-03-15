@@ -7,10 +7,10 @@ This guide provides everything you need to effectively use Azure OpenAI "o-serie
 ## 1. Key Features and Best Practices
 
 ### 1.1 Model Deployment and Integration
-- **Deployment ID:** Each o-series model (e.g., `o1`) must be deployed with a chosen deployment name (e.g., `my-o1-deployment`). When making API calls, reference this deployment name, not the literal `o1` string.  
-- **API Versions:** Always specify a supported `api-version` when making requests. Examples:  
-  - `2024-12-01-preview`  
-  - `2025-02-01-preview`  
+- **Deployment ID:** Each o-series model (e.g., `o1`) must be deployed with a chosen deployment name (e.g., `my-o1-deployment`). When making API calls, reference this deployment name, not the literal `o1` string.
+- **API Versions:** Always specify a supported `api-version` when making requests. Examples:
+  - `2024-12-01-preview`
+  - `2025-02-01-preview`
 
 ### 1.2 Required Parameters
 - **`max_completion_tokens`:**  
@@ -20,9 +20,9 @@ This guide provides everything you need to effectively use Azure OpenAI "o-serie
   - Higher values often provide more accurate or thoughtful responses but consume more tokens (including internal reasoning tokens).
 
 ### 1.3 Role Usage
-- **`developer` Role:** Use the `developer` role (instead of `system`) when providing high-level context and instructions for `o1` and `o3-mini`.  
-  - While `system` is still recognized, `developer` is the recommended best practice.  
-  - **Do not use both roles** in the same conversation.  
+- **`developer` Role:** Use the `developer` role (instead of `system`) when providing high-level context and instructions for `o1` and `o3-mini`.
+  - While `system` is still recognized, `developer` is the recommended best practice.
+  - **Do not use both roles** in the same conversation.
   ```json
   {
     "role": "developer",
@@ -37,8 +37,8 @@ temperature, top_p, presence_penalty, frequency_penalty, logprobs, top_logprobs,
 ```
 
 ### 1.5 Markdown Formatting
-- By default, `o1` and `o3-mini` are less likely to return Markdown-formatted text.  
-- To encourage Markdown output (especially for code blocks), prepend the `developer` role instructions with something like `"Formatting re-enabled"`.  
+- By default, `o1` and `o3-mini` are less likely to return Markdown-formatted text.
+- To encourage Markdown output (especially for code blocks), prepend the `developer` role instructions with something like `"Formatting re-enabled"`.
   ```json
   {
     "role": "developer",
@@ -47,12 +47,12 @@ temperature, top_p, presence_penalty, frequency_penalty, logprobs, top_logprobs,
   ```
 
 ### 1.6 Usage Object Details
-- Responses include `usage`, which details token counts. For o-series models, note especially:  
-  - **`reasoning_tokens`** within `completion_tokens_details`: the number of tokens used for the model’s internal reasoning.  
+- Responses include `usage`, which details token counts. For o-series models, note especially:
+  - **`reasoning_tokens`** within `completion_tokens_details`: the number of tokens used for the model’s internal reasoning.
   - `prompt_tokens`, `completion_tokens`, and `total_tokens` reflect overall usage impacting billing and context limits.
 
 ### 1.7 Context Window Limits
-- **Input tokens (prompt context)** and **output tokens (generated response)** have model-specific maxima.  
+- **Input tokens (prompt context)** and **output tokens (generated response)** have model-specific maxima.
 - `max_completion_tokens` sets an upper bound for visible output plus reasoning tokens. Always plan your prompts to stay within the model’s limits.
 
 ---
@@ -335,8 +335,8 @@ When `stream=False` (the default), you get a single JSON object containing the e
 ```
 
 #### Non-Streaming Highlights
-- **`choices[0].message.content`:** The returned text from the assistant.  
-- **`reasoning_tokens`:** Within `completion_tokens_details`, indicating how many tokens were spent on reasoning.  
+- **`choices[0].message.content`:** The returned text from the assistant.
+- **`reasoning_tokens`:** Within `completion_tokens_details`, indicating how many tokens were spent on reasoning.
 - **Unsupported fields:** `logprobs`, `temperature`, etc., are `null` or absent.
 
 ### 4.2 Streaming Response
@@ -358,14 +358,14 @@ data: {"id": "chatcmpl-...", "object": "chat.completion.chunk", "model": "...",
 data: {"id": "chatcmpl-...", "object": "chat.completion.chunk", "model": "...",
  "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
 
-data: [DONE]  <- signifies end of stream
+data: [DONE]
 ```
 
 #### Streaming Highlights
-- **`delta`:** Contains partial response data.  
-  - First chunk usually sets `"role": "assistant"`.  
-  - Subsequent chunks supply incremental `"content"`.  
-- **Concatenate `delta.content`:** to build the final response string.  
+- **`delta`:** Contains partial response data.
+  - First chunk usually sets `"role": "assistant"`.
+  - Subsequent chunks supply incremental `"content"`.
+- **Concatenate `delta.content`:** to build the final response string.
 - **Usage info** typically appears in a final chunk before `[DONE]` with the detailed token usage, including `reasoning_tokens`.
 
 ---
