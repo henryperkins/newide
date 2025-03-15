@@ -124,13 +124,6 @@ class SessionService:
             with sentry_sdk.start_span(op="session.persist", description="Persist Session") as persist_span:
                 persist_start = time.time()
 
-                new_session = Session(
-                    id=session_id,
-                    created_at=datetime.utcnow(),
-                    last_activity=datetime.utcnow(),
-                    expires_at=expires_at,
-                    request_count=0
-                )
                 db_session.add(new_session)
                 await db_session.commit()
                 await db_session.refresh(new_session)
@@ -143,14 +136,12 @@ class SessionService:
                             .where(Session.id == session_id)
                             .values(session_metadata=metadata)
                         )
-                        await db_session.commit()
-                        await db_session.refresh(new_session)
-
                         persist_span.set_data("owner_id", str(user_id))
                         logger.info(f"Associating session with user: {user_id}")
                     except Exception as e:
                         logger.warning(f"Error setting session metadata: {str(e)}")
 
+                await db_session.commit()
                 await db_session.refresh(new_session)
                 persist_span.set_data("duration_seconds", time.time() - persist_start)
                 logger.info(f"Session {session_id} committed to DB successfully")
