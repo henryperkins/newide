@@ -480,7 +480,8 @@ async def validate_token(
         payload = jwt.decode(
             token,
             settings.JWT_SECRET,
-            algorithms=["HS256"]
+            algorithms=["HS256"],
+            options={"require": ["exp", "iat"]}
         )
         
         user_id = payload.get("user_id")

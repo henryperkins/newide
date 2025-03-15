@@ -25,7 +25,7 @@ from services.email_templates import (
 logger = get_logger(__name__)
 
 # Set up SendGrid configuration
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "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")
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@azureopenai-chat.com")
 DEFAULT_FROM_NAME = os.getenv("DEFAULT_FROM_NAME", "Azure OpenAI Chat")
 
