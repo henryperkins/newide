@@ -121,6 +121,11 @@
   }
 }
 
+.message-content {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 100px;
+}
+
 /* =========================================================================
    Components Layer (Buttons, Forms, Utility Classes, etc.)
    ========================================================================= */
@@ -247,6 +252,9 @@
     padding-bottom: 1rem;
     overscroll-behavior-y: contain;
     max-height: calc(100vh - 185px); /* Header + input area height */
+    will-change: transform;
+    contain: strict;
+    transform: translateZ(0);
   }
 
   /* Conversation area enhancements */

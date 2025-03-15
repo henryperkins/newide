@@ -32,6 +32,18 @@ if ('serviceWorker' in navigator) {
 
 document.addEventListener('DOMContentLoaded', initApplication);
 
+async function initializeWithRetry(fn, retries = 3, delay = 1000) {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return initializeWithRetry(fn, retries - 1, delay * 2);
+    }
+    throw error;
+  }
+}
+
 async function ensureValidSession() {
   try {
     const transaction = await import('./sentryInit.js').then(module => {
@@ -207,7 +219,7 @@ async function initApplication() {
     initTokenUsageDisplay();
     await loadConversationFromDb();
     maybeShowWelcomeMessage();
-    await modelManager.initialize();
+    await initializeWithRetry(() => modelManager.initialize());
     initModelSelector();
     setupResizeHandler();
     captureMessage('Application initialization complete', 'info');
@@ -762,7 +774,28 @@ function initMobileUI() {
 function initMobileSidebarHandlers() {
   const mobileConversationsToggle = document.getElementById('mobile-conversations-toggle');
   if (mobileConversationsToggle) {
-    const newToggleBtn = mobileConversationsToggle.cloneNode(true);
+    function safeCloneWithEvents(node) {
+      const newElement = node.cloneNode(false);
+      Array.from(node.attributes).forEach(attr => {
+        newElement.setAttribute(attr.name, attr.value);
+      });
+
+      // Reattach event listeners if present
+      const events = node._eventHandlers || {};
+      Object.entries(events).forEach(([key, handler]) => {
+        const [eventType] = key.split('_');
+        newElement.addEventListener(eventType, handler.fn, handler.options);
+      });
+
+      // If the original node had children, clone them too
+      node.childNodes.forEach(child => {
+        newElement.appendChild(child.cloneNode(true));
+      });
+
+      return newElement;
+    }
+
+    const newToggleBtn = safeCloneWithEvents(mobileConversationsToggle);
     if (mobileConversationsToggle.parentNode) {
       mobileConversationsToggle.parentNode.replaceChild(newToggleBtn, mobileConversationsToggle);
     }

@@ -9,6 +9,8 @@ import { safeAddEventListener } from '../utils/eventManager.js';
 function initSidebar() {
   const sidebar = document.getElementById('sidebar');
   const toggleButton = document.getElementById('sidebar-toggle');
+
+  setupCrossTabSync();
   const closeButton = document.getElementById('close-sidebar');
   const overlay = document.getElementById('sidebar-overlay');
 
@@ -352,6 +354,18 @@ function initConversationSidebar() {
       }
     });
   }
+}
+
+function setupCrossTabSync() {
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'globalStore') {
+      const newState = JSON.parse(event.newValue);
+      if (newState._sidebars) {
+        globalStore._sidebars = newState._sidebars;
+        handleResponsive();
+      }
+    }
+  });
 }
 
 // For backward compatibility

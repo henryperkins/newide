@@ -172,6 +172,9 @@ class ModelManager {
             } else {
                 const useModelBtn = document.createElement('button');
                 useModelBtn.className = 'mt-2 btn btn-secondary text-xs use-model-btn';
+                useModelBtn.setAttribute('aria-label', `Switch to ${id} model`);
+                useModelBtn.setAttribute('role', 'button');
+                useModelBtn.setAttribute('tabindex', '0');
                 useModelBtn.textContent = 'Use Model';
                 useModelBtn.setAttribute('data-model-id', id);
                 card.appendChild(useModelBtn);
@@ -254,7 +257,13 @@ class ModelManager {
             this.pendingModelActions[modelId] = 'delete';
             const modelCard = document.querySelector(`.card[data-model-id="${modelId}"]`);
             if (modelCard) modelCard.classList.add('opacity-50', 'pointer-events-none');
-            const response = await fetch(`${window.location.origin}/api/config/models/${modelId}`, { method: 'DELETE' });
+            const response = await fetch(`${window.location.origin}/api/config/models/${modelId}`, {
+              method: 'DELETE',
+              headers: {
+                'X-CSRFToken': await getCSRFToken(),
+                'Content-Type': 'application/json'
+              }
+            });
             delete this.pendingModelActions[modelId];
             if (modelCard) modelCard.classList.remove('opacity-50', 'pointer-events-none');
             if (response.ok) {

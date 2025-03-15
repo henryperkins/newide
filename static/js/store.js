@@ -190,6 +190,15 @@ export class GlobalStore extends StoreEmitter {
     localStorage.setItem('welcomeMessageShown', this._welcomeMessageShown ? 'true' : 'false');
     this.emit('welcomeMessageShownChanged', this._welcomeMessageShown);
   }
+
+  get activeConversationId() {
+    return this._activeConversationId || localStorage.getItem('activeConversationId');
+  }
+  set activeConversationId(value) {
+    this._activeConversationId = value;
+    localStorage.setItem('activeConversationId', value);
+    this.emit('conversationChanged', value);
+  }
 }
 
 // Create a single export instance to act as the global store

@@ -374,9 +374,8 @@ function renderConversations() {
  */
 async function loadConversation(conversationId) {
   try {
-    // Store the active conversation ID in both sessionStorage and localStorage for cross-tab sync
-    sessionStorage.setItem('sessionId', conversationId);
-    localStorage.setItem('activeConversationId', conversationId);
+    // Store the active conversation ID using globalStore
+    globalStore.activeConversationId = conversationId;
 
     // Highlight active conversation
     document.querySelectorAll('.conversation-item').forEach(item => {
