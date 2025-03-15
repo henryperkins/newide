@@ -55,9 +55,6 @@ export async function copyToClipboard(text) {
     }
 }
 
-export async function getCSRFToken() {
-  return document.cookie.match(/csrftoken=([\w-]+)/)?.[1] || '';
-}
 
 /**
  * Updates token usage display in the UI
