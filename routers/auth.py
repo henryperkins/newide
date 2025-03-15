@@ -19,7 +19,7 @@ from services.auth_service import flag_user_for_password_reset
 from pydantic_models import UserCreate
 from database import get_db_session
 from models import User
-import config
+from config import settings
 from sqlalchemy import select
 from services.tracing_utils import trace_function, trace_block, set_user_context, add_breadcrumb
 from logging_config import get_logger
@@ -37,7 +37,7 @@ def send_admin_notification(user_email: str, reason: str, ip: str = "unknown"):
         reason: The reason for the notification
         ip: The IP address where the attempt came from
     """
-    if not config.settings.ADMIN_EMAIL:
+    if not settings.ADMIN_EMAIL:
         logger.warning("Admin notification attempted but ADMIN_EMAIL is not configured")
         return
     
@@ -177,7 +177,7 @@ async def register_user(
                 detail="An error occurred during registration"
             )
         else:
-            transaction.set_data("error.message", e.detail)
+            transaction.set_data("error.message", e.detail if hasattr(e, "detail") else str(e))
             raise
     finally:
         transaction.finish()
@@ -312,7 +312,7 @@ async def login_user(
                 "iat": datetime.utcnow(),
             }
 
-            token = jwt.encode(payload, config.settings.JWT_SECRET, algorithm="HS256")
+            token = jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
             span.set_data("duration_seconds", time.time() - token_start)
 
         with trace_block("Create User Session", op="auth.create_session") as session_span:
@@ -382,7 +382,7 @@ async def login_user(
                 detail="An error occurred during login"
             )
         else:
-            transaction.set_data("error.message", e.detail)
+            transaction.set_data("error.message", e.detail if hasattr(e, "detail") else str(e))
             raise
     finally:
         transaction.finish()
@@ -478,7 +478,7 @@ async def validate_token(
     try:
         payload = jwt.decode(
             token,
-            config.settings.JWT_SECRET,
+            settings.JWT_SECRET,
             algorithms=["HS256"]
         )
         

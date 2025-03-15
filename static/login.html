@@ -203,6 +203,9 @@
   <script>
     // Theme toggling functionality
     document.addEventListener('DOMContentLoaded', () => {
+      // Skip session validation on login page by clearing any stored session IDs
+      localStorage.removeItem('activeConversationId');
+      
       const themeToggle = document.getElementById('theme-toggle');
       if (themeToggle) {
         themeToggle.addEventListener('click', () => {
@@ -338,7 +341,10 @@
           document.getElementById('form-error').classList.add('hidden');
           document.getElementById('email-error').classList.add('hidden');
           document.getElementById('password-error').classList.add('hidden');
-          document.getElementById('password-reset-msg').classList.add('hidden');
+          const passResetEl = document.getElementById('password-reset-msg');
+          if (passResetEl) {
+            passResetEl.classList.add('hidden');
+          }
           
           // Basic form validation
           let isValid = true;
