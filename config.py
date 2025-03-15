@@ -5,8 +5,13 @@ from dotenv import load_dotenv
 from azure.core.credentials import AzureKeyCredential  # Add this import
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 from logging_config import logger
+
+# Email configuration
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "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")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@azureopenai-chat.com")
+DEFAULT_FROM_NAME = os.getenv("DEFAULT_FROM_NAME", "Azure OpenAI Chat")
+EMAIL_SENDER = os.getenv("EMAIL_SENDER", DEFAULT_FROM_EMAIL)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -137,6 +142,28 @@ class Settings(BaseSettings):
     SESSION_TIMEOUT_MINUTES: int = Field(
         default=int(os.getenv("SESSION_TIMEOUT_MINUTES", "30")),
         description="Session expiration time in minutes",
+    )
+    
+    # SendGrid configuration
+    SENDGRID_API_KEY: str = Field(
+        default=os.getenv("SENDGRID_API_KEY", "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"),
+        description="SendGrid API key for sending emails"
+    )
+    DEFAULT_FROM_EMAIL: str = Field(
+        default=os.getenv("DEFAULT_FROM_EMAIL", "noreply@azureopenai-chat.com"),
+        description="Default sender email address"
+    )
+    DEFAULT_FROM_NAME: str = Field(
+        default=os.getenv("DEFAULT_FROM_NAME", "Azure OpenAI Chat"),
+        description="Default sender name"
+    )
+    EMAIL_SENDER: str = Field(
+        default=os.getenv("EMAIL_SENDER", "noreply@azureopenai-chat.com"),
+        description="Email address used as sender"
+    )
+    ADMIN_EMAIL: Optional[str] = Field(
+        default=os.getenv("ADMIN_EMAIL"),
+        description="Admin email address for receiving system notifications"
     )
 
     model_config = SettingsConfigDict(

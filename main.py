@@ -1,5 +1,4 @@
 import datetime
-
 from pathlib import Path
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -16,11 +15,14 @@ from routers.files import router as files_router
 from routers.config import router as config_router
 from routers.model_stats import router as model_stats_router
 from routers.auth import router as auth_router
+from startup_validation import db_validation_lifespan
 
 import config
+from logging_config import get_logger
 
-# Import schema validation 
-from startup_validation import db_validation_lifespan
+# Set up logger
+logger = get_logger(__name__)
+
 
 # Initialize Sentry
 sentry_sdk.init(
@@ -89,10 +91,10 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 # Create FastAPI app with lifespan
 app = FastAPI(
-    docs_url=None, 
-    redoc_url=None, 
-    openapi_url=None, 
-    debug=True, 
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+    debug=True,
     lifespan=lifespan
 )
 
@@ -117,20 +119,16 @@ app.include_router(config_router, prefix="/api")
 app.include_router(model_stats_router)  # Already has prefix="/api/model-stats"
 app.include_router(auth_router, prefix="/api/auth")
 
-# Mount static files at '/static' instead
+# Mount static files at '/static'
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
-
-# Serve the index file on the root path
 @app.get("/")
 def read_index():
     return FileResponse(STATIC_DIR / "index.html")
 
-
 @app.get("/favicon.ico")
 def favicon():
-    return FileResponse(STATIC_DIR / "favicon.ico")  # Serve actual favicon
-
+    return FileResponse(STATIC_DIR / "favicon.ico")
 
 @app.get("/apple-touch-icon.png")
 async def get_apple_touch_icon():
@@ -154,12 +152,5 @@ async def health_check():
 
 @app.get("/sentry-test")
 async def sentry_test():
-    """
-    Test endpoint to verify Sentry integration.
-    This endpoint deliberately raises an exception to test Sentry error reporting.
-    """
-    # Capture a message
     sentry_sdk.capture_message("Sentry test message from FastAPI application")
-    
-    # Deliberately raise an exception to test error reporting
     raise ValueError("This is a test error to verify Sentry integration")

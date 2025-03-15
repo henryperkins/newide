@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Form, Header
+from fastapi import APIRouter, Depends, HTTPException, Request, Form, Header, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from passlib.hash import bcrypt_sha256 as bcrypt
 from jose import jwt, JWTError
@@ -7,8 +7,15 @@ import time
 import uuid
 import sentry_sdk
 from typing import Optional
-from services.auth_service import flag_user_for_password_reset, notify_admin_about_hash_issue
 
+from services.background_tasks import (
+    send_welcome_email_background,
+    send_login_notification_background,
+    send_admin_notification_background,
+    send_password_reset_email_background
+)
+
+from services.auth_service import flag_user_for_password_reset
 from pydantic_models import UserCreate
 from database import get_db_session
 from models import User
@@ -33,10 +40,14 @@ def send_admin_notification(user_email: str, reason: str, ip: str = "unknown"):
     if not config.settings.ADMIN_EMAIL:
         logger.warning("Admin notification attempted but ADMIN_EMAIL is not configured")
         return
-        
-    # Rest of the notification logic would go here
-    # This is just a placeholder for the actual notification sending code
-    logger.info(f"Admin notification sent to {config.settings.ADMIN_EMAIL} about {user_email}: {reason}")
+    
+    # Use the background task to send notification
+    # Removed unused 'event_data' assignment
+
+    # This needs to be handled differently due to async context
+    # We'll log it for now and expect it to be called with background_tasks in the endpoint
+    logger.info(f"Admin notification queued for {user_email}: {reason}")
+
 
 router = APIRouter(tags=["auth"])
 
@@ -44,6 +55,7 @@ router = APIRouter(tags=["auth"])
 @router.post("/register")
 @trace_function(op="auth.register", name="register_user")
 async def register_user(
+    background_tasks: BackgroundTasks,  # Add background_tasks parameter
     form: UserCreate,
     request: Request,
     db: AsyncSession = Depends(get_db_session)
@@ -51,13 +63,11 @@ async def register_user(
     """
     Registers a new user, ensuring their email does not already exist.
     """
-    # Create a transaction for user registration
     transaction = sentry_sdk.start_transaction(
         name="user_registration",
         op="auth.register"
     )
     
-    # Capture client info
     client_ip = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("user-agent", "unknown")
     transaction.set_data("client.ip", client_ip)
@@ -66,7 +76,6 @@ async def register_user(
     start_time = time.time()
     
     try:
-        # Check for existing email
         with trace_block("Check Email Exists", op="db.query") as span:
             stmt = select(User).where(User.email == form.email)
             result = await db.execute(stmt)
@@ -96,13 +105,11 @@ async def register_user(
             
             span.set_data("email_exists", False)
         
-        # Hash password
         with trace_block("Hash Password", op="auth.hash_password") as span:
             password_start = time.time()
             hashed = bcrypt.hash(form.password)
             span.set_data("duration_seconds", time.time() - password_start)
             
-            # Validate the generated hash format
             try:
                 bcrypt.identify(hashed)
             except Exception as e:
@@ -112,7 +119,6 @@ async def register_user(
                 sentry_sdk.capture_exception(e)
                 raise HTTPException(status_code=500, detail="Error during user registration")
         
-        # Create user
         with trace_block("Create User", op="db.insert") as span:
             user_id = str(uuid.uuid4())
             new_user = User(
@@ -125,12 +131,20 @@ async def register_user(
             db.add(new_user)
             await db.commit()
         
-        # Set transaction data
+        with trace_block("Schedule Welcome Email", op="email.welcome") as span:
+            background_tasks.add_task(
+                send_welcome_email_background,
+                to_email=form.email,
+                user_id=user_id
+            )
+            span.set_data("email_scheduled", True)
+            logger.info(f"Welcome email scheduled for {form.email}")
+        
         duration = time.time() - start_time
         transaction.set_data("registration_success", True)
         transaction.set_data("duration_seconds", duration)
+        transaction.set_data("welcome_email_scheduled", True)
         
-        # Log success
         logger.info(
             f"User registered successfully: {form.email}",
             extra={"user_id": user_id, "email": form.email, "duration": duration}
@@ -146,14 +160,11 @@ async def register_user(
         return {"message": "User registered successfully", "user_id": user_id}
         
     except Exception as e:
-        # Set error information in transaction
         transaction.set_data("registration_success", False)
         transaction.set_data("error.type", e.__class__.__name__)
         
-        # Don't expose the full error in the transaction to avoid leaking sensitive info
         if not isinstance(e, HTTPException):
             transaction.set_data("error.message", "Internal error during registration")
-            # Capture the full exception for monitoring
             sentry_sdk.capture_exception(e)
             
             logger.error(
@@ -161,24 +172,21 @@ async def register_user(
                 extra={"email": form.email, "error": str(e)}
             )
             
-            # Convert to HTTPException
             raise HTTPException(
                 status_code=500,
                 detail="An error occurred during registration"
             )
         else:
-            # Pass through HTTPExceptions with their status and detail
             transaction.set_data("error.message", e.detail)
             raise
-            
     finally:
-        # Finish the transaction
         transaction.finish()
 
 
 @router.post("/login")
 @trace_function(op="auth.login", name="login_user")
 async def login_user(
+    background_tasks: BackgroundTasks,  # Add background_tasks parameter
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
@@ -187,26 +195,22 @@ async def login_user(
     """
     Logs in an existing user, verifying credentials against the database.
     """
-    # Create a transaction for user login
     transaction = sentry_sdk.start_transaction(
         name="user_login",
         op="auth.login"
     )
 
-    # Capture client info
     client_ip = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("user-agent", "unknown")
     transaction.set_data("client.ip", client_ip)
     transaction.set_data("client.user_agent", user_agent)
 
-    # Mask email in transaction to avoid PII in Sentry
     masked_email = email.split('@')[0][0:3] + "***@" + email.split('@')[1]
     transaction.set_data("masked_email", masked_email)
 
     start_time = time.time()
 
     try:
-        # Look up user
         with trace_block("Find User", op="db.query") as span:
             stmt = select(User).where(User.email == email)
             result = await db.execute(stmt)
@@ -217,7 +221,6 @@ async def login_user(
                 transaction.set_data("login_success", False)
                 transaction.set_data("failure_reason", "invalid_credentials")
 
-                # Add breadcrumb for failed login
                 add_breadcrumb(
                     category="auth",
                     message="Login failed - user not found",
@@ -238,7 +241,6 @@ async def login_user(
             span.set_data("user_found", True)
             span.set_data("user_id", str(user.id))
 
-        # Verify password
         with trace_block("Verify Password", op="auth.verify_password") as span:
             verify_start = time.time()
             try:
@@ -250,7 +252,6 @@ async def login_user(
                     transaction.set_data("login_success", False)
                     transaction.set_data("failure_reason", "invalid_password")
 
-                    # Add breadcrumb for failed login
                     add_breadcrumb(
                         category="auth",
                         message="Login failed - invalid password",
@@ -268,14 +269,21 @@ async def login_user(
                         detail="Invalid credentials"
                     )
             except ValueError as e:
-                # Handle invalid hash format
                 logger.error(f"Invalid password hash format for user {user.id}: {str(e)}")
                 
-                # Flag user for password reset
-                await flag_user_for_password_reset(db, user.id)
-                
-                # Notify admin about the issue
-                await notify_admin_about_hash_issue(user.id, user.email)
+                await flag_user_for_password_reset(db, str(user.id))
+
+                background_tasks.add_task(
+                    send_admin_notification_background,
+                    subject="Invalid Password Hash Detected",
+                    message=f"User {user.id} has an invalid password hash format. The user has been flagged for password reset.",
+                    event_data={
+                        "User ID": str(user.id),
+                        "User Email": user.email,
+                        "IP Address": client_ip,
+                        "Timestamp": datetime.utcnow().isoformat()
+                    }
+                )
                 
                 transaction.set_data("login_success", False)
                 transaction.set_data("failure_reason", "invalid_hash_format")
@@ -292,11 +300,9 @@ async def login_user(
                     detail="Account requires password reset."
                 )
 
-        # Generate JWT token
         with trace_block("Generate Token", op="auth.jwt_token") as span:
             token_start = time.time()
 
-            # Set expiration time
             expiration = datetime.utcnow() + timedelta(minutes=60)
 
             payload = {
@@ -309,11 +315,9 @@ async def login_user(
             token = jwt.encode(payload, config.settings.JWT_SECRET, algorithm="HS256")
             span.set_data("duration_seconds", time.time() - token_start)
 
-        # Create a session for the authenticated user
         with trace_block("Create User Session", op="auth.create_session") as session_span:
             session_start = time.time()
 
-            # Create a new session associated with this user
             new_session = await SessionService.create_session(
                 db_session=db,
                 user_id=str(user.id)
@@ -322,16 +326,25 @@ async def login_user(
             session_span.set_data("session_id", str(new_session.id))
             session_span.set_data("duration_seconds", time.time() - session_start)
 
-        # Set user context for Sentry
+        with trace_block("Schedule Login Notification", op="email.login_notification") as email_span:
+            background_tasks.add_task(
+                send_login_notification_background,
+                to_email=email,
+                user_id=str(user.id),
+                ip_address=client_ip,
+                user_agent=user_agent
+            )
+            email_span.set_data("email_scheduled", True)
+            logger.info(f"Login notification email scheduled for {masked_email}")
+
         set_user_context(user_id=str(user.id), email=str(user.email))
 
-        # Record successful login
         duration = time.time() - start_time
         transaction.set_data("login_success", True)
         transaction.set_data("duration_seconds", duration)
         transaction.set_data("session_id", str(new_session.id))
+        transaction.set_data("login_notification_scheduled", True)
 
-        # Add success breadcrumb
         add_breadcrumb(
             category="auth",
             message="User logged in successfully",
@@ -352,13 +365,11 @@ async def login_user(
         }
 
     except Exception as e:
-        # Set error information
         transaction.set_data("login_success", False)
         transaction.set_data("error.type", e.__class__.__name__)
 
         if not isinstance(e, HTTPException):
             transaction.set_data("error.message", "Internal error during login")
-            # Capture the full exception for monitoring
             sentry_sdk.capture_exception(e)
 
             logger.error(
@@ -366,18 +377,75 @@ async def login_user(
                 extra={"masked_email": masked_email, "error": str(e)}
             )
 
-            # Convert to HTTPException
             raise HTTPException(
                 status_code=500,
                 detail="An error occurred during login"
             )
         else:
-            # Pass through HTTPExceptions
             transaction.set_data("error.message", e.detail)
             raise
-
     finally:
-        # Finish the transaction
+        transaction.finish()
+
+
+@router.post("/forgot-password")
+@trace_function(op="auth.forgot_password", name="forgot_password")
+async def forgot_password(
+    background_tasks: BackgroundTasks,  # Add background_tasks parameter
+    request: Request,
+    email: str = Form(...),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """
+    Initiates the password reset process for a user.
+    """
+    transaction = sentry_sdk.start_transaction(
+        name="forgot_password",
+        op="auth.forgot_password"
+    )
+    
+    client_ip = request.client.host if request.client else "unknown"
+    transaction.set_data("client.ip", client_ip)
+    
+    masked_email = email.split('@')[0][0:3] + "***@" + email.split('@')[1]
+    transaction.set_data("masked_email", masked_email)
+    
+    try:
+        from sqlalchemy import select
+        stmt = select(User).where(User.email == email)
+        result = await db.execute(stmt)
+        user = result.scalars().first()
+        
+        if user:
+            from services.auth_service import generate_password_reset_token
+            token = await generate_password_reset_token(str(user.id))
+            
+            background_tasks.add_task(
+                send_password_reset_email_background,
+                to_email=email,
+                reset_token=token,
+                user_id=str(user.id)
+            )
+            
+            logger.info(f"Password reset email scheduled for {masked_email}")
+            transaction.set_data("email_found", True)
+            transaction.set_data("reset_email_scheduled", True)
+        else:
+            logger.info(f"Password reset attempted for non-existent email: {masked_email}")
+            transaction.set_data("email_found", False)
+        
+        transaction.set_status("ok")
+        return {"message": "If your email is registered, you will receive a password reset link"}
+        
+    except Exception as e:
+        logger.error(f"Error in forgot_password: {str(e)}")
+        sentry_sdk.capture_exception(e)
+        transaction.set_data("error", str(e))
+        transaction.set_status("error")
+        
+        return {"message": "If your email is registered, you will receive a password reset link"}
+        
+    finally:
         transaction.finish()
 
 
@@ -396,11 +464,9 @@ async def validate_token(
         op="auth.validate"
     )
     
-    # Extract token from Authorization header if it includes Bearer prefix
     if token and token.startswith("Bearer "):
         token = token.replace("Bearer ", "")
     
-    # If no token was provided in the Authorization header
     if not token:
         transaction.set_data("token_provided", False)
         transaction.set_status("invalid_arguments")
@@ -410,14 +476,12 @@ async def validate_token(
     transaction.set_data("token_provided", True)
     
     try:
-        # Decode and verify the token
         payload = jwt.decode(
-            token, 
-            config.settings.JWT_SECRET, 
+            token,
+            config.settings.JWT_SECRET,
             algorithms=["HS256"]
         )
         
-        # Get user ID from payload
         user_id = payload.get("user_id")
         if not user_id:
             transaction.set_data("reason", "missing_user_id")
@@ -425,16 +489,13 @@ async def validate_token(
             transaction.finish()
             return {"valid": False, "reason": "Invalid token format"}
             
-        # Successfully validated token
         transaction.set_data("user_id", user_id)
         transaction.set_status("ok")
         transaction.finish()
         
-        # Get expiration timestamp from payload
         exp_timestamp = payload.get("exp")
         expires_at = datetime.fromtimestamp(exp_timestamp).isoformat() if exp_timestamp else None
         
-        # Return success with user info
         return {
             "valid": True,
             "user_id": user_id,
@@ -442,18 +503,120 @@ async def validate_token(
         }
         
     except JWTError as e:
-        # JWT validation error (expired, invalid signature, etc)
-        logger.info(f"Token validation failed: {str(e)}")
-        transaction.set_data("reason", str(e))
+        error_type = "Token has expired" if "expired" in str(e) else str(e)
+        
+        # Log more detailed info for monitoring
+        if "expired" in str(e):
+            logger.info("Token validation failed: Signature has expired")
+            transaction.set_data("reason", "Signature has expired")
+        else:
+            logger.warning(f"Token validation failed: {str(e)}")
+            transaction.set_data("reason", str(e))
+            
         transaction.set_status("invalid_token")
         transaction.finish()
-        return {"valid": False, "reason": "Invalid or expired token"}
+        return {"valid": False, "reason": error_type}
         
     except Exception as e:
-        # Unexpected error
         logger.error(f"Error validating token: {str(e)}")
         sentry_sdk.capture_exception(e)
         transaction.set_data("error", str(e))
         transaction.set_status("internal_error")
         transaction.finish()
         return {"valid": False, "reason": "Error validating token"}
+
+
+@router.post("/reset-password")
+@trace_function(op="auth.reset_password", name="reset_password")
+async def reset_password(
+    request: Request,
+    token: str = Form(...),
+    new_password: str = Form(...),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """
+    Resets a user's password using a valid reset token.
+    
+    This endpoint:
+    1. Validates the reset token
+    2. Updates the user's password
+    3. Clears any password reset flags
+    
+    Args:
+        token: The reset token from the email
+        new_password: The new password
+    """
+    from services.auth_service import verify_password_reset_token
+    
+    transaction = sentry_sdk.start_transaction(
+        name="reset_password",
+        op="auth.reset_password"
+    )
+    
+    client_ip = request.client.host if request.client else "unknown"
+    transaction.set_data("client.ip", client_ip)
+    
+    try:
+        user_id = await verify_password_reset_token(token)
+        
+        if not user_id:
+            transaction.set_data("token_valid", False)
+            transaction.set_status("invalid_token")
+            
+            logger.warning("Invalid or expired password reset token")
+            
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid or expired password reset token"
+            )
+            
+        transaction.set_data("token_valid", True)
+        transaction.set_data("user_id", user_id)
+        
+        user = await db.get(User, user_id)
+        
+        if not user:
+            transaction.set_data("user_found", False)
+            transaction.set_status("user_not_found")
+            
+            logger.warning(f"User not found for password reset: {user_id}")
+            
+            raise HTTPException(
+                status_code=404,
+                detail="User not found"
+            )
+            
+        transaction.set_data("user_found", True)
+        
+        hash_start = time.time()
+        hashed_password = bcrypt.hash(new_password)
+        transaction.set_data("hash_duration", time.time() - hash_start)
+        
+        user.hashed_password = hashed_password  # type: ignore
+        user.requires_password_reset = bool(False)  # type: ignore
+        user.password_reset_reason = None  # type: ignore
+        user.updated_at = datetime.utcnow()
+        
+        await db.commit()
+        
+        transaction.set_status("ok")
+        
+        logger.info(f"Password reset successful for user {user_id}")
+        
+        return {"message": "Password reset successful"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in reset_password: {str(e)}")
+        sentry_sdk.capture_exception(e)
+        
+        transaction.set_data("error", str(e))
+        transaction.set_status("error")
+        
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred during password reset"
+        )
+    finally:
+        transaction.finish()

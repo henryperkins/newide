@@ -1,6 +1,5 @@
-/**
- * sidebarManager.js - Central module for all sidebar/menu functionality
- */
+// sidebarManager.js - Central module for all sidebar/menu functionality
+
 import { globalStore } from '../store.js';
 import { safeAddEventListener } from '../utils/eventManager.js';
 
@@ -14,12 +13,32 @@ function initSidebar() {
   const overlay = document.getElementById('sidebar-overlay');
 
   if (!sidebar) return;
+  
+  // Initialize sidebar states in globalStore
+  if (globalStore._sidebars) {
+    // Set initial state based on CSS classes
+    const rightSidebar = document.getElementById('sidebar');
+    const leftSidebar = document.getElementById('conversations-sidebar');
+    
+    if (rightSidebar) {
+      const isOpen = !rightSidebar.classList.contains('translate-x-full');
+      globalStore._sidebars.settings.open = isOpen;
+    }
+    
+    if (leftSidebar) {
+      const isOpen = !leftSidebar.classList.contains('-translate-x-full');
+      globalStore._sidebars.conversations.open = isOpen;
+    }
+    
+    console.log("Initial sidebar state set in globalStore:", globalStore._sidebars);
+  }
 
   // Sidebar toggle button
   if (toggleButton) {
     safeAddEventListener(toggleButton, 'click', 'toggleSidebar', function toggleSidebarHandler() {
       console.log("Sidebar toggle button clicked");
-      const isOpen = sidebar.classList.contains('sidebar-open');
+      // Use translation property to detect if sidebar is open
+      const isOpen = !sidebar.classList.contains('translate-x-full');
       toggleSidebar('sidebar', !isOpen);
     });
   }
@@ -37,34 +56,52 @@ function initSidebar() {
   const TOUCH_THRESHOLD = 30;
   const TOUCH_TIME_THRESHOLD = 500;
 
-  safeAddEventListener(sidebar, 'touchstart', 'sidebarTouchStart', function sidebarTouchStartHandler(e) {
-    touchStartX = e.touches[0].clientX;
-    touchStartTime = Date.now();
-  }, { passive: true });
+  safeAddEventListener(
+    sidebar,
+    'touchstart',
+    'sidebarTouchStart',
+    function sidebarTouchStartHandler(e) {
+      touchStartX = e.touches[0].clientX;
+      touchStartTime = Date.now();
+    },
+    { passive: true }
+  );
 
-  safeAddEventListener(sidebar, 'touchmove', 'sidebarTouchMove', function sidebarTouchMoveHandler(e) {
-    const currentX = e.touches[0].clientX;
-    const deltaX = currentX - touchStartX;
-    
-    if (Math.abs(deltaX) > TOUCH_THRESHOLD) {
-      const progress = Math.min(Math.abs(deltaX) / window.innerWidth, 1);
-      sidebar.style.transform = `translate3d(${deltaX}px, 0, 0)`;
-      if (overlay) overlay.style.opacity = 1 - progress;
-    }
-  }, { passive: true });
+  safeAddEventListener(
+    sidebar,
+    'touchmove',
+    'sidebarTouchMove',
+    function sidebarTouchMoveHandler(e) {
+      const currentX = e.touches[0].clientX;
+      const deltaX = currentX - touchStartX;
 
-  safeAddEventListener(sidebar, 'touchend', 'sidebarTouchEnd', function sidebarTouchEndHandler(e) {
-    const deltaX = e.changedTouches[0].clientX - touchStartX;
-    const deltaTime = Date.now() - touchStartTime;
-    
-    if (Math.abs(deltaX) > TOUCH_THRESHOLD && deltaTime < TOUCH_TIME_THRESHOLD) {
-      sidebar.style.transform = '';
-      toggleSidebar('sidebar', false);
-    } else {
-      // Reset transform if not enough to trigger close
-      sidebar.style.transform = '';
-    }
-  }, { passive: true });
+      if (Math.abs(deltaX) > TOUCH_THRESHOLD) {
+        const progress = Math.min(Math.abs(deltaX) / window.innerWidth, 1);
+        sidebar.style.transform = `translate3d(${deltaX}px, 0, 0)`;
+        if (overlay) overlay.style.opacity = 1 - progress;
+      }
+    },
+    { passive: true }
+  );
+
+  safeAddEventListener(
+    sidebar,
+    'touchend',
+    'sidebarTouchEnd',
+    function sidebarTouchEndHandler(e) {
+      const deltaX = e.changedTouches[0].clientX - touchStartX;
+      const deltaTime = Date.now() - touchStartTime;
+
+      if (Math.abs(deltaX) > TOUCH_THRESHOLD && deltaTime < TOUCH_TIME_THRESHOLD) {
+        sidebar.style.transform = '';
+        toggleSidebar('sidebar', false);
+      } else {
+        // Reset transform if not enough to trigger close
+        sidebar.style.transform = '';
+      }
+    },
+    { passive: true }
+  );
 
   // Register keyboard shortcut (ESC to close sidebar)
   safeAddEventListener(document, 'keydown', 'escCloseSidebar', function escCloseSidebarHandler(e) {
@@ -72,9 +109,10 @@ function initSidebar() {
       const rightSidebar = document.getElementById('sidebar');
       const leftSidebar = document.getElementById('conversations-sidebar');
       
-      if (rightSidebar?.classList.contains('sidebar-open')) {
+      // Use translation property to detect if sidebar is open
+      if (rightSidebar && !rightSidebar.classList.contains('translate-x-full')) {
         toggleSidebar('sidebar', false);
-      } else if (leftSidebar?.classList.contains('sidebar-open')) {
+      } else if (leftSidebar && !leftSidebar.classList.contains('-translate-x-full')) {
         toggleSidebar('conversations-sidebar', false);
       }
     }
@@ -94,50 +132,85 @@ function initSidebar() {
  * Handle window resize events to maintain proper sidebar state
  */
 function handleResponsive() {
+  console.log("handleResponsive checking globalStore state:", globalStore._sidebars);
   const isMobile = window.innerWidth < 768;
-  
+
   // Update sidebar dimensions
   const rightSidebar = document.getElementById('sidebar');
   const leftSidebar = document.getElementById('conversations-sidebar');
   const overlay = document.getElementById('sidebar-overlay');
-  
+
   if (rightSidebar) {
     // Remove any inline transform styles
     rightSidebar.style.transform = '';
-    
+
     // Use Tailwind classes for width
     rightSidebar.classList.toggle('w-full', isMobile);
     rightSidebar.classList.toggle('w-96', !isMobile);
-    
-    const isRightOpen = rightSidebar.classList.contains('sidebar-open');
-    
+
+    // Use globalStore to determine if sidebar is open
+    const isRightOpen =
+      globalStore._sidebars &&
+      globalStore._sidebars.settings &&
+      globalStore._sidebars.settings.open;
+
+    // Apply appropriate classes based on stored state
+    if (isRightOpen) {
+      rightSidebar.classList.remove('translate-x-full');
+      rightSidebar.classList.add('translate-x-0');
+    } else {
+      rightSidebar.classList.add('translate-x-full');
+      rightSidebar.classList.remove('translate-x-0');
+    }
+
     // Update overlay visibility for right sidebar
     if (overlay && isRightOpen) {
       overlay.classList.toggle('hidden', !isMobile);
     }
   }
-  
+
   if (leftSidebar) {
     // Remove any inline transform styles
     leftSidebar.style.transform = '';
-    
+
     // Use Tailwind classes for width
-    leftSidebar.classList.toggle('w-full', isMobile);
+    leftSidebar.classList.toggle('w-[85%]', isMobile);
+    leftSidebar.classList.toggle('max-w-[320px]', isMobile);
     leftSidebar.classList.toggle('w-64', !isMobile);
-    
-    const isLeftOpen = leftSidebar.classList.contains('sidebar-open');
-    
+
+    // Use globalStore to determine if sidebar is open
+    const isLeftOpen =
+      globalStore._sidebars &&
+      globalStore._sidebars.conversations &&
+      globalStore._sidebars.conversations.open;
+
+    // Apply appropriate classes based on stored state
+    if (isLeftOpen) {
+      leftSidebar.classList.remove('-translate-x-full');
+      leftSidebar.classList.add('translate-x-0');
+    } else {
+      leftSidebar.classList.add('-translate-x-full');
+      leftSidebar.classList.remove('translate-x-0');
+    }
+
     // Update overlay visibility for left sidebar
     if (overlay && isLeftOpen) {
       overlay.classList.toggle('hidden', !isMobile);
     }
   }
-  
+
   // If neither sidebar is open, ensure overlay is hidden
   if (overlay) {
-    const rightOpen = rightSidebar?.classList.contains('sidebar-open') || false;
-    const leftOpen = leftSidebar?.classList.contains('sidebar-open') || false;
-    
+    // Use globalStore to determine if sidebars are open
+    const rightOpen =
+      globalStore._sidebars &&
+      globalStore._sidebars.settings &&
+      globalStore._sidebars.settings.open;
+    const leftOpen =
+      globalStore._sidebars &&
+      globalStore._sidebars.conversations &&
+      globalStore._sidebars.conversations.open;
+
     if (!rightOpen && !leftOpen) {
       overlay.classList.add('hidden');
     } else if (isMobile && (rightOpen || leftOpen)) {
@@ -151,18 +224,19 @@ function handleResponsive() {
  * @param {string} sidebarId - ID of the sidebar element ('sidebar' or 'conversations-sidebar')
  * @param {boolean} show - Whether to show the sidebar (true) or hide it (false)
  */
-// In static/js/ui/sidebarManager.js, around line 113, fix toggleSidebar:
 export function toggleSidebar(sidebarId, show) {
   console.log(`toggleSidebar: ${sidebarId}, show: ${show}`);
   const sidebar = document.getElementById(sidebarId);
-  const toggleButton = document.getElementById(sidebarId === 'sidebar' ? 'sidebar-toggle' : 'conversations-toggle');
+  const toggleButton = document.getElementById(
+    sidebarId === 'sidebar' ? 'sidebar-toggle' : 'conversations-toggle'
+  );
   const overlay = document.getElementById('sidebar-overlay');
 
   if (!sidebar) {
     console.error(`Sidebar with ID ${sidebarId} not found`);
     return;
   }
-  
+
   // Update globalStore state
   const storeKey = sidebarId === 'sidebar' ? 'settings' : 'conversations';
   if (globalStore._sidebars && globalStore._sidebars[storeKey]) {
@@ -170,7 +244,7 @@ export function toggleSidebar(sidebarId, show) {
     globalStore._sidebars[storeKey].lastInteraction = Date.now();
     console.log(`Sidebar state updated in globalStore: ${storeKey} = ${show}`);
   }
-  
+
   const isLeft = sidebarId === 'conversations-sidebar';
   const isMobile = window.innerWidth < 768;
 
@@ -249,21 +323,23 @@ function initConversationSidebar() {
   if (toggleButton) {
     safeAddEventListener(toggleButton, 'click', 'toggleConversationSidebar', function toggleConversationHandler() {
       console.log("Conversations toggle clicked");
-      const isOpen = sidebar.classList.contains('sidebar-open');
+      // Use translation property to detect if sidebar is open
+      const isOpen = !sidebar.classList.contains('-translate-x-full');
       toggleSidebar('conversations-sidebar', !isOpen);
     });
   }
-  
+
   // Set up mobile toggle button
   if (mobileToggleButton) {
     safeAddEventListener(mobileToggleButton, 'click', 'mobileToggleConversationSidebar', function mobileToggleHandler(e) {
       e.preventDefault();
       console.log("Mobile conversations toggle clicked");
-      const isOpen = sidebar.classList.contains('sidebar-open');
+      // Use translation property to detect if sidebar is open
+      const isOpen = !sidebar.classList.contains('-translate-x-full');
       toggleSidebar('conversations-sidebar', !isOpen);
     });
   }
-  
+
   // Set up overlay click to close sidebar
   const overlay = document.getElementById('sidebar-overlay');
   if (overlay) {
@@ -271,11 +347,12 @@ function initConversationSidebar() {
       const rightSidebar = document.getElementById('sidebar');
       const leftSidebar = document.getElementById('conversations-sidebar');
       
-      if (rightSidebar?.classList.contains('sidebar-open')) {
+      // Use translation property to detect if sidebar is open
+      if (rightSidebar && !rightSidebar.classList.contains('translate-x-full')) {
         toggleSidebar('sidebar', false);
       }
       
-      if (leftSidebar?.classList.contains('sidebar-open')) {
+      if (leftSidebar && !leftSidebar.classList.contains('-translate-x-full')) {
         toggleSidebar('conversations-sidebar', false);
       }
     });

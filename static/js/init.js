@@ -154,25 +154,33 @@ async function initApplication() {
       sidebarManager.initEventListeners();
     }
     window.toggleConversationSidebar = function (show) {
+      // Get state from globalStore if available
+      const isOpen = globalStore._sidebars &&
+                    globalStore._sidebars.conversations &&
+                    globalStore._sidebars.conversations.open;
+                    
+      // Fall back to checking DOM if globalStore not initialized
       const sidebar = document.getElementById('conversations-sidebar');
-      const isOpen = sidebar ? sidebar.classList.contains('sidebar-open') : false;
+      const isOpenDOM = sidebar ? !sidebar.classList.contains('-translate-x-full') : false;
+      
+      // Determine state
+      const currentState = (typeof isOpen !== 'undefined') ? isOpen : isOpenDOM;
+      
       if (typeof show === 'undefined') {
-        show = !isOpen;
+        show = !currentState;
       }
+      
       if (typeof toggleSidebar === 'function') {
         toggleSidebar('conversations-sidebar', show);
       } else if (typeof sidebarManager?.toggleSidebar === 'function') {
         sidebarManager.toggleSidebar('conversations-sidebar', show);
       } else {
-        if (sidebar) {
-          if (show) {
-            sidebar.classList.remove('hidden');
-            sidebar.classList.remove('-translate-x-full');
-            sidebar.classList.add('sidebar-open');
-          } else {
-            sidebar.classList.remove('sidebar-open');
-            sidebar.classList.add('-translate-x-full');
-          }
+        console.warn('No sidebar manager found, cannot toggle sidebar properly');
+        // Update globalStore directly in fallback case
+        if (globalStore._sidebars && globalStore._sidebars.conversations) {
+          globalStore._sidebars.conversations.open = show;
+          globalStore._sidebars.conversations.lastInteraction = Date.now();
+          console.log("Sidebar state updated in toggleConversationSidebar fallback:", globalStore._sidebars);
         }
       }
     };
@@ -216,6 +224,7 @@ function syncTabPanelDisplay() {
 }
 
 function fixLayoutIssues() {
+  console.log("fixLayoutIssues checking globalStore state:", globalStore._sidebars);
   const sidebar = document.getElementById('sidebar');
   if (sidebar) {
     sidebar.classList.remove('translate-x-full', 'md:translate-x-0', 'translate-x-0');
@@ -227,7 +236,13 @@ function fixLayoutIssues() {
       sidebar.classList.remove('w-full');
       sidebar.classList.add('w-96');
     }
-    if (!sidebar.classList.contains('sidebar-open')) {
+    
+    // Use globalStore to determine if sidebar is open
+    const isOpen = globalStore._sidebars &&
+                  globalStore._sidebars.settings &&
+                  globalStore._sidebars.settings.open;
+                  
+    if (!isOpen) {
       sidebar.classList.add('translate-x-full');
       sidebar.classList.remove('translate-x-0');
     } else {
@@ -235,6 +250,7 @@ function fixLayoutIssues() {
       sidebar.classList.remove('translate-x-full');
     }
   }
+  
   const conversationsSidebar = document.getElementById('conversations-sidebar');
   if (conversationsSidebar) {
     conversationsSidebar.classList.remove('-translate-x-full', 'translate-x-0');
@@ -246,7 +262,13 @@ function fixLayoutIssues() {
       conversationsSidebar.classList.remove('w-[85%]', 'max-w-[320px]');
       conversationsSidebar.classList.add('w-64');
     }
-    if (!conversationsSidebar.classList.contains('sidebar-open')) {
+    
+    // Use globalStore to determine if sidebar is open
+    const isOpen = globalStore._sidebars &&
+                  globalStore._sidebars.conversations &&
+                  globalStore._sidebars.conversations.open;
+                  
+    if (!isOpen) {
       conversationsSidebar.classList.add('-translate-x-full');
       conversationsSidebar.classList.remove('translate-x-0');
     } else {
@@ -254,12 +276,25 @@ function fixLayoutIssues() {
       conversationsSidebar.classList.remove('-translate-x-full');
     }
   }
+  
   syncTabPanelDisplay();
   const overlay = document.getElementById('sidebar-overlay');
   if (overlay) {
     overlay.classList.add('pointer-events-auto');
     overlay.classList.add('z-40');
-    if (!overlay.classList.contains('hidden')) {
+    
+    // Determine overlay visibility based on globalStore
+    const rightOpen = globalStore._sidebars &&
+                     globalStore._sidebars.settings &&
+                     globalStore._sidebars.settings.open;
+    const leftOpen = globalStore._sidebars &&
+                    globalStore._sidebars.conversations &&
+                    globalStore._sidebars.conversations.open;
+    const isMobile = window.innerWidth < 768;
+    
+    if ((rightOpen || leftOpen) && isMobile) {
+      overlay.classList.remove('hidden');
+    } else {
       overlay.classList.add('hidden');
     }
   }
@@ -267,11 +302,13 @@ function fixLayoutIssues() {
 
 function setupResizeHandler() {
   const handleResize = debounce(() => {
+    console.log("handleResize checking globalStore state:", globalStore._sidebars);
     const isMobile = window.innerWidth < 768;
     const sidebar = document.getElementById('sidebar');
     const conversationsSidebar = document.getElementById('conversations-sidebar');
     const overlay = document.getElementById('sidebar-overlay');
     const chatContainer = document.getElementById('chat-container');
+    
     if (sidebar) {
       if (isMobile) {
         sidebar.classList.add('w-full');
@@ -280,18 +317,32 @@ function setupResizeHandler() {
         sidebar.classList.remove('w-full');
         sidebar.classList.add('w-96');
       }
-      const isOpen = sidebar.classList.contains('sidebar-open');
+      
+      // Use globalStore to determine if sidebar is open
+      const isOpen = globalStore._sidebars &&
+                    globalStore._sidebars.settings &&
+                    globalStore._sidebars.settings.open;
+      
       if (isOpen) {
+        // Apply correct classes based on stored state
+        sidebar.classList.remove('translate-x-full');
+        sidebar.classList.add('translate-x-0');
+        
         if (!isMobile && chatContainer) {
-          chatContainer.classList.add('sidebar-open');
+          chatContainer.classList.add('with-sidebar');
         } else if (chatContainer) {
-          chatContainer.classList.remove('sidebar-open');
+          chatContainer.classList.remove('with-sidebar');
         }
         if (overlay && isMobile) {
           overlay.classList.remove('hidden');
         }
+      } else {
+        // Apply correct classes based on stored state
+        sidebar.classList.add('translate-x-full');
+        sidebar.classList.remove('translate-x-0');
       }
     }
+    
     if (conversationsSidebar) {
       if (isMobile) {
         conversationsSidebar.classList.add('w-[85%]', 'max-w-[320px]');
@@ -300,22 +351,46 @@ function setupResizeHandler() {
         conversationsSidebar.classList.remove('w-[85%]', 'max-w-[320px]');
         conversationsSidebar.classList.add('w-64');
       }
-      const isConversationsOpen = conversationsSidebar.classList.contains('sidebar-open');
-      if (isConversationsOpen && overlay && isMobile) {
-        overlay.classList.remove('hidden');
+      
+      // Use globalStore to determine if sidebar is open
+      const isConversationsOpen = globalStore._sidebars &&
+                                 globalStore._sidebars.conversations &&
+                                 globalStore._sidebars.conversations.open;
+      
+      if (isConversationsOpen) {
+        // Apply correct classes based on stored state
+        conversationsSidebar.classList.remove('-translate-x-full');
+        conversationsSidebar.classList.add('translate-x-0');
+        
+        if (overlay && isMobile) {
+          overlay.classList.remove('hidden');
+        }
+      } else {
+        // Apply correct classes based on stored state
+        conversationsSidebar.classList.add('-translate-x-full');
+        conversationsSidebar.classList.remove('translate-x-0');
       }
     }
+    
     if (overlay && isMobile) {
-      const rightOpen = sidebar?.classList.contains('sidebar-open');
-      const leftOpen = conversationsSidebar?.classList.contains('sidebar-open');
+      // Use globalStore to determine if sidebars are open
+      const rightOpen = globalStore._sidebars &&
+                       globalStore._sidebars.settings &&
+                       globalStore._sidebars.settings.open;
+      const leftOpen = globalStore._sidebars &&
+                      globalStore._sidebars.conversations &&
+                      globalStore._sidebars.conversations.open;
+      
       if (!rightOpen && !leftOpen) {
         overlay.classList.add('hidden');
       }
     } else if (overlay && !isMobile) {
       overlay.classList.add('hidden');
     }
+    
     syncTabPanelDisplay();
   }, 250);
+  
   window.addEventListener('resize', handleResize);
 }
 
@@ -486,10 +561,19 @@ function openFileInSidebar(filename) {
     } else if (typeof module.sidebarManager?.toggleSidebar === 'function') {
       module.sidebarManager.toggleSidebar('sidebar', true);
     } else {
+      // Fallback with globalStore update
       const sidebar = document.getElementById('sidebar');
       if (sidebar) {
+        // Update globalStore
+        if (globalStore._sidebars && globalStore._sidebars.settings) {
+          globalStore._sidebars.settings.open = true;
+          globalStore._sidebars.settings.lastInteraction = Date.now();
+          console.log("Sidebar state updated in openFileInSidebar fallback:", globalStore._sidebars);
+        }
+        
         sidebar.classList.remove('translate-x-full');
-        sidebar.classList.add('translate-x-0', 'sidebar-open');
+        sidebar.classList.add('translate-x-0');
+        
         if (window.innerWidth < 768) {
           const overlay = document.getElementById('sidebar-overlay');
           if (overlay) overlay.classList.remove('hidden');
@@ -546,10 +630,25 @@ function registerKeyboardShortcuts() {
       if (sendButton) sendButton.click();
     }
     if (e.key === 'Escape') {
-      const sidebar = document.getElementById('sidebar');
-      if (sidebar && sidebar.classList.contains('sidebar-open') && window.innerWidth < 768) {
-        const sidebarToggle = document.getElementById('sidebar-toggle');
-        if (sidebarToggle) sidebarToggle.click();
+      // Check sidebar state from globalStore first
+      const isRightOpen = globalStore._sidebars &&
+                         globalStore._sidebars.settings &&
+                         globalStore._sidebars.settings.open;
+                         
+      const isLeftOpen = globalStore._sidebars &&
+                        globalStore._sidebars.conversations &&
+                        globalStore._sidebars.conversations.open;
+      
+      // On mobile, close any open sidebar
+      if (window.innerWidth < 768) {
+        if (isRightOpen) {
+          const sidebarToggle = document.getElementById('sidebar-toggle');
+          if (sidebarToggle) sidebarToggle.click();
+        } else if (isLeftOpen) {
+          if (typeof window.toggleConversationSidebar === 'function') {
+            window.toggleConversationSidebar(false);
+          }
+        }
       }
     }
   });
@@ -677,14 +776,14 @@ function initMobileSidebarHandlers() {
       import('./ui/sidebarManager.js').then(module => {
         const sidebar = document.getElementById('sidebar');
         const conversationsSidebar = document.getElementById('conversations-sidebar');
-        if (sidebar?.classList.contains('sidebar-open')) {
+        if (sidebar && !sidebar.classList.contains('translate-x-full')) {
           if (typeof module.toggleSidebar === 'function') {
             module.toggleSidebar('sidebar', false);
           } else if (typeof module.sidebarManager?.toggleSidebar === 'function') {
             module.sidebarManager.toggleSidebar('sidebar', false);
           }
         }
-        if (conversationsSidebar?.classList.contains('sidebar-open')) {
+        if (conversationsSidebar && !conversationsSidebar.classList.contains('-translate-x-full')) {
           if (typeof module.toggleSidebar === 'function') {
             module.toggleSidebar('conversations-sidebar', false);
           } else if (typeof module.sidebarManager?.toggleSidebar === 'function') {
@@ -939,4 +1038,3 @@ function debounce(func, wait) {
     }, wait);
   };
 }
-

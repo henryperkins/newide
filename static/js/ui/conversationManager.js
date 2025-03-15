@@ -1,4 +1,6 @@
-// A module for managing conversations in the sidebar
+/**
+ * A module for managing conversations in the sidebar
+ */
 import { showNotification } from './notificationManager.js';
 import { toggleConversationSidebar } from './sidebarManager.js';
 import { getSessionId, createNewConversation } from '../session.js';
@@ -386,22 +388,12 @@ async function loadConversation(conversationId) {
     const displayManagerModule = await import('./displayManager.js');
     await displayManagerModule.loadConversationFromDb();
 
-    // On mobile, close the sidebar using proper sidebar management
+    // On mobile close the sidebar using proper sidebar management
     if (window.innerWidth < 768) {
       import('./sidebarManager.js').then(module => {
-        if (typeof module.toggleSidebar === 'function') {
-          module.toggleSidebar('conversations-sidebar', false);
-        } else if (window.toggleSidebarDirect) {
-          window.toggleSidebarDirect('conversations-sidebar');
-        }
+        module.toggleSidebar('conversations-sidebar', false);
       }).catch(err => {
         console.error("Error importing sidebarManager:", err);
-        // Fallback to direct manipulation if import fails
-        const conversationsSidebar = document.getElementById('conversations-sidebar');
-        if (conversationsSidebar) {
-          conversationsSidebar.classList.add('-translate-x-full');
-          conversationsSidebar.classList.remove('sidebar-open');
-        }
       });
     }
   } catch (error) {
@@ -443,7 +435,7 @@ async function togglePinConversation(conversationId, pinned) {
           : c
       );
 
-      // If we're filtering by pinned, reload conversations
+      // If we're filtering by pinned reload conversations
       if (currentFilter === 'pinned' && !pinned) {
         loadConversations(true);
       } else {
@@ -560,7 +552,7 @@ async function deleteConversation(conversationId) {
     // Remove from local data
     conversations = conversations.filter(c => c.id !== conversationId);
 
-    // If current conversation was deleted, create a new one
+    // If current conversation was deleted create a new one
     if (sessionStorage.getItem('sessionId') === conversationId) {
       await createNewConversation();
       // Skip reloading conversation for the just-deleted ID
@@ -637,20 +629,20 @@ function initConversationSidebarToggle() {
   // Note: This function is kept for backward compatibility and log reports
   // The actual event handlers are now attached in sidebarManager.js's initConversationSidebar
   // or in ui-controls.js to avoid duplicate event listeners
-  
+
   const conversationsSidebar = document.getElementById('conversations-sidebar');
   if (!conversationsSidebar) {
     console.log("[initConversationSidebarToggle] no sidebar found");
     return;
   }
-  
-  console.log("[initConversationSidebarToggle] sidebar found, delegating to sidebarManager.js");
+
+  console.log("[initConversationSidebarToggle] sidebar found delegating to sidebarManager.js");
   // No longer attaching event listeners here
 }
 
 
 /**
- * Create a new conversation and set it in session storage, then clear the conversation list in the UI
+ * Create a new conversation and set it in session storage then clear the conversation list in the UI
  * This allows displayManager.js to import and call createAndSetupNewConversation() when a conversation 404s.
  */
 export async function createAndSetupNewConversation() {
@@ -685,7 +677,7 @@ export async function createAndSetupNewConversation() {
  */
 window.addEventListener('storage', (e) => {
   if (e.key === 'activeConversationId' && e.newValue) {
-    // If another tab changed "activeConversationId", update the current tab
+    // If another tab changed "activeConversationId" update the current tab
     sessionStorage.setItem('sessionId', e.newValue);
     loadConversation(e.newValue);
   }
