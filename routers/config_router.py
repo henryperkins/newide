@@ -30,7 +30,8 @@ class ConfigUpdate(BaseModel):
     is_secret: bool = False
 
     @field_validator("value")
-    def validate_value(self, v):
+    @classmethod
+    def validate_value(cls, v):
         # Additional domain-specific validation can be inserted here.
         return v
 
@@ -59,20 +60,22 @@ class ModelConfigModel(BaseModel):
     thinking_tags: Optional[List[str]] = None
 
     @field_validator("model_type")
-    def validate_model_type(self, v):
+    @classmethod
+    def validate_model_type(cls, v):
         if v not in ["o-series", "deepseek", "standard"]:
             return "standard"
         return v
 
     @model_validator(mode="after")
-    def check_model_specific_params(self):
-        model_type = self.model_type
-        if model_type == "o-series" and self.requires_reasoning_effort:
-            if not self.reasoning_effort:
-                self.reasoning_effort = "medium"
-        if model_type == "deepseek" and self.enable_thinking is None:
-            self.enable_thinking = True
-        return self
+    @classmethod
+    def check_model_specific_params(cls, values):
+        model_type = values.get("model_type")
+        if model_type == "o-series" and values.get("requires_reasoning_effort"):
+            if not values.get("reasoning_effort"):
+                values["reasoning_effort"] = "medium"
+        if model_type == "deepseek" and values.get("enable_thinking") is None:
+            values["enable_thinking"] = True
+        return values
 
 
 class ModelSwitchRequest(BaseModel):
@@ -206,7 +209,7 @@ async def get_all_configs(
 # (Move get_models ABOVE the dynamic route to avoid overshadowing)
 # ==================================================================================
 
-@router.get("/models", response_model=Dict[str, ModelConfigModel])
+@router.get("/models")
 async def get_models(db_session: AsyncSession = Depends(get_db_session)):
     """Get all model configurations"""
     try:
