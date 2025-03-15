@@ -1,10 +1,9 @@
-from fastapi.security import APIKeyHeader, HTTPBearer
+from fastapi.security import APIKeyHeader, HTTPBearer, HTTPAuthorizationCredentials
 import config
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends
 from typing import Optional, Tuple
 import uuid
 import logging
-from errors import create_error_response
 from services.session_service import SessionService
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db_session
@@ -15,17 +14,8 @@ logger = logging.getLogger(__name__)
 security = HTTPBearer()
 api_key_header = APIKeyHeader(name="api-key")
 
-# async def validate_auth(api_key: Optional[str] = Depends(api_key_header), token: Optional[str] = Depends(security)):
-#     pass  # Removed for pure JWT-based auth in chat endpoints
-
-# removing repeated import config
 from jose import jwt
 from jose.exceptions import JWTError, ExpiredSignatureError
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from models import User
-from database import get_db_session
-from fastapi import HTTPException, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 async def validate_session_ownership(

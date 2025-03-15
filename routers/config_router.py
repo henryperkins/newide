@@ -3,7 +3,7 @@ import re
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from typing import Any, Dict, Optional, List
-from pydantic import BaseModel, Field, validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db_session, AsyncSessionLocal
@@ -29,8 +29,8 @@ class ConfigUpdate(BaseModel):
     description: str = ""
     is_secret: bool = False
 
-    @validator("value")
-    def validate_value(cls, v, values, **kwargs):
+    @field_validator("value")
+    def validate_value(self, v):
         # Additional domain-specific validation can be inserted here.
         return v
 
@@ -58,8 +58,8 @@ class ModelConfigModel(BaseModel):
     enable_thinking: Optional[bool] = None
     thinking_tags: Optional[List[str]] = None
 
-    @validator("model_type")
-    def validate_model_type(cls, v):
+    @field_validator("model_type")
+    def validate_model_type(self, v):
         if v not in ["o-series", "deepseek", "standard"]:
             return "standard"
         return v

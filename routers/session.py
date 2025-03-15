@@ -18,11 +18,6 @@ from services.session_service import SessionService
 from sqlalchemy import select, update
 from models import Session  # Ensure Session is imported at the top level
 
-"""
-Refactors to reduce flake8 complexity warnings, including 'update_session_model' 
-by splitting it into smaller helper functions.
-"""
-
 
 def serialize_datetime_objects(obj):
     if isinstance(obj, datetime):
