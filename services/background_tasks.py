@@ -25,6 +25,7 @@ def send_email_background(
     import asyncio  # Import locally to avoid circular imports
     from services.email_service import email_service
     
+    start_time = time.monotonic()
     async def _send_email():
         try:
             # Log detailed debug info
