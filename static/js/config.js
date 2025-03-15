@@ -15,7 +15,7 @@ const DEFAULT_CONFIG = {
     apiKey: "",
     endpoint: "https://o1models.openai.azure.com",
     deploymentName: "o1",
-    apiVersion: "2025-01-01-preview"
+    apiVersion: "2025-02-01-preview"
   },
   appSettings: {
     maxTokenLimit: 4096,

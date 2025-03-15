@@ -235,7 +235,7 @@ function streamChatResponse(
     params.append("message", messageContent || "");
     if (modelId.includes("o1") || modelId.includes("o3")) {
       params.append("reasoning_effort", reasoningEffort);
-      params.append("response_format", "json_schema");
+      // params.append("response_format", "json_schema");
       params.append("max_completion_tokens", "100000");
     } else if (reasoningEffort && !modelId.includes("deepseek")) {
       params.append("reasoning_effort", reasoningEffort);

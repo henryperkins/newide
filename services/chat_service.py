@@ -1,8 +1,14 @@
+"""
+Chat service module for processing messages, retrieving file context, and saving conversations.
+"""
+
 import time
 import base64
 import mimetypes
 import os
 import re
+import json
+import uuid
 from time import perf_counter
 from typing import Optional, List, Dict, Any
 
@@ -23,19 +29,30 @@ from services.tracing_utils import (
     add_breadcrumb,
 )
 from services.model_stats_service import ModelStatsService
+from services.config_service import ConfigService
+from database import AsyncSessionLocal
+from services.azure_search_service import AzureSearchService
+from config import is_deepseek_model, is_o_series_model
 
 
 async def validate_image_url(url: str) -> bool:
-    """Simple remote URL validator."""
+    """
+    Simple remote URL validator: checks if a given URL is valid by sending
+    an HTTP HEAD request and verifying a 200 status code.
+    """
     try:
+        timeout_obj = aiohttp.ClientTimeout(total=5.0)
         async with aiohttp.ClientSession() as session:
-            async with session.head(url, timeout=5) as resp:
+            async with session.head(url, timeout=timeout_obj) as resp:
                 return resp.status == 200
     except Exception:
         return False
 
 
 def encode_image_to_base64(image_path: str) -> str:
+    """
+    Reads an image file and returns a base64-encoded data URI string.
+    """
     with open(image_path, "rb") as f:
         data = f.read()
     return f"data:image/jpeg;base64,{base64.b64encode(data).decode('utf-8')}"
@@ -49,10 +66,9 @@ class TokenManager:
 
     @staticmethod
     async def get_model_limits(model_name: str) -> Dict[str, int]:
-        """Get token limits for a specific model from the database or use defaults."""
-        from services.config_service import ConfigService
-        from database import AsyncSessionLocal
-
+        """
+        Get token limits for a specific model from the database or use defaults.
+        """
         try:
             async with AsyncSessionLocal() as config_db:
                 config_service = ConfigService(config_db)
@@ -70,12 +86,16 @@ class TokenManager:
 
     @staticmethod
     def count_tokens(text_content: str) -> int:
-        """Naive token count for demonstration."""
+        """
+        Naive token count for demonstration: splits on whitespace.
+        """
         return len(text_content.split())
 
     @staticmethod
     def sum_context_tokens(messages: List[Dict[str, Any]]) -> int:
-        """Sum token usage across all messages."""
+        """
+        Sum token usage across all messages by analyzing each message's content.
+        """
         total = 0
         for msg in messages:
             content = msg.get("content", "")
@@ -93,8 +113,12 @@ class TokenManager:
 def prepare_model_parameters(
     chat_message: ChatMessage, model_name: str, is_deepseek: bool, is_o_series: bool
 ) -> Dict[str, Any]:
+    """
+    Prepares parameters for a model call based on whether it's a DeepSeek or o-series model,
+    or a fallback model type. Ensures no unsupported parameters are sent to o-series.
+    """
     if is_deepseek and chat_message.temperature not in (None, 0.5):
-        raise ValueError("DeepSeek models require temperature=0.0")
+        raise ValueError("DeepSeek models require temperature=0.0 or 0.5 per config.")
 
     if is_o_series and chat_message.temperature is not None:
         raise ValueError("O-series models do not support temperature parameter")
@@ -103,6 +127,7 @@ def prepare_model_parameters(
         {"role": "user", "content": chat_message.message}
     ]
 
+    # Generic defaults
     params = {
         "messages": messages,
         "api_version": config.DEEPSEEK_R1_DEFAULT_API_VERSION,
@@ -113,11 +138,18 @@ def prepare_model_parameters(
         "temperature": 0.5,
     }
 
+    # O-series adjustments
     if is_o_series:
-        if params.get("temperature") is not None:
-            params.pop("temperature", None)
+        params.pop("temperature", None)  # remove temperature for o-series
+        params["max_completion_tokens"] = (
+            chat_message.max_completion_tokens
+            or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
+        )
+        params["max_completion_tokens"] = min(params["max_completion_tokens"], 200000)
+        params["reasoning_effort"] = chat_message.reasoning_effort or "medium"
 
-    if is_deepseek:
+    # DeepSeek adjustments
+    elif is_deepseek:
         params["max_tokens"] = min(
             chat_message.max_completion_tokens or config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS,
             131072,
@@ -127,26 +159,16 @@ def prepare_model_parameters(
             if chat_message.temperature is not None
             else config.DEEPSEEK_R1_DEFAULT_TEMPERATURE
         )
-        maybe_max_tokens = params.get(
-            "max_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
-        )
+        maybe_max_tokens = params.get("max_tokens", config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS)
         if not isinstance(maybe_max_tokens, (int, float)):
             maybe_max_tokens = config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS
         params["max_tokens"] = int(
             min(maybe_max_tokens, config.DEEPSEEK_R1_DEFAULT_MAX_TOKENS)
         )
-    elif is_o_series:
-        params["max_completion_tokens"] = (
-            chat_message.max_completion_tokens
-            or config.O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS
-        )
-        params["max_completion_tokens"] = min(params["max_completion_tokens"], 200000)
-        params["reasoning_effort"] = chat_message.reasoning_effort or "medium"
-        params.pop("temperature", None)
+
+    # Fallback / default
     else:
-        params["temperature"] = chat_message.temperature or (
-            0.0 if is_deepseek else 0.7
-        )
+        params["temperature"] = chat_message.temperature or 0.7
         params["max_completion_tokens"] = chat_message.max_completion_tokens or 1000
 
     return params
@@ -158,7 +180,7 @@ async def get_file_context(
 ) -> Optional[str]:
     """
     Retrieve file content to be used as context in the chat.
-    If Azure Search is enabled, use it to get content. Otherwise,
+    If Azure Search is enabled, use it to get content; otherwise,
     retrieve directly from the database.
     """
     if not file_ids:
@@ -178,8 +200,7 @@ async def get_file_context(
                 with profile_block(
                     description="Azure Search Context Retrieval", op="search.context"
                 ) as search_span:
-                    from services.azure_search_service import AzureSearchService
-
+                    # We import AzureSearchService at top-level now
                     file_result = await db_session.execute(
                         text(
                             """
@@ -283,7 +304,8 @@ async def get_file_context(
                     ".tsx",
                     ".json",
                 ]:
-                    context += f"```{file_info['file_type'][1:]}\n{file_info['content']}\n```\n\n"
+                    code_lang = file_info["file_type"][1:]
+                    context += f"```{code_lang}\n{file_info['content']}\n```\n\n"
                 else:
                     context += file_info["content"] + "\n\n"
             context += "\nRefer to the document context above when answering questions about the files. Include specific details from the files when relevant."
@@ -299,7 +321,7 @@ async def get_file_context(
 async def process_chat_message(
     chat_message: Any,
     db_session: AsyncSession,
-    model_name: Optional[str] = None,
+    _model_name: Optional[str] = None,  # renamed to _model_name to silence unused-argument
 ) -> Dict[str, Any]:
     """
     Processes a chat message, calls the appropriate model(s) using `client.complete`,
@@ -308,7 +330,7 @@ async def process_chat_message(
     transaction = sentry_sdk.start_transaction(
         op="chat.process", name="Process Chat Message"
     )
-    transaction.set_tag("model_name", model_name or "unknown")
+    transaction.set_tag("model_name", _model_name or "unknown")
     session_id = getattr(chat_message, "session_id", "unknown")
     transaction.set_tag("session_id", session_id)
 
@@ -318,15 +340,15 @@ async def process_chat_message(
 
     add_breadcrumb(
         category="chat",
-        message=f"Starting chat processing for model {model_name}",
+        message=f"Starting chat processing for model {_model_name}",
         level="info",
         session_id=session_id,
     )
 
     session_id = getattr(chat_message, "session_id", None)
     model_name = (
-        str(model_name)
-        if model_name
+        str(_model_name)
+        if _model_name
         else getattr(chat_message, "model_name", None)
         or config.AZURE_INFERENCE_DEPLOYMENT
     )
@@ -361,8 +383,6 @@ async def process_chat_message(
 
         params = {"stream": False, "messages": messages}
 
-        from config import is_deepseek_model, is_o_series_model
-
         if is_deepseek_model(model_name):
             params.update(
                 {
@@ -384,6 +404,7 @@ async def process_chat_message(
                     ),
                 }
             )
+            # If we detect image_url content for o1 model
             if any(
                 isinstance(c, dict) and c.get("type") == "image_url"
                 for msg in messages
@@ -420,8 +441,6 @@ async def process_chat_message(
         with profile_block(description="Model API Call", op="model.api"):
             response = await client.complete(**params)
             try:
-                import json
-
                 response_logger.info(
                     "Raw model response:\n%s",
                     json.dumps(response, indent=2, default=str),
@@ -457,6 +476,7 @@ async def process_chat_message(
             }
 
         if is_deepseek_model(model_name) and "" in content:
+            # Possibly adjust if you had a partial code snippet
             thinking_blocks = re.findall(r"(.*?)", content, flags=re.DOTALL)
             thinking_output = thinking_blocks[0].strip() if thinking_blocks else ""
         else:
@@ -466,7 +486,6 @@ async def process_chat_message(
             content += f"\n\n[DeepSeek Thinking]\n{thinking_output}"
 
         processing_time = perf_counter() - start_time
-        import uuid
 
         try:
             session_uuid = (
@@ -562,14 +581,14 @@ async def save_conversation(
     formatted_assistant_text: str,
     raw_response: Any,
 ) -> None:
+    """
+    Saves user and assistant messages to the database. Modify according to your table structure.
+    """
     if session_id is None:
         session_id = "unknown_session"
     if model_name is None:
         model_name = "unknown_model"
-    """
-    Saves user and assistant messages to the database.
-    Modify according to your table structure and fields.
-    """
+
     try:
         messages_to_insert = [
             {
@@ -605,7 +624,7 @@ async def fetch_conversation_history(
 ) -> List[Dict[str, Any]]:
     """
     Retrieves prior messages in a conversation, returning them in a format
-    suitable for an LLM’s “messages” argument. Adjust the query to match your schema.
+    suitable for an LLM’s “messages” argument.
     """
     result = await db_session.execute(
         text(
@@ -625,7 +644,7 @@ async def fetch_conversation_history(
 async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
     """
     Example method that calls the client again to produce a summary.
-    Adjust as needed or remove if you don’t use summary logic.
+    Adjust or remove if you don’t use summary logic.
     """
     if not messages:
         return ""
@@ -661,7 +680,10 @@ async def summarize_messages(messages: List[Dict[str, Any]]) -> str:
 
 
 async def process_vision_content(content: list):
-    """Process vision content for o1 model with improved validation"""
+    """
+    Process vision content for o1 model with improved validation.
+    Checks remote image URLs, local file paths, or base64 data URIs.
+    """
     processed_content = []
 
     for item in content:

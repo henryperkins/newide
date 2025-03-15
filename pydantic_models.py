@@ -39,7 +39,7 @@ class ChatMessage(BaseModel):
 
         if is_o_model:
             # O-series validations
-            if self.response_format and not self.response_format.get("json_schema"):
+            if self.response_format and isinstance(self.response_format, dict) and "json_schema" not in self.response_format:
                 raise ValueError("O-series requires JSON schema for structured output")
             if self.max_completion_tokens and self.max_completion_tokens > 100000:
                 raise ValueError("O-series completion limited to 100,000 tokens")

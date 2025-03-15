@@ -7,27 +7,25 @@ import json
 import time
 import asyncio
 from typing import Optional, Dict, Any, AsyncIterator
-from uuid import UUID 
-from datetime import datetime, timezone
+from uuid import UUID
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, delete, update, func, or_
+from sqlalchemy import select, delete, update, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import func as sa_func
 import sentry_sdk
-from common_utils import count_tokens
 
+from common_utils import count_tokens
 # Local modules
 from logging_config import logger
 from database import get_db_session
-from clients import get_model_client_dependency 
-from pydantic_models import (
-    CreateChatCompletionRequest,
-)
+from clients import get_model_client_dependency
+from pydantic_models import CreateChatCompletionRequest
 from models import Conversation, User, Session
 from routers.security import get_current_user
 from services.chat_service import save_conversation
-from datetime import timedelta
 from services.session_service import SessionService
 from common_utils import (
     is_o_series_model,
@@ -66,7 +64,7 @@ async def create_new_conversation(
         pinned = data.get("pinned", False)
         archived = data.get("archived", False)
 
-        # Create a brand-new Session (1 row per conversation) using SessionService
+        # Create a brand-new Session (1 row per conversation)
         # Pass the user's ID if they're authenticated
         user_id = str(current_user.id) if current_user else None
         new_session = await SessionService.create_session(
@@ -74,7 +72,7 @@ async def create_new_conversation(
             user_id=user_id
         )
 
-        # Create the initial Conversation row (the first message)
+        # Create the initial Conversation row
         timestamp = datetime.now(timezone.utc)
         conv = Conversation(
             session_id=new_session.id,
@@ -99,7 +97,7 @@ async def create_new_conversation(
         }
     except Exception as exc:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/conversations/{conversation_id}/messages")
@@ -121,7 +119,7 @@ async def add_conversation_message(
         if not role or not content:
             raise HTTPException(status_code=400, detail="Missing role or content")
 
-        # Verify session exists using SessionService
+        # Verify session exists
         session_db = await SessionService.validate_session(
             session_id=conversation_id,
             db_session=db,
@@ -146,7 +144,7 @@ async def add_conversation_message(
         raise
     except Exception as exc:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/conversations/{conversation_id}/messages")
@@ -162,7 +160,7 @@ async def get_conversation_messages(
     Returns pinned/archived/title from the first message row found.
     """
     try:
-        # Validate conversation using SessionService
+        # Validate conversation
         session_db = await SessionService.validate_session(
             session_id=conversation_id,
             db_session=db,
@@ -181,7 +179,7 @@ async def get_conversation_messages(
             }
 
         # Count total
-        count_query = select(func.count(Conversation.id)).where(
+        count_query = select(sa_func.count(Conversation.id)).where(
             Conversation.session_id == session_db.id
         )
         total_count_res = await db.execute(count_query)
@@ -217,7 +215,7 @@ async def get_conversation_messages(
                     "id": m.id,
                     "role": m.role,
                     "content": m.content,
-                    "timestamp": m.timestamp.isoformat() if m.timestamp is not None else None,
+                    "timestamp": m.timestamp.isoformat() if m.timestamp else None,
                 }
                 for m in messages
             ],
@@ -225,20 +223,20 @@ async def get_conversation_messages(
         }
     except Exception as exc:
         logger.exception(f"Error retrieving conversation messages: {exc}")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.delete("/conversations/{conversation_id}")
 async def clear_conversation(
     conversation_id: UUID,
     db: AsyncSession = Depends(get_db_session),
-    current_user: Optional[User] = Depends(get_current_user),
+    _current_user: Optional[User] = Depends(get_current_user),
 ):
     """
     Deletes all messages for a given conversation (and the Session row if desired).
     """
     try:
-        # Validate session using SessionService
+        # Validate session
         session_db = await SessionService.validate_session(
             session_id=conversation_id,
             db_session=db,
@@ -247,7 +245,7 @@ async def clear_conversation(
         if not session_db:
             return {"status": "cleared", "detail": "No conversation found"}
 
-        # Delete messages in that session
+        # Delete messages
         del_stmt = delete(Conversation).where(Conversation.session_id == session_db.id)
         await db.execute(del_stmt)
         
@@ -267,7 +265,7 @@ async def clear_conversation(
         return {"status": "cleared"}
     except Exception as exc:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.put("/conversations/{conversation_id}/title")
@@ -275,7 +273,7 @@ async def rename_conversation(
     conversation_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db_session),
-    current_user: Optional[User] = Depends(get_current_user),
+    _current_user: Optional[User] = Depends(get_current_user),
 ):
     """
     Update the conversation's title across all messages.
@@ -287,7 +285,7 @@ async def rename_conversation(
         if not new_title:
             raise HTTPException(status_code=400, detail="No 'title' provided")
 
-        # Validate session using SessionService
+        # Validate session
         session_db = await SessionService.validate_session(
             session_id=conversation_id,
             db_session=db,
@@ -314,7 +312,7 @@ async def rename_conversation(
         raise
     except Exception as exc:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/conversations/{conversation_id}/pin")
@@ -360,7 +358,7 @@ async def pin_conversation(
     except Exception as exc:
         await db.rollback()
         logger.exception(f"Error updating pin status: {exc}")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/conversations/{conversation_id}/archive")
@@ -368,7 +366,7 @@ async def archive_conversation(
     conversation_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db_session),
-    current_user: Optional[User] = Depends(get_current_user),
+    _current_user: Optional[User] = Depends(get_current_user),
 ):
     """
     Archive or unarchive a conversation. Body must have {"archived": bool}.
@@ -377,7 +375,7 @@ async def archive_conversation(
         data = await request.json()
         archived_val = data.get("archived", True)
 
-        # Validate session using SessionService
+        # Validate session
         session_db = await SessionService.validate_session(
             session_id=conversation_id,
             db_session=db,
@@ -399,7 +397,7 @@ async def archive_conversation(
     except Exception as e:
         await db.rollback()
         logger.error(f"Error archiving conversation: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/conversations")
@@ -410,7 +408,7 @@ async def list_conversations(
     archived: Optional[bool] = Query(None),
     search: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db_session),
-    current_user: Optional[User] = Depends(get_current_user),
+    _current_user: Optional[User] = Depends(get_current_user),
 ):
     """
     Lists distinct conversations by session_id, with optional pinned, archived, or search filters.
@@ -420,14 +418,14 @@ async def list_conversations(
         base_query = (
             select(
                 Conversation.session_id,
-                func.bool_or(Conversation.pinned).label("pinned"),
-                func.bool_or(Conversation.archived).label("archived"),
-                func.max(Conversation.timestamp).label("updated_at"),
-                func.count(Conversation.id).label("message_count"),
-                func.max(Conversation.title).label("title"),
+                sa_func.bool_or(Conversation.pinned).label("pinned"),
+                sa_func.bool_or(Conversation.archived).label("archived"),
+                sa_func.max(Conversation.timestamp).label("updated_at"),
+                sa_func.count('*').label("message_count"),
+                sa_func.max(Conversation.title).label("title"),
             )
             .group_by(Conversation.session_id)
-            .order_by(func.max(Conversation.timestamp).desc())
+            .order_by(sa_func.max(Conversation.timestamp).desc())
         )
 
         # Handle search
@@ -439,18 +437,18 @@ async def list_conversations(
                     Conversation.content.ilike(pattern)
                 )
             )
-            # pinned / archived filters
-        if pinned is not None:
-            base_query = base_query.having(func.bool_or(Conversation.pinned) == pinned)
-        if archived is not None:
-            base_query = base_query.having(func.bool_or(Conversation.archived) == archived)
 
-        # We'll fetch everything first, then slice
+        # pinned / archived filters
+        if pinned is not None:
+            base_query = base_query.having(sa_func.bool_or(Conversation.pinned) == pinned)
+        if archived is not None:
+            base_query = base_query.having(sa_func.bool_or(Conversation.archived) == archived)
+
+        # Fetch all, then slice for pagination
         sub_res = await db.execute(base_query)
         all_rows = sub_res.all()
         total_count = len(all_rows)
 
-        # Apply pagination
         base_query = base_query.offset(offset).limit(limit)
         rows = (await db.execute(base_query)).all()
 
@@ -463,16 +461,14 @@ async def list_conversations(
             msg_count = row.message_count
             title_val = row.title or "Untitled Conversation"
 
-            conversations.append(
-                {
-                    "id": str(sess_id),
-                    "title": title_val,
-                    "pinned": pinned_val,
-                    "archived": archived_val,
-                    "updated_at": updated_at.isoformat() if updated_at else None,
-                    "message_count": msg_count,
-                }
-            )
+            conversations.append({
+                "id": str(sess_id),
+                "title": title_val,
+                "pinned": pinned_val,
+                "archived": archived_val,
+                "updated_at": updated_at.isoformat() if updated_at else None,
+                "message_count": msg_count,
+            })
 
         return {
             "conversations": conversations,
@@ -483,14 +479,14 @@ async def list_conversations(
         }
     except Exception as exc:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/conversations/store")
 async def store_conversation(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
-    current_user: Optional[User] = Depends(get_current_user),
+    _current_user: Optional[User] = Depends(get_current_user),
 ):
     """
     Store conversation data from client. Body must include {"session_id", "role", "content"}.
@@ -504,9 +500,9 @@ async def store_conversation(
         if not session_id or not role or not content:
             raise HTTPException(status_code=400, detail="Missing required fields")
 
-        # Validate session using SessionService
+        # Validate session
         session = await SessionService.validate_session(
-            session_id=session_id,  # Now declared above from the header
+            session_id=session_id,
             db_session=db,
             require_valid=False
         )
@@ -516,7 +512,7 @@ async def store_conversation(
 
         msg = Conversation(
             session_id=session_id,
-            user_id=current_user.id if current_user else None,
+            user_id=None,  # or current_user.id if you want ownership
             role=role,
             content=content,
             timestamp=datetime.now(timezone.utc),
@@ -527,7 +523,7 @@ async def store_conversation(
     except Exception as e:
         await db.rollback()
         logger.error(f"Error storing conversation: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # -------------------------------------------------------------------------
@@ -546,18 +542,15 @@ async def create_chat_completion(
     try:
         # If session_id is missing or empty, create a new one.
         if not request.session_id or not request.session_id.strip():
-            from services.session_service import SessionService
             new_session = await SessionService.create_session(db_session=db)
             request.session_id = str(new_session.id)
             logger.info(f"[create_chat_completion] session_id was empty. Created new session: {request.session_id}")
     
-        # Check messages properly before proceeding
+        # Ensure messages exist
         if not request.messages or len(request.messages) == 0:
             logger.debug(f"[create_chat_completion] Incoming request body: {request.dict()}")
-            if not request.messages or len(request.messages) == 0:
-                # Auto-generate a basic user message if it's missing
-                request.messages = [{"role": "user", "content": "(No user message provided)"}]
-                logger.warning("[create_chat_completion] No messages provided. Using placeholder message.")
+            request.messages = [{"role": "user", "content": "(No user message provided)"}]
+            logger.warning("[create_chat_completion] No messages provided. Using placeholder message.")
 
         model_name = request.model or "o1"
 
@@ -577,16 +570,15 @@ async def create_chat_completion(
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 
-        # Store user & assistant messages in the conversation table
-        temp_user_dict = request.messages[-1]  # type: ignore
+        # Store user & assistant messages
+        temp_user_dict = request.messages[-1]
         user_text = temp_user_dict.get("content", "") if isinstance(temp_user_dict, dict) else ""
         
         choices_list = response_data.get("choices", []) if isinstance(response_data, dict) else []
-        first_choice = choices_list[0] if isinstance(choices_list, list) and choices_list else {}
+        first_choice = choices_list[0] if choices_list else {}
         message_dict = first_choice.get("message", {}) if isinstance(first_choice, dict) else {}
         assistant_text = message_dict.get("content", "") if isinstance(message_dict, dict) else ""
 
-        from uuid import UUID
         user_msg = Conversation(
             session_id=UUID(request.session_id),
             user_id=current_user.id if current_user else None,
@@ -609,7 +601,7 @@ async def create_chat_completion(
         raise exc
     except Exception as exc:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 # -------------------------------------------------------------------------
@@ -631,8 +623,8 @@ async def chat_sse(  # noqa: C901
 
     try:
         session_id = UUID(header_session_id)
-    except ValueError:
-        raise HTTPException(status_code=422, detail="Invalid session ID format")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="Invalid session ID format") from exc
 
     # Explicitly validate that 'model' and 'message' were provided
     if not model or not message:
@@ -640,9 +632,7 @@ async def chat_sse(  # noqa: C901
             status_code=400,
             detail="Missing required arguments: 'message' and 'model' must be non-empty."
         )
-    """
-    Stream chat completions using Server-Sent Events (SSE).
-    """
+
     logger.info(f"SSE streaming request: model={model}, session_id={session_id}")
     sentry_sdk.set_tag("model", model)
     sentry_sdk.set_tag("session_id", str(session_id))
@@ -669,7 +659,7 @@ async def chat_sse(  # noqa: C901
         await SSE_SEMAPHORE.acquire()
 
     try:
-        # Validate session using the SessionService
+        # Validate session
         session_db = await SessionService.validate_session(
             session_id=session_id,
             db_session=db,
@@ -677,27 +667,25 @@ async def chat_sse(  # noqa: C901
         )
         
         if not session_db:
-            # Automatically create a session if the provided session_id doesn't exist
+            # Automatically create a session if not found
             logger.info(f"Session {session_id} not found, creating a new session")
             session_db = await SessionService.create_session(db_session=db)
             
-            # Record that we created a session
             sentry_sdk.set_tag("session_auto_created", "true")
             session_info = {
                 "id": str(session_db.id),
-                "created_at": session_db.created_at.isoformat() if session_db.created_at is not None else None,  # type: ignore
-                "expires_at": session_db.expires_at.isoformat() if session_db.expires_at is not None else None,  # type: ignore
+                "created_at": session_db.created_at.isoformat() if session_db.created_at else None,
+                "expires_at": session_db.expires_at.isoformat() if session_db.expires_at else None,
             }
             logger.info(f"Automatically created new Session: {session_info}")
             
-            # Update the model for this session
+            # Update model for this session
             await SessionService.switch_model(
                 session_id=str(session_db.id),
                 new_model=model,
                 db_session=db
             )
 
-        # Retrieve the correct client
         client_wrapper = await get_model_client_dependency(model)
         if client_wrapper.get("error"):
             raise HTTPException(
@@ -711,7 +699,6 @@ async def chat_sse(  # noqa: C901
 
         logger.info(f"Initiating SSE with model={model}")
 
-        # Return streaming response
         return StreamingResponse(
             generate_stream_chunks(
                 request=request,
@@ -734,7 +721,7 @@ async def chat_sse(  # noqa: C901
         sentry_sdk.capture_exception(exc)
         if isinstance(exc, HTTPException):
             raise exc
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     finally:
         if is_deepseek_model(model):
             SSE_SEMAPHORE.release()
@@ -760,28 +747,24 @@ async def generate_stream_chunks(  # noqa: C901
         # Initialize model parameters
         params = {
             "messages": [{"role": "user", "content": message}],
-            "stream": True  # Enable streaming
+            "stream": True
         }
         
-        # Add model-specific settings
         if is_deepseek:
-            params["max_tokens"] = 131072  # type: ignore
-            params["temperature"] = 0.5  # type: ignore
-            params["model"] = model_name  # type: ignore
-            params["headers"] = {  # type: ignore
+            params["max_tokens"] = DEEPSEEK_R1_DEFAULT_MAX_TOKENS
+            params["temperature"] = 0.5
+            params["model"] = model_name
+            params["headers"] = {
                 "x-ms-thinking-format": "html",
                 "x-ms-streaming-version": "2024-05-01-preview"
             }
             
-            # Log what we're about to call
             logger.info(f"Calling DeepSeek client.complete with params: {params}")
             
-            # For DeepSeek, use complete() directly and iterate over the response
             try:
                 stream_response = await client.complete(**params)
                 logger.info("DeepSeek stream_response initiated successfully")
 
-                # Iterate over the response chunks
                 async for chunk in stream_response:
                     if await request.is_disconnected():
                         logger.info("Client disconnected, stopping stream")
@@ -799,31 +782,35 @@ async def generate_stream_chunks(  # noqa: C901
             except Exception as model_error:
                 logger.exception(f"Error in DeepSeek client.complete: {model_error}")
                 yield f"data: {json.dumps({'error': str(model_error)})}\n\n"
-                # Fall back to a simple response
                 yield f"data: {json.dumps({'text': 'Error generating streaming response. Please try again.'})}\n\n"
                 
         elif is_o_series:
-            # Build separate call kwargs for O-series approach
-            messages_for_vision = params["messages"] if isinstance(params["messages"], list) else []
+            # O-series approach
+            messages_for_vision = params["messages"]
             try:
                 vision_out = await process_vision_messages(messages_for_vision)
                 if not isinstance(vision_out, list):
                     vision_out = []
-            except ValueError as e:
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                vision_out.insert(0, {
+                    "role": "developer",
+                    "content": "You are a helpful assistant."
+                })
+            except ValueError as exc:
+                yield f"data: {json.dumps({'error': str(exc)})}\n\n"
                 return
-        
+
             call_kwargs = {
                 "model": model_name,
                 "messages": vision_out,
-                "max_tokens": O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
+                "max_completion_tokens": O_SERIES_DEFAULT_MAX_COMPLETION_TOKENS,
                 "stream": True,
+                "reasoning_effort": reasoning_effort,
                 "headers": {
                     "x-ms-vision": "enable",
                     "x-ms-image-detail": "auto"
                 }
             }
-        
+
             stream_response = await client.chat.completions.create(**call_kwargs)
             async for chunk in stream_response:
                 if await request.is_disconnected():
@@ -863,7 +850,10 @@ async def generate_stream_chunks(  # noqa: C901
         usage_data = {
             "prompt_tokens": count_tokens(message, model_name),
             "completion_tokens": count_tokens(full_content, model_name),
-            "total_tokens": count_tokens(message, model_name) + count_tokens(full_content, model_name)
+            "total_tokens": (
+                count_tokens(message, model_name)
+                + count_tokens(full_content, model_name)
+            )
         }
         
         yield f"event: complete\ndata: {json.dumps(usage_data)}\n\n"
@@ -882,18 +872,3 @@ async def generate_stream_chunks(  # noqa: C901
     except Exception as exc:
         logger.exception(f"Error in generate_stream_chunks: {exc}")
         yield f"data: {json.dumps({'error': str(exc)})}\n\n"
-
-
-async def _model_chunks_async(stream_response):
-    """
-    Helper to yield chunks in async form.
-    The azure-ai-inference ChatCompletionsClient returns an async iterator if stream=True.
-    """
-    if hasattr(stream_response, "__aiter__"):
-        async for chunk in stream_response:
-            yield chunk
-    else:
-        # Fallback if the response is not async for some reason
-        for chunk in stream_response:
-            yield chunk
-# End of file
