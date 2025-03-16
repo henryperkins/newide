@@ -15,173 +15,93 @@ from services.tracing_utils import trace_function, trace_block, add_breadcrumb
 logger = get_logger(__name__)
 
 class SessionService:
-    """
-    Unified service for session management.
-
-    This service centralizes all session-related operations including:
-    - Creation and validation
-    - Session expiration management
-    - User ownership enforcement
-    - Model association
-    - Rate limiting
-    """
-
+	
     @staticmethod
     async def create_session(db_session: AsyncSession, user_id: Optional[str] = None) -> Session:
-        """
-        Create a new session with optional user ownership.
-
-        Args:
-            db_session: Database session
-            user_id: Optional ID of the user who owns this session
-
-        Returns:
-            Newly created Session object
-
-        Raises:
-            HTTPException: If rate limit is exceeded or other errors occur
-        """
-        # Start a new Sentry transaction for the entire session creation flow
-        transaction = sentry_sdk.start_transaction(
-            name="create_session",
-            op="session.create"
-        )
+        transaction = sentry_sdk.start_transaction(name="create_session", op="session.create")
         start_time = time.time()
 
         try:
             logger.info("Starting session creation")
-            sentry_sdk.add_breadcrumb(
-                category="session",
-                message="Starting session creation",
-                level="info"
-            )
+            sentry_sdk.add_breadcrumb(category="session", message="Starting session creation", level="info")
 
-            # Sub-span for rate-limiting check
-            with transaction.start_child(op="session.rate_limit_check", description="Check Rate Limits") as rate_span:
-                rate_start = time.time()
-                
-                # Count how many sessions were created in the last minute
-                one_minute_ago = datetime.utcnow() - timedelta(minutes=1)
-                stmt = select(func.count()).select_from(Session).where(Session.created_at >= one_minute_ago)
-                result = await db_session.execute(stmt)
-                recent_sessions_count = result.scalar_one()
+            # Rate limiting check
+            with transaction.start_child(op="session.rate_limit_check") as rate_span:
+                one_minute_ago = datetime.now(timezone.utc) - timedelta(minutes=1)
+                session_count_stmt = select(func.count(Session.id)).where(Session.created_at >= one_minute_ago)
+                session_count_result = await db_session.execute(session_count_stmt)
+                recent_session_count = session_count_result.scalar_one()
 
-                rate_span.set_data("recent_sessions_count", recent_sessions_count)
-                logger.info(f"Recent session count: {recent_sessions_count}")
-
-                # Rate limit: max 20 sessions per minute
-                if recent_sessions_count >= 20:
-                    rate_span.set_data("rate_limited", True)
+                if recent_session_count >= 20:
+                    rate_error_msg = "Too many sessions created. Please try again later."
                     transaction.set_data("result", "error.rate_limited")
                     transaction.set_data("error_code", 429)
-
-                    logger.warning("Rate limit exceeded for session creation")
-                    sentry_sdk.add_breadcrumb(
-                        category="session",
-                        message="Rate limit exceeded for session creation",
-                        level="warning",
-                        data={"recent_sessions_count": recent_sessions_count}
-                    )
-                    rate_span.set_data("duration_seconds", time.time() - rate_start)
-                    transaction.set_data("duration_seconds", time.time() - start_time)
                     transaction.finish()
-
+                    logger.warning(rate_error_msg)
                     raise HTTPException(
                         status_code=429,
                         detail={
                             "error": "rate_limit_exceeded",
-                            "message": "Too many sessions created. Please try again later.",
+                            "message": rate_error_msg,
                         },
-                        headers={"Retry-After": "60"}
+                        headers={"Retry-After": "60"},
                     )
 
-                rate_span.set_data("rate_limited", False)
-                rate_span.set_data("duration_seconds", time.time() - rate_start)
-
-            # Sub-span for configuration
-            with sentry_sdk.start_span(op="session.configure", description="Configure Session") as config_span:
+            with transaction.start_child(op="session.create_session") as create_span:
                 session_id = uuid.uuid4()
+                adaptive_timeout = SessionService.calculate_timeout(None)
+                expires_at = datetime.now(timezone.utc) + timedelta(minutes=adaptive_timeout)
+
                 new_session = Session(
                     id=session_id,
-                    created_at=datetime.utcnow(),
+                    created_at=datetime.now(timezone.utc),
                     last_activity=datetime.utcnow(),
-                    request_count=0
+                    expires_at=expires_at,
+                    request_count=0,
+                    user_id=user_id
                 )
 
-                adaptive_timeout = SessionService.calculate_timeout(new_session)
-                expires_at = datetime.now(timezone.utc) + timedelta(minutes=adaptive_timeout)
-                new_session.expires_at = expires_at
-
-                config_span.set_data("adaptive_timeout", adaptive_timeout)
-                config_span.set_data("session_id", str(session_id))
-                config_span.set_data("expires_at", expires_at.isoformat())
-                config_span.set_data("expires_at", expires_at.isoformat())
-
-                logger.info(f"Created new session ID: {session_id}")
-                logger.info(f"Setting expires_at to: {expires_at}")
-
-            # Sub-span for persisting the session
-            with sentry_sdk.start_span(op="session.persist", description="Persist Session") as persist_span:
-                persist_start = time.time()
-
                 db_session.add(new_session)
-                await db_session.commit()
-                await db_session.refresh(new_session)
 
+            with transaction.start_child(op="session.persist") as persist_span:
                 if user_id:
-                    try:
-                        metadata = {"owner_id": str(user_id)}
-                        await db_session.execute(
-                            update(Session)
-                            .where(Session.id == session_id)
-                            .values(session_metadata=metadata)
-                        )
-                        persist_span.set_data("owner_id", str(user_id))
-                        logger.info(f"Associating session with user: {user_id}")
-                    except Exception as e:
-                        logger.warning(f"Error setting session metadata: {str(e)}")
+                    new_session.session_metadata = {"owner": user_id}
+                    persist_span.set_data("owner_id", str(user_id))
 
                 await db_session.commit()
                 await db_session.refresh(new_session)
-                persist_span.set_data("duration_seconds", time.time() - persist_start)
-                logger.info(f"Session {session_id} committed to DB successfully")
 
-            transaction.set_data("result", "success")
+            transaction.set_status("ok")
             transaction.set_data("session_id", str(session_id))
             transaction.set_data("expires_at", expires_at.isoformat())
-            transaction.set_data("duration_seconds", time.time() - start_time)
-
             sentry_sdk.add_breadcrumb(
                 category="session",
                 message="Session created successfully",
                 level="info",
                 data={"session_id": str(session_id)}
             )
-            sentry_sdk.set_tag("session_id", str(session_id))
-
-            transaction.set_status("ok")
-            transaction.finish()
 
             return new_session
 
-        except Exception as e:
-            transaction.set_data("result", "error")
-            transaction.set_data("error.type", e.__class__.__name__)
-            transaction.set_data("error.message", str(e))
+        except HTTPException as http_exc:
+            await db_session.rollback()
+            transaction.set_status(f"error.http_{http_exc.status_code}")
+            sentry_sdk.capture_exception(http_exc)
+            raise http_exc
 
-            logger.error(f"Error in create_session: {str(e)}", exc_info=True)
-            sentry_sdk.capture_exception(e)
-            sentry_sdk.add_breadcrumb(
-                category="session",
-                message="Session creation failed",
-                level="error",
-                data={"error": str(e)}
-            )
+        except Exception as e:
+            await db_session.rollback()
             transaction.set_status("internal_error")
+            sentry_sdk.capture_exception(e)
+            logger.error(f"Unexpected error during session creation: {str(e)}")
+            raise HTTPException(status_code=500, detail="Internal server error during session creation.")
+
+        finally:
+            duration = time.time() - start_time
+            transaction.set_data("duration_seconds", duration)
             transaction.finish()
 
-            raise
-
+			
     @classmethod
     async def delete_session(cls, session_id: str, db_session: AsyncSession) -> None:
         """
